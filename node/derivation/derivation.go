@@ -63,6 +63,7 @@ type Derivation struct {
 	pollInterval        time.Duration
 	logProgressInterval time.Duration
 	stop                chan struct{}
+	halted              bool // set when an unrecoverable mismatch is detected but rollback is not yet implemented
 
 	// geth upgrade config (fetched once at startup)
 	switchTime uint64
@@ -214,6 +215,11 @@ func (d *Derivation) Stop() {
 }
 
 func (d *Derivation) derivationBlock(ctx context.Context) {
+	if d.halted {
+		d.logger.Error("derivation halted due to unrecoverable batch mismatch, manual intervention required")
+		return
+	}
+
 	// Step 1: Check for L1 reorg (only meaningful when not using finalized)
 	if d.confirmations != rpc.FinalizedBlockNumber {
 		reorgAt, err := d.detectReorg(ctx)
@@ -308,7 +314,9 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 
 			rollbackTarget := batchInfo.firstBlockNumber - 1
 			if err := d.rollbackLocalChain(rollbackTarget); err != nil {
-				d.logger.Error("rollback local chain failed", "target", rollbackTarget, "error", err)
+				d.logger.Error("rollback failed, halting derivation to prevent infinite retry",
+					"target", rollbackTarget, "batchIndex", batchInfo.batchIndex, "error", err)
+				d.halted = true
 				return
 			}
 
@@ -321,8 +329,9 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 
 			// Verify again after re-derive
 			if err := d.verifyBatchRoots(batchInfo, lastHeader); err != nil {
-				d.logger.Error("CRITICAL: batch roots still mismatch after rollback and re-derive, manual intervention required",
+				d.logger.Error("CRITICAL: batch roots still mismatch after rollback and re-derive, halting derivation",
 					"batchIndex", batchInfo.batchIndex, "error", err)
+				d.halted = true
 				return
 			}
 			d.logger.Info("rollback and re-derive succeeded", "batchIndex", batchInfo.batchIndex)
@@ -347,6 +356,11 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 
 // detectReorg checks recent L1 blocks for hash mismatches indicating a reorg.
 // Returns the L1 height where reorg was first detected, or nil if no reorg.
+//
+// Optimization: checks the newest saved block first. If it matches, there is
+// no reorg (1 RPC call in the common case). Only when the newest block
+// mismatches does it do a full oldest-to-newest scan to find the earliest
+// divergence point.
 func (d *Derivation) detectReorg(ctx context.Context) (*uint64, error) {
 	latestDerivation := d.db.ReadLatestDerivationL1Height()
 	if latestDerivation == nil {
@@ -363,7 +377,17 @@ func (d *Derivation) detectReorg(ctx context.Context) (*uint64, error) {
 		return nil, nil
 	}
 
-	// Check from oldest to newest to find the earliest divergence point
+	// Fast path: check the newest block first. If it matches, no reorg occurred.
+	newest := savedBlocks[len(savedBlocks)-1]
+	newestHeader, err := d.l1Client.HeaderByNumber(ctx, big.NewInt(int64(newest.Number)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get L1 header at %d: %w", newest.Number, err)
+	}
+	if newestHeader.Hash() == common.BytesToHash(newest.Hash[:]) {
+		return nil, nil
+	}
+
+	// Slow path: reorg detected. Scan oldest-to-newest to find the earliest divergence.
 	for i := 0; i < len(savedBlocks); i++ {
 		block := savedBlocks[i]
 		header, err := d.l1Client.HeaderByNumber(ctx, big.NewInt(int64(block.Number)))
@@ -472,11 +496,18 @@ func (d *Derivation) verifyBlockContext(localHeader *eth.Header, blockData *Bloc
 		return fmt.Errorf("gasLimit mismatch at block %d: local=%d, batch=%d",
 			blockData.Number, localHeader.GasLimit, blockData.GasLimit)
 	}
-	if blockData.BaseFee != nil && localHeader.BaseFee != nil {
+	switch {
+	case blockData.BaseFee != nil && localHeader.BaseFee != nil:
 		if localHeader.BaseFee.Cmp(blockData.BaseFee) != 0 {
 			return fmt.Errorf("baseFee mismatch at block %d: local=%s, batch=%s",
 				blockData.Number, localHeader.BaseFee.String(), blockData.BaseFee.String())
 		}
+	case blockData.BaseFee == nil && localHeader.BaseFee == nil:
+		// Both nil — pre-EIP-1559 or legacy batch format, OK.
+	default:
+		// One side has BaseFee, the other doesn't — structural inconsistency.
+		return fmt.Errorf("baseFee nil mismatch at block %d: local=%v, batch=%v",
+			blockData.Number, localHeader.BaseFee, blockData.BaseFee)
 	}
 	// Batch internal consistency check: txsNum in the block context should match the
 	// actual number of transactions assembled in SafeL2Data (L1 messages + L2 txs).
@@ -803,12 +834,11 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 					"blockNumber", blockData.Number, "error", err)
 				d.metrics.IncBlockMismatchCount()
 
-				// Rollback to just before this block, then re-execute from batch data
 				rollbackTarget := blockData.SafeL2Data.Number - 1
 				if err := d.rollbackLocalChain(rollbackTarget); err != nil {
-					return nil, fmt.Errorf("rollback to %d failed: %v", rollbackTarget, err)
+					d.halted = true
+					return nil, fmt.Errorf("rollback to %d failed (derivation halted): %v", rollbackTarget, err)
 				}
-				// Fall through to NewSafeL2Block below to re-execute
 			} else {
 				d.logger.Info("block verified against L1 batch data",
 					"blockNumber", blockData.Number)

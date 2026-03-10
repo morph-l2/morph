@@ -31,7 +31,7 @@ When `confirmations` is not `finalized` (i.e. using `latest` or `safe`), each de
 
 **New DB layer** (`node/db/`):
 
-- `DerivationL1Block` struct — stores `{Number, Hash, BatchIndex, L2EndBlock}` per L1 block
+- `DerivationL1Block` struct — stores `{Number, Hash}` per L1 block
 - `WriteDerivationL1Block` / `ReadDerivationL1Block` / `ReadDerivationL1BlockRange` / `DeleteDerivationL1BlocksFrom`
 - DB key prefix: `derivL1Block` + uint64 big-endian height
 
