@@ -115,6 +115,7 @@ After derive(batchInfo) completes:
 | `morphnode_derivation_l1_reorg_detected_total` | Counter | L1 reorg detection count |
 | `morphnode_derivation_l2_rollback_total` | Counter | L2 rollbacks triggered by batch mismatch |
 | `morphnode_derivation_block_mismatch_total` | Counter | Block-level context mismatches |
+| `morphnode_derivation_halted` | Gauge | Set to 1 when derivation halts due to unrecoverable batch mismatch (alert on this) |
 
 ## Modified Files
 

@@ -331,6 +331,10 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				d.logger.Error("re-derive after rollback failed", "error", err)
 				return
 			}
+			if lastHeader == nil {
+				d.logger.Error("re-derive returned nil header after rollback", "batchIndex", batchInfo.batchIndex)
+				return
+			}
 
 			// Verify again after re-derive
 			if err := d.verifyBatchRoots(batchInfo, lastHeader); err != nil {
