@@ -25,9 +25,9 @@ import (
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
 	nodecommon "morph-l2/node/common"
+	"morph-l2/node/db"
 	"morph-l2/node/sync"
 	"morph-l2/node/types"
-	"morph-l2/node/validator"
 )
 
 var (
@@ -42,7 +42,6 @@ type Derivation struct {
 	RollupContractAddress common.Address
 	confirmations         rpc.BlockNumber
 	l2Client              *types.RetryableClient
-	validator             *validator.Validator
 	logger                tmlog.Logger
 	rollup                *bindings.Rollup
 	metrics               *Metrics
@@ -60,6 +59,7 @@ type Derivation struct {
 	startHeight         uint64
 	baseHeight          uint64
 	fetchBlockRange     uint64
+	reorgCheckDepth     uint64
 	pollInterval        time.Duration
 	logProgressInterval time.Duration
 	stop                chan struct{}
@@ -76,7 +76,7 @@ type DeployContractBackend interface {
 	ethereum.TransactionReader
 }
 
-func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, db Database, validator *validator.Validator, rollup *bindings.Rollup, logger tmlog.Logger) (*Derivation, error) {
+func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, db Database, rollup *bindings.Rollup, logger tmlog.Logger) (*Derivation, error) {
 	l1Client, err := ethclient.Dial(cfg.L1.Addr)
 	if err != nil {
 		return nil, err
@@ -152,7 +152,6 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		db:                    db,
 		l1Client:              l1Client,
 		syncer:                syncer,
-		validator:             validator,
 		rollup:                rollup,
 		rollupABI:             rollupAbi,
 		legacyRollupABI:       legacyRollupAbi,
@@ -166,6 +165,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		startHeight:           cfg.StartHeight,
 		baseHeight:            cfg.BaseHeight,
 		fetchBlockRange:       cfg.FetchBlockRange,
+		reorgCheckDepth:       cfg.ReorgCheckDepth,
 		pollInterval:          cfg.PollInterval,
 		logProgressInterval:   cfg.LogProgressInterval,
 		metrics:               metrics,
@@ -214,6 +214,24 @@ func (d *Derivation) Stop() {
 }
 
 func (d *Derivation) derivationBlock(ctx context.Context) {
+	// Step 1: Check for L1 reorg (only meaningful when not using finalized)
+	if d.confirmations != rpc.FinalizedBlockNumber {
+		reorgAt, err := d.detectReorg(ctx)
+		if err != nil {
+			d.logger.Error("reorg detection failed", "err", err)
+			return
+		}
+		if reorgAt != nil {
+			d.logger.Error("L1 reorg detected, invoking reorg handler", "reorgAtL1Height", *reorgAt)
+			d.metrics.IncReorgCount()
+			if err := d.handleL1Reorg(*reorgAt); err != nil {
+				d.logger.Error("handle L1 reorg failed", "err", err)
+				return
+			}
+		}
+	}
+
+	// Step 2: Determine L1 scan range
 	latestDerivation := d.db.ReadLatestDerivationL1Height()
 	latest, err := d.getLatestConfirmedBlockNumber(d.ctx)
 	if err != nil {
@@ -233,7 +251,9 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 	} else if latest-start >= d.fetchBlockRange {
 		end = start + d.fetchBlockRange
 	}
-	d.logger.Info("derivation start pull rollupData form l1", "startBlock", start, "end", end)
+	d.logger.Info("derivation start pull rollupData from l1", "startBlock", start, "end", end)
+
+	// Step 3: Fetch CommitBatch logs
 	logs, err := d.fetchRollupLog(ctx, start, end)
 	if err != nil {
 		d.logger.Error("eth_getLogs failed", "err", err)
@@ -247,6 +267,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 	d.metrics.SetLatestBatchIndex(latestBatchIndex.Uint64())
 	d.logger.Info("fetched rollup tx", "txNum", len(logs), "latestBatchIndex", latestBatchIndex)
 
+	// Step 4: Process each batch
 	for _, lg := range logs {
 		batchInfo, err := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
 		if err != nil {
@@ -259,73 +280,211 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		d.logger.Info("fetch rollup transaction success", "txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
 			"l1BlockNumber", batchInfo.l1BlockNumber, "firstL2BlockNumber", batchInfo.firstBlockNumber, "lastL2BlockNumber", batchInfo.lastBlockNumber)
 
-		// derivation
+		// Derive or verify blocks
 		lastHeader, err := d.derive(batchInfo)
 		if err != nil {
 			d.logger.Error("derive blocks interrupt", "error", err)
 			return
 		}
-		// only last block of batch
+
 		d.logger.Info("batch derivation complete", "batch_index", batchInfo.batchIndex, "currentBatchEndBlock", lastHeader.Number.Uint64())
 		d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
 		d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
+
 		if lastHeader.Number.Uint64() <= d.baseHeight {
 			continue
 		}
-		withdrawalRoot, err := d.L2ToL1MessagePasser.MessageRoot(&bind.CallOpts{
-			BlockNumber: lastHeader.Number,
-		})
-		if err != nil {
-			d.logger.Error("get withdrawal root failed", "error", err)
-			return
-		}
 
-		rootMismatch := !bytes.Equal(lastHeader.Root.Bytes(), batchInfo.root.Bytes())
-		withdrawalMismatch := !bytes.Equal(withdrawalRoot[:], batchInfo.withdrawalRoot.Bytes())
+		// Verify state root and withdrawal root against L1 batch data
+		if err := d.verifyBatchRoots(batchInfo, lastHeader); err != nil {
+			d.logger.Error("batch root verification failed, attempting rollback and re-derive",
+				"batchIndex", batchInfo.batchIndex, "error", err)
+			d.metrics.SetBatchStatus(stateException)
+			d.metrics.IncRollbackCount()
 
-		if rootMismatch || withdrawalMismatch {
-			// Check if should skip validation during upgrade transition
-			// Skip if: (before switch && MPT geth) or (after switch && ZK geth)
-			skipValidation := false
-			if d.switchTime > 0 {
-				beforeSwitch := lastHeader.Time < d.switchTime
-				if (beforeSwitch && !d.useZktrie) || (!beforeSwitch && d.useZktrie) {
-					skipValidation = true
-					d.logger.Info("Root validation skipped during upgrade transition",
-						"originStateRootHash", batchInfo.root,
-						"deriveStateRootHash", lastHeader.Root.Hex(),
-						"blockTimestamp", lastHeader.Time,
-						"switchTime", d.switchTime,
-						"useZktrie", d.useZktrie,
-					)
-				}
-			}
-
-			if !skipValidation {
-				d.metrics.SetBatchStatus(stateException)
-				// TODO The challenge switch is currently on and will be turned on in the future
-				if d.validator != nil && d.validator.ChallengeEnable() {
-					if err := d.validator.ChallengeState(batchInfo.batchIndex); err != nil {
-						d.logger.Error("challenge state failed")
-						return
-					}
-				}
-				d.logger.Error("root hash or withdrawal hash is not equal",
-					"originStateRootHash", batchInfo.root,
-					"deriveStateRootHash", lastHeader.Root.Hex(),
-					"batchWithdrawalRoot", batchInfo.withdrawalRoot.Hex(),
-					"deriveWithdrawalRoot", common.BytesToHash(withdrawalRoot[:]).Hex(),
-				)
+			rollbackTarget := batchInfo.firstBlockNumber - 1
+			if err := d.rollbackLocalChain(rollbackTarget); err != nil {
+				d.logger.Error("rollback local chain failed", "target", rollbackTarget, "error", err)
 				return
 			}
+
+			// Re-derive the batch using L1 batch data as source of truth
+			lastHeader, err = d.derive(batchInfo)
+			if err != nil {
+				d.logger.Error("re-derive after rollback failed", "error", err)
+				return
+			}
+
+			// Verify again after re-derive
+			if err := d.verifyBatchRoots(batchInfo, lastHeader); err != nil {
+				d.logger.Error("CRITICAL: batch roots still mismatch after rollback and re-derive, manual intervention required",
+					"batchIndex", batchInfo.batchIndex, "error", err)
+				return
+			}
+			d.logger.Info("rollback and re-derive succeeded", "batchIndex", batchInfo.batchIndex)
 		}
+
 		d.metrics.SetBatchStatus(stateNormal)
 		d.metrics.SetL1SyncHeight(lg.BlockNumber)
 	}
 
+	// Step 5: Record L1 block hashes for reorg detection
+	d.recordL1Blocks(ctx, start, end)
+
 	d.db.WriteLatestDerivationL1Height(end)
 	d.metrics.SetL1SyncHeight(end)
 	d.logger.Info("write latest derivation l1 height success", "l1BlockNumber", end)
+}
+
+// detectReorg checks recent L1 blocks for hash mismatches indicating a reorg.
+// Returns the L1 height where reorg was first detected, or nil if no reorg.
+func (d *Derivation) detectReorg(ctx context.Context) (*uint64, error) {
+	latestDerivation := d.db.ReadLatestDerivationL1Height()
+	if latestDerivation == nil {
+		return nil, nil
+	}
+
+	checkFrom := d.startHeight
+	if *latestDerivation > d.reorgCheckDepth && (*latestDerivation-d.reorgCheckDepth) > checkFrom {
+		checkFrom = *latestDerivation - d.reorgCheckDepth
+	}
+
+	savedBlocks := d.db.ReadDerivationL1BlockRange(checkFrom, *latestDerivation)
+	if len(savedBlocks) == 0 {
+		return nil, nil
+	}
+
+	// Check from newest to oldest for earliest divergence
+	for i := len(savedBlocks) - 1; i >= 0; i-- {
+		block := savedBlocks[i]
+		header, err := d.l1Client.HeaderByNumber(ctx, big.NewInt(int64(block.Number)))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get L1 header at %d: %w", block.Number, err)
+		}
+		savedHash := common.BytesToHash(block.Hash[:])
+		if header.Hash() != savedHash {
+			d.logger.Error("L1 block hash mismatch detected",
+				"height", block.Number,
+				"savedHash", savedHash.Hex(),
+				"currentHash", header.Hash().Hex(),
+			)
+			return &block.Number, nil
+		}
+	}
+	return nil, nil
+}
+
+// handleL1Reorg handles an L1 reorg detected at the given L1 height.
+// It only cleans up derivation DB state and resets the derivation L1 height
+// so the next derivation loop re-processes from the reorg point.
+//
+// L1 reorg does NOT directly trigger an L2 rollback — in most cases the same
+// batch tx gets re-included in a new L1 block with identical content, so L2
+// blocks remain valid. The normal derivation loop will re-fetch batches and
+// run verifyBlockContext / verifyBatchRoots; only if those comparisons fail
+// will an L2 rollback be triggered through rollbackLocalChain.
+func (d *Derivation) handleL1Reorg(reorgAtL1Height uint64) error {
+	d.logger.Info("L1 reorg detected, cleaning DB records and restarting derivation from reorg point",
+		"reorgAtL1Height", reorgAtL1Height)
+
+	d.db.DeleteDerivationL1BlocksFrom(reorgAtL1Height)
+
+	if reorgAtL1Height > d.startHeight {
+		d.db.WriteLatestDerivationL1Height(reorgAtL1Height - 1)
+	}
+
+	return nil
+}
+
+// rollbackLocalChain rolls back the local L2 chain to the specified block number.
+// This is only triggered when batch data comparison fails — i.e. the local L2 block
+// does not match the L1 batch data (block context mismatch or state root mismatch).
+// After rollback, the caller re-derives blocks using L1 batch data as source of truth.
+//
+// TODO: Implement actual rollback via geth SetHead engine API:
+//  1. Expose SetL2Head(number uint64) in go-ethereum/eth/catalyst/l2_api.go
+//  2. Add SetHead method to go-ethereum/ethclient/authclient
+//  3. Add SetHead method to node/types/retryable_client.go
+//  4. Call d.l2Client.SetHead(d.ctx, targetBlockNumber)
+func (d *Derivation) rollbackLocalChain(targetBlockNumber uint64) error {
+	d.logger.Info("L2 chain rollback not yet implemented",
+		"targetBlockNumber", targetBlockNumber)
+
+	return nil
+}
+
+// verifyBatchRoots verifies that the local state root and withdrawal root match the L1 batch data.
+func (d *Derivation) verifyBatchRoots(batchInfo *BatchInfo, lastHeader *eth.Header) error {
+	withdrawalRoot, err := d.L2ToL1MessagePasser.MessageRoot(&bind.CallOpts{
+		BlockNumber: lastHeader.Number,
+	})
+	if err != nil {
+		return fmt.Errorf("get withdrawal root failed: %w", err)
+	}
+
+	rootMismatch := !bytes.Equal(lastHeader.Root.Bytes(), batchInfo.root.Bytes())
+	withdrawalMismatch := !bytes.Equal(withdrawalRoot[:], batchInfo.withdrawalRoot.Bytes())
+
+	if rootMismatch || withdrawalMismatch {
+		// Check if should skip validation during upgrade transition
+		if d.switchTime > 0 {
+			beforeSwitch := lastHeader.Time < d.switchTime
+			if (beforeSwitch && !d.useZktrie) || (!beforeSwitch && d.useZktrie) {
+				d.logger.Info("Root validation skipped during upgrade transition",
+					"originStateRootHash", batchInfo.root,
+					"deriveStateRootHash", lastHeader.Root.Hex(),
+					"blockTimestamp", lastHeader.Time,
+					"switchTime", d.switchTime,
+					"useZktrie", d.useZktrie,
+				)
+				return nil
+			}
+		}
+		return fmt.Errorf("root mismatch: stateRoot(l1=%s, local=%s) withdrawalRoot(l1=%s, local=%s)",
+			batchInfo.root.Hex(), lastHeader.Root.Hex(),
+			batchInfo.withdrawalRoot.Hex(), common.BytesToHash(withdrawalRoot[:]).Hex())
+	}
+	return nil
+}
+
+// verifyBlockContext compares a local L2 block header against the batch block context from L1.
+func (d *Derivation) verifyBlockContext(localHeader *eth.Header, blockData *BlockContext) error {
+	if localHeader.Time != blockData.Timestamp {
+		return fmt.Errorf("timestamp mismatch at block %d: local=%d, batch=%d",
+			blockData.Number, localHeader.Time, blockData.Timestamp)
+	}
+	if localHeader.GasLimit != blockData.GasLimit {
+		return fmt.Errorf("gasLimit mismatch at block %d: local=%d, batch=%d",
+			blockData.Number, localHeader.GasLimit, blockData.GasLimit)
+	}
+	if blockData.BaseFee != nil && localHeader.BaseFee != nil {
+		if localHeader.BaseFee.Cmp(blockData.BaseFee) != 0 {
+			return fmt.Errorf("baseFee mismatch at block %d: local=%s, batch=%s",
+				blockData.Number, localHeader.BaseFee.String(), blockData.BaseFee.String())
+		}
+	}
+	return nil
+}
+
+// recordL1Blocks saves L1 block hashes for reorg detection.
+func (d *Derivation) recordL1Blocks(ctx context.Context, from, to uint64) {
+	for h := from; h <= to; h++ {
+		header, err := d.l1Client.HeaderByNumber(ctx, big.NewInt(int64(h)))
+		if err != nil {
+			d.logger.Error("failed to get L1 header for recording", "height", h, "err", err)
+			continue
+		}
+
+		var hashBytes [32]byte
+		copy(hashBytes[:], header.Hash().Bytes())
+
+		l1Block := &db.DerivationL1Block{
+			Number: h,
+			Hash:   hashBytes,
+		}
+
+		d.db.WriteDerivationL1Block(l1Block)
+	}
 }
 
 func (d *Derivation) fetchRollupLog(ctx context.Context, from, to uint64) ([]eth.Log, error) {
@@ -606,13 +765,32 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 			return nil, fmt.Errorf("get derivation geth block number error:%v", err)
 		}
 		if blockData.SafeL2Data.Number <= latestBlockNumber {
-			d.logger.Info("new L2 Data block number less than latestBlockNumber", "safeL2DataNumber", blockData.SafeL2Data.Number, "latestBlockNumber", latestBlockNumber)
-			lastHeader, err = d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(blockData.SafeL2Data.Number)))
+			// Block already exists locally - verify it matches the batch data
+			localHeader, err := d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(blockData.SafeL2Data.Number)))
 			if err != nil {
 				return nil, fmt.Errorf("query header by number error:%v", err)
 			}
-			continue
+
+			if err := d.verifyBlockContext(localHeader, blockData); err != nil {
+				d.logger.Error("block context mismatch with L1 batch data, rollback required",
+					"blockNumber", blockData.Number, "error", err)
+				d.metrics.IncBlockMismatchCount()
+
+				// Rollback to just before this block, then re-execute from batch data
+				rollbackTarget := blockData.SafeL2Data.Number - 1
+				if err := d.rollbackLocalChain(rollbackTarget); err != nil {
+					return nil, fmt.Errorf("rollback to %d failed: %v", rollbackTarget, err)
+				}
+				// Fall through to NewSafeL2Block below to re-execute
+			} else {
+				d.logger.Info("block verified against L1 batch data",
+					"blockNumber", blockData.Number)
+				lastHeader = localHeader
+				continue
+			}
 		}
+
+		// Execute the block (either new block or re-execution after rollback)
 		err = func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(60)*time.Second)
 			defer cancel()

@@ -24,7 +24,6 @@ import (
 	"morph-l2/node/sequencer/mock"
 	"morph-l2/node/sync"
 	"morph-l2/node/types"
-	"morph-l2/node/validator"
 )
 
 var keyConverterCmd = cli.Command{
@@ -94,10 +93,6 @@ func L2NodeMain(ctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create syncer, error: %v", err)
 		}
-		validatorCfg := validator.NewConfig()
-		if err := validatorCfg.SetCliContext(ctx); err != nil {
-			return fmt.Errorf("validator set cli context error: %v", err)
-		}
 		l1Client, err := ethclient.Dial(derivationCfg.L1.Addr)
 		if err != nil {
 			return fmt.Errorf("dial l1 node error:%v", err)
@@ -106,12 +101,8 @@ func L2NodeMain(ctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("NewRollup error:%v", err)
 		}
-		vt, err := validator.NewValidator(validatorCfg, rollup, nodeConfig.Logger)
-		if err != nil {
-			return fmt.Errorf("new validator client error: %v", err)
-		}
 
-		dvNode, err = derivation.NewDerivationClient(context.Background(), derivationCfg, syncer, store, vt, rollup, nodeConfig.Logger)
+		dvNode, err = derivation.NewDerivationClient(context.Background(), derivationCfg, syncer, store, rollup, nodeConfig.Logger)
 		if err != nil {
 			return fmt.Errorf("new derivation client error: %v", err)
 		}

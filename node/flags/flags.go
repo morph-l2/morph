@@ -256,6 +256,13 @@ var (
 		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
 		EnvVar: prefixEnvVar("DERIVATION_CONFIRMATIONS"),
 	}
+
+	DerivationReorgCheckDepth = cli.Uint64Flag{
+		Name:   "derivation.reorgCheckDepth",
+		Usage:  "Number of recent L1 blocks to check for reorgs (default: 64)",
+		EnvVar: prefixEnvVar("DERIVATION_REORG_CHECK_DEPTH"),
+		Value:  64,
+	}
 	// Logger
 	LogLevel = &cli.StringFlag{
 		Name:   "log.level",
@@ -364,6 +371,7 @@ var Flags = []cli.Flag{
 	DerivationLogProgressInterval,
 	DerivationFetchBlockRange,
 	DerivationConfirmations,
+	DerivationReorgCheckDepth,
 	L1BeaconAddr,
 
 	// blocktag options

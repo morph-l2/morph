@@ -18,12 +18,15 @@ const (
 )
 
 type Metrics struct {
-	L1SyncHeight     metrics.Gauge
-	RollupL2Height   metrics.Gauge
-	DeriveL2Height   metrics.Gauge
-	BatchStatus      metrics.Gauge
-	LatestBatchIndex metrics.Gauge
-	SyncedBatchIndex metrics.Gauge
+	L1SyncHeight       metrics.Gauge
+	RollupL2Height     metrics.Gauge
+	DeriveL2Height     metrics.Gauge
+	BatchStatus        metrics.Gauge
+	LatestBatchIndex   metrics.Gauge
+	SyncedBatchIndex   metrics.Gauge
+	ReorgCount         metrics.Counter
+	RollbackCount      metrics.Counter
+	BlockMismatchCount metrics.Counter
 }
 
 func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
@@ -68,6 +71,24 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Name:      "synced_batch_index",
 			Help:      "",
 		}, labels).With(labelsAndValues...),
+		ReorgCount: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "l1_reorg_detected_total",
+			Help:      "Total number of L1 reorgs detected",
+		}, labels).With(labelsAndValues...),
+		RollbackCount: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "l2_rollback_total",
+			Help:      "Total number of L2 chain rollbacks triggered by batch mismatch",
+		}, labels).With(labelsAndValues...),
+		BlockMismatchCount: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "block_mismatch_total",
+			Help:      "Total number of block context mismatches detected during verification",
+		}, labels).With(labelsAndValues...),
 	}
 }
 
@@ -93,6 +114,18 @@ func (m *Metrics) SetLatestBatchIndex(batchIndex uint64) {
 
 func (m *Metrics) SetSyncedBatchIndex(batchIndex uint64) {
 	m.SyncedBatchIndex.Set(float64(batchIndex))
+}
+
+func (m *Metrics) IncReorgCount() {
+	m.ReorgCount.Add(1)
+}
+
+func (m *Metrics) IncRollbackCount() {
+	m.RollbackCount.Add(1)
+}
+
+func (m *Metrics) IncBlockMismatchCount() {
+	m.BlockMismatchCount.Add(1)
 }
 
 func (m *Metrics) Serve(hostname string, port uint64) (*http.Server, error) {

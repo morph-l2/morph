@@ -156,6 +156,67 @@ func (s *Store) WriteSyncedL1Messages(messages []types.L1Message, latestSynced u
 	return batch.Write()
 }
 
+// DerivationL1Block stores L1 block info for reorg detection.
+type DerivationL1Block struct {
+	Number     uint64
+	Hash       [32]byte
+	BatchIndex uint64 // 0 means no batch in this block
+	L2EndBlock uint64 // last L2 block number in the batch (0 if no batch)
+}
+
+func (s *Store) WriteDerivationL1Block(block *DerivationL1Block) {
+	data, err := rlp.EncodeToBytes(block)
+	if err != nil {
+		panic(fmt.Sprintf("failed to RLP encode DerivationL1Block, err: %v", err))
+	}
+	if err := s.db.Put(DerivationL1BlockKey(block.Number), data); err != nil {
+		panic(fmt.Sprintf("failed to write DerivationL1Block, err: %v", err))
+	}
+}
+
+func (s *Store) ReadDerivationL1Block(l1Height uint64) *DerivationL1Block {
+	data, err := s.db.Get(DerivationL1BlockKey(l1Height))
+	if err != nil && !isNotFoundErr(err) {
+		panic(fmt.Sprintf("failed to read DerivationL1Block, err: %v", err))
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	var block DerivationL1Block
+	if err := rlp.DecodeBytes(data, &block); err != nil {
+		panic(fmt.Sprintf("invalid DerivationL1Block RLP, err: %v", err))
+	}
+	return &block
+}
+
+func (s *Store) ReadDerivationL1BlockRange(from, to uint64) []*DerivationL1Block {
+	var blocks []*DerivationL1Block
+	for h := from; h <= to; h++ {
+		b := s.ReadDerivationL1Block(h)
+		if b != nil {
+			blocks = append(blocks, b)
+		}
+	}
+	return blocks
+}
+
+func (s *Store) DeleteDerivationL1BlocksFrom(height uint64) {
+	batch := s.db.NewBatch()
+	for h := height; ; h++ {
+		key := DerivationL1BlockKey(h)
+		has, err := s.db.Has(key)
+		if err != nil || !has {
+			break
+		}
+		if err := batch.Delete(key); err != nil {
+			panic(fmt.Sprintf("failed to delete DerivationL1Block at %d, err: %v", h, err))
+		}
+	}
+	if err := batch.Write(); err != nil {
+		panic(fmt.Sprintf("failed to write batch delete for DerivationL1Blocks, err: %v", err))
+	}
+}
+
 func isNotFoundErr(err error) bool {
 	return err.Error() == leveldb.ErrNotFound.Error() || err.Error() == types.ErrMemoryDBNotFound.Error()
 }
