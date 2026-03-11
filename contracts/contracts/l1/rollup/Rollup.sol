@@ -369,7 +369,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
         require(rollupDelay || l1MsgQueueDelayed, "invalid timing");
 
-        _commitBatchWithBatchData(batchDataInput, batchSignatureInput,0);
+        _commitBatchWithBatchData(batchDataInput, batchSignatureInput, 0);
 
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
