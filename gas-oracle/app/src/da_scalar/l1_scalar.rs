@@ -464,8 +464,7 @@ mod tests {
 
         let l2_oracle_contract = GasPriceOracle::new(l2_oracle_address, l2_signer);
 
-        let ext_signer: ExternalSign =
-            ExternalSign::new("appid", "privkey_pem", "address", "chain", "url").unwrap();
+        let ext_signer = SignerClient::new("appid", "privkey_pem", "address", "chain", "url").unwrap();
         let mut overhead: ScalarUpdater = ScalarUpdater::new(
             l1_provider,
             l2_provider,
