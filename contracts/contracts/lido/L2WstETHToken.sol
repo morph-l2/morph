@@ -15,13 +15,13 @@ contract L2WstETHToken is MorphStandardERC20 {
     /**********
      * Errors *
      **********/
-    
+
     /// @dev Thrown when the deadline is expired.
     error ErrorExpiredDeadline();
-    
+
     /// @dev Thrown when the given signature is invalid.
     error ErrorInvalidSignature();
-    
+
     /*************
      * Constants *
      *************/
@@ -53,7 +53,7 @@ contract L2WstETHToken is MorphStandardERC20 {
 
         bytes32 hash = _hashTypedDataV4(structHash);
 
-        if (!SignatureCheckerUpgradeable.isValidSignatureNow(owner, hash, abi.encodePacked(r, s, v))){
+        if (!SignatureCheckerUpgradeable.isValidSignatureNow(owner, hash, abi.encodePacked(r, s, v))) {
             revert ErrorInvalidSignature();
         }
 

@@ -234,7 +234,7 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         } catch {
             // If call fails, use default value 18
         }
-        
+
         // Register token (isActive defaults to false)
         // Note: balanceSlot is stored as actualSlot + 1 if needBalanceSlot is true, otherwise 0
         tokenRegistry[_tokenID] = TokenInfo({
@@ -441,7 +441,7 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         // Using formula: ceil(a/b) = (a + b - 1) / b
         uint256 numerator = _ethAmount * uint256(info.scale);
         tokenAmount = (numerator + ratio - 1) / ratio;
-        
+
         if (tokenAmount == 0) revert ZeroTokenAmount();
 
         return tokenAmount;

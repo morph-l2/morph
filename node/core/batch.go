@@ -178,14 +178,14 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 		return false, err
 	}
 
-	// MPT fork: force batch points on the 1st and 2nd post-fork blocks, so the 1st post-fork block
+	// Jade fork: force batch points on the 1st and 2nd post-fork blocks, so the 1st post-fork block
 	// becomes a single-block batch: [H1, H2).
-	force, err := e.forceBatchPointForMPTFork(height, block.Timestamp, block.StateRoot, block.Hash)
+	force, err := e.forceBatchPointForJadeFork(height, block.Timestamp, block.StateRoot, block.Hash)
 	if err != nil {
 		return false, err
 	}
 	if force {
-		e.logger.Info("MPT fork: force batch point", "height", height, "timestamp", block.Timestamp)
+		e.logger.Info("Jade fork: force batch point", "height", height, "timestamp", block.Timestamp)
 		return true, nil
 	}
 
@@ -198,27 +198,27 @@ func (e *Executor) CalculateCapWithProposalBlock(currentBlockBytes []byte, curre
 	return exceeded, err
 }
 
-// forceBatchPointForMPTFork forces batch points at the 1st and 2nd block after the MPT fork time.
+// forceBatchPointForJadeFork forces batch points at the 1st and 2nd block after the Jade fork time.
 //
 // Design goals:
 // - Minimal change: only affects batch-point decision logic.
 // - Stability: CalculateCapWithProposalBlock can be called multiple times at the same height; return must be consistent.
 // - Performance: after handling (or skipping beyond) the fork boundary, no more HeaderByNumber calls are made.
-func (e *Executor) forceBatchPointForMPTFork(height uint64, blockTime uint64, stateRoot common.Hash, blockHash common.Hash) (bool, error) {
+func (e *Executor) forceBatchPointForJadeFork(height uint64, blockTime uint64, stateRoot common.Hash, blockHash common.Hash) (bool, error) {
 	// If we already decided to force at this height, keep returning true without extra RPCs.
-	if e.mptForkForceHeight == height && height != 0 {
+	if e.jadeForkForceHeight == height && height != 0 {
 		return true, nil
 	}
 	// If fork boundary is already handled and this isn't a forced height, fast exit.
-	if e.mptForkStage >= 2 {
+	if e.jadeForkStage >= 2 {
 		return false, nil
 	}
 
 	// Ensure we have fork time cached (0 means disabled).
-	if e.mptForkTime == 0 {
-		e.mptForkTime = e.l2Client.MPTForkTime()
+	if e.jadeForkTime == 0 {
+		e.jadeForkTime = e.l2Client.JadeForkTime()
 	}
-	forkTime := e.mptForkTime
+	forkTime := e.jadeForkTime
 	if forkTime == 0 || blockTime < forkTime {
 		return false, nil
 	}
@@ -234,24 +234,24 @@ func (e *Executor) forceBatchPointForMPTFork(height uint64, blockTime uint64, st
 	if parent.Time < forkTime {
 		// Log H1 (the 1st post-fork block) state root
 		// This stateRoot is intended to be used as the Rollup contract "genesis state root"
-		// when we reset/re-initialize the genesis state root during the MPT upgrade.
+		// when we reset/re-initialize the genesis state root during the Jade upgrade.
 		e.logger.Info(
-			"MPT_FORK_H1_GENESIS_STATE_ROOT",
+			"JADE_FORK_H1_GENESIS_STATE_ROOT",
 			"height", height,
 			"timestamp", blockTime,
 			"forkTime", forkTime,
 			"stateRoot", stateRoot.Hex(),
 			"blockHash", blockHash.Hex(),
 		)
-		e.mptForkStage = 1
-		e.mptForkForceHeight = height
+		e.jadeForkStage = 1
+		e.jadeForkForceHeight = height
 		return true, nil
 	}
 
 	// If parent is already post-fork, we may be at the 2nd post-fork block (H2) or later.
 	if height < 2 {
 		// We cannot be H2; mark done to avoid future calls.
-		e.mptForkStage = 2
+		e.jadeForkStage = 2
 		return false, nil
 	}
 
@@ -261,13 +261,13 @@ func (e *Executor) forceBatchPointForMPTFork(height uint64, blockTime uint64, st
 	}
 	if grandParent.Time < forkTime {
 		// This is H2 (2nd post-fork block).
-		e.mptForkStage = 2
-		e.mptForkForceHeight = height
+		e.jadeForkStage = 2
+		e.jadeForkForceHeight = height
 		return true, nil
 	}
 
 	// Beyond H2: nothing to do (can't retroactively fix). Mark done for performance.
-	e.mptForkStage = 2
+	e.jadeForkStage = 2
 	return false, nil
 }
 

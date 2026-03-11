@@ -166,7 +166,7 @@ interface IL2TokenRegistry {
      * @dev priceRatio should follow: priceRatio = tokenScale * (tokenPrice / ethPrice) * 10^(ethDecimals - tokenDecimals)
      */
     function updatePriceRatio(uint16 _tokenID, uint256 _newPrice) external;
-    
+
     /**
      * @notice Batch update price ratios
      * @param _tokenIDs Array of token IDs
@@ -258,4 +258,3 @@ interface IL2TokenRegistry {
      */
     function getSupportedTokenCount() external view returns (uint256);
 }
-

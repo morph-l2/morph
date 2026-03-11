@@ -1,6 +1,6 @@
 ################## update dependencies ####################
-ETHEREUM_SUBMODULE_COMMIT_OR_TAG := morph-v2.1.2
-ETHEREUM_TARGET_VERSION := morph-v2.1.2
+ETHEREUM_SUBMODULE_COMMIT_OR_TAG := 81fb39343fd1106e6e87ea6aa91a458f7e458e08
+ETHEREUM_TARGET_VERSION := v1.10.14-0.20260306065034-81fb39343fd1
 TENDERMINT_TARGET_VERSION := v0.3.3
 
 
@@ -87,7 +87,8 @@ fmt-sol:
 	cd $(PWD)/contracts/ && yarn prettier --write --plugin=prettier-plugin-solidity './contracts/**/*.sol'
 .PHONY: fmt-sol
 
-# go get -u github.com/client9/misspell/cmd/misspell
+# go install github.com/client9/misspell/cmd/misspell@latest
+# go install golang.org/x/tools/cmd/goimports@latest
 fmt-go:
 	go work sync
 	cd $(PWD)/bindings/ && go mod tidy

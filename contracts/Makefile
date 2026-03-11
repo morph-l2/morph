@@ -7,7 +7,7 @@ lint: lint-sol lint-go
 
 # npm install --global --save-dev solhint
 lint-sol:
-	find . -name '*.sol' | xargs solhint
+	find . -name '*.sol' | xargs npx solhint
 
 lint-go:
 	GOBIN=$(PWD)/build/bin go run ../build/lint.go
