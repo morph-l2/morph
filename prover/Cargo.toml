@@ -84,7 +84,7 @@ alloy-genesis = { version = "1.6.3", default-features = false, features = [
 ] }
 alloy-json-rpc = { version = "1.6.3", default-features = false }
 alloy-network = { version = "1.6.3", default-features = false }
-alloy-primitives = { version = "1.5.6", default-features = false, features = [
+alloy-primitives = { version = "1.5.7", default-features = false, features = [
     "sha3-keccak",
     "map-hashbrown",
 ] }

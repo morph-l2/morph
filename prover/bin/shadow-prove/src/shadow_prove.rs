@@ -200,6 +200,7 @@ where
 
             log::info!(">Starting prove state onchain, batch index = {:#?}", batch_index);
             let aggr_proof = Bytes::from(prove_result.proof_data);
+            // Dry-run via eth_call to validate the proof before sending the actual shadow tx.
             match self
                 .l1_rollup
                 .proveCommittedBatchState(batch_header.clone(), aggr_proof.clone())
@@ -207,12 +208,13 @@ where
                 .await
             {
                 Ok(_) => log::info!(
-                    "proveCommittedBatchState call success, batch index = {:#?}",
+                    "proveCommittedBatchState dry-run success, batch index = {:#?}",
                     batch_index
                 ),
                 Err(e) => {
-                    log::error!("proveCommittedBatchState call error: {:#?}", e);
+                    log::error!("proveCommittedBatchState dry-run failed: {:#?}", e);
                     METRICS.shadow_verify_result.set(2);
+                    continue;
                 }
             }
             let shadow_tx = self.l1_shadow_rollup.proveState(batch_index, aggr_proof);
