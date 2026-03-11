@@ -195,8 +195,7 @@ async fn prepare_updater(
             &sign_chain,
             &sign_url,
         )
-        .map_err(|e| anyhow!(format!("Prepare SignerClient err: {:?}", e)))
-        .unwrap();
+        .map_err(|e| anyhow!("Prepare SignerClient err: {:?}", e))?;
         Some(signer)
     } else {
         log::info!("Gas Oracle will use local signer");

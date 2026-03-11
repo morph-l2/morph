@@ -30,7 +30,7 @@ where
 {
     let contract = match call.tx.to() {
         Some(NameOrAddress::Address(addr)) => *addr,
-        _ => Address::zero(),
+        _ => return Err(anyhow!("send_transaction: contract address not set in call").into()),
     };
     let method_sig = call.function.abi_signature();
     let calldata = call.calldata();
