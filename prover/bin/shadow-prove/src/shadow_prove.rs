@@ -60,8 +60,8 @@ where
 {
     pub fn new(
         wallet_address: Address,
-        shadow_rollup_address: Address,
         rollup_address: Address,
+        shadow_rollup_address: Address,
         l1_provider: DynProvider,
         shadow_provider: DynProvider,
         wallet: P,
@@ -226,7 +226,14 @@ where
                     continue;
                 }
             };
-            let receipt = pending_tx.get_receipt().await.unwrap();
+            let receipt = match pending_tx.get_receipt().await {
+                Ok(r) => r,
+                Err(e) => {
+                    log::error!("get_receipt error: {:#?}", e);
+                    METRICS.shadow_verify_result.set(2);
+                    continue;
+                }
+            };
             if receipt.status() {
                 log::info!("tx of prove_state success, tx hash: {:?}", receipt.transaction_hash());
                 METRICS.shadow_verify_result.set(1);
