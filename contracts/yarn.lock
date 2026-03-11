@@ -1609,7 +1609,7 @@
 
 "@rari-capital/solmate@https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc":
   version "7.0.0-alpha.3"
-  resolved "git+ssh://git@github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc"
+  resolved "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc"
   integrity sha512-CNu2vqrXUIeqk9AeARJYV38VhOPPEyFSGTqdjqtQ3zco1P0jDQM7mJ3ECpc7AK0ELfsr73+ngrBqCahGN3sopg==
 
 "@resolver-engine/core@^0.3.3":
@@ -4674,7 +4674,7 @@ dotignore@~0.1.2:
 
 "ds-test@https://github.com/dapphub/ds-test.git#6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f":
   version "1.0.0"
-  resolved "git+ssh://git@github.com/dapphub/ds-test.git#6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
+  resolved "https://github.com/dapphub/ds-test.git#6da7dd8f7395f83e1fb6fa88a64ba9a030f85d4f"
   integrity sha512-/lWtOl1k0lI1gNGoQ8Cxi3+apUMdvUe1C18Ehqc2btCToIIE0f2bISarjQJcB4CZ3EM7uqHh45gJJnDJwx4YyQ==
 
 dunder-proto@^1.0.0, dunder-proto@^1.0.1:
@@ -5461,6 +5461,14 @@ eth-sig-util@3.0.0:
     tweetnacl "^1.0.0"
     tweetnacl-util "^0.15.0"
 
+eth-sig-util@^1.4.2:
+  version "1.4.2"
+  resolved "https://registry.yarnpkg.com/eth-sig-util/-/eth-sig-util-1.4.2.tgz#8d958202c7edbaae839707fba6f09ff327606210"
+  integrity sha512-iNZ576iTOGcfllftB73cPB5AN+XUQAT/T8xzsILsghXC1o8gJUqe3RHlcDqagu+biFpYQ61KQrZZJza8eRSYqw==
+  dependencies:
+    ethereumjs-abi "git+https://github.com/ethereumjs/ethereumjs-abi.git"
+    ethereumjs-util "^5.1.1"
+
 eth-tx-summary@^3.1.2:
   version "3.2.4"
   resolved "https://registry.npmjs.org/eth-tx-summary/-/eth-tx-summary-3.2.4.tgz"
@@ -5568,6 +5576,13 @@ ethereumjs-abi@0.6.8, ethereumjs-abi@^0.6.8:
   version "0.6.8"
   resolved "https://registry.npmjs.org/ethereumjs-abi/-/ethereumjs-abi-0.6.8.tgz"
   integrity sha512-Tx0r/iXI6r+lRsdvkFDlut0N08jWMnKRZ6Gkq+Nmw75lZe4e6o3EkSnkaBP5NF6+m5PTGAr9JP43N3LyeoglsA==
+  dependencies:
+    bn.js "^4.11.8"
+    ethereumjs-util "^6.0.0"
+
+"ethereumjs-abi@git+https://github.com/ethereumjs/ethereumjs-abi.git":
+  version "0.6.8"
+  resolved "git+https://github.com/ethereumjs/ethereumjs-abi.git#ee3994657fa7a427238e6ba92a84d0b529bbcde0"
   dependencies:
     bn.js "^4.11.8"
     ethereumjs-util "^6.0.0"
@@ -6157,7 +6172,7 @@ forever-agent@~0.6.1:
 
 "forge-std@https://github.com/foundry-rs/forge-std.git#46264e9788017fc74f9f58b7efa0bc6e1df6d410":
   version "1.5.2"
-  resolved "git+ssh://git@github.com/foundry-rs/forge-std.git#46264e9788017fc74f9f58b7efa0bc6e1df6d410"
+  resolved "https://github.com/foundry-rs/forge-std.git#46264e9788017fc74f9f58b7efa0bc6e1df6d410"
   integrity sha512-ETEnswhe+6M14kDjCBpAgirn1OWHfVmmVj/vm/0qHXlDB3O6edYHA5MNcQ8P1ni5zfkJXX7FPZkZVaV8Txf+YQ==
 
 form-data-encoder@1.7.1:
