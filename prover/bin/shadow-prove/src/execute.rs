@@ -185,9 +185,7 @@ mod tests {
         let mut entries: Vec<_> = std::fs::read_dir(dir)
             .unwrap_or_else(|e| panic!("Failed to read dir {dir}: {e}"))
             .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.path().extension().and_then(|s| s.to_str()) == Some("data")
-            })
+            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("data"))
             .collect();
         entries.sort_by_key(|e| e.path());
         for entry in entries {
