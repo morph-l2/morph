@@ -104,6 +104,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @dev After this period, anyone can submit batches if sequencers are offline or censoring.
     uint256 public rollupDelayPeriod;
 
+    /// @notice Store blob versioned hash per batch index. Preserved across revertBatch so recommit can reuse.
+    /// @dev Placed after rollupDelayPeriod for upgrade-safe storage layout (forward compatibility).
+    mapping(uint256 batchIndex => bytes32 blobVersionedHash) public batchBlobVersionedHashes;
+
     /**********************
      * Function Modifiers *
      **********************/
@@ -217,6 +221,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         committedBatches[_batchIndex] = _batchHash;
         batchDataStore[_batchIndex] = BatchData(block.timestamp, block.timestamp, 0, 0);
+        batchBlobVersionedHashes[_batchIndex] = BatchHeaderCodecV0.getBlobVersionedHash(memPtr);
 
         committedStateRoots[_batchIndex] = _postStateRoot;
         finalizedStateRoots[_batchIndex] = _postStateRoot;
@@ -232,20 +237,38 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput
     ) external payable override onlyActiveStaker nonReqRevert whenNotPaused {
-        // check l1msg delay - sequencer must process L1 messages when delayed
         if (
             IL1MessageQueue(messageQueue).getFirstUnfinalizedMessageEnqueueTime() + rollupDelayPeriod < block.timestamp
         ) {
             require(batchDataInput.numL1Messages > 0, "l1msg delay");
         }
         uint256 submitterBitmap = IL1Staking(l1StakingContract).getStakerBitmap(_msgSender());
-        _commitBatchWithBatchData(batchDataInput, batchSignatureInput, submitterBitmap);
+        _commitBatchWithBatchData(batchDataInput, batchSignatureInput, submitterBitmap, true);
+    }
+
+    /// @inheritdoc IRollup
+    /// @notice Commit batch state when blob hash is already stored (recommit after revert without blob).
+    function commitState(
+        BatchDataInput calldata batchDataInput,
+        BatchSignatureInput calldata batchSignatureInput
+    ) external override onlyActiveStaker nonReqRevert whenNotPaused {
+        (uint256 _batchPtr,) = _loadBatchHeader(batchDataInput.parentBatchHeader);
+        uint256 _nextBatchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr) + 1;
+        require(batchBlobVersionedHashes[_nextBatchIndex] != bytes32(0), "no stored blob hash for this batch");
+        if (
+            IL1MessageQueue(messageQueue).getFirstUnfinalizedMessageEnqueueTime() + rollupDelayPeriod < block.timestamp
+        ) {
+            require(batchDataInput.numL1Messages > 0, "l1msg delay");
+        }
+        uint256 submitterBitmap = IL1Staking(l1StakingContract).getStakerBitmap(_msgSender());
+        _commitBatchWithBatchData(batchDataInput, batchSignatureInput, submitterBitmap, false);
     }
 
     function _commitBatchWithBatchData(
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput,
-        uint256 submitterBitmap
+        uint256 submitterBitmap,
+        bool requireBlobWhenNoStoredHash
     ) internal {
         require(batchDataInput.version == 0 || batchDataInput.version == 1, "invalid version");
         require(batchDataInput.prevStateRoot != bytes32(0), "previous state root is zero");
@@ -284,7 +307,14 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         assembly {
             _batchIndex := add(_batchIndex, 1) // increase batch index
         }
-        bytes32 _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
+        // Prefer stored blob hash; when empty: commitBatch requires blob tx, commitBatchWithProof/commitState allow no blob
+        bytes32 _blobVersionedHash = batchBlobVersionedHashes[_batchIndex];
+        if (_blobVersionedHash == bytes32(0) ) {
+            if (requireBlobWhenNoStoredHash) {
+                require(blobhash(0) != bytes32(0), "blob required when no stored hash");
+            }
+            _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
+        }
 
         {
             uint256 _headerLength = BatchHeaderCodecV0.BATCH_HEADER_LENGTH;
@@ -314,6 +344,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             }
             committedBatches[_batchIndex] = BatchHeaderCodecV0.computeBatchHash(_batchPtr, _headerLength);
             committedStateRoots[_batchIndex] = batchDataInput.postStateRoot;
+            batchBlobVersionedHashes[_batchIndex] = _blobVersionedHash;
             uint256 proveRemainingTime = 0;
             if (inChallenge) {
                 // Make the batch finalize time longer than the time required for the current challenge
@@ -369,7 +400,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
         require(rollupDelay || l1MsgQueueDelayed, "invalid timing");
 
-        _commitBatchWithBatchData(batchDataInput, batchSignatureInput,0);
+        _commitBatchWithBatchData(batchDataInput, batchSignatureInput, 0, false);
 
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
@@ -617,6 +648,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         delete batchDataStore[_batchIndex - 1];
         delete committedStateRoots[_batchIndex - 1];
+        delete batchBlobVersionedHashes[_batchIndex - 1];
         delete challenges[_batchIndex - 1];
 
         emit FinalizeBatch(
