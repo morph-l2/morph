@@ -1,4 +1,6 @@
 use ethers::{
+    abi::FunctionExt,
+    contract::builders::ContractCall,
     middleware::SignerMiddleware,
     prelude::*,
     providers::{Http, Provider},
@@ -6,17 +8,33 @@ use ethers::{
     types::transaction::eip2718::TypedTransaction,
 };
 use eyre::anyhow;
+use remote_signer_client::SignerClient;
 use std::{error::Error, str::FromStr, sync::Arc};
 
-use crate::{contract_error, external_sign::ExternalSign, read_env_var};
+use crate::{contract_error, read_env_var};
 
-pub async fn send_transaction(
-    contract: Address,
-    calldata: Option<Bytes>,
+/// Send a contract call as a transaction.
+///
+/// `call` carries both the ABI method info (for extracting the method signature)
+/// and the encoded calldata. The method signature is forwarded to the remote
+/// signer so it can apply policy checks.
+pub async fn send_transaction<M, D>(
+    call: ContractCall<M, D>,
     local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
-    ext_signer: &Option<ExternalSign>,
+    ext_signer: &Option<SignerClient>,
     l2_provider: &Provider<Http>,
-) -> Result<H256, Box<dyn Error>> {
+) -> Result<H256, Box<dyn Error>>
+where
+    M: ethers::providers::Middleware,
+    D: ethers::abi::Detokenize,
+{
+    let contract = match call.tx.to() {
+        Some(NameOrAddress::Address(addr)) => *addr,
+        _ => return Err(anyhow!("send_transaction: contract address not set in call").into()),
+    };
+    let method_sig = call.function.abi_signature();
+    let calldata = call.calldata();
+
     // Estimate eip1559_fees
     let gas_data = local_signer
         .estimate_eip1559_fees(Some(eip1559_estimator))
@@ -45,7 +63,7 @@ pub async fn send_transaction(
     })?;
 
     // Sign and send
-    let signed_tx = sign_tx(&mut tx, local_signer, ext_signer)
+    let signed_tx = sign_tx(&mut tx, local_signer, ext_signer, &method_sig)
         .await
         .map_err(|e| anyhow!("sign_tx error: {}", e))?;
 
@@ -71,11 +89,12 @@ pub async fn send_transaction(
 async fn sign_tx(
     tx: &mut TypedTransaction,
     local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
-    ext_signer: &Option<ExternalSign>,
+    ext_signer: &Option<SignerClient>,
+    method_sig: &str,
 ) -> Result<Bytes, Box<dyn Error>> {
     if let Some(signer) = ext_signer {
-        log::info!("request ext sign");
-        Ok(signer.request_sign(tx).await?)
+        log::info!("request remote sign, method_sig: {}", method_sig);
+        Ok(signer.sign(tx, method_sig).await?)
     } else {
         log::info!("request local sign");
         let signature = local_signer.signer().sign_transaction(tx).await?;

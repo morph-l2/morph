@@ -1,10 +1,10 @@
 use crate::{
     abi::{gas_price_oracle_abi::GasPriceOracle, rollup_abi::Rollup},
     da_scalar::l1_scalar::ScalarUpdater,
-    external_sign::ExternalSign,
     l1_base_fee::BaseFeeUpdater,
     read_parse_env,
 };
+use remote_signer_client::SignerClient;
 use ethers::{
     prelude::*,
     providers::{Http, Provider},
@@ -182,21 +182,20 @@ async fn prepare_updater(
     let use_ext_sign: bool = read_env_var("GAS_ORACLE_EXTERNAL_SIGN", false);
 
     let ext_signer = if use_ext_sign {
-        log::info!("Gas Oracle will use external signer");
+        log::info!("Gas Oracle will use remote signer");
         let gas_oracle_appid: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_APPID");
         let privkey_pem: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_RSA_PRIV");
         let sign_address: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_ADDRESS");
         let sign_chain: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_CHAIN");
         let sign_url: String = read_parse_env("GAS_ORACLE_EXTERNAL_SIGN_URL");
-        let signer: ExternalSign = ExternalSign::new(
+        let signer = SignerClient::new(
             &gas_oracle_appid,
             &privkey_pem,
             &sign_address,
             &sign_chain,
             &sign_url,
         )
-        .map_err(|e| anyhow!(format!("Prepare ExternalSign err: {:?}", e)))
-        .unwrap();
+        .map_err(|e| anyhow!("Prepare SignerClient err: {:?}", e))?;
         Some(signer)
     } else {
         log::info!("Gas Oracle will use local signer");
