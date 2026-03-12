@@ -1,41 +1,23 @@
 //! Stateless Block Verifier primitives library.
 
-use crate::types::{tx_alt_fee::TxAltFee, TxL1Msg, TypedTransaction};
-use alloy::{
-    consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEip7702, TxEnvelope, TxLegacy},
-    eips::eip2930::AccessList,
-    primitives::{Bytes, ChainId, Signature, SignatureError, TxKind},
-};
-use std::{fmt::Debug, sync::Once};
-use zktrie::ZkMemoryDb;
+use alloy_consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEip7702, TxLegacy};
+use alloy_eips::eip2930::AccessList;
+use alloy_eips::Encodable2718;
+use alloy_primitives::{Bytes, ChainId, Signature, SignatureError, TxKind};
+use morph_primitives::{TxL1Msg, TxMorph};
+use std::fmt::Debug;
 
 /// Predeployed contracts
 pub mod predeployed;
 /// Types definition
 pub mod types;
 
-pub use alloy::{
-    consensus as alloy_consensus,
-    consensus::Transaction,
-    eips::eip7702::SignedAuthorization,
-    primitives as alloy_primitives,
-    primitives::{Address, B256, U256},
-};
-pub use zktrie as zk_trie;
-
-/// Initialize the hash scheme for zkTrie.
-pub fn init_hash_scheme() {
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
-        zktrie::init_hash_scheme_simple(|a: &[u8; 32], b: &[u8; 32], domain: &[u8; 32]| {
-            use poseidon_bn254::{hash_with_domain, Fr, PrimeField};
-            let a = Fr::from_bytes(a).into_option()?;
-            let b = Fr::from_bytes(b).into_option()?;
-            let domain = Fr::from_bytes(domain).into_option()?;
-            Some(hash_with_domain(&[a, b], domain).to_repr())
-        });
-    });
-}
+pub use alloy_consensus;
+pub use alloy_consensus::Transaction;
+pub use alloy_eips::eip7702::SignedAuthorization;
+pub use alloy_primitives;
+pub use alloy_primitives::{Address, B256, U256};
+pub use morph_primitives::MorphTxEnvelope;
 
 /// Blanket trait for block trace extensions.
 pub trait Block: Debug {
@@ -74,24 +56,18 @@ pub trait Block: Debug {
 
     /// root before
     fn root_before(&self) -> B256;
+
     /// root after
     fn root_after(&self) -> B256;
+
     /// codes
     fn codes(&self) -> impl ExactSizeIterator<Item = &[u8]>;
+
     /// start l1 queue index
     fn start_l1_queue_index(&self) -> u64;
 
     /// flatten proofs
     fn flatten_proofs(&self) -> impl Iterator<Item = (&B256, &[u8])>;
-
-    /// Update zktrie state from trace
-    #[inline]
-    fn build_zktrie_db(&self, zktrie_db: &mut ZkMemoryDb) {
-        init_hash_scheme();
-        for (_, bytes) in self.flatten_proofs() {
-            zktrie_db.add_node_bytes(bytes, None).unwrap();
-        }
-    }
 
     /// Number of l1 transactions
     #[inline]
@@ -116,26 +92,6 @@ pub trait Block: Debug {
         // 0x7e is l1 tx
         self.transactions().filter(|tx| !tx.is_l1_tx()).count() as u64
     }
-
-    /// Hash the header of the block
-    #[inline]
-    fn hash_da_header(&self, hasher: &mut impl tiny_keccak::Hasher) {
-        let num_txs = (self.num_l1_txs() + self.num_l2_txs()) as u16;
-        hasher.update(&self.number().to_be_bytes());
-        hasher.update(&self.timestamp().to::<u64>().to_be_bytes());
-        hasher
-            .update(&self.base_fee_per_gas().unwrap_or_default().to_be_bytes::<{ U256::BYTES }>());
-        hasher.update(&self.gas_limit().to::<u64>().to_be_bytes());
-        hasher.update(&num_txs.to_be_bytes());
-    }
-
-    /// Hash the l1 messages of the block
-    #[inline]
-    fn hash_l1_msg(&self, hasher: &mut impl tiny_keccak::Hasher) {
-        for tx_hash in self.transactions().filter(|tx| tx.is_l1_tx()).map(|tx| tx.tx_hash()) {
-            hasher.update(tx_hash.as_slice())
-        }
-    }
 }
 
 /// Utility trait for transaction trace
@@ -150,7 +106,10 @@ pub trait TxTrace {
     fn nonce(&self) -> u64;
 
     /// Get `gas_limit`.
-    fn gas_limit(&self) -> u128;
+    fn gas_limit(&self) -> u64;
+
+    /// Get `queue_index`.
+    fn queue_index(&self) -> Option<u64>;
 
     /// Get `gas_price`
     fn gas_price(&self) -> u128;
@@ -200,14 +159,24 @@ pub trait TxTrace {
     /// Get `fee_limit`.
     fn fee_limit(&self) -> U256;
 
-    /// Try to build a typed transaction
-    fn try_build_typed_tx(&self) -> Result<TypedTransaction, SignatureError> {
+    /// Get `sig_v`.
+    fn sig_v(&self) -> u64;
+
+    /// Try to build a envelope tx
+    fn try_build_tx_envelope(&self) -> Result<MorphTxEnvelope, SignatureError> {
         let chain_id = self.chain_id();
 
         let tx = match self.ty() {
             0x0 => {
+                fn chain_id_from_v_eip155(v: u64) -> Option<u64> {
+                    if v >= 35 {
+                        Some((v - 35) / 2)
+                    } else {
+                        None
+                    }
+                }
                 let tx = TxLegacy {
-                    chain_id: if chain_id >= 35 { Some(chain_id) } else { None },
+                    chain_id: chain_id_from_v_eip155(self.sig_v()),
                     nonce: self.nonce(),
                     gas_price: self.gas_price(),
                     gas_limit: self.gas_limit(),
@@ -216,7 +185,7 @@ pub trait TxTrace {
                     input: self.data(),
                 };
 
-                TypedTransaction::Enveloped(TxEnvelope::from(tx.into_signed(self.signature()?)))
+                MorphTxEnvelope::Legacy(tx.into_signed(self.signature()?))
             }
             0x1 => {
                 let tx = TxEip2930 {
@@ -230,7 +199,7 @@ pub trait TxTrace {
                     input: self.data(),
                 };
 
-                TypedTransaction::Enveloped(TxEnvelope::from(tx.into_signed(self.signature()?)))
+                MorphTxEnvelope::Eip2930(tx.into_signed(self.signature()?))
             }
             0x02 => {
                 let tx = TxEip1559 {
@@ -245,7 +214,7 @@ pub trait TxTrace {
                     input: self.data(),
                 };
 
-                TypedTransaction::Enveloped(TxEnvelope::from(tx.into_signed(self.signature()?)))
+                MorphTxEnvelope::Eip1559(tx.into_signed(self.signature()?))
             }
             0x04 => {
                 let tx = TxEip7702 {
@@ -254,33 +223,30 @@ pub trait TxTrace {
                     gas_limit: self.gas_limit(),
                     max_fee_per_gas: self.max_fee_per_gas(),
                     max_priority_fee_per_gas: self.max_priority_fee_per_gas(),
-                    to: self.to(),
+                    to: *self.to().to().expect("EIP-7702 transaction must have a recipient"),
                     value: self.value(),
                     access_list: self.access_list(),
                     authorization_list: self.authorization_list(),
                     input: self.data(),
                 };
-
-                TypedTransaction::Enveloped(TxEnvelope::from(tx.into_signed(self.signature()?)))
+                MorphTxEnvelope::Eip7702(tx.into_signed(self.signature()?))
             }
             0x7e => {
                 let tx = TxL1Msg {
-                    tx_hash: self.tx_hash(),
-                    from: unsafe { self.get_from_unchecked() },
-                    nonce: self.nonce(),
+                    sender: unsafe { self.get_from_unchecked() },
                     gas_limit: self.gas_limit(),
-                    to: self.to(),
+                    to: *self.to().to().expect("L1 message must have a recipient"),
                     value: self.value(),
                     input: self.data(),
+                    queue_index: self.queue_index().unwrap_or(self.nonce()),
                 };
-
-                TypedTransaction::L1Msg(tx)
+                MorphTxEnvelope::L1Msg(tx.seal())
             }
             0x7f => {
-                let tx = TxAltFee {
+                let tx = TxMorph {
                     chain_id,
                     nonce: self.nonce(),
-                    gas_limit: self.gas_limit(),
+                    gas_limit: self.gas_limit() as u128,
                     max_fee_per_gas: self.max_fee_per_gas(),
                     max_priority_fee_per_gas: self.max_priority_fee_per_gas(),
                     to: self.to(),
@@ -290,8 +256,7 @@ pub trait TxTrace {
                     fee_token_id: self.fee_token_id(),
                     fee_limit: self.fee_limit(),
                 };
-                println!("tx.self.fee_token_id: {:?}", self.fee_token_id());
-                TypedTransaction::AltFee(tx.into_signed(self.signature()?))
+                MorphTxEnvelope::Morph(tx.into_signed(self.signature()?))
             }
             _ => unimplemented!("unsupported tx type: {}", self.ty()),
         };
@@ -376,7 +341,7 @@ impl<T: TxTrace> TxTrace for &T {
         (*self).nonce()
     }
 
-    fn gas_limit(&self) -> u128 {
+    fn gas_limit(&self) -> u64 {
         (*self).gas_limit()
     }
 
@@ -430,5 +395,13 @@ impl<T: TxTrace> TxTrace for &T {
 
     fn fee_limit(&self) -> U256 {
         (*self).fee_limit()
+    }
+
+    fn sig_v(&self) -> u64 {
+        (*self).sig_v()
+    }
+
+    fn queue_index(&self) -> Option<u64> {
+        (*self).queue_index()
     }
 }

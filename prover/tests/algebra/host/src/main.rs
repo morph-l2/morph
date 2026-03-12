@@ -16,7 +16,7 @@ fn main() {
     let dev_elf: &[u8] = include_bytes!("../../client/elf/riscv32im-succinct-zkvm-elf");
 
     // Setup the prover client.
-    let client = ProverClient::new();
+    let client = ProverClient::from_env();
 
     // Setup the inputs.
     let mut stdin = SP1Stdin::new();
@@ -25,7 +25,7 @@ fn main() {
     stdin.write(&data);
 
     // Execute the program in sp1-vm
-    let (public_values, execution_report) = client.execute(dev_elf, stdin.clone()).run().unwrap();
+    let (public_values, execution_report) = client.execute(dev_elf, &stdin).run().unwrap();
     println!("Program executed successfully.");
     // Record the number of cycles executed.
     println!("Number of cycles: {}", execution_report.total_instruction_count());
@@ -39,7 +39,7 @@ fn main() {
     let (pk, vk) = client.setup(dev_elf);
 
     // Generate the proof
-    let proof = client.prove(&pk, stdin).plonk().run().expect("failed to generate proof");
+    let proof = client.prove(&pk, &stdin).plonk().run().expect("failed to generate proof");
 
     let duration_mins = start.elapsed().as_secs() / 60;
     println!("Successfully generated proof!, time use: {:?} minutes", duration_mins);
