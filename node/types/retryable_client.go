@@ -54,8 +54,8 @@ type forkConfig struct {
 
 // morphExtension contains Morph-specific configuration fields
 type morphExtension struct {
-	UseZktrie   bool    `json:"useZktrie"`
-	MPTForkTime *uint64 `json:"mptForkTime,omitempty"`
+	UseZktrie    bool    `json:"useZktrie"`
+	JadeForkTime *uint64 `json:"jadeForkTime,omitempty"`
 }
 
 // GethConfig holds the configuration fetched from geth via eth_config API
@@ -105,28 +105,28 @@ func FetchGethConfig(rpcURL string, logger tmlog.Logger) (*GethConfig, error) {
 		logger.Info("Fetched useZktrie from geth", "useZktrie", config.UseZktrie)
 	}
 
-	// Try to get mptForkTime from current config
-	if resp.Current != nil && resp.Current.Morph != nil && resp.Current.Morph.MPTForkTime != nil {
-		config.SwitchTime = *resp.Current.Morph.MPTForkTime
-		logger.Info("Fetched MPT fork time from geth", "mptForkTime", config.SwitchTime, "source", "current")
+	// Try to get jadeForkTime from current config
+	if resp.Current != nil && resp.Current.Morph != nil && resp.Current.Morph.JadeForkTime != nil {
+		config.SwitchTime = *resp.Current.Morph.JadeForkTime
+		logger.Info("Fetched Jade fork time from geth", "jadeForkTime", config.SwitchTime, "source", "current")
 		return config, nil
 	}
 
 	// Fallback to next config
-	if resp.Next != nil && resp.Next.Morph != nil && resp.Next.Morph.MPTForkTime != nil {
-		config.SwitchTime = *resp.Next.Morph.MPTForkTime
-		logger.Info("Fetched MPT fork time from geth", "mptForkTime", config.SwitchTime, "source", "next")
+	if resp.Next != nil && resp.Next.Morph != nil && resp.Next.Morph.JadeForkTime != nil {
+		config.SwitchTime = *resp.Next.Morph.JadeForkTime
+		logger.Info("Fetched Jade fork time from geth", "jadeForkTime", config.SwitchTime, "source", "next")
 		return config, nil
 	}
 
 	// Fallback to last config
-	if resp.Last != nil && resp.Last.Morph != nil && resp.Last.Morph.MPTForkTime != nil {
-		config.SwitchTime = *resp.Last.Morph.MPTForkTime
-		logger.Info("Fetched MPT fork time from geth", "mptForkTime", config.SwitchTime, "source", "last")
+	if resp.Last != nil && resp.Last.Morph != nil && resp.Last.Morph.JadeForkTime != nil {
+		config.SwitchTime = *resp.Last.Morph.JadeForkTime
+		logger.Info("Fetched Jade fork time from geth", "jadeForkTime", config.SwitchTime, "source", "last")
 		return config, nil
 	}
 
-	logger.Info("MPT fork time not configured in geth, switch disabled")
+	logger.Info("Jade fork time not configured in geth, switch disabled")
 	return config, nil
 }
 
@@ -141,9 +141,9 @@ type RetryableClient struct {
 	logger         tmlog.Logger
 }
 
-// MPTForkTime returns the configured MPT fork/switch timestamp fetched from geth (eth_config).
+// JadeForkTime returns the configured Jade fork/switch timestamp fetched from geth (eth_config).
 // Note: this is a local value stored in the client; it does not perform any RPC.
-func (rc *RetryableClient) MPTForkTime() uint64 {
+func (rc *RetryableClient) JadeForkTime() uint64 {
 	return rc.switchTime
 }
 

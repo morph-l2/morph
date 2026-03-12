@@ -159,7 +159,7 @@ var (
 	RollupInterval = cli.DurationFlag{
 		Name:   "rollup_interval",
 		Usage:  "Interval for rollup",
-		Value:  500 * time.Millisecond,
+		Value:  5 * time.Second,
 		EnvVar: prefixEnvVar("ROLLUP_INTERVAL"),
 	}
 	// finalize interval
@@ -324,6 +324,13 @@ var (
 		Value:  5,
 		EnvVar: prefixEnvVar("BLOCK_NOT_INCREASED_THRESHOLD"),
 	}
+
+	// seal batch
+	SealBatch = cli.BoolFlag{
+		Name:   "seal_batch",
+		Usage:  "Enable seal batch",
+		EnvVar: prefixEnvVar("SEAL_BATCH"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -382,6 +389,8 @@ var optionalFlags = []cli.Flag{
 	EventIndexStepFlag,
 	LeveldbPathNameFlag,
 	BlockNotIncreasedThreshold,
+
+	SealBatch,
 }
 
 // Flags contains the list of configuration options available to the binary.
