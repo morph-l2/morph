@@ -196,8 +196,8 @@ mod tests {
             let reader = std::io::BufReader::new(file);
             let block_input: BlockInput = serde_json::from_reader(reader)
                 .unwrap_or_else(|e| panic!("Failed to deserialize {:?}: {e}", path));
-            let batch_info = EVMVerifier::verify(vec![block_input]).unwrap();
-            println!("batch_info.post_state_root: {:?}", batch_info.post_state_root);
+            let _ = EVMVerifier::verify(vec![block_input.clone()]).unwrap();
+            println!("block_{:?} verify success", block_input.current_block.header.number);
         }
     }
 

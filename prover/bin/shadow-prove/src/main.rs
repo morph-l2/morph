@@ -6,7 +6,10 @@ use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use alloy_signer_local::PrivateKeySigner;
 use axum::{routing::get, Router};
 use dotenv::dotenv;
-use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, WriteMode};
+use flexi_logger::{
+    filter::{LogLineFilter, LogLineWriter},
+    Cleanup, Criterion, DeferredNow, Duplicate, FileSpec, Logger, Naming, WriteMode,
+};
 use log::Record;
 use prometheus::{Encoder, TextEncoder};
 use shadow_proving::{
@@ -263,6 +266,23 @@ fn setup_logging() {
         .write_mode(WriteMode::BufferAndFlush)
         .start()
         .unwrap();
+}
+
+pub struct ShadowProvingFilter;
+
+impl LogLineFilter for ShadowProvingFilter {
+    fn write(
+        &self,
+        now: &mut DeferredNow,
+        record: &log::Record,
+        log_line_writer: &dyn LogLineWriter,
+    ) -> std::io::Result<()> {
+        let target = record.target();
+        if !(record.level() == log::Level::Info && target.contains("alloy_transport_http")) {
+            log_line_writer.write(now, record)?;
+        }
+        Ok(())
+    }
 }
 
 fn log_format(
