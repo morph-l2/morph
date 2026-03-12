@@ -4232,7 +4232,7 @@ dependencies = [
 [[package]]
 name = "morph-chainspec"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=deps/downgrade-reth-v1.10.0#10b2bbbea0f25c795cadca014ea6ea2ddc71668b"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=release/0.1.x#af311e3f0d7f1f1e56ddac780d40e96526b193e2"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -4246,7 +4246,7 @@ dependencies = [
  "morph-primitives",
  "reth-chainspec",
  "reth-network-peers",
- "reth-primitives-traits 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
+ "reth-primitives-traits",
  "serde",
  "serde_json",
 ]
@@ -4254,7 +4254,7 @@ dependencies = [
 [[package]]
 name = "morph-primitives"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=deps/downgrade-reth-v1.10.0#10b2bbbea0f25c795cadca014ea6ea2ddc71668b"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=release/0.1.x#af311e3f0d7f1f1e56ddac780d40e96526b193e2"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -4262,7 +4262,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "reth-ethereum-primitives",
- "reth-primitives-traits 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
+ "reth-primitives-traits",
  "serde",
 ]
 
@@ -4292,7 +4292,7 @@ dependencies = [
 [[package]]
 name = "morph-revm"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=deps/downgrade-reth-v1.10.0#10b2bbbea0f25c795cadca014ea6ea2ddc71668b"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=release/0.1.x#af311e3f0d7f1f1e56ddac780d40e96526b193e2"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -4526,7 +4526,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 3.1.0",
  "proc-macro2",
  "quote",
  "syn 2.0.111",
@@ -5570,8 +5570,8 @@ dependencies = [
  "log",
  "prover-mpt",
  "prover-primitives",
- "reth-primitives-traits 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
- "reth-storage-errors 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
+ "reth-primitives-traits",
+ "reth-storage-errors",
  "reth-trie",
  "revm",
  "serde",
@@ -5661,7 +5661,7 @@ dependencies = [
  "once_cell",
  "socket2 0.6.1",
  "tracing",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5951,7 +5951,7 @@ dependencies = [
 [[package]]
 name = "reth-chainspec"
 version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.0#b25f32a977b489f9b84254c7811a2a5a25a81369"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -5964,14 +5964,14 @@ dependencies = [
  "derive_more 2.1.0",
  "reth-ethereum-forks",
  "reth-network-peers",
- "reth-primitives-traits 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
+ "reth-primitives-traits",
  "serde_json",
 ]
 
 [[package]]
 name = "reth-codecs"
 version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.0#b25f32a977b489f9b84254c7811a2a5a25a81369"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -5989,7 +5989,7 @@ dependencies = [
 [[package]]
 name = "reth-codecs-derive"
 version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.0#b25f32a977b489f9b84254c7811a2a5a25a81369"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5999,19 +5999,19 @@ dependencies = [
 [[package]]
 name = "reth-db-models"
 version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.0#b25f32a977b489f9b84254c7811a2a5a25a81369"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
  "bytes",
- "reth-primitives-traits 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
+ "reth-primitives-traits",
  "serde",
 ]
 
 [[package]]
 name = "reth-ethereum-forks"
 version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.0#b25f32a977b489f9b84254c7811a2a5a25a81369"
 dependencies = [
  "alloy-eip2124",
  "alloy-hardforks",
@@ -6024,7 +6024,7 @@ dependencies = [
 [[package]]
 name = "reth-ethereum-primitives"
 version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.0#b25f32a977b489f9b84254c7811a2a5a25a81369"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6033,7 +6033,7 @@ dependencies = [
  "alloy-rpc-types-eth",
  "alloy-serde",
  "reth-codecs",
- "reth-primitives-traits 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
+ "reth-primitives-traits",
  "reth-zstd-compressors",
  "serde",
  "serde_with",
@@ -6042,7 +6042,7 @@ dependencies = [
 [[package]]
 name = "reth-evm"
 version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.0#b25f32a977b489f9b84254c7811a2a5a25a81369"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6052,12 +6052,12 @@ dependencies = [
  "derive_more 2.1.0",
  "futures-util",
  "rayon",
- "reth-execution-errors 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
+ "reth-execution-errors",
  "reth-execution-types",
- "reth-primitives-traits 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
+ "reth-primitives-traits",
  "reth-storage-api",
- "reth-storage-errors 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
- "reth-trie-common 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
+ "reth-storage-errors",
+ "reth-trie-common",
  "revm",
 ]
 
@@ -6070,27 +6070,14 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "nybbles",
- "reth-storage-errors 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "reth-execution-errors"
-version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
-dependencies = [
- "alloy-evm",
- "alloy-primitives",
- "alloy-rlp",
- "nybbles",
- "reth-storage-errors 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
+ "reth-storage-errors",
  "thiserror 2.0.17",
 ]
 
 [[package]]
 name = "reth-execution-types"
 version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.0#b25f32a977b489f9b84254c7811a2a5a25a81369"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6098,8 +6085,8 @@ dependencies = [
  "alloy-primitives",
  "derive_more 2.1.0",
  "reth-ethereum-primitives",
- "reth-primitives-traits 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
- "reth-trie-common 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
+ "reth-primitives-traits",
+ "reth-trie-common",
  "revm",
  "serde",
  "serde_with",
@@ -6108,7 +6095,7 @@ dependencies = [
 [[package]]
 name = "reth-network-peers"
 version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.0#b25f32a977b489f9b84254c7811a2a5a25a81369"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -6128,27 +6115,6 @@ dependencies = [
  "alloy-genesis",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-trie",
- "auto_impl",
- "bytes",
- "derive_more 2.1.0",
- "once_cell",
- "revm-bytecode",
- "revm-primitives",
- "revm-state",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "reth-primitives-traits"
-version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
-dependencies = [
- "alloy-consensus",
- "alloy-eips",
- "alloy-genesis",
- "alloy-primitives",
- "alloy-rlp",
  "alloy-rpc-types-eth",
  "alloy-trie",
  "auto_impl",
@@ -6173,17 +6139,6 @@ source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.0#b25f32a977b489f9b8
 dependencies = [
  "alloy-primitives",
  "derive_more 2.1.0",
- "strum 0.27.2",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "reth-prune-types"
-version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
-dependencies = [
- "alloy-primitives",
- "derive_more 2.1.0",
  "serde",
  "strum 0.27.2",
  "thiserror 2.0.17",
@@ -6193,19 +6148,10 @@ dependencies = [
 name = "reth-stages-types"
 version = "1.10.0"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.0#b25f32a977b489f9b84254c7811a2a5a25a81369"
-dependencies = [
- "alloy-primitives",
- "reth-trie-common 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
-]
-
-[[package]]
-name = "reth-stages-types"
-version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
 dependencies = [
  "alloy-primitives",
  "bytes",
- "reth-trie-common 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
+ "reth-trie-common",
  "serde",
 ]
 
@@ -6213,18 +6159,6 @@ dependencies = [
 name = "reth-static-file-types"
 version = "1.10.0"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.0#b25f32a977b489f9b84254c7811a2a5a25a81369"
-dependencies = [
- "alloy-primitives",
- "derive_more 2.1.0",
- "fixed-map",
- "serde",
- "strum 0.27.2",
-]
-
-[[package]]
-name = "reth-static-file-types"
-version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
 dependencies = [
  "alloy-primitives",
  "derive_more 2.1.0",
@@ -6236,7 +6170,7 @@ dependencies = [
 [[package]]
 name = "reth-storage-api"
 version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.0#b25f32a977b489f9b84254c7811a2a5a25a81369"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6247,11 +6181,11 @@ dependencies = [
  "reth-db-models",
  "reth-ethereum-primitives",
  "reth-execution-types",
- "reth-primitives-traits 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
- "reth-prune-types 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
- "reth-stages-types 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
- "reth-storage-errors 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
- "reth-trie-common 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
+ "reth-primitives-traits",
+ "reth-prune-types",
+ "reth-stages-types",
+ "reth-storage-errors",
+ "reth-trie-common",
  "revm-database",
  "serde_json",
 ]
@@ -6265,25 +6199,9 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "derive_more 2.1.0",
- "reth-primitives-traits 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
- "reth-prune-types 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
- "reth-static-file-types 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
- "revm-database-interface",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "reth-storage-errors"
-version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
-dependencies = [
- "alloy-eips",
- "alloy-primitives",
- "alloy-rlp",
- "derive_more 2.1.0",
- "reth-primitives-traits 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
- "reth-prune-types 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
- "reth-static-file-types 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
+ "reth-primitives-traits",
+ "reth-prune-types",
+ "reth-static-file-types",
  "revm-database-interface",
  "thiserror 2.0.17",
 ]
@@ -6300,11 +6218,11 @@ dependencies = [
  "alloy-trie",
  "auto_impl",
  "itertools 0.14.0",
- "reth-execution-errors 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
- "reth-primitives-traits 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
- "reth-stages-types 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
- "reth-storage-errors 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
- "reth-trie-common 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
+ "reth-execution-errors",
+ "reth-primitives-traits",
+ "reth-stages-types",
+ "reth-storage-errors",
+ "reth-trie-common",
  "reth-trie-sparse",
  "revm-database",
  "tracing",
@@ -6318,23 +6236,6 @@ dependencies = [
  "alloy-consensus",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-trie",
- "derive_more 2.1.0",
- "itertools 0.14.0",
- "nybbles",
- "rayon",
- "reth-primitives-traits 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
- "revm-database",
-]
-
-[[package]]
-name = "reth-trie-common"
-version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
-dependencies = [
- "alloy-consensus",
- "alloy-primitives",
- "alloy-rlp",
  "alloy-rpc-types-eth",
  "alloy-serde",
  "alloy-trie",
@@ -6343,7 +6244,8 @@ dependencies = [
  "derive_more 2.1.0",
  "itertools 0.14.0",
  "nybbles",
- "reth-primitives-traits 1.10.0 (git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e)",
+ "rayon",
+ "reth-primitives-traits",
  "revm-database",
  "serde",
  "serde_with",
@@ -6358,9 +6260,9 @@ dependencies = [
  "alloy-rlp",
  "alloy-trie",
  "auto_impl",
- "reth-execution-errors 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
- "reth-primitives-traits 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
- "reth-trie-common 1.10.0 (git+https://github.com/paradigmxyz/reth?tag=v1.10.0)",
+ "reth-execution-errors",
+ "reth-primitives-traits",
+ "reth-trie-common",
  "smallvec",
  "tracing",
 ]
@@ -6368,7 +6270,7 @@ dependencies = [
 [[package]]
 name = "reth-zstd-compressors"
 version = "1.10.0"
-source = "git+https://github.com/morph-l2/reth?rev=1dd722773844d1a3c50a691dc09f6cdf8e6bd00e#1dd722773844d1a3c50a691dc09f6cdf8e6bd00e"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.0#b25f32a977b489f9b84254c7811a2a5a25a81369"
 dependencies = [
  "zstd 0.13.3",
 ]
