@@ -71,43 +71,43 @@ sha2 = "0.10.8"
 rand = "0.8"
 
 # EVM & Blockchain (Alloy, REVM, Reth)
-alloy = { version = "1.6.3", default-features = false }
+alloy = { version = "1.4.3", default-features = false }
 alloy-chains = { version = "0.2.30", default-features = false }
-alloy-consensus = { version = "1.6.3", default-features = false, features = [
+alloy-consensus = { version = "1.4.3", default-features = false, features = [
     "serde",
     "serde-bincode-compat",
 ] }
-alloy-eips = { version = "1.6.3", default-features = false }
+alloy-eips = { version = "1.4.3", default-features = false }
 alloy-evm = "0.25.1"
-alloy-genesis = { version = "1.6.3", default-features = false, features = [
+alloy-genesis = { version = "1.4.3", default-features = false, features = [
     "serde-bincode-compat",
 ] }
-alloy-json-rpc = { version = "1.6.3", default-features = false }
-alloy-network = { version = "1.6.3", default-features = false }
-alloy-primitives = { version = "1.5.7", default-features = false, features = [
+alloy-json-rpc = { version = "1.4.3", default-features = false }
+alloy-network = { version = "1.4.3", default-features = false }
+alloy-primitives = { version = "1.5.0", default-features = false, features = [
     "sha3-keccak",
     "map-hashbrown",
 ] }
-alloy-provider = { version = "1.6.3", default-features = false, features = [
+alloy-provider = { version = "1.4.3", default-features = false, features = [
     "reqwest",
     "reqwest-rustls-tls",
 ] }
-alloy-rlp = "0.3.13"
-alloy-rpc-client = { version = "1.6.3", default-features = false }
-alloy-rpc-types = { version = "1.6.3", default-features = false, features = [
+alloy-rlp = "0.3.10"
+alloy-rpc-client = { version = "1.4.3", default-features = false }
+alloy-rpc-types = { version = "1.4.3", default-features = false, features = [
     "eth",
 ] }
-alloy-rpc-types-debug = { version = "1.6.3", default-features = false }
-alloy-serde = "1.6.3"
-alloy-transport = { version = "1.6.3", default-features = false }
-alloy-transport-http = { version = "1.6.3", features = [
+alloy-rpc-types-debug = { version = "1.4.3", default-features = false }
+alloy-serde = "1.4.3"
+alloy-transport = { version = "1.4.3", default-features = false }
+alloy-transport-http = { version = "1.4.3", features = [
     "reqwest-rustls-tls",
 ], default-features = false }
-alloy-transport-ws = { version = "1.6.3" }
+alloy-transport-ws = { version = "1.4.3" }
 alloy-trie = "0.9.4"
-alloy-sol-types = { version = "1.5.6", features = ["json"] }
-alloy-contract = { version = "1.6.3", default-features = false }
-alloy-signer-local = { version = "1.6.3", default-features = false }
+alloy-sol-types = { version = "1.5.0", features = ["json"] }
+alloy-contract = { version = "1.4.3", default-features = false }
+alloy-signer-local = { version = "1.4.3", default-features = false }
 rlp = "0.5.2"
 hex-literal = "0.4.1"
 revm = { version = "33.1.0", features = [

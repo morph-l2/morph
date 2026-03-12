@@ -15,10 +15,11 @@ use shadow_proving::{
     shadow_prove::{BatchProveInfo, ShadowProver},
     shadow_rollup::BatchSyncer,
     util::{read_env_var, read_parse_env},
-    SHADOW_EXECUTE, SHADOW_PROVING_MAX_BLOCK, SHADOW_PROVING_MAX_TXN, SHADOW_PROVING_PROVER_RPC,
+    SHADOW_EXECUTE, SHADOW_PROVING_BATCH_INTERVAL, SHADOW_PROVING_MAX_BLOCK,
+    SHADOW_PROVING_MAX_TXN, SHADOW_PROVING_PROVER_RPC,
 };
 
-use tokio::time::interval;
+use tokio::time::{interval, sleep};
 use tokio::{sync::broadcast, time::MissedTickBehavior};
 
 #[tokio::main]
@@ -137,6 +138,8 @@ async fn main() {
                 log::error!("shadow proving exec error: {:#?}", e);
             }
         }
+
+        sleep(Duration::from_secs(*SHADOW_PROVING_BATCH_INTERVAL)).await;
     }
 }
 

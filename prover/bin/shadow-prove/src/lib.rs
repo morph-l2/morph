@@ -35,3 +35,6 @@ pub static SHADOW_PROVING_BLOCKS_RANGE: Lazy<u64> =
 
 pub static SHADOW_PROVING_PROVER_RPC: Lazy<String> =
     Lazy::new(|| var("SHADOW_PROVING_PROVER_RPC").expect("Cannot detect PROVER_RPC env var"));
+
+pub static SHADOW_PROVING_BATCH_INTERVAL: Lazy<u64> =
+    Lazy::new(|| read_env_var("SHADOW_PROVING_BATCH_INTERVAL", 0));
