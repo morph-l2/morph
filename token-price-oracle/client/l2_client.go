@@ -6,7 +6,6 @@ import (
 	"math/big"
 
 	"morph-l2/token-price-oracle/config"
-
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core/types"
