@@ -236,6 +236,7 @@ async fn handle_metrics() -> String {
 }
 
 // Constants for configuration
+const LOG_LEVEL: &str = "info";
 const LOG_FILE_BASENAME: &str = "app_info";
 const LOG_FILE_SIZE_LIMIT: u64 = 200 * 10u64.pow(6); // 200MB
                                                      // const LOG_FILE_SIZE_LIMIT: u64 = 10u64.pow(3); // 1kB
@@ -243,7 +244,7 @@ const LOG_FILES_TO_KEEP: usize = 3;
 
 fn setup_logging() {
     //configure the logger
-    Logger::try_with_env_or_str("info,alloy_transport_http=warn")
+    Logger::try_with_env_or_str(LOG_LEVEL)
         .unwrap()
         .log_to_file(
             FileSpec::default()
@@ -253,7 +254,7 @@ fn setup_logging() {
                 ))
                 .basename(LOG_FILE_BASENAME),
         )
-        .format(log_format)
+        .format(log_format).filter(Box::new(ShadowProvingFilter))
         .duplicate_to_stdout(Duplicate::All)
         .rotate(
             Criterion::Size(LOG_FILE_SIZE_LIMIT), // Scroll when file size reaches 200MB
