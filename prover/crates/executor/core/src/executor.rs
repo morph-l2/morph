@@ -72,7 +72,7 @@ impl<DB: Database> MorphExecutor<DB> {
             DEVNET_CHAIN_ID => MorphHardfork::Emerald,
             _ => MorphHardfork::Emerald,
         };
-        env.cfg_env = env.cfg_env.with_spec_and_mainnet_gas_params(hardfork);
+        env.cfg_env = env.cfg_env.with_spec(hardfork);
         env.cfg_env.chain_id = chain_id;
         env.cfg_env.tx_gas_limit_cap = Some(block_env.gas_limit);
         env.cfg_env.disable_eip7623 = true;

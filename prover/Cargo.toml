@@ -78,7 +78,7 @@ alloy-consensus = { version = "1.6.3", default-features = false, features = [
     "serde-bincode-compat",
 ] }
 alloy-eips = { version = "1.6.3", default-features = false }
-alloy-evm = "0.26.4"
+alloy-evm = "0.25.1"
 alloy-genesis = { version = "1.6.3", default-features = false, features = [
     "serde-bincode-compat",
 ] }
@@ -110,16 +110,16 @@ alloy-contract = { version = "1.6.3", default-features = false }
 alloy-signer-local = { version = "1.6.3", default-features = false }
 rlp = "0.5.2"
 hex-literal = "0.4.1"
-revm = { version = "34.0.0", features = [
+revm = { version = "33.1.0", features = [
     "optional_fee_charge",
     "optional_eip7623",
 ], default-features = false }
-reth-primitives-traits = { git = "https://github.com/morph-l2/reth", rev = "8057627ac9f169a0da4de44b616006a9e30382c1", default-features = false }
-reth-storage-errors = { git = "https://github.com/morph-l2/reth", rev = "8057627ac9f169a0da4de44b616006a9e30382c1", default-features = false }
-reth-trie = { git = "https://github.com/morph-l2/reth", rev = "8057627ac9f169a0da4de44b616006a9e30382c1", default-features = false }
-morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", rev = "72367096cb122e1ae87a2e01e83596e9b7757e6f" }
-morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", rev = "72367096cb122e1ae87a2e01e83596e9b7757e6f" }
-morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", rev = "72367096cb122e1ae87a2e01e83596e9b7757e6f" }
+reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.0", default-features = false }
+reth-storage-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.0", default-features = false }
+reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.0", default-features = false }
+morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "deps/downgrade-reth-v1.10.0" }
+morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", branch = "deps/downgrade-reth-v1.10.0" }
+morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", branch = "deps/downgrade-reth-v1.10.0" }
 
 
 # ZK / SP1
