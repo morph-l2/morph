@@ -531,8 +531,9 @@ func retryableError(err error) bool {
 
 // AssembleL2BlockV2 assembles a L2 block based on parent hash.
 func (rc *RetryableClient) AssembleL2BlockV2(ctx context.Context, parentHash common.Hash, transactions eth.Transactions) (ret *catalyst.ExecutableL2Data, err error) {
+	timestamp := uint64(time.Now().Unix())
 	if retryErr := backoff.Retry(func() error {
-		resp, respErr := rc.authClient.AssembleL2BlockV2(ctx, parentHash, transactions)
+		resp, respErr := rc.authClient.AssembleL2BlockV2(ctx, parentHash, &timestamp, transactions)
 		if respErr != nil {
 			rc.logger.Info("failed to AssembleL2BlockV2", "error", respErr)
 			if retryableError(respErr) {
