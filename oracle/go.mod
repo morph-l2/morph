@@ -2,7 +2,7 @@ module morph-l2/oracle
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.3
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.3-0.20260312100548-200f21adfb60
 
 require (
 	github.com/go-kit/kit v0.12.0
