@@ -55,13 +55,8 @@ impl LogLineFilter for ProveFilter {
         record: &log::Record,
         log_line_writer: &dyn LogLineWriter,
     ) -> std::io::Result<()> {
-        let module_path = record.module_path().unwrap_or("start");
         let target = record.target();
-        let args = record.args().to_string();
-        if !args.contains("tracing::span")
-            && !module_path.contains("p3_")
-            && !(record.level() == log::Level::Info && target.contains("alloy_transport_http"))
-        {
+        if !(record.level() == log::Level::Info && target.contains("alloy_transport_http")) {
             log_line_writer.write(now, record)?;
         }
         Ok(())

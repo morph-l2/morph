@@ -254,7 +254,8 @@ fn setup_logging() {
                 ))
                 .basename(LOG_FILE_BASENAME),
         )
-        .format(log_format).filter(Box::new(ShadowProvingFilter))
+        .format(log_format)
+        .filter(Box::new(ShadowProvingFilter))
         .duplicate_to_stdout(Duplicate::All)
         .rotate(
             Criterion::Size(LOG_FILE_SIZE_LIMIT), // Scroll when file size reaches 200MB
