@@ -12,6 +12,7 @@ serde_with.workspace = true
 ruzstd = { workspace = true }
 kzg-rs = { workspace = true }
 thiserror = { workspace = true }
+alloy-eips = { workspace = true }
 alloy-rlp = { workspace = true }
 alloy-primitives = { workspace = true, features = [
     "sha3-keccak",
