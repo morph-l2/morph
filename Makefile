@@ -1,6 +1,6 @@
 ################## update dependencies ####################
 ETHEREUM_SUBMODULE_COMMIT_OR_TAG := morph-v2.2.0
-ETHEREUM_TARGET_VERSION := morph-v2.2.0
+ETHEREUM_TARGET_VERSION := v1.10.14-0.20260313031710-62952ec7d188
 TENDERMINT_TARGET_VERSION := v0.3.4
 
 
