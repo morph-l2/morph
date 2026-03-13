@@ -14,11 +14,13 @@ import (
 	tmnode "github.com/tendermint/tendermint/node"
 	"github.com/tendermint/tendermint/p2p"
 	"github.com/tendermint/tendermint/proxy"
+	tmsequencer "github.com/tendermint/tendermint/sequencer"
 	"github.com/tendermint/tendermint/types"
 	"github.com/urfave/cli"
 
 	node "morph-l2/node/core"
 	"morph-l2/node/flags"
+	"morph-l2/node/l1sequencer"
 	nodetypes "morph-l2/node/types"
 )
 
@@ -51,7 +53,17 @@ func LoadTmConfig(ctx *cli.Context, home string) (*config.Config, error) {
 	return tmCfg, nil
 }
 
-func SetupNode(tmCfg *config.Config, privValidator types.PrivValidator, executor *node.Executor, logger tmlog.Logger) (*tmnode.Node, error) {
+// SetupNode creates a tendermint node with the given configuration.
+// verifier: L1 sequencer verifier for signature verification (optional, can be nil)
+// signer: sequencer signer for block signing (optional, can be nil)
+func SetupNode(
+	tmCfg *config.Config,
+	privValidator types.PrivValidator,
+	executor *node.Executor,
+	logger tmlog.Logger,
+	verifier *l1sequencer.SequencerVerifier,
+	signer l1sequencer.Signer,
+) (*tmnode.Node, error) {
 	nodeLogger := logger.With("module", "main")
 
 	nodeKey, err := p2p.LoadOrGenNodeKey(tmCfg.NodeKeyFile())
@@ -67,7 +79,12 @@ func SetupNode(tmCfg *config.Config, privValidator types.PrivValidator, executor
 		return nil, fmt.Errorf("failed to load bls priv key")
 	}
 
-	//var app types.Application
+	// Build verifier (SequencerVerifier implements tmsequencer.SequencerVerifier interface)
+	var tmVerifier tmsequencer.SequencerVerifier
+	if verifier != nil {
+		tmVerifier = verifier
+	}
+
 	n, err := tmnode.NewNode(
 		tmCfg,
 		executor,
@@ -79,6 +96,8 @@ func SetupNode(tmCfg *config.Config, privValidator types.PrivValidator, executor
 		tmnode.DefaultDBProvider,
 		tmnode.DefaultMetricsProvider(tmCfg.Instrumentation),
 		nodeLogger,
+		tmVerifier,
+		signer,
 	)
 	return n, err
 }

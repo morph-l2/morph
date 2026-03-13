@@ -238,12 +238,14 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         ) {
             require(batchDataInput.numL1Messages > 0, "l1msg delay");
         }
-        _commitBatchWithBatchData(batchDataInput, batchSignatureInput);
+        uint256 submitterBitmap = IL1Staking(l1StakingContract).getStakerBitmap(_msgSender());
+        _commitBatchWithBatchData(batchDataInput, batchSignatureInput, submitterBitmap);
     }
 
     function _commitBatchWithBatchData(
         BatchDataInput calldata batchDataInput,
-        BatchSignatureInput calldata batchSignatureInput
+        BatchSignatureInput calldata batchSignatureInput,
+        uint256 submitterBitmap
     ) internal {
         require(batchDataInput.version == 0 || batchDataInput.version == 1, "invalid version");
         require(batchDataInput.prevStateRoot != bytes32(0), "previous state root is zero");
@@ -324,7 +326,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 batchDataInput.lastBlockNumber,
                 // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
                 // Therefore, if the batch is successfully challenged, only the submitter will be punished.
-                IL1Staking(l1StakingContract).getStakerBitmap(_msgSender()) // => batchSignature.signedSequencersBitmap
+                submitterBitmap // => batchSignature.signedSequencersBitmap
             );
 
             lastCommittedBatchIndex = _batchIndex;
@@ -367,7 +369,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         }
         require(rollupDelay || l1MsgQueueDelayed, "invalid timing");
 
-        _commitBatchWithBatchData(batchDataInput, batchSignatureInput);
+        _commitBatchWithBatchData(batchDataInput, batchSignatureInput,0);
 
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);

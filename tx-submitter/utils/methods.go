@@ -69,7 +69,7 @@ func ParseStringToType[T any](s string) (T, error) {
 	var result T
 	var err error
 
-	// 获取目标类型的名称
+	// Get target type name
 	switch any(result).(type) {
 	case int:
 		var v int64
