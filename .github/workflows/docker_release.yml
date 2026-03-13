@@ -43,7 +43,11 @@ jobs:
         id: meta
         run: |
           TAG="${{ inputs.tag || github.ref_name }}"
-          VERSION=$(echo "$TAG" | sed -e 's/^v//')
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: $TAG (expected e.g. v0.5.0)"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
           COMMIT=$(git rev-parse HEAD)
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "commit=${COMMIT}" >> "$GITHUB_OUTPUT"
