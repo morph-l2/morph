@@ -7,7 +7,8 @@ var (
 	L1MessagePrefix        = []byte("l1")
 	BatchBlockNumberPrefix = []byte("batch")
 
-	derivationL1HeightKey = []byte("LastDerivationL1Height")
+	derivationL1HeightKey    = []byte("LastDerivationL1Height")
+	derivationL1BlockPrefix  = []byte("derivL1Block")
 )
 
 // encodeBlockNumber encodes an L1 enqueue index as big endian uint64
@@ -25,4 +26,9 @@ func L1MessageKey(enqueueIndex uint64) []byte {
 // BatchBlockNumberKey = BatchBlockNumberKeyPrefix + batchIndex (uint64 big endian)
 func BatchBlockNumberKey(batchIndex uint64) []byte {
 	return append(BatchBlockNumberPrefix, encodeEnqueueIndex(batchIndex)...)
+}
+
+// DerivationL1BlockKey = derivationL1BlockPrefix + l1Height (uint64 big endian)
+func DerivationL1BlockKey(l1Height uint64) []byte {
+	return append(derivationL1BlockPrefix, encodeEnqueueIndex(l1Height)...)
 }
