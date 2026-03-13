@@ -19,10 +19,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
     
     // Slot constants for storage manipulation (from forge inspect Rollup storageLayout)
     uint256 constant ROLLUP_DELAY_PERIOD_SLOT = 172; // slot for rollupDelayPeriod
-    
-    // ZERO_VERSIONED_HASH constant from Rollup contract
-    bytes32 constant ZERO_VERSIONED_HASH = 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014;
-    
+
     function setUp() public virtual override {
         super.setUp();
         
@@ -763,6 +760,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
             abi.encode(2)
         );
+        _setStoredBlobHash(1);
         hevm.startPrank(address(0));
         hevm.expectEmit(true, true, false, true);
         emit IRollup.CommitBatch(1, bytes32(0xc1862b08d265f073817a8ce0d7cbb426c16d58a86b93464244ab1d027318642e));
@@ -834,6 +832,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
             abi.encode(2)
         );
+        _setStoredBlobHash(2);
         hevm.startPrank(address(0));
         hevm.expectEmit(true, true, false, true);
         emit IRollup.CommitBatch(2, bytes32(0x772132c2e12f21bfc5f2792838e480830f2c1dd2be0f3207b159905a9f321038));
@@ -992,6 +991,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.stopPrank();
 
         // commit batch with one chunk, no tx, correctly
+        _setStoredBlobHash(1);
         hevm.startPrank(alice);
         batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 1, 0, stateRoot, stateRoot, getTreeRoot());
         hevm.deal(address(0), 10 ether);
@@ -1029,6 +1029,7 @@ contract RollupTest is L1MessageBaseTest {
         bytes32 batchHash0 = rollup.committedBatches(0);
 
         // commit one batch
+        _setStoredBlobHash(1);
         hevm.startPrank(alice);
         batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
         rollup.commitBatch(batchDataInput, batchSignatureInput); // first chunk with too many txs
@@ -1054,6 +1055,7 @@ contract RollupTest is L1MessageBaseTest {
         }
 
         // commit another batch
+        _setStoredBlobHash(2);
         hevm.startPrank(alice);
         batchDataInput = IRollup.BatchDataInput(0, batchHeader1, 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
 

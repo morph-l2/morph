@@ -46,6 +46,16 @@ contract L1MessageBaseTest is CommonTest {
 
     address public l1FeeVault = address(3033);
 
+    // Rollup storage slot for batchBlobVersionedHashes (forge inspect Rollup storage-layout)
+    uint256 internal constant BATCH_BLOB_VERSIONED_HASHES_SLOT = 173;
+    bytes32 internal constant ZERO_VERSIONED_HASH = 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014;
+
+    /// @dev Sets batchBlobVersionedHashes[batchIndex] so commitBatch can succeed without a blob tx in tests.
+    function _setStoredBlobHash(uint256 batchIndex) internal {
+        bytes32 slot = keccak256(abi.encode(batchIndex, BATCH_BLOB_VERSIONED_HASHES_SLOT));
+        hevm.store(address(rollup), slot, ZERO_VERSIONED_HASH);
+    }
+
     function setUp() public virtual override {
         super.setUp();
         hevm.startPrank(multisig);
