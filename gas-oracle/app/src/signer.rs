@@ -9,7 +9,8 @@ use ethers::{
 };
 use eyre::anyhow;
 use remote_signer_client::SignerClient;
-use std::{error::Error, str::FromStr, sync::Arc};
+use std::{error::Error, str::FromStr, sync::Arc, time::Duration};
+use tokio::time::timeout;
 
 use crate::{contract_error, read_env_var};
 
@@ -47,7 +48,9 @@ where
     let mut tx = TypedTransaction::Eip1559(req);
     tx.set_to(contract);
     if let Some(signer) = ext_signer {
-        tx.set_from(Address::from_str(&signer.address).unwrap_or_default());
+        let from = Address::from_str(&signer.address)
+            .map_err(|e| anyhow!("invalid signer address '{}': {}", signer.address, e))?;
+        tx.set_from(from);
     } else {
         tx.set_from(local_signer.address());
     }
@@ -73,8 +76,9 @@ where
     })?;
     let tx_hash = pending_tx.tx_hash();
 
-    let receipt = pending_tx
+    let receipt = timeout(Duration::from_secs(60), pending_tx)
         .await
+        .map_err(|_| anyhow!("check_receipt timeout (60s), tx_hash: {:#?}", tx_hash))?
         .map_err(|e| anyhow!(format!("check_receipt of {:#?} is error: {:#?}", tx_hash, e)))?
         .ok_or(anyhow!(format!("check_receipt is none, tx_hash: {:#?}", tx_hash)))?;
 
