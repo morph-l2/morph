@@ -31,8 +31,9 @@ const (
 	DiscontinuousBlockError = "discontinuous block number"
 
 	// Geth connection retry settings
-	GethRetryAttempts = 60              // max retry attempts
-	GethRetryInterval = 5 * time.Second // interval between retries
+	GethRetryAttempts       = 60              // max retry attempts
+	GethRetryInterval       = 5 * time.Second // interval between retries
+	GethRetryMaxElapsedTime = 30 * time.Minute
 )
 
 // configResponse represents the eth_config RPC response (EIP-7910)
@@ -54,8 +55,8 @@ type forkConfig struct {
 
 // morphExtension contains Morph-specific configuration fields
 type morphExtension struct {
-	UseZktrie   bool    `json:"useZktrie"`
-	MPTForkTime *uint64 `json:"mptForkTime,omitempty"`
+	UseZktrie    bool    `json:"useZktrie"`
+	JadeForkTime *uint64 `json:"jadeForkTime,omitempty"`
 }
 
 // GethConfig holds the configuration fetched from geth via eth_config API
@@ -105,28 +106,28 @@ func FetchGethConfig(rpcURL string, logger tmlog.Logger) (*GethConfig, error) {
 		logger.Info("Fetched useZktrie from geth", "useZktrie", config.UseZktrie)
 	}
 
-	// Try to get mptForkTime from current config
-	if resp.Current != nil && resp.Current.Morph != nil && resp.Current.Morph.MPTForkTime != nil {
-		config.SwitchTime = *resp.Current.Morph.MPTForkTime
-		logger.Info("Fetched MPT fork time from geth", "mptForkTime", config.SwitchTime, "source", "current")
+	// Try to get jadeForkTime from current config
+	if resp.Current != nil && resp.Current.Morph != nil && resp.Current.Morph.JadeForkTime != nil {
+		config.SwitchTime = *resp.Current.Morph.JadeForkTime
+		logger.Info("Fetched Jade fork time from geth", "jadeForkTime", config.SwitchTime, "source", "current")
 		return config, nil
 	}
 
 	// Fallback to next config
-	if resp.Next != nil && resp.Next.Morph != nil && resp.Next.Morph.MPTForkTime != nil {
-		config.SwitchTime = *resp.Next.Morph.MPTForkTime
-		logger.Info("Fetched MPT fork time from geth", "mptForkTime", config.SwitchTime, "source", "next")
+	if resp.Next != nil && resp.Next.Morph != nil && resp.Next.Morph.JadeForkTime != nil {
+		config.SwitchTime = *resp.Next.Morph.JadeForkTime
+		logger.Info("Fetched Jade fork time from geth", "jadeForkTime", config.SwitchTime, "source", "next")
 		return config, nil
 	}
 
 	// Fallback to last config
-	if resp.Last != nil && resp.Last.Morph != nil && resp.Last.Morph.MPTForkTime != nil {
-		config.SwitchTime = *resp.Last.Morph.MPTForkTime
-		logger.Info("Fetched MPT fork time from geth", "mptForkTime", config.SwitchTime, "source", "last")
+	if resp.Last != nil && resp.Last.Morph != nil && resp.Last.Morph.JadeForkTime != nil {
+		config.SwitchTime = *resp.Last.Morph.JadeForkTime
+		logger.Info("Fetched Jade fork time from geth", "jadeForkTime", config.SwitchTime, "source", "last")
 		return config, nil
 	}
 
-	logger.Info("MPT fork time not configured in geth, switch disabled")
+	logger.Info("Jade fork time not configured in geth, switch disabled")
 	return config, nil
 }
 
@@ -141,9 +142,9 @@ type RetryableClient struct {
 	logger         tmlog.Logger
 }
 
-// MPTForkTime returns the configured MPT fork/switch timestamp fetched from geth (eth_config).
+// JadeForkTime returns the configured Jade fork/switch timestamp fetched from geth (eth_config).
 // Note: this is a local value stored in the client; it does not perform any RPC.
-func (rc *RetryableClient) MPTForkTime() uint64 {
+func (rc *RetryableClient) JadeForkTime() uint64 {
 	return rc.switchTime
 }
 
@@ -156,7 +157,9 @@ func (rc *RetryableClient) MPTForkTime() uint64 {
 // The switchTime should be fetched via FetchGethConfig before calling this function.
 func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Client, nextAuthClient *authclient.Client, nextEthClient *ethclient.Client, switchTime uint64, logger tmlog.Logger) *RetryableClient {
 	logger = logger.With("module", "retryClient")
-
+	// set MaxElapsedTime to 30 min
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = GethRetryMaxElapsedTime
 	// If next client is not configured, disable switch
 	if nextAuthClient == nil || nextEthClient == nil {
 		logger.Info("L2Next client not configured, switch disabled")
@@ -166,7 +169,7 @@ func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Clie
 			nextAuthClient: authClient, // fallback to current
 			nextEthClient:  ethClient,  // fallback to current
 			switchTime:     switchTime,
-			b:              backoff.NewExponentialBackOff(),
+			b:              bo,
 			logger:         logger,
 		}
 	}
@@ -188,7 +191,7 @@ func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Clie
 		nextAuthClient: nextAuthClient,
 		nextEthClient:  nextEthClient,
 		switchTime:     switchTime,
-		b:              backoff.NewExponentialBackOff(),
+		b:              bo,
 		logger:         logger,
 	}
 
@@ -428,7 +431,25 @@ func (rc *RetryableClient) HeaderByNumber(ctx context.Context, blockNumber *big.
 	if retryErr := backoff.Retry(func() error {
 		resp, respErr := rc.eClient().HeaderByNumber(ctx, blockNumber)
 		if respErr != nil {
-			rc.logger.Info("failed to call BlockNumber", "error", respErr)
+			rc.logger.Info("failed to call HeaderByNumber", "error", respErr)
+			if retryableError(respErr) {
+				return respErr
+			}
+			err = respErr
+		}
+		ret = resp
+		return nil
+	}, rc.b); retryErr != nil {
+		return nil, retryErr
+	}
+	return
+}
+
+func (rc *RetryableClient) BlockByNumber(ctx context.Context, blockNumber *big.Int) (ret *eth.Block, err error) {
+	if retryErr := backoff.Retry(func() error {
+		resp, respErr := rc.ethClient.BlockByNumber(ctx, blockNumber)
+		if respErr != nil {
+			rc.logger.Info("failed to call BlockByNumber", "error", respErr)
 			if retryableError(respErr) {
 				return respErr
 			}
@@ -505,4 +526,28 @@ func retryableError(err error) bool {
 	// 	strings.Contains(err.Error(), ExecutionAborted) ||
 	// 	strings.Contains(err.Error(), Timeout)
 	return !strings.Contains(err.Error(), DiscontinuousBlockError)
+}
+
+// ============================================================================
+// L2NodeV2 methods for sequencer mode
+// ============================================================================
+
+// AssembleL2BlockV2 assembles a L2 block based on parent hash.
+func (rc *RetryableClient) AssembleL2BlockV2(ctx context.Context, parentHash common.Hash, transactions eth.Transactions) (ret *catalyst.ExecutableL2Data, err error) {
+	timestamp := uint64(time.Now().Unix())
+	if retryErr := backoff.Retry(func() error {
+		resp, respErr := rc.authClient.AssembleL2BlockV2(ctx, parentHash, &timestamp, transactions)
+		if respErr != nil {
+			rc.logger.Info("failed to AssembleL2BlockV2", "error", respErr)
+			if retryableError(respErr) {
+				return respErr
+			}
+			err = respErr
+		}
+		ret = resp
+		return nil
+	}, rc.b); retryErr != nil {
+		return nil, retryErr
+	}
+	return
 }

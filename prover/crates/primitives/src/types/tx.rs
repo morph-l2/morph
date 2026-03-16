@@ -71,6 +71,15 @@ pub struct TransactionTrace {
     /// For AltFeeType
     #[serde(rename = "feeLimit")]
     pub(crate) fee_limit: Option<U256>,
+    /// Morph tx version
+    #[serde(default)]
+    pub(crate) version: Option<U8>,
+    /// Morph tx reference
+    #[serde(default)]
+    pub(crate) reference: Option<B256>,
+    /// Morph tx memo
+    #[serde(default)]
+    pub(crate) memo: Option<Bytes>,
     /// signature v
     pub(crate) v: U64,
     /// signature r
@@ -162,5 +171,17 @@ impl TxTrace for TransactionTrace {
 
     fn sig_v(&self) -> u64 {
         self.v.to::<u64>()
+    }
+
+    fn morph_tx_version(&self) -> u8 {
+        self.version.map(|v| v.to::<u8>()).unwrap_or(0)
+    }
+
+    fn morph_tx_reference(&self) -> Option<B256> {
+        self.reference
+    }
+
+    fn morph_tx_memo(&self) -> Option<Bytes> {
+        self.memo.clone()
     }
 }

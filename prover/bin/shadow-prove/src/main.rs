@@ -6,19 +6,23 @@ use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use alloy_signer_local::PrivateKeySigner;
 use axum::{routing::get, Router};
 use dotenv::dotenv;
-use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, WriteMode};
+use flexi_logger::{
+    filter::{LogLineFilter, LogLineWriter},
+    Cleanup, Criterion, DeferredNow, Duplicate, FileSpec, Logger, Naming, WriteMode,
+};
 use log::Record;
 use prometheus::{Encoder, TextEncoder};
 use shadow_proving::{
     execute::try_execute_batch,
     metrics::{METRICS, REGISTRY},
-    shadow_prove::ShadowProver,
+    shadow_prove::{BatchProveInfo, ShadowProver},
     shadow_rollup::BatchSyncer,
     util::{read_env_var, read_parse_env},
-    SHADOW_EXECUTE, SHADOW_PROVING_MAX_BLOCK, SHADOW_PROVING_MAX_TXN, SHADOW_PROVING_PROVER_RPC,
+    SHADOW_EXECUTE, SHADOW_PROVING_BATCH_INTERVAL, SHADOW_PROVING_MAX_BLOCK,
+    SHADOW_PROVING_MAX_TXN, SHADOW_PROVING_PROVER_RPC,
 };
 
-use tokio::time::interval;
+use tokio::time::{interval, sleep};
 use tokio::{sync::broadcast, time::MissedTickBehavior};
 
 #[tokio::main]
@@ -121,8 +125,11 @@ async fn main() {
             Err(broadcast::error::RecvError::Closed) => break,
         };
 
-        let result = match batch_syncer.sync_batch(batch_info, batch_header).await {
-            Ok(Some(batch)) => shadow_prover.prove(batch).await,
+        let result = match batch_syncer.sync_batch(batch_info, batch_header.clone()).await {
+            Ok(Some(batch)) => {
+                let prove_info = BatchProveInfo { batch_info: batch, batch_header };
+                shadow_prover.prove(prove_info).await
+            }
             Ok(None) => Ok(()),
             Err(e) => Err(e),
         };
@@ -134,6 +141,8 @@ async fn main() {
                 log::error!("shadow proving exec error: {:#?}", e);
             }
         }
+
+        sleep(Duration::from_secs(*SHADOW_PROVING_BATCH_INTERVAL)).await;
     }
 }
 
@@ -172,7 +181,9 @@ fn init_shadow_proving(
 
     let shadow_prover = ShadowProver::new(
         signer.address(),
+        Address::from_str(&rollup).unwrap(),
         Address::from_str(&shadow_rollup).unwrap(),
+        l1_provider,
         verify_provider,
         l1_signer,
     );
@@ -244,6 +255,7 @@ fn setup_logging() {
                 .basename(LOG_FILE_BASENAME),
         )
         .format(log_format)
+        .filter(Box::new(ShadowProvingFilter))
         .duplicate_to_stdout(Duplicate::All)
         .rotate(
             Criterion::Size(LOG_FILE_SIZE_LIMIT), // Scroll when file size reaches 200MB
@@ -256,6 +268,23 @@ fn setup_logging() {
         .write_mode(WriteMode::BufferAndFlush)
         .start()
         .unwrap();
+}
+
+pub struct ShadowProvingFilter;
+
+impl LogLineFilter for ShadowProvingFilter {
+    fn write(
+        &self,
+        now: &mut DeferredNow,
+        record: &log::Record,
+        log_line_writer: &dyn LogLineWriter,
+    ) -> std::io::Result<()> {
+        let target = record.target();
+        if !(record.level() == log::Level::Info && target.contains("alloy_transport_http")) {
+            log_line_writer.write(now, record)?;
+        }
+        Ok(())
+    }
 }
 
 fn log_format(
@@ -300,8 +329,10 @@ async fn test_shadow() {
         return;
     }
     if prove {
-        let batch = batch_syncer.sync_batch(batch_info, batch_header).await.unwrap().unwrap();
-        shadow_prover.prove(batch).await.unwrap();
+        let batch =
+            batch_syncer.sync_batch(batch_info, batch_header.clone()).await.unwrap().unwrap();
+        let prove_info = BatchProveInfo { batch_info: batch, batch_header };
+        shadow_prover.prove(prove_info).await.unwrap();
     }
 }
 
