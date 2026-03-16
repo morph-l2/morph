@@ -38,9 +38,14 @@ func NewSigner(
 		"address", address,
 		"chain", chain)
 
+	if !common.IsHexAddress(address) {
+		return nil, fmt.Errorf("invalid external signer address: %s", address)
+	}
+	parsedAddr := common.HexToAddress(address)
+
 	return &Signer{
 		remoteClient:        remoteClient,
-		externalSignAddress: common.HexToAddress(address),
+		externalSignAddress: parsedAddr,
 		chainID:             chainID,
 	}, nil
 }
