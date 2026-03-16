@@ -15,24 +15,6 @@ import {IL1Staking} from "../staking/IL1Staking.sol";
 
 /// @title Rollup
 /// @notice This contract maintains data for the Morph rollup.
-///
-/// Batch commit has three entry points and blob behavior.
-///
-/// Truth table (stored = batchBlobVersionedHashes[batchIndex] != 0, blob_tx = blobhash(0) != 0):
-/// +----------------------+--------+---------+--------+--------------------------------------------------+
-/// | Entry                | stored | blob_tx | Result | Hash used / Revert message                       |
-/// +----------------------+--------+---------+--------+--------------------------------------------------+
-/// | commitBatch          | 0      | 0       | OK     | ZERO_VERSIONED_HASH (no blob in tx)             |
-/// | commitBatch          | 0      | 1       | OK     | blobhash(0)                                      |
-/// | commitBatch          | 1      | 0       | REVERT | "commitBatch requires no stored blob hash" (entry) |
-/// | commitBatch          | 1      | 1       | REVERT | "commitBatch requires no stored blob hash" (entry) |
-/// | commitState          | 0      | *       | REVERT | "no stored blob hash for this batch"             |
-/// | commitState          | 1      | 0       | OK     | stored                                           |
-/// | commitState          | 1      | 1       | REVERT | "commitState must not carry blob" (entry)        |
-/// | commitBatchWithProof | 0      | 0       | OK     | ZERO_VERSIONED_HASH                              |
-/// | commitBatchWithProof | 0      | 1       | OK     | blobhash(0)                                      |
-/// | commitBatchWithProof | 1      | 0       | OK     | stored                                           |
-/// | commitBatchWithProof | 1      | 1       | REVERT | "must not carry blob when using stored blob hash" |
 /// +----------------------+--------+---------+--------+--------------------------------------------------+
 contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /*************
