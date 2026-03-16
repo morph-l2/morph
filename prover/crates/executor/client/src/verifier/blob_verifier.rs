@@ -8,23 +8,10 @@ use sha2::{Digest as _, Sha256};
 pub struct BlobVerifier;
 
 impl BlobVerifier {
-    pub fn verify(
-        blob_info: &BlobInfo,
-        num_blocks: usize,
-    ) -> Result<(B256, Vec<u8>), anyhow::Error> {
+    pub fn verify(blob_info: &BlobInfo) -> Result<(B256, Vec<u8>), anyhow::Error> {
         // decode
         let origin_batch = get_origin_batch(&blob_info.blob_data)?;
 
-        #[cfg(target_os = "zkvm")]
-        let _ = num_blocks;
-
-        #[cfg(not(target_os = "zkvm"))]
-        {
-            let tx_list = crate::types::blob::decode_transactions(
-                &origin_batch.as_slice()[num_blocks * 60..],
-            );
-            log::info!("decoded tx_list_len: {:?}", tx_list.len());
-        }
         // verify kzg
         let versioned_hash = kzg_to_versioned_hash(&blob_info.commitment);
         let blob = KzgRsBlob::from_slice(&blob_info.blob_data).unwrap();

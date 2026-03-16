@@ -310,6 +310,25 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "oldPeriod",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newPeriod",
+        "type": "uint256"
+      }
+    ],
+    "name": "UpdateRollupDelayPeriod",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "address",
         "name": "oldVerifier",
@@ -669,6 +688,88 @@
   {
     "inputs": [
       {
+        "components": [
+          {
+            "internalType": "uint8",
+            "name": "version",
+            "type": "uint8"
+          },
+          {
+            "internalType": "bytes",
+            "name": "parentBatchHeader",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint64",
+            "name": "lastBlockNumber",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint16",
+            "name": "numL1Messages",
+            "type": "uint16"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "prevStateRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "postStateRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "withdrawalRoot",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct IRollup.BatchDataInput",
+        "name": "batchDataInput",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "signedSequencersBitmap",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "sequencerSets",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "signature",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct IRollup.BatchSignatureInput",
+        "name": "batchSignatureInput",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_batchHeader",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_batchProof",
+        "type": "bytes"
+      }
+    ],
+    "name": "commitBatchWithProof",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "batchIndex",
         "type": "uint256"
@@ -830,6 +931,19 @@
     "inputs": [
       {
         "internalType": "uint256",
+        "name": "_rollupDelayPeriod",
+        "type": "uint256"
+      }
+    ],
+    "name": "initialize3",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
         "name": "_batchIndex",
         "type": "uint256"
       }
@@ -969,6 +1083,24 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "_batchHeader",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_batchProof",
+        "type": "bytes"
+      }
+    ],
+    "name": "proveCommittedBatchState",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "proveRemaining",
     "outputs": [
@@ -1051,6 +1183,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "rollupDelayPeriod",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bool",
@@ -1111,6 +1256,19 @@
       }
     ],
     "name": "updateRewardPercentage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_newPeriod",
+        "type": "uint256"
+      }
+    ],
+    "name": "updateRollupDelayPeriod",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
