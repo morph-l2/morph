@@ -133,13 +133,14 @@ func L2NodeMain(ctx *cli.Context) error {
 		dvNode.Start()
 		nodeConfig.Logger.Info("derivation node starting")
 	} else {
-		// ========== Create Syncer and L1 Sequencer Components ==========
-		syncer, err = node.NewSyncer(ctx, home, nodeConfig)
+		// ========== Create L1 Client ==========
+		l1RPC := ctx.GlobalString(flags.L1NodeAddr.Name)
+		l1Client, err := ethclient.Dial(l1RPC)
 		if err != nil {
-			return fmt.Errorf("failed to create syncer: %w", err)
+			return fmt.Errorf("failed to dial L1 node: %w", err)
 		}
 
-		tracker, verifier, signer, err = initL1SequencerComponents(ctx, syncer.L1Client(), nodeConfig.Logger)
+		tracker, verifier, signer, err = initL1SequencerComponents(ctx, l1Client, nodeConfig.Logger)
 		if err != nil {
 			return fmt.Errorf("failed to init L1 sequencer components: %w", err)
 		}
@@ -152,8 +153,7 @@ func L2NodeMain(ctx *cli.Context) error {
 		tmVal := privval.LoadOrGenFilePV(tmCfg.PrivValidatorKeyFile(), tmCfg.PrivValidatorStateFile())
 		pubKey, _ := tmVal.GetPubKey()
 
-		// Create executor with syncer
-		newSyncerFunc := func() (*sync.Syncer, error) { return syncer, nil } // Reuse existing syncer
+		newSyncerFunc := func() (*sync.Syncer, error) { return node.NewSyncer(ctx, home, nodeConfig) }
 		executor, err = node.NewExecutor(newSyncerFunc, nodeConfig, pubKey)
 		if err != nil {
 			return err
@@ -175,7 +175,7 @@ func L2NodeMain(ctx *cli.Context) error {
 		}
 
 		// ========== Initialize BlockTagService ==========
-		blockTagSvc, err = initBlockTagService(ctx, syncer.L1Client(), executor, nodeConfig.Logger)
+		blockTagSvc, err = initBlockTagService(ctx, l1Client, executor, nodeConfig.Logger)
 		if err != nil {
 			return fmt.Errorf("failed to init BlockTagService: %w", err)
 		}
