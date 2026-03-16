@@ -15,6 +15,25 @@ import {IL1Staking} from "../staking/IL1Staking.sol";
 
 /// @title Rollup
 /// @notice This contract maintains data for the Morph rollup.
+///
+/// Batch commit has three entry points and blob behavior.
+///
+/// Truth table (stored = batchBlobVersionedHashes[batchIndex] != 0, blob_tx = blobhash(0) != 0):
+/// +----------------------+--------+---------+--------+--------------------------------------------------+
+/// | Entry                | stored | blob_tx | Result | Hash used / Revert message                       |
+/// +----------------------+--------+---------+--------+--------------------------------------------------+
+/// | commitBatch          | 0      | 0       | OK     | ZERO_VERSIONED_HASH (no blob in tx)             |
+/// | commitBatch          | 0      | 1       | OK     | blobhash(0)                                      |
+/// | commitBatch          | 1      | 0       | REVERT | "commitBatch requires no stored blob hash" (entry) |
+/// | commitBatch          | 1      | 1       | REVERT | "commitBatch requires no stored blob hash" (entry) |
+/// | commitState          | 0      | *       | REVERT | "no stored blob hash for this batch"             |
+/// | commitState          | 1      | 0       | OK     | stored                                           |
+/// | commitState          | 1      | 1       | REVERT | "commitState must not carry blob" (entry)        |
+/// | commitBatchWithProof | 0      | 0       | OK     | ZERO_VERSIONED_HASH                              |
+/// | commitBatchWithProof | 0      | 1       | OK     | blobhash(0)                                      |
+/// | commitBatchWithProof | 1      | 0       | OK     | stored                                           |
+/// | commitBatchWithProof | 1      | 1       | REVERT | "must not carry blob when using stored blob hash" |
+/// +----------------------+--------+---------+--------+--------------------------------------------------+
 contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /*************
      * Constants *
@@ -120,13 +139,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
     /// @notice Only challenger allowed.
     modifier onlyChallenger() {
-        require(isChallenger[_msgSender()], "caller challenger allowed");
+        require(isChallenger[_msgSender()], "only challenger allowed");
         _;
     }
 
     /// @notice Modifier to ensure that there is no pending revert request.
     modifier nonReqRevert() {
-        require(revertReqIndex == 0, "need revert");
+        require(revertReqIndex == 0, "pending revert request");
         _;
     }
 
@@ -237,13 +256,18 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput
     ) external payable override onlyActiveStaker nonReqRevert whenNotPaused {
+        // check if the next batch has a stored blob hash
+        (uint256 _batchPtr, ) = _loadBatchHeader(batchDataInput.parentBatchHeader);
+        uint256 _nextBatchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr) + 1;
+        require(batchBlobVersionedHashes[_nextBatchIndex] == bytes32(0), "commitBatch requires no stored blob hash");
         if (
             IL1MessageQueue(messageQueue).getFirstUnfinalizedMessageEnqueueTime() + rollupDelayPeriod < block.timestamp
         ) {
             require(batchDataInput.numL1Messages > 0, "l1msg delay");
         }
         uint256 submitterBitmap = IL1Staking(l1StakingContract).getStakerBitmap(_msgSender());
-        _commitBatchWithBatchData(batchDataInput, batchSignatureInput, submitterBitmap, true);
+        bytes32 _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
+        _commitBatchWithBatchData(batchDataInput, batchSignatureInput, submitterBitmap, _blobVersionedHash);
     }
 
     /// @inheritdoc IRollup
@@ -252,7 +276,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput
     ) external override onlyActiveStaker nonReqRevert whenNotPaused {
-        (uint256 _batchPtr,) = _loadBatchHeader(batchDataInput.parentBatchHeader);
+        require(blobhash(0) == bytes32(0), "commitState must not carry blob");
+        (uint256 _batchPtr, ) = _loadBatchHeader(batchDataInput.parentBatchHeader);
         uint256 _nextBatchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr) + 1;
         require(batchBlobVersionedHashes[_nextBatchIndex] != bytes32(0), "no stored blob hash for this batch");
         if (
@@ -261,14 +286,19 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             require(batchDataInput.numL1Messages > 0, "l1msg delay");
         }
         uint256 submitterBitmap = IL1Staking(l1StakingContract).getStakerBitmap(_msgSender());
-        _commitBatchWithBatchData(batchDataInput, batchSignatureInput, submitterBitmap, false);
+        _commitBatchWithBatchData(
+            batchDataInput,
+            batchSignatureInput,
+            submitterBitmap,
+            batchBlobVersionedHashes[_nextBatchIndex]
+        );
     }
 
     function _commitBatchWithBatchData(
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput,
         uint256 submitterBitmap,
-        bool requireBlobWhenNoStoredHash
+        bytes32 blobVersionedHash
     ) internal {
         require(batchDataInput.version == 0 || batchDataInput.version == 1, "invalid version");
         require(batchDataInput.prevStateRoot != bytes32(0), "previous state root is zero");
@@ -307,14 +337,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         assembly {
             _batchIndex := add(_batchIndex, 1) // increase batch index
         }
-        // Prefer stored blob hash; when empty: commitBatch requires blob tx, commitBatchWithProof/commitState allow no blob
-        bytes32 _blobVersionedHash = batchBlobVersionedHashes[_batchIndex];
-        if (_blobVersionedHash == bytes32(0) ) {
-            if (requireBlobWhenNoStoredHash) {
-                require(blobhash(0) != bytes32(0), "blob required when no stored hash");
-            }
-            _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
-        }
+        bytes32 _blobVersionedHash = blobVersionedHash;
 
         {
             uint256 _headerLength = BatchHeaderCodecV0.BATCH_HEADER_LENGTH;
@@ -399,8 +422,17 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             require(batchDataInput.numL1Messages > 0, "l1msg delay");
         }
         require(rollupDelay || l1MsgQueueDelayed, "invalid timing");
-
-        _commitBatchWithBatchData(batchDataInput, batchSignatureInput, 0, false);
+        // check if the next batch has a stored blob hash
+        (uint256 _batchPtr, ) = _loadBatchHeader(batchDataInput.parentBatchHeader);
+        uint256 _nextBatchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr) + 1;
+        bytes32 _blobVersionedHash = bytes32(0);
+        if (batchBlobVersionedHashes[_nextBatchIndex] != bytes32(0)) {
+            require(blobhash(0) == bytes32(0), "must not carry blob when using stored blob hash");
+            _blobVersionedHash = batchBlobVersionedHashes[_nextBatchIndex];
+        } else {
+           _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
+        }
+        _commitBatchWithBatchData(batchDataInput, batchSignatureInput, 0, _blobVersionedHash);
 
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);

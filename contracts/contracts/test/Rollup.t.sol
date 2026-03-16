@@ -16,9 +16,6 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
     bytes public batchHeader0;
     bytes32 public batchHash0;
     IRollup.BatchSignatureInput public batchSignatureInput;
-    
-    // Slot constants for storage manipulation (from forge inspect Rollup storageLayout)
-    uint256 constant ROLLUP_DELAY_PERIOD_SLOT = 172; // slot for rollupDelayPeriod
 
     function setUp() public virtual override {
         super.setUp();
@@ -61,19 +58,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         // Set rollupDelayPeriod (e.g., 1 hour) - no prank needed for hevm.store
         hevm.store(address(rollup), bytes32(ROLLUP_DELAY_PERIOD_SLOT), bytes32(uint256(3600)));
     }
-    
-    /// @dev Helper to compute dataHash for a batch with no L1 messages
-    /// dataHash = keccak256(lastBlockNumber || numL1Messages)
-    function _computeDataHash(uint64 lastBlockNumber, uint16 numL1Messages) internal pure returns (bytes32) {
-        // Construct the data: 8 bytes lastBlockNumber + 2 bytes numL1Messages
-        bytes memory data = new bytes(10);
-        assembly {
-            mstore(add(data, 0x20), shl(192, lastBlockNumber)) // 8 bytes
-            mstore(add(data, 0x28), shl(240, numL1Messages))   // 2 bytes at offset 8
-        }
-        return keccak256(data);
-    }
-    
+
     /// @dev Helper to compute sequencerSetVerifyHash from sequencerSets
     function _getSequencerSetVerifyHash() internal view returns (bytes32) {
         return keccak256(batchSignatureInput.sequencerSets);
@@ -760,7 +745,8 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
             abi.encode(2)
         );
-        _setStoredBlobHash(1);
+        _setupDelayAndWarpForProof();
+        _mockVerifierForProof();
         hevm.startPrank(address(0));
         hevm.expectEmit(true, true, false, true);
         emit IRollup.CommitBatch(1, bytes32(0xc1862b08d265f073817a8ce0d7cbb426c16d58a86b93464244ab1d027318642e));
@@ -773,7 +759,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             bytesData1,
             bytesData3
         );
-        rollup.commitBatch(batchDataInput, batchSignatureInput);
+        rollup.commitBatchWithProof(batchDataInput, batchSignatureInput, batchHeader1, hex"deadbeef");
         hevm.stopPrank();
 
         assertFalse(rollup.isBatchFinalized(1));
@@ -832,7 +818,6 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
             abi.encode(2)
         );
-        _setStoredBlobHash(2);
         hevm.startPrank(address(0));
         hevm.expectEmit(true, true, false, true);
         emit IRollup.CommitBatch(2, bytes32(0x772132c2e12f21bfc5f2792838e480830f2c1dd2be0f3207b159905a9f321038));
@@ -846,7 +831,7 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             bytesData1,
             bytesData4
         );
-        rollup.commitBatch(batchDataInput, batchSignatureInput);
+        rollup.commitBatchWithProof(batchDataInput, batchSignatureInput, batchHeader2, hex"deadbeef");
 
         hevm.stopPrank();
         assertFalse(rollup.isBatchFinalized(2));
@@ -990,18 +975,36 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
 
-        // commit batch with one chunk, no tx, correctly
-        _setStoredBlobHash(1);
+        // commit batch with one chunk, no tx, correctly (commitBatch requires blob when no stored hash; use commitBatchWithProof)
+        _setupDelayAndWarpForProof();
+        _mockVerifierForProof();
+        bytes32 dataHash1 = _computeDataHash(1, 0);
+        bytes memory batchHeader1ForProof = _createBatchHeaderV0ForProof(
+            1,
+            0,
+            0,
+            dataHash1,
+            stateRoot,
+            stateRoot,
+            getTreeRoot(),
+            keccak256(batchSignatureInput.sequencerSets),
+            rollup.committedBatches(0)
+        );
         hevm.startPrank(alice);
         batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 1, 0, stateRoot, stateRoot, getTreeRoot());
         hevm.deal(address(0), 10 ether);
-        rollup.commitBatch(batchDataInput, batchSignatureInput);
+        rollup.commitBatchWithProof(
+            batchDataInput,
+            batchSignatureInput,
+            batchHeader1ForProof,
+            hex"deadbeef"
+        );
         hevm.stopPrank();
         assertGt(uint256(rollup.committedBatches(1)), 0);
 
-        // batch is already committed, revert
+        // batch is already committed, revert (commitBatch also reverts with "commitBatch requires no stored blob hash" when slot is set)
         hevm.startPrank(alice);
-        hevm.expectRevert("batch already committed");
+        hevm.expectRevert("commitBatch requires no stored blob hash");
         batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 1, 0, stateRoot, stateRoot, getTreeRoot());
         rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
@@ -1028,13 +1031,34 @@ contract RollupTest is L1MessageBaseTest {
         rollup.importGenesisBatch(batchHeader0);
         bytes32 batchHash0 = rollup.committedBatches(0);
 
-        // commit one batch
-        _setStoredBlobHash(1);
+        // commit one batch (use commitBatchWithProof: commitBatch requires no stored hash and blob tx)
+        _setupDelayAndWarpForProof();
+        _mockMessageQueueNotDelayedForProof();
+        _mockVerifierForProof();
+        bytes32 dataHash1 = _computeDataHash(1, 0);
+        bytes memory batchHeader1ForProof = _createBatchHeaderV0ForProof(
+            1,
+            0,
+            0,
+            dataHash1,
+            stateRoot,
+            stateRoot,
+            bytes32(uint256(4)),
+            keccak256(batchSignatureInput.sequencerSets),
+            batchHash0
+        );
         hevm.startPrank(alice);
         batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
-        rollup.commitBatch(batchDataInput, batchSignatureInput); // first chunk with too many txs
+        rollup.commitBatchWithProof(
+            batchDataInput,
+            batchSignatureInput,
+            batchHeader1ForProof,
+            hex"deadbeef"
+        );
         hevm.stopPrank();
         assertEq(rollup.committedBatches(1), 0x25c3e4fee90e53de960c1092746c431ab570eacf8513011902fa65f10c814541);
+        // warp again so second commitBatchWithProof passes rollupDelay (batchDataStore[1].originTimestamp + period < block.timestamp)
+        hevm.warp(block.timestamp + 3601);
         bytes memory batchHeader1 = new bytes(249);
         assembly {
             mstore(add(batchHeader1, 0x20), 0) // version
@@ -1054,12 +1078,27 @@ contract RollupTest is L1MessageBaseTest {
             mstore(add(batchHeader1, add(0x20, 249)), 0) // bitmap0
         }
 
-        // commit another batch
-        _setStoredBlobHash(2);
+        // commit another batch (commitBatchWithProof)
+        bytes32 dataHash2 = _computeDataHash(1, 0);
+        bytes memory batchHeader2ForProof = _createBatchHeaderV0ForProof(
+            2,
+            0,
+            0,
+            dataHash2,
+            stateRoot,
+            stateRoot,
+            bytes32(uint256(4)),
+            keccak256(batchSignatureInput.sequencerSets),
+            rollup.committedBatches(1)
+        );
         hevm.startPrank(alice);
         batchDataInput = IRollup.BatchDataInput(0, batchHeader1, 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
-
-        rollup.commitBatch(batchDataInput, batchSignatureInput); // first chunk with too many txs
+        rollup.commitBatchWithProof(
+            batchDataInput,
+            batchSignatureInput,
+            batchHeader2ForProof,
+            hex"deadbeef"
+        );
         hevm.stopPrank();
 
         hevm.startPrank(multisig);
