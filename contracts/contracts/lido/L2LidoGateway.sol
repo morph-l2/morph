@@ -43,8 +43,8 @@ contract L2LidoGateway is L2ERC20Gateway, LidoBridgeableTokens, LidoGatewayManag
     /// @param _l1Token The address of the bridged token in the L1 chain
     /// @param _l2Token The address of the token minted on the L2 chain when token bridged
     constructor(address _l1Token, address _l2Token) LidoBridgeableTokens(_l1Token, _l2Token) {
-        if (_l1Token == address(0) || _l2Token ==address(0)){
-              revert ErrorZeroAddress();
+        if (_l1Token == address(0) || _l2Token == address(0)) {
+            revert ErrorZeroAddress();
         }
 
         _disableInitializers();

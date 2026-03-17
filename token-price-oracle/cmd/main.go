@@ -13,6 +13,7 @@ import (
 	"github.com/morph-l2/go-ethereum/log"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
+
 	"morph-l2/token-price-oracle/client"
 	"morph-l2/token-price-oracle/config"
 	"morph-l2/token-price-oracle/flags"

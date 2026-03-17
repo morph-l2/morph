@@ -134,4 +134,3 @@ func (f *FallbackPriceFeed) GetBatchTokenPrices(ctx context.Context, tokenIDs []
 
 	return nil, lastErr
 }
-
