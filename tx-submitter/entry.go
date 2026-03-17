@@ -19,6 +19,7 @@ import (
 	"morph-l2/tx-submitter/l1checker"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/services"
+	"morph-l2/tx-submitter/types"
 	"morph-l2/tx-submitter/utils"
 
 	"github.com/morph-l2/externalsign"
@@ -74,6 +75,7 @@ func Main() func(ctx *cli.Context) error {
 			"max_tip", cfg.MaxTip,
 			"max_base", cfg.MaxBaseFee,
 			"tip_bump", cfg.TipFeeBump,
+			"seal_batch", cfg.SealBatch,
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -203,9 +205,13 @@ func Main() func(ctx *cli.Context) error {
 		// start rorator event indexer
 		rotator.StartEventIndexer()
 
-		// blockmonitor
+		// block monitor
 		bm := l1checker.NewBlockMonitor(cfg.BlockNotIncreasedThreshold, l1Client)
 
+		l2Caller, err := types.NewL2Caller(l2Clients)
+		if err != nil {
+			return err
+		}
 		// new rollup service
 		sr := services.NewRollup(
 			ctx,
@@ -225,6 +231,7 @@ func Main() func(ctx *cli.Context) error {
 			ldb,
 			bm,
 			eventInfoStorage,
+			l2Caller,
 		)
 
 		// metrics

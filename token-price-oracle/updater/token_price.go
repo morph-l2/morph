@@ -202,9 +202,13 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 		"total_tokens", len(tokenIDs))
 
 	// Step 3: Update prices on L2
+	methodSig, err := abiMethodSig(bindings.L2TokenRegistryMetaData, "batchUpdatePrices")
+	if err != nil {
+		return fmt.Errorf("failed to resolve method sig: %w", err)
+	}
 	receipt, err := u.txManager.SendTransaction(ctx, func(auth *bind.TransactOpts) (*types.Transaction, error) {
 		return u.registryContract.BatchUpdatePrices(auth, tokenIDsToUpdate, pricesToUpdate)
-	})
+	}, methodSig)
 
 	if err != nil {
 		log.Error("Failed to send transaction", "error", err)

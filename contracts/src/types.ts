@@ -18,6 +18,8 @@ const ContractFactoryName = {
     MultipleVersionRollupVerifier: 'MultipleVersionRollupVerifier',
     // staking
     L1Staking: 'L1Staking',
+    // L1 sequencer
+    L1Sequencer: 'L1Sequencer',
     // gateway
     L1GatewayRouter: 'L1GatewayRouter',
     L1StandardERC20Gateway: 'L1StandardERC20Gateway',
@@ -40,6 +42,8 @@ const ProxyStorageName = {
     RollupProxyStorageName: 'Proxy__Rollup',
     // staking
     L1StakingProxyStorageName: 'Proxy__L1Staking',
+    // L1 sequencer
+    L1SequencerProxyStorageName: 'Proxy__L1Sequencer',
     // gateway
     L1GatewayRouterProxyStorageName: 'Proxy__L1GatewayRouter',
     L1StandardERC20GatewayProxyStorageName: 'Proxy__L1StandardERC20Gateway',
@@ -71,6 +75,8 @@ const ImplStorageName = {
     MultipleVersionRollupVerifierStorageName: 'Impl__MultipleVersionRollupVerifier',
     // staking
     L1StakingStorageName: 'Impl__L1Staking',
+    // L1 sequencer
+    L1SequencerStorageName: 'Impl__L1Sequencer',
     // gateway
     L1GatewayRouterStorageName: 'Impl__L1GatewayRouter',
     L1StandardERC20GatewayStorageName: 'Impl__L1StandardERC20Gateway',

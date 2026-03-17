@@ -6,75 +6,48 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/morph-l2/externalsign"
 	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/log"
+	remotesigner "github.com/morph-l2/remote-signer-client/go/signer"
 )
 
 // Signer handles transaction signing with support for both local and external signing
 type Signer struct {
-	externalSign        bool
-	externalSigner      *externalsign.ExternalSign
-	externalSignUrl     string
+	remoteClient        *remotesigner.Client
 	externalSignAddress common.Address
 	chainID             *big.Int
-	signer              types.Signer
 }
 
 // NewSigner creates a new Signer instance
 func NewSigner(
-	externalSign bool,
-	externalSignAppid string,
-	externalRsaPriv *rsa.PrivateKey,
-	externalSignAddress string,
-	externalSignChain string,
-	externalSignUrl string,
+	appid string,
+	rsaPriv *rsa.PrivateKey,
+	address string,
+	chain string,
+	url string,
 	chainID *big.Int,
-) *Signer {
-	signer := types.NewLondonSigner(chainID)
-
-	s := &Signer{
-		externalSign:        externalSign,
-		externalSignUrl:     externalSignUrl,
-		externalSignAddress: common.HexToAddress(externalSignAddress),
-		chainID:             chainID,
-		signer:              signer,
-	}
-
-	if externalSign {
-		s.externalSigner = externalsign.NewExternalSign(
-			externalSignAppid,
-			externalRsaPriv,
-			externalSignAddress,
-			externalSignChain,
-			signer,
-		)
-		log.Info("External signer initialized",
-			"address", externalSignAddress,
-			"chain", externalSignChain)
-	}
-
-	return s
-}
-
-// Sign signs a transaction using either external or local signing
-func (s *Signer) Sign(tx *types.Transaction) (*types.Transaction, error) {
-	if !s.externalSign {
-		return nil, fmt.Errorf("local signing not supported in Signer, use bind.TransactOpts")
-	}
-
-	signedTx, err := s.externalSigner.RequestSign(s.externalSignUrl, tx)
+) (*Signer, error) {
+	remoteClient, err := remotesigner.NewClient(appid, rsaPriv, address, chain, url, types.NewLondonSigner(chainID))
 	if err != nil {
-		return nil, fmt.Errorf("external sign request failed: %w", err)
+		return nil, fmt.Errorf("failed to create remote signer client: %w", err)
 	}
-	return signedTx, nil
-}
 
-// IsExternalSign returns whether external signing is enabled
-func (s *Signer) IsExternalSign() bool {
-	return s.externalSign
+	log.Info("External signer initialized",
+		"address", address,
+		"chain", chain)
+
+	if !common.IsHexAddress(address) {
+		return nil, fmt.Errorf("invalid external signer address: %s", address)
+	}
+	parsedAddr := common.HexToAddress(address)
+
+	return &Signer{
+		remoteClient:        remoteClient,
+		externalSignAddress: parsedAddr,
+		chainID:             chainID,
+	}, nil
 }
 
 // GetFromAddress returns the signer's address
@@ -88,6 +61,7 @@ func (s *Signer) CreateAndSignTx(
 	client *L2Client,
 	to common.Address,
 	callData []byte,
+	methodSig string,
 ) (*types.Transaction, error) {
 	from := s.externalSignAddress
 
@@ -134,8 +108,9 @@ func (s *Signer) CreateAndSignTx(
 		"nonce", nonce,
 		"gas", gas,
 		"gasFeeCap", caps.FeeCap,
-		"gasTipCap", caps.TipCap)
+		"gasTipCap", caps.TipCap,
+		"methodSig", methodSig)
 
 	// Sign transaction
-	return s.Sign(tx)
+	return s.remoteClient.Sign(tx, methodSig)
 }

@@ -110,6 +110,8 @@ type Config struct {
 	// leveldb path name
 	LeveldbPathName            string
 	BlockNotIncreasedThreshold int64
+	// enable seal batch
+	SealBatch bool
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -183,6 +185,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		LeveldbPathName: ctx.GlobalString(flags.LeveldbPathNameFlag.Name),
 		// BlockNotIncreasedThreshold
 		BlockNotIncreasedThreshold: ctx.GlobalInt64(flags.BlockNotIncreasedThreshold.Name),
+		// SealBatch
+		SealBatch: ctx.GlobalBool(flags.SealBatch.Name),
 	}
 
 	return cfg, nil

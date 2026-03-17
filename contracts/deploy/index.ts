@@ -10,6 +10,7 @@ import StakingInit from './018-StakingInit'
 import {AdminTransfer,AdminTransferByProxyStorageName, AdminTransferConcurrently} from './019-AdminTransfer'
 import ContractInit from './020-ContractInit'
 import StakingRegister from './021-StakingRegister'
+import SequencerInit from './022-SequencerInit'
 
 
 export {
@@ -28,5 +29,6 @@ export {
     AdminTransferByProxyStorageName,
     AdminTransferConcurrently,
     ContractInit,
-    StakingRegister
+    StakingRegister,
+    SequencerInit
 }
