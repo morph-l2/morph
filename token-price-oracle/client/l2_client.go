@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/morph-l2/externalsign"
+	"morph-l2/token-price-oracle/config"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/log"
-	"morph-l2/token-price-oracle/config"
+	"github.com/morph-l2/remote-signer-client/go/signer"
 )
 
 // L2Client wraps L2 chain client
@@ -64,13 +64,12 @@ func NewL2Client(rpcURL string, cfg *config.Config) (*L2Client, error) {
 
 	if cfg.ExternalSign {
 		// External sign mode
-		rsaPriv, err := externalsign.ParseRsaPrivateKey(cfg.ExternalSignRsaPriv)
+		rsaPriv, err := signer.ParseRsaPrivateKey(cfg.ExternalSignRsaPriv)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse RSA private key: %w", err)
 		}
 
-		l2Client.signer = NewSigner(
-			true,
+		l2Client.signer, err = NewSigner(
 			cfg.ExternalSignAppid,
 			rsaPriv,
 			cfg.ExternalSignAddress,
@@ -78,6 +77,9 @@ func NewL2Client(rpcURL string, cfg *config.Config) (*L2Client, error) {
 			cfg.ExternalSignUrl,
 			chainID,
 		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create signer: %w", err)
+		}
 
 		fromAddr := common.HexToAddress(cfg.ExternalSignAddress)
 		ethSigner := types.NewLondonSigner(chainID)
