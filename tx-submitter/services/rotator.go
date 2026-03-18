@@ -110,7 +110,7 @@ func (r *Rotator) UpdateState(clients []iface.L2Client, l1Staking iface.IL1Staki
 	return nil
 }
 
-// GetCurrentSubmitter returns the current sequencer that should be submitting
+// CurrentSubmitter returns the current sequencer that should be submitting
 func (r *Rotator) CurrentSubmitter(clients []iface.L2Client, l1Staking iface.IL1Staking) (*common.Address, int64, error) {
 
 	err := r.UpdateState(clients, l1Staking)
