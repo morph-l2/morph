@@ -366,7 +366,7 @@ var Flags = []cli.Flag{
 	L2SequencerAddr,
 	GovAddr,
 
-	// sync optioins
+	// sync options
 	SyncDepositContractAddr,
 	SyncStartHeight,
 	SyncPollInterval,
