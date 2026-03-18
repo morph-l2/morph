@@ -29,6 +29,9 @@ const (
 
 	// DefaultLogProgressInterval is the frequency at which we log progress.
 	DefaultLogProgressInterval = time.Second * 10
+
+	// DefaultReorgCheckDepth is the number of recent L1 blocks to check for reorgs.
+	DefaultReorgCheckDepth = uint64(64)
 )
 
 type Config struct {
@@ -42,6 +45,7 @@ type Config struct {
 	PollInterval          time.Duration   `json:"poll_interval"`
 	LogProgressInterval   time.Duration   `json:"log_progress_interval"`
 	FetchBlockRange       uint64          `json:"fetch_block_range"`
+	ReorgCheckDepth       uint64          `json:"reorg_check_depth"`
 	MetricsPort           uint64          `json:"metrics_port"`
 	MetricsHostname       string          `json:"metrics_hostname"`
 	MetricsServerEnable   bool            `json:"metrics_server_enable"`
@@ -55,6 +59,7 @@ func DefaultConfig() *Config {
 		PollInterval:        DefaultPollInterval,
 		LogProgressInterval: DefaultLogProgressInterval,
 		FetchBlockRange:     DefaultFetchBlockRange,
+		ReorgCheckDepth:     DefaultReorgCheckDepth,
 		L2:                  new(types.L2Config),
 		L2Next:              nil, // optional, only for upgrade switch
 	}
@@ -110,6 +115,9 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		if c.FetchBlockRange == 0 {
 			return errors.New("invalid fetchBlockRange")
 		}
+	}
+	if ctx.GlobalIsSet(flags.DerivationReorgCheckDepth.Name) {
+		c.ReorgCheckDepth = ctx.GlobalUint64(flags.DerivationReorgCheckDepth.Name)
 	}
 
 	l2EthAddr := ctx.GlobalString(flags.L2EthAddr.Name)
