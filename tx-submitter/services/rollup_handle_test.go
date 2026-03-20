@@ -118,7 +118,7 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 	)
 
 	// Initialize pending transactions
-	rollup.pendingTxs = NewPendingTxs([]byte{}, []byte{}, mockJournal)
+	rollup.pendingTxs = NewPendingTxs(mockJournal)
 
 	// Initialize reorg detector
 	// Use the mock implementation for controlled testing

@@ -21,7 +21,6 @@ type ReorgDetector struct {
 	maxHistory   int
 
 	l1Client iface.Client
-	metrics  iface.IMetrics
 }
 
 type blockInfo struct {
@@ -29,12 +28,11 @@ type blockInfo struct {
 	hash   common.Hash
 }
 
-func NewReorgDetector(l1Client iface.Client, metrics iface.IMetrics) *ReorgDetector {
+func NewReorgDetector(l1Client iface.Client) *ReorgDetector {
 	return &ReorgDetector{
 		blockHistory: make([]blockInfo, 0),
 		maxHistory:   5, // Track last 50 blocks
 		l1Client:     l1Client,
-		metrics:      metrics,
 	}
 }
 
@@ -76,10 +74,6 @@ func (r *ReorgDetector) DetectReorg(ctx context.Context) (bool, uint64, error) {
 				"old_hash", info.hash,
 				"new_hash", block.Hash(),
 				"block_number", info.number)
-
-			// Update metrics
-			r.metrics.IncReorgs()
-			r.metrics.SetReorgDepth(float64(reorgDepth))
 
 			// Truncate history before reorg point and rebuild
 			r.blockHistory = r.blockHistory[:i]
