@@ -210,7 +210,7 @@ func compareBatchHeaderWithCommitData(t *testing.T, assembledBatchHeader *BatchH
 		t.Logf("✓ NumL1Messages: %d (match)", l1MsgPopped)
 	}
 
-	// 比较 PrevStateRoot
+	// Compare PrevStateRoot
 	prevStateRoot, err := assembledBatchHeader.PrevStateRoot()
 	require.NoError(t, err)
 	prevStateRootFromCommit := common.BytesToHash(batchDataInput.PrevStateRoot[:])
@@ -220,7 +220,7 @@ func compareBatchHeaderWithCommitData(t *testing.T, assembledBatchHeader *BatchH
 		t.Logf("✓ PrevStateRoot: %x (match)", prevStateRoot)
 	}
 
-	// 比较 PostStateRoot
+	// Compare PostStateRoot
 	postStateRoot, err := assembledBatchHeader.PostStateRoot()
 	require.NoError(t, err)
 	postStateRootFromCommit := common.BytesToHash(batchDataInput.PostStateRoot[:])
@@ -230,7 +230,7 @@ func compareBatchHeaderWithCommitData(t *testing.T, assembledBatchHeader *BatchH
 		t.Logf("✓ PostStateRoot: %x (match)", postStateRoot)
 	}
 
-	// 比较 WithdrawalRoot
+	// Compare WithdrawalRoot
 	withdrawRoot, err := assembledBatchHeader.WithdrawalRoot()
 	require.NoError(t, err)
 	withdrawRootFromCommit := common.BytesToHash(batchDataInput.WithdrawalRoot[:])
@@ -240,7 +240,7 @@ func compareBatchHeaderWithCommitData(t *testing.T, assembledBatchHeader *BatchH
 		t.Logf("✓ WithdrawalRoot: %x (match)", withdrawRoot)
 	}
 
-	// 比较 SequencerSetVerifyHash
+	// Compare SequencerSetVerifyHash
 	sequencerSetsHash := crypto.Keccak256Hash(batchSignatureInput.SequencerSets)
 	seqHash, err := assembledBatchHeader.SequencerSetVerifyHash()
 	require.NoError(t, err)
