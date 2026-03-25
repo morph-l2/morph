@@ -920,14 +920,23 @@ func (r *Rollup) finalize() error {
 		zkmRpc := "http://morph-geth-hoodi-a:8545"
 		upgradeBatchIndex := uint64(13521)
 		if nextBatchIndex <= upgradeBatchIndex {
+			log.Info("get rollupBatch from zkm rpc")
 			l2Client, err := ethclient.DialContext(context.Background(), zkmRpc)
 			if err != nil {
 				log.Error("failed to connect to L2 provider", "url", zkmRpc)
 				return err
 			}
 			l2Clients = append(l2Clients, l2Client)
-		} else {
 			l2Clients = append(l2Clients, r.L2Clients...)
+		} else {
+			l2Client, err := ethclient.DialContext(context.Background(), zkmRpc)
+			if err != nil {
+				log.Error("failed to connect to L2 provider", "url", zkmRpc)
+				return err
+			}
+			log.Info("get rollupBatch from mpt rpc")
+			l2Clients = append(l2Clients, r.L2Clients...)
+			l2Clients = append(l2Clients, l2Client)
 		}
 		if len(l2Clients) == 0 {
 			return fmt.Errorf("cannot connect to any l2 rpc")
@@ -1454,6 +1463,7 @@ func GetRollupBatchByIndex(index uint64, clients []iface.L2Client) (*eth.RPCRoll
 			continue
 		}
 		if batch != nil && len(batch.Signatures) > 0 {
+			log.Info("found batch", "index", index, "batch", batch.Hash.String())
 			return batch, nil
 		}
 	}
