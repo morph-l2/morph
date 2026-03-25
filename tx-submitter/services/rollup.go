@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
+	"github.com/morph-l2/go-ethereum/ethclient"
 	"math/big"
 	"strconv"
 	"sync"
@@ -915,11 +916,31 @@ func (r *Rollup) finalize() error {
 		headerBytes = rollupBatchHeader.Bytes()
 	} else {
 		nextBatchIndex := target.Uint64() + 1
-		nextBatch, exist := r.batchCacheLegacy.Get(nextBatchIndex)
-		if !exist {
-			log.Warn("get next rollupBatch by index failed, rollupBatch not found",
+		var l2Clients []iface.L2Client
+		zkmRpc := "http://morph-geth-hoodi-a:8545"
+		upgradeBatchIndex := uint64(13521)
+		if nextBatchIndex <= upgradeBatchIndex {
+			l2Client, err := ethclient.DialContext(context.Background(), zkmRpc)
+			if err != nil {
+				log.Error("failed to connect to L2 provider", "url", zkmRpc)
+				return err
+			}
+			l2Clients = append(l2Clients, l2Client)
+		} else {
+			l2Clients = append(l2Clients, r.L2Clients...)
+		}
+		if len(l2Clients) == 0 {
+			return fmt.Errorf("cannot connect to any l2 rpc")
+		}
+		nextBatch, err := GetRollupBatchByIndex(nextBatchIndex, l2Clients)
+		if err != nil {
+			log.Error("get next batch by index error",
 				"batch_index", nextBatchIndex,
 			)
+			return fmt.Errorf("get next batch by index err:%v", err)
+		}
+		if nextBatch == nil {
+			log.Info("next batch is nil,wait next batch header to finalize", "next_batch_index", nextBatchIndex)
 			return nil
 		}
 		headerBytes = []byte(nextBatch.ParentBatchHeader)
