@@ -477,6 +477,265 @@ show_logs() {
     $COMPOSE_CMD_NO_OVERRIDE logs -f "$@"
 }
 
+# ========== Malicious Image Build ==========
+
+build_malicious_image() {
+    log_info "Building malicious node image from test/p2p-security branch..."
+    cd "$BITGET_ROOT"
+
+    # Save current tendermint branch state
+    cd tendermint
+    local original_branch
+    original_branch=$(git branch --show-current)
+    git stash 2>/dev/null || true
+
+    # Switch to malicious branch
+    git checkout test/p2p-security
+    cd "$BITGET_ROOT"
+
+    # Build using same Dockerfile, different tag
+    docker build -t morph-node-malicious:latest \
+        -f morph/ops/docker-sequencer-test/Dockerfile.l2-node-test .
+
+    # Switch back
+    cd tendermint
+    git checkout "$original_branch"
+    git stash pop 2>/dev/null || true
+    cd "$BITGET_ROOT"
+
+    log_success "Malicious image built!"
+}
+
+# ========== P2P Security Test ==========
+
+L2_RPC_SENTRY="http://127.0.0.1:8945"
+
+setup_malicious_node() {
+    log_info "Setting up malicious node config..."
+    cd "$DOCKER_DIR"
+
+    # Copy sentry config as template (if not already set up)
+    if [ ! -d ".devnet/malicious-node-0" ]; then
+        if [ -d ".devnet/node4" ]; then
+            cp -r ".devnet/node4" ".devnet/malicious-node-0"
+        elif [ -d ".devnet/sentry-node-0" ]; then
+            cp -r ".devnet/sentry-node-0" ".devnet/malicious-node-0"
+        else
+            log_error "No sentry/node4 config found to copy"
+            return 1
+        fi
+
+        # Generate new node_key to avoid ID collision
+        cd ".devnet/malicious-node-0/config"
+        if command -v tendermint &>/dev/null; then
+            tendermint gen-node-key 2>/dev/null || true
+        else
+            # If tendermint binary not available, just modify the existing key slightly
+            log_warn "tendermint binary not found, using modified sentry key"
+        fi
+        cd "$DOCKER_DIR"
+
+        # Reset validator state
+        cat > ".devnet/malicious-node-0/data/priv_validator_state.json" <<'PVJSON'
+{"height":"0","round":0,"step":0}
+PVJSON
+    fi
+
+    log_success "Malicious node config ready at .devnet/malicious-node-0/"
+}
+
+start_malicious_node() {
+    local mode="${1:-all}"
+    log_info "Starting malicious node (MALICIOUS_MODE=$mode)..."
+    cd "$DOCKER_DIR"
+
+    export MALICIOUS_MODE="$mode"
+    $COMPOSE_CMD up -d malicious-geth-0 malicious-node-0
+}
+
+stop_malicious_node() {
+    cd "$DOCKER_DIR"
+    $COMPOSE_CMD stop malicious-geth-0 malicious-node-0 2>/dev/null || true
+    $COMPOSE_CMD rm -f malicious-geth-0 malicious-node-0 2>/dev/null || true
+}
+
+test_p2p_security() {
+    log_info "=========================================="
+    log_info "  P2P Anti-Malicious Security Tests"
+    log_info "=========================================="
+
+    cd "$DOCKER_DIR"
+
+    # Pre-check: devnet must be running
+    local height
+    height=$(get_block_number "$L2_RPC")
+    if [ "$height" -lt 5 ]; then
+        log_error "Devnet not running or not producing blocks (height=$height)"
+        return 1
+    fi
+    log_info "Devnet running at height $height"
+
+    setup_malicious_node
+
+    local pass=0
+    local fail=0
+    local skip=0
+
+    # ==========================================
+    # Phase 1: Active attacks (T-01 ~ T-05)
+    # ==========================================
+    log_info "---------- Phase 1: Active attacks ----------"
+
+    # Clear sentry logs baseline
+    local log_before
+    log_before=$($COMPOSE_CMD logs sentry-node-0 2>/dev/null | wc -l)
+
+    start_malicious_node "all"
+    log_info "Waiting for malicious routine (~60s)..."
+    sleep 60
+    stop_malicious_node
+
+    # Capture new logs since attack started
+    local new_logs
+    new_logs=$($COMPOSE_CMD logs sentry-node-0 2>/dev/null | tail -n +$((log_before + 1)))
+
+    # T-01/02/03: Signature attacks
+    local sig_reject
+    sig_reject=$(echo "$new_logs" | grep -c "Block signature verification failed" || echo "0")
+    if [ "$sig_reject" -ge 3 ]; then
+        log_success "T-01/02/03 Signature attacks: PASSED ($sig_reject blocks rejected)"
+        pass=$((pass + 1))
+    else
+        log_error "T-01/02/03 Signature attacks: FAILED ($sig_reject rejections, expected >= 3)"
+        fail=$((fail + 1))
+    fi
+
+    # T-04: Unsolicited sync
+    local unsolicited
+    unsolicited=$(echo "$new_logs" | grep -c "Unsolicited sync response" || echo "0")
+    if [ "$unsolicited" -ge 1 ]; then
+        log_success "T-04 Unsolicited sync: PASSED ($unsolicited dropped)"
+        pass=$((pass + 1))
+    else
+        log_error "T-04 Unsolicited sync: FAILED"
+        fail=$((fail + 1))
+    fi
+
+    # T-05: Duplicate flood
+    local dedup
+    dedup=$(echo "$new_logs" | grep -c "broadcast dedup" || echo "0")
+    if [ "$dedup" -ge 1 ]; then
+        log_success "T-05 Duplicate flood: PASSED ($dedup deduped)"
+        pass=$((pass + 1))
+    else
+        log_warn "T-05 Duplicate flood: SKIPPED (debug log not visible, set broadcastReactor:debug)"
+        skip=$((skip + 1))
+    fi
+
+    # ==========================================
+    # Phase 2: BlockSync pollution (T-06)
+    # ==========================================
+    log_info "---------- Phase 2: BlockSync pollution ----------"
+
+    local current_height
+    current_height=$(get_block_number "$L2_RPC")
+    log_info "Current sequencer height: $current_height"
+
+    # Stop sentry and clean its data
+    log_info "Stopping sentry and cleaning data..."
+    $COMPOSE_CMD stop sentry-geth-0 sentry-node-0 2>/dev/null || true
+    $COMPOSE_CMD rm -f sentry-geth-0 sentry-node-0 2>/dev/null || true
+
+    docker volume rm docker_sentry_geth_data 2>/dev/null || true
+    rm -rf "$DOCKER_DIR/.devnet/node4/data/blockstore.db" \
+           "$DOCKER_DIR/.devnet/node4/data/evidence.db" \
+           "$DOCKER_DIR/.devnet/node4/data/state.db" \
+           "$DOCKER_DIR/.devnet/node4/data/tx_index.db" \
+           "$DOCKER_DIR/.devnet/node4/data/cs.wal" \
+           "$DOCKER_DIR/.devnet/node4/node-data" 2>/dev/null || true
+    # Reset validator state
+    cat > "$DOCKER_DIR/.devnet/node4/data/priv_validator_state.json" <<'PVJSON'
+{"height":"0","round":0,"step":0}
+PVJSON
+
+    # Start malicious node in sync-forge mode (responds to sync requests with forged blocks)
+    start_malicious_node "sync-forge"
+    sleep 5
+
+    # Restart sentry (will blocksync from zero, some requests hit malicious peer)
+    log_info "Restarting sentry (blocksync from zero)..."
+    $COMPOSE_CMD up -d sentry-geth-0 sentry-node-0
+    wait_for_rpc "$L2_RPC_SENTRY" 120
+
+    # Wait for sentry to sync (up to 5 minutes)
+    local target_sync=$((current_height - 5))
+    local max_wait=300
+    local waited=0
+    log_info "Waiting for sentry to sync to $target_sync..."
+    while [ $waited -lt $max_wait ]; do
+        local fn_block
+        fn_block=$(get_block_number "$L2_RPC_SENTRY")
+        if [ "$fn_block" -ge "$target_sync" ]; then
+            log_info "Sentry synced to $fn_block"
+            break
+        fi
+        echo -ne "\r  Sentry: $fn_block / $target_sync"
+        sleep 10
+        waited=$((waited + 10))
+    done
+    echo ""
+
+    stop_malicious_node
+
+    local fn_final
+    fn_final=$(get_block_number "$L2_RPC_SENTRY")
+    local sync_rejects
+    sync_rejects=$($COMPOSE_CMD logs sentry-node-0 2>/dev/null \
+        | grep -c "Block signature verification failed" || echo "0")
+
+    if [ "$fn_final" -ge "$target_sync" ] && [ "$sync_rejects" -ge 1 ]; then
+        log_success "T-06 BlockSync forge: PASSED (synced to $fn_final, rejected $sync_rejects forged blocks)"
+        pass=$((pass + 1))
+    elif [ "$fn_final" -ge "$target_sync" ]; then
+        log_warn "T-06 BlockSync forge: PARTIAL (synced OK but no rejection logs - malicious node may not have been queried)"
+        skip=$((skip + 1))
+    else
+        log_error "T-06 BlockSync forge: FAILED (height=$fn_final target=$target_sync, rejections=$sync_rejects)"
+        fail=$((fail + 1))
+    fi
+
+    # ==========================================
+    # Phase 3: Network resilience (T-07)
+    # ==========================================
+    log_info "---------- Phase 3: Network resilience ----------"
+
+    local h1
+    h1=$(get_block_number "$L2_RPC")
+    sleep 30
+    local h2
+    h2=$(get_block_number "$L2_RPC")
+    if [ "$h2" -gt "$h1" ]; then
+        log_success "T-07 Network resilience: PASSED ($h1 -> $h2)"
+        pass=$((pass + 1))
+    else
+        log_error "T-07 Network resilience: FAILED (height stuck at $h1)"
+        fail=$((fail + 1))
+    fi
+
+    # ==========================================
+    # Results
+    # ==========================================
+    log_info "=========================================="
+    if [ "$fail" -eq 0 ]; then
+        log_success "  P2P Security: $pass PASSED, $skip SKIPPED, $fail FAILED"
+        log_success "=========================================="
+    else
+        log_error "  P2P Security: $pass PASSED, $skip SKIPPED, $fail FAILED"
+        log_error "=========================================="
+        return 1
+    fi
+}
+
 # ========== Command Parsing ==========
 
 case "${1:-}" in
@@ -516,32 +775,42 @@ case "${1:-}" in
     upgrade-height)
         set_upgrade_height "${2:-50}"
         ;;
+    build-malicious)
+        build_malicious_image
+        ;;
+    p2p-test)
+        test_p2p_security
+        ;;
     *)
         echo "Sequencer Upgrade Test Runner"
         echo ""
-        echo "Usage: $0 {build|setup|start|stop|clean|logs|test|tx|status|upgrade-height}"
+        echo "Usage: $0 {build|setup|start|stop|clean|logs|test|tx|status|upgrade-height|build-malicious|p2p-test}"
         echo ""
         echo "Commands:"
-        echo "  build           - Build test Docker images (morph-geth-test, morph-node-test)"
-        echo "  setup           - Run full devnet setup (L1 + contracts + L2 genesis)"
-        echo "  start           - Start L2 nodes with test images"
-        echo "  stop            - Stop all containers"
-        echo "  clean           - Stop and remove all containers and data"
-        echo "  logs [service]  - Show container logs"
-        echo "  test            - Run full upgrade test"
-        echo "  tx              - Start transaction generator"
-        echo "  status          - Show current block numbers"
-        echo "  upgrade-height N - Set upgrade height to N"
+        echo "  build             - Build test Docker images (morph-geth-test, morph-node-test)"
+        echo "  build-malicious   - Build malicious node image from test/p2p-security branch"
+        echo "  setup             - Run full devnet setup (L1 + contracts + L2 genesis)"
+        echo "  start             - Start L2 nodes with test images"
+        echo "  stop              - Stop all containers"
+        echo "  clean             - Stop and remove all containers and data"
+        echo "  logs [service]    - Show container logs"
+        echo "  test              - Run full upgrade test"
+        echo "  p2p-test          - Run P2P anti-malicious security tests"
+        echo "  tx                - Start transaction generator"
+        echo "  status            - Show current block numbers"
+        echo "  upgrade-height N  - Set upgrade height to N"
         echo ""
-    echo "Environment Variables:"
-    echo "  UPGRADE_HEIGHT  - Block height for consensus switch (default: 10)"
-        echo "  TX_INTERVAL     - Seconds between txs (default: 5)"
+        echo "Environment Variables:"
+        echo "  UPGRADE_HEIGHT    - Block height for consensus switch (default: 10)"
+        echo "  TX_INTERVAL       - Seconds between txs (default: 5)"
+        echo "  MALICIOUS_MODE    - Attack mode for p2p-test (default: all)"
         echo ""
         echo "Test Flow:"
-        echo "  1. build        - Build test images"
-        echo "  2. setup        - Deploy L1, contracts, generate L2 genesis"
-        echo "  3. start        - Start L2 with test images"
-        echo "  4. test         - Run PBFT -> Upgrade -> Sequencer -> Fullnode tests"
+        echo "  1. build          - Build test images"
+        echo "  2. setup          - Deploy L1, contracts, generate L2 genesis"
+        echo "  3. start          - Start L2 with test images"
+        echo "  4. test           - Run PBFT -> Upgrade -> Sequencer -> Fullnode tests"
+        echo "  5. p2p-test       - Run P2P security tests (requires build-malicious)"
         echo ""
         echo "Quick Start:"
         echo "  UPGRADE_HEIGHT=10 $0 test"

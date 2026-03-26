@@ -19,6 +19,7 @@ volumes:
   layer1-el-data:
   layer1-cl-data:
   layer1-vc-data:
+  malicious_geth_data:
 
 services:
   # ========== Layer1 Ethereum Node ==========
