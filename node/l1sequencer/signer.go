@@ -1,7 +1,6 @@
 package l1sequencer
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"fmt"
 
@@ -19,32 +18,25 @@ type Signer interface {
 
 	// Address returns the sequencer's address
 	Address() common.Address
-
-	// IsActiveSequencer checks if this signer is the current L1 sequencer
-	IsActiveSequencer(ctx context.Context) (bool, error)
 }
 
 // LocalSigner implements Signer with a local private key
 type LocalSigner struct {
-	privKey  *ecdsa.PrivateKey
-	address  common.Address
-	verifier *SequencerVerifier
-	logger   tmlog.Logger
+	privKey *ecdsa.PrivateKey
+	address common.Address
+	logger  tmlog.Logger
 }
 
 // NewLocalSigner creates a new LocalSigner with a local private key
-func NewLocalSigner(privKey *ecdsa.PrivateKey, verifier *SequencerVerifier, logger tmlog.Logger) (*LocalSigner, error) {
+func NewLocalSigner(privKey *ecdsa.PrivateKey, logger tmlog.Logger) (*LocalSigner, error) {
 	if privKey == nil {
 		return nil, fmt.Errorf("private key is required")
 	}
 
-	address := crypto.PubkeyToAddress(privKey.PublicKey)
-
 	return &LocalSigner{
-		privKey:  privKey,
-		address:  address,
-		verifier: verifier,
-		logger:   logger.With("module", "signer"),
+		privKey: privKey,
+		address: crypto.PubkeyToAddress(privKey.PublicKey),
+		logger:  logger.With("module", "signer"),
 	}, nil
 }
 
@@ -62,10 +54,3 @@ func (s *LocalSigner) Address() common.Address {
 	return s.address
 }
 
-// IsActiveSequencer checks if this signer is the current L1 sequencer
-func (s *LocalSigner) IsActiveSequencer(ctx context.Context) (bool, error) {
-	if s.verifier == nil {
-		return false, fmt.Errorf("sequencer verifier not set")
-	}
-	return s.verifier.IsSequencer(ctx, s.address)
-}

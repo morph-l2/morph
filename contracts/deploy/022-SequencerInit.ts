@@ -34,20 +34,12 @@ export const SequencerInit = async (
         
         // Owner is the deployer (will be transferred to multisig in production)
         const owner = await deployer.getAddress()
-        
-        // Get initial sequencer address from config (first sequencer address)
-        // Note: l2SequencerAddresses is defined in contracts/src/deploy-config/l1.ts
-        const initialSequencer = (configTmp.l2SequencerAddresses && configTmp.l2SequencerAddresses.length > 0)
-            ? configTmp.l2SequencerAddresses[0]
-            : ethers.constants.AddressZero
-        
-        console.log('Initial sequencer address:', initialSequencer)
 
-        // Upgrade and initialize the proxy with owner and initial sequencer
-        // Note: We set sequencer in initialize() to avoid TransparentUpgradeableProxy admin restriction
+        // Upgrade and initialize the proxy with owner only.
+        // Sequencer history is initialized separately via initializeHistory().
         await IL1SequencerProxy.upgradeToAndCall(
             L1SequencerImplAddress,
-            L1SequencerFactory.interface.encodeFunctionData('initialize', [owner, initialSequencer])
+            L1SequencerFactory.interface.encodeFunctionData('initialize', [owner])
         )
 
         await awaitCondition(
@@ -72,16 +64,7 @@ export const SequencerInit = async (
             owner,
         )
 
-        if (initialSequencer !== ethers.constants.AddressZero) {
-            await assertContractVariable(
-                contractTmp,
-                'sequencer',
-                initialSequencer,
-            )
-            console.log('L1SequencerProxy upgrade success, initial sequencer set:', initialSequencer)
-        } else {
-            console.log('L1SequencerProxy upgrade success (no initial sequencer set)')
-        }
+        console.log('L1SequencerProxy upgrade success')
     }
     return ''
 }
