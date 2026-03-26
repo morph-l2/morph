@@ -285,14 +285,14 @@ start_l2_test() {
     
     # Start L2 geth nodes
     log_info "Starting L2 geth nodes..."
-    $COMPOSE_CMD up -d morph-geth-0 morph-geth-1 morph-geth-2 morph-geth-3
+    $COMPOSE_CMD up -d morph-geth-0 morph-geth-1 morph-geth-2 morph-geth-3 sentry-geth-0
     
     sleep 5
     
     # Start L2 tendermint nodes
     log_info "Starting L2 tendermint nodes..."
-    $COMPOSE_CMD up -d node-0 node-1 node-2 node-3
-    
+    $COMPOSE_CMD up -d node-0 node-1 node-2 node-3 sentry-node-0
+
     wait_for_rpc "$L2_RPC"
     log_success "L2 is running with test images!"
 }
