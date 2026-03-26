@@ -157,7 +157,32 @@ func DecodeTxsFromBytes(txsBytes []byte) (eth.Transactions, error) {
 			if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
 				return nil, err
 			}
-			innerTx = new(eth.MorphTx)
+			// MorphTx v1+ has a version byte prefix before the RLP data.
+			// A valid RLP list prefix is >= 0xC0, so any byte in (0, 0xC0)
+			// indicates a version byte that must be skipped to reach the RLP prefix.
+			var morphVersionPrefix []byte
+			if firstByte > 0 && firstByte < 0xC0 {
+				morphVersionPrefix = []byte{firstByte}
+				if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
+					return nil, err
+				}
+			}
+			fullTxBytes, err = extractInnerTxFullBytes(firstByte, reader)
+			if err != nil {
+				return nil, err
+			}
+			// MorphTx has custom v0/v1 decode logic, so reconstruct the full
+			// binary (type + optional version + RLP) and use UnmarshalBinary.
+			fullBinary := make([]byte, 0, 1+len(morphVersionPrefix)+len(fullTxBytes))
+			fullBinary = append(fullBinary, eth.MorphTxType)
+			fullBinary = append(fullBinary, morphVersionPrefix...)
+			fullBinary = append(fullBinary, fullTxBytes...)
+			tx := new(eth.Transaction)
+			if err = tx.UnmarshalBinary(fullBinary); err != nil {
+				return nil, err
+			}
+			txs = append(txs, tx)
+			continue
 		default:
 			if firstByte <= 0xf7 { // legacy tx first byte must be greater than 0xf7(247)
 				return nil, fmt.Errorf("not supported tx type: %d", firstByte)
@@ -165,15 +190,6 @@ func DecodeTxsFromBytes(txsBytes []byte) (eth.Transactions, error) {
 			innerTx = new(eth.LegacyTx)
 		}
 
-		// we support the tx types of LegacyTxType/AccessListTxType/DynamicFeeTxType
-		//if firstByte == eth.AccessListTxType || firstByte == eth.DynamicFeeTxType {
-		//	// the firstByte here is used to indicate tx type, so skip it
-		//	if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-		//		return nil, err
-		//	}
-		//} else if firstByte <= 0xf7 { // legacy tx first byte must be greater than 0xf7(247)
-		//	return nil, fmt.Errorf("not supported tx type: %d", firstByte)
-		//}
 		fullTxBytes, err = extractInnerTxFullBytes(firstByte, reader)
 		if err != nil {
 			return nil, err
@@ -187,10 +203,14 @@ func DecodeTxsFromBytes(txsBytes []byte) (eth.Transactions, error) {
 }
 
 func extractInnerTxFullBytes(firstByte byte, reader io.Reader) ([]byte, error) {
-	//the occupied byte length for storing the size of the following rlp encoded bytes
+	if firstByte <= 0xf7 {
+		return nil, fmt.Errorf("invalid RLP long string/list prefix: 0x%x, expected > 0xf7", firstByte)
+	}
 	sizeByteLen := firstByte - 0xf7
+	if sizeByteLen > 4 {
+		return nil, fmt.Errorf("RLP size byte length %d exceeds maximum supported (4)", sizeByteLen)
+	}
 
-	// the size of the following rlp encoded bytes
 	sizeByte := make([]byte, sizeByteLen)
 	if err := binary.Read(reader, binary.BigEndian, sizeByte); err != nil {
 		return nil, err
