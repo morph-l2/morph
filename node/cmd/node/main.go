@@ -201,6 +201,9 @@ func L2NodeMain(ctx *cli.Context) error {
 	if tracker != nil {
 		tracker.Stop()
 	}
+	if verifier != nil {
+		verifier.Stop()
+	}
 
 	return nil
 }
@@ -233,12 +236,11 @@ func initL1SequencerComponents(
 	}
 	logger.Info("L1 Tracker started", "lagThreshold", lagThreshold)
 
-	// Initialize Sequencer Verifier (optional)
+	// Initialize Sequencer Verifier
 	var verifier *l1sequencer.SequencerVerifier
 	if contractAddr != (common.Address{}) {
 		caller, err := bindings.NewL1SequencerCaller(contractAddr, l1Client)
 		if err != nil {
-			tracker.Stop()
 			return nil, nil, nil, fmt.Errorf("failed to create L1Sequencer caller: %w", err)
 		}
 		verifier = l1sequencer.NewSequencerVerifier(caller, logger)
@@ -253,12 +255,10 @@ func initL1SequencerComponents(
 		seqPrivKeyHex = strings.TrimPrefix(seqPrivKeyHex, "0x")
 		privKey, err := crypto.HexToECDSA(seqPrivKeyHex)
 		if err != nil {
-			tracker.Stop()
 			return nil, nil, nil, fmt.Errorf("invalid sequencer private key: %w", err)
 		}
-		signer, err = l1sequencer.NewLocalSigner(privKey, verifier, logger)
+		signer, err = l1sequencer.NewLocalSigner(privKey, logger)
 		if err != nil {
-			tracker.Stop()
 			return nil, nil, nil, err
 		}
 		logger.Info("Sequencer signer initialized", "address", signer.Address().Hex())
