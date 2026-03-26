@@ -31,7 +31,7 @@ var (
 
 // L1SequencerMetaData contains all meta data concerning the L1Sequencer contract.
 var L1SequencerMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"function\",\"name\":\"getSequencer\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"_owner\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"owner\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"renounceOwnership\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"sequencer\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"transferOwnership\",\"inputs\":[{\"name\":\"newOwner\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"updateSequencer\",\"inputs\":[{\"name\":\"newSequencer\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint8\",\"indexed\":false,\"internalType\":\"uint8\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OwnershipTransferred\",\"inputs\":[{\"name\":\"previousOwner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"newOwner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SequencerUpdated\",\"inputs\":[{\"name\":\"oldSequencer\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"newSequencer\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false}]",
+	ABI: "[{\"type\":\"function\",\"name\":\"getSequencer\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"_owner\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"initializeHistory\",\"inputs\":[{\"name\":\"firstSequencer\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"upgradeL2Block\",\"type\":\"uint64\",\"internalType\":\"uint64\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"owner\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"renounceOwnership\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"transferOwnership\",\"inputs\":[{\"name\":\"newOwner\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"updateSequencer\",\"inputs\":[{\"name\":\"newSequencer\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"startL2Block\",\"type\":\"uint64\",\"internalType\":\"uint64\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint8\",\"indexed\":false,\"internalType\":\"uint8\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OwnershipTransferred\",\"inputs\":[{\"name\":\"previousOwner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"newOwner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SequencerUpdated\",\"inputs\":[{\"name\":\"oldSequencer\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"newSequencer\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"startL2Block\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"}],\"anonymous\":false},{\"type\":\"function\",\"name\":\"activeHeight\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint64\",\"internalType\":\"uint64\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getSequencerAt\",\"inputs\":[{\"name\":\"l2Height\",\"type\":\"uint64\",\"internalType\":\"uint64\"}],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getSequencerHistory\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"tuple[]\",\"internalType\":\"struct L1Sequencer.SequencerRecord[]\",\"components\":[{\"name\":\"startL2Block\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"sequencerAddr\",\"type\":\"address\",\"internalType\":\"address\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getSequencerHistoryLength\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"}]",
 	Bin: "0x608060405234801561000f575f80fd5b5061081a8061001d5f395ff3fe608060405234801561000f575f80fd5b506004361061007a575f3560e01c8063715018a611610058578063715018a6146100f65780638da5cb5b146100fe578063c4d66de81461011c578063f2fde38b1461012f575f80fd5b806343ae20a31461007e5780634d96a90a146100935780635c1bba38146100d6575b5f80fd5b61009161008c3660046107d3565b610142565b005b60655473ffffffffffffffffffffffffffffffffffffffff165b60405173ffffffffffffffffffffffffffffffffffffffff909116815260200160405180910390f35b6065546100ad9073ffffffffffffffffffffffffffffffffffffffff1681565b6100916102c7565b60335473ffffffffffffffffffffffffffffffffffffffff166100ad565b61009161012a3660046107d3565b6102da565b61009161013d3660046107d3565b6104ed565b61014a6105a4565b73ffffffffffffffffffffffffffffffffffffffff81166101cc576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601160248201527f696e76616c69642073657175656e63657200000000000000000000000000000060448201526064015b60405180910390fd5b60655473ffffffffffffffffffffffffffffffffffffffff90811690821603610251576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600e60248201527f73616d652073657175656e63657200000000000000000000000000000000000060448201526064016101c3565b6065805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681179093556040519116919082907fcd58b762453bd126b48db83f2cecd464f5281dd7e5e6824b528c09d0482984d6905f90a35050565b6102cf6105a4565b6102d85f610625565b565b5f54610100900460ff16158080156102f857505f54600160ff909116105b806103115750303b15801561031157505f5460ff166001145b61039d576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201527f647920696e697469616c697a656400000000000000000000000000000000000060648201526084016101c3565b5f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600117905580156103f9575f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff166101001790555b73ffffffffffffffffffffffffffffffffffffffff8216610476576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600d60248201527f696e76616c6964206f776e65720000000000000000000000000000000000000060448201526064016101c3565b61047e61069b565b61048782610625565b80156104e9575f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b5050565b6104f56105a4565b73ffffffffffffffffffffffffffffffffffffffff8116610598576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f646472657373000000000000000000000000000000000000000000000000000060648201526084016101c3565b6105a181610625565b50565b60335473ffffffffffffffffffffffffffffffffffffffff1633146102d8576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016101c3565b6033805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681179093556040519116919082907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0905f90a35050565b5f54610100900460ff16610731576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e6700000000000000000000000000000000000000000060648201526084016101c3565b6102d85f54610100900460ff166107ca576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e6700000000000000000000000000000000000000000060648201526084016101c3565b6102d833610625565b5f602082840312156107e3575f80fd5b813573ffffffffffffffffffffffffffffffffffffffff81168114610806575f80fd5b939250505056fea164736f6c6343000818000a",
 }
 
@@ -264,37 +264,6 @@ func (_L1Sequencer *L1SequencerCallerSession) Owner() (common.Address, error) {
 	return _L1Sequencer.Contract.Owner(&_L1Sequencer.CallOpts)
 }
 
-// Sequencer is a free data retrieval call binding the contract method 0x5c1bba38.
-//
-// Solidity: function sequencer() view returns(address)
-func (_L1Sequencer *L1SequencerCaller) Sequencer(opts *bind.CallOpts) (common.Address, error) {
-	var out []interface{}
-	err := _L1Sequencer.contract.Call(opts, &out, "sequencer")
-
-	if err != nil {
-		return *new(common.Address), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
-
-	return out0, err
-
-}
-
-// Sequencer is a free data retrieval call binding the contract method 0x5c1bba38.
-//
-// Solidity: function sequencer() view returns(address)
-func (_L1Sequencer *L1SequencerSession) Sequencer() (common.Address, error) {
-	return _L1Sequencer.Contract.Sequencer(&_L1Sequencer.CallOpts)
-}
-
-// Sequencer is a free data retrieval call binding the contract method 0x5c1bba38.
-//
-// Solidity: function sequencer() view returns(address)
-func (_L1Sequencer *L1SequencerCallerSession) Sequencer() (common.Address, error) {
-	return _L1Sequencer.Contract.Sequencer(&_L1Sequencer.CallOpts)
-}
-
 // Initialize is a paid mutator transaction binding the contract method 0xc4d66de8.
 //
 // Solidity: function initialize(address _owner) returns()
@@ -358,25 +327,46 @@ func (_L1Sequencer *L1SequencerTransactorSession) TransferOwnership(newOwner com
 	return _L1Sequencer.Contract.TransferOwnership(&_L1Sequencer.TransactOpts, newOwner)
 }
 
-// UpdateSequencer is a paid mutator transaction binding the contract method 0x43ae20a3.
+// UpdateSequencer is a paid mutator transaction binding the contract method.
 //
-// Solidity: function updateSequencer(address newSequencer) returns()
-func (_L1Sequencer *L1SequencerTransactor) UpdateSequencer(opts *bind.TransactOpts, newSequencer common.Address) (*types.Transaction, error) {
-	return _L1Sequencer.contract.Transact(opts, "updateSequencer", newSequencer)
+// Solidity: function updateSequencer(address newSequencer, uint64 startL2Block) returns()
+func (_L1Sequencer *L1SequencerTransactor) UpdateSequencer(opts *bind.TransactOpts, newSequencer common.Address, startL2Block uint64) (*types.Transaction, error) {
+	return _L1Sequencer.contract.Transact(opts, "updateSequencer", newSequencer, startL2Block)
 }
 
-// UpdateSequencer is a paid mutator transaction binding the contract method 0x43ae20a3.
+// UpdateSequencer is a paid mutator transaction binding the contract method.
 //
-// Solidity: function updateSequencer(address newSequencer) returns()
-func (_L1Sequencer *L1SequencerSession) UpdateSequencer(newSequencer common.Address) (*types.Transaction, error) {
-	return _L1Sequencer.Contract.UpdateSequencer(&_L1Sequencer.TransactOpts, newSequencer)
+// Solidity: function updateSequencer(address newSequencer, uint64 startL2Block) returns()
+func (_L1Sequencer *L1SequencerSession) UpdateSequencer(newSequencer common.Address, startL2Block uint64) (*types.Transaction, error) {
+	return _L1Sequencer.Contract.UpdateSequencer(&_L1Sequencer.TransactOpts, newSequencer, startL2Block)
 }
 
-// UpdateSequencer is a paid mutator transaction binding the contract method 0x43ae20a3.
+// UpdateSequencer is a paid mutator transaction binding the contract method.
 //
-// Solidity: function updateSequencer(address newSequencer) returns()
-func (_L1Sequencer *L1SequencerTransactorSession) UpdateSequencer(newSequencer common.Address) (*types.Transaction, error) {
-	return _L1Sequencer.Contract.UpdateSequencer(&_L1Sequencer.TransactOpts, newSequencer)
+// Solidity: function updateSequencer(address newSequencer, uint64 startL2Block) returns()
+func (_L1Sequencer *L1SequencerTransactorSession) UpdateSequencer(newSequencer common.Address, startL2Block uint64) (*types.Transaction, error) {
+	return _L1Sequencer.Contract.UpdateSequencer(&_L1Sequencer.TransactOpts, newSequencer, startL2Block)
+}
+
+// InitializeHistory is a paid mutator transaction binding the contract method.
+//
+// Solidity: function initializeHistory(address firstSequencer, uint64 upgradeL2Block) returns()
+func (_L1Sequencer *L1SequencerTransactor) InitializeHistory(opts *bind.TransactOpts, firstSequencer common.Address, upgradeL2Block uint64) (*types.Transaction, error) {
+	return _L1Sequencer.contract.Transact(opts, "initializeHistory", firstSequencer, upgradeL2Block)
+}
+
+// InitializeHistory is a paid mutator transaction binding the contract method.
+//
+// Solidity: function initializeHistory(address firstSequencer, uint64 upgradeL2Block) returns()
+func (_L1Sequencer *L1SequencerSession) InitializeHistory(firstSequencer common.Address, upgradeL2Block uint64) (*types.Transaction, error) {
+	return _L1Sequencer.Contract.InitializeHistory(&_L1Sequencer.TransactOpts, firstSequencer, upgradeL2Block)
+}
+
+// InitializeHistory is a paid mutator transaction binding the contract method.
+//
+// Solidity: function initializeHistory(address firstSequencer, uint64 upgradeL2Block) returns()
+func (_L1Sequencer *L1SequencerTransactorSession) InitializeHistory(firstSequencer common.Address, upgradeL2Block uint64) (*types.Transaction, error) {
+	return _L1Sequencer.Contract.InitializeHistory(&_L1Sequencer.TransactOpts, firstSequencer, upgradeL2Block)
 }
 
 // L1SequencerInitializedIterator is returned from FilterInitialized and is used to iterate over the raw logs and unpacked data for Initialized events raised by the L1Sequencer contract.
@@ -737,12 +727,13 @@ func (it *L1SequencerSequencerUpdatedIterator) Close() error {
 type L1SequencerSequencerUpdated struct {
 	OldSequencer common.Address
 	NewSequencer common.Address
+	StartL2Block uint64
 	Raw          types.Log // Blockchain specific contextual infos
 }
 
-// FilterSequencerUpdated is a free log retrieval operation binding the contract event 0xcd58b762453bd126b48db83f2cecd464f5281dd7e5e6824b528c09d0482984d6.
+// FilterSequencerUpdated is a free log retrieval operation binding the contract event.
 //
-// Solidity: event SequencerUpdated(address indexed oldSequencer, address indexed newSequencer)
+// Solidity: event SequencerUpdated(address indexed oldSequencer, address indexed newSequencer, uint64 startL2Block)
 func (_L1Sequencer *L1SequencerFilterer) FilterSequencerUpdated(opts *bind.FilterOpts, oldSequencer []common.Address, newSequencer []common.Address) (*L1SequencerSequencerUpdatedIterator, error) {
 
 	var oldSequencerRule []interface{}
@@ -761,9 +752,9 @@ func (_L1Sequencer *L1SequencerFilterer) FilterSequencerUpdated(opts *bind.Filte
 	return &L1SequencerSequencerUpdatedIterator{contract: _L1Sequencer.contract, event: "SequencerUpdated", logs: logs, sub: sub}, nil
 }
 
-// WatchSequencerUpdated is a free log subscription operation binding the contract event 0xcd58b762453bd126b48db83f2cecd464f5281dd7e5e6824b528c09d0482984d6.
+// WatchSequencerUpdated is a free log subscription operation binding the contract event.
 //
-// Solidity: event SequencerUpdated(address indexed oldSequencer, address indexed newSequencer)
+// Solidity: event SequencerUpdated(address indexed oldSequencer, address indexed newSequencer, uint64 startL2Block)
 func (_L1Sequencer *L1SequencerFilterer) WatchSequencerUpdated(opts *bind.WatchOpts, sink chan<- *L1SequencerSequencerUpdated, oldSequencer []common.Address, newSequencer []common.Address) (event.Subscription, error) {
 
 	var oldSequencerRule []interface{}
@@ -807,9 +798,9 @@ func (_L1Sequencer *L1SequencerFilterer) WatchSequencerUpdated(opts *bind.WatchO
 	}), nil
 }
 
-// ParseSequencerUpdated is a log parse operation binding the contract event 0xcd58b762453bd126b48db83f2cecd464f5281dd7e5e6824b528c09d0482984d6.
+// ParseSequencerUpdated is a log parse operation binding the contract event.
 //
-// Solidity: event SequencerUpdated(address indexed oldSequencer, address indexed newSequencer)
+// Solidity: event SequencerUpdated(address indexed oldSequencer, address indexed newSequencer, uint64 startL2Block)
 func (_L1Sequencer *L1SequencerFilterer) ParseSequencerUpdated(log types.Log) (*L1SequencerSequencerUpdated, error) {
 	event := new(L1SequencerSequencerUpdated)
 	if err := _L1Sequencer.contract.UnpackLog(event, "SequencerUpdated", log); err != nil {
@@ -817,4 +808,67 @@ func (_L1Sequencer *L1SequencerFilterer) ParseSequencerUpdated(log types.Log) (*
 	}
 	event.Raw = log
 	return event, nil
+}
+
+// ============================================================================
+// V2 additions: sequencer history support
+// ============================================================================
+
+// L1SequencerHistoryRecord is the Go representation of the Solidity SequencerRecord struct.
+type L1SequencerHistoryRecord struct {
+	StartL2Block  uint64
+	SequencerAddr common.Address
+}
+
+// ActiveHeight is a free data retrieval call binding the contract method.
+//
+// Solidity: function activeHeight() view returns(uint64)
+func (_L1Sequencer *L1SequencerCaller) ActiveHeight(opts *bind.CallOpts) (uint64, error) {
+	var out []interface{}
+	err := _L1Sequencer.contract.Call(opts, &out, "activeHeight")
+	if err != nil {
+		return 0, err
+	}
+	out0 := *abi.ConvertType(out[0], new(uint64)).(*uint64)
+	return out0, err
+}
+
+// GetSequencerHistory is a free data retrieval call binding the contract method.
+// Returns the full sequencer history in a single call.
+//
+// Solidity: function getSequencerHistory() view returns((uint64,address)[])
+func (_L1Sequencer *L1SequencerCaller) GetSequencerHistory(opts *bind.CallOpts) ([]L1SequencerHistoryRecord, error) {
+	var out []interface{}
+	err := _L1Sequencer.contract.Call(opts, &out, "getSequencerHistory")
+	if err != nil {
+		return nil, err
+	}
+	out0 := *abi.ConvertType(out[0], new([]L1SequencerHistoryRecord)).(*[]L1SequencerHistoryRecord)
+	return out0, err
+}
+
+// GetSequencerAt is a free data retrieval call binding the contract method.
+//
+// Solidity: function getSequencerAt(uint64 l2Height) view returns(address)
+func (_L1Sequencer *L1SequencerCaller) GetSequencerAt(opts *bind.CallOpts, l2Height uint64) (common.Address, error) {
+	var out []interface{}
+	err := _L1Sequencer.contract.Call(opts, &out, "getSequencerAt", l2Height)
+	if err != nil {
+		return common.Address{}, err
+	}
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+	return out0, err
+}
+
+// GetSequencerHistoryLength is a free data retrieval call binding the contract method.
+//
+// Solidity: function getSequencerHistoryLength() view returns(uint256)
+func (_L1Sequencer *L1SequencerCaller) GetSequencerHistoryLength(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _L1Sequencer.contract.Call(opts, &out, "getSequencerHistoryLength")
+	if err != nil {
+		return nil, err
+	}
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	return out0, err
 }
