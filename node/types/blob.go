@@ -120,77 +120,117 @@ func DecodeTxsFromBytes(txsBytes []byte) (eth.Transactions, error) {
 	txs := make(eth.Transactions, 0)
 	for {
 		var (
-			firstByte   byte
-			fullTxBytes []byte
-			innerTx     eth.TxData
-			err         error
+			typeByte byte
+			err      error
 		)
-		if err = binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-			// if the blob byte array is completely consumed, then break the loop
+		if err = binary.Read(reader, binary.BigEndian, &typeByte); err != nil {
 			if err == io.EOF {
 				break
 			}
 			return nil, err
 		}
-		// zero byte is found after valid tx bytes, break the loop
-		if firstByte == 0 {
+		if typeByte == 0 {
 			break
 		}
 
-		switch firstByte {
-		case eth.AccessListTxType:
-			if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
+		switch typeByte {
+		case eth.AccessListTxType, eth.DynamicFeeTxType, eth.SetCodeTxType:
+			tx, err := decodeTypedTx(typeByte, reader)
+			if err != nil {
 				return nil, err
 			}
-			innerTx = new(eth.AccessListTx)
-		case eth.DynamicFeeTxType:
-			if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-				return nil, err
-			}
-			innerTx = new(eth.DynamicFeeTx)
-		case eth.SetCodeTxType:
-			if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-				return nil, err
-			}
-			innerTx = new(eth.SetCodeTx)
-		case eth.MorphTxType:
-			if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-				return nil, err
-			}
-			innerTx = new(eth.MorphTx)
-		default:
-			if firstByte <= 0xf7 { // legacy tx first byte must be greater than 0xf7(247)
-				return nil, fmt.Errorf("not supported tx type: %d", firstByte)
-			}
-			innerTx = new(eth.LegacyTx)
-		}
+			txs = append(txs, tx)
 
-		// we support the tx types of LegacyTxType/AccessListTxType/DynamicFeeTxType
-		//if firstByte == eth.AccessListTxType || firstByte == eth.DynamicFeeTxType {
-		//	// the firstByte here is used to indicate tx type, so skip it
-		//	if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-		//		return nil, err
-		//	}
-		//} else if firstByte <= 0xf7 { // legacy tx first byte must be greater than 0xf7(247)
-		//	return nil, fmt.Errorf("not supported tx type: %d", firstByte)
-		//}
-		fullTxBytes, err = extractInnerTxFullBytes(firstByte, reader)
-		if err != nil {
-			return nil, err
+		case eth.MorphTxType:
+			tx, err := decodeMorphTx(reader)
+			if err != nil {
+				return nil, err
+			}
+			txs = append(txs, tx)
+
+		default:
+			if typeByte <= 0xf7 {
+				return nil, fmt.Errorf("not supported tx type: %d", typeByte)
+			}
+			fullTxBytes, err := extractInnerTxFullBytes(typeByte, reader)
+			if err != nil {
+				return nil, err
+			}
+			var inner eth.LegacyTx
+			if err = rlp.DecodeBytes(fullTxBytes, &inner); err != nil {
+				return nil, err
+			}
+			txs = append(txs, eth.NewTx(&inner))
 		}
-		if err = rlp.DecodeBytes(fullTxBytes, innerTx); err != nil {
-			return nil, err
-		}
-		txs = append(txs, eth.NewTx(innerTx))
 	}
 	return txs, nil
 }
 
-func extractInnerTxFullBytes(firstByte byte, reader io.Reader) ([]byte, error) {
-	//the occupied byte length for storing the size of the following rlp encoded bytes
-	sizeByteLen := firstByte - 0xf7
+// decodeTypedTx decodes a standard EIP-2718 typed tx (AccessList, DynamicFee, SetCode)
+// from the reader. The type byte has already been consumed; the next byte is the RLP prefix.
+func decodeTypedTx(typeByte byte, reader io.Reader) (*eth.Transaction, error) {
+	var rlpPrefix byte
+	if err := binary.Read(reader, binary.BigEndian, &rlpPrefix); err != nil {
+		return nil, err
+	}
+	rlpBytes, err := extractInnerTxFullBytes(rlpPrefix, reader)
+	if err != nil {
+		return nil, err
+	}
+	txBinary := make([]byte, 0, 1+len(rlpBytes))
+	txBinary = append(txBinary, typeByte)
+	txBinary = append(txBinary, rlpBytes...)
 
-	// the size of the following rlp encoded bytes
+	var tx eth.Transaction
+	if err := tx.UnmarshalBinary(txBinary); err != nil {
+		return nil, err
+	}
+	return &tx, nil
+}
+
+// decodeMorphTx decodes a MorphTx from the reader. The type byte (0x7f) has already
+// been consumed. MorphTx has two wire formats:
+//   - V0: type(0x7f) || RLP(fields)              — next byte is RLP prefix (>= 0xC0)
+//   - V1: type(0x7f) || version(0x01) || RLP(fields) — next byte is version, then RLP prefix
+func decodeMorphTx(reader io.Reader) (*eth.Transaction, error) {
+	var nextByte byte
+	if err := binary.Read(reader, binary.BigEndian, &nextByte); err != nil {
+		return nil, err
+	}
+
+	var versionPrefix []byte
+	rlpFirstByte := nextByte
+	if nextByte != 0 && nextByte < 0xC0 {
+		// V1+: nextByte is the version byte, read the actual RLP prefix
+		versionPrefix = []byte{nextByte}
+		if err := binary.Read(reader, binary.BigEndian, &rlpFirstByte); err != nil {
+			return nil, err
+		}
+	}
+
+	rlpBytes, err := extractInnerTxFullBytes(rlpFirstByte, reader)
+	if err != nil {
+		return nil, err
+	}
+
+	txBinary := make([]byte, 0, 1+len(versionPrefix)+len(rlpBytes))
+	txBinary = append(txBinary, eth.MorphTxType)
+	txBinary = append(txBinary, versionPrefix...)
+	txBinary = append(txBinary, rlpBytes...)
+
+	var tx eth.Transaction
+	if err := tx.UnmarshalBinary(txBinary); err != nil {
+		return nil, err
+	}
+	return &tx, nil
+}
+
+func extractInnerTxFullBytes(firstByte byte, reader io.Reader) ([]byte, error) {
+	sizeByteLen := firstByte - 0xf7
+	if sizeByteLen > 4 {
+		return nil, fmt.Errorf("invalid RLP size byte length: %d (firstByte=0x%x)", sizeByteLen, firstByte)
+	}
+
 	sizeByte := make([]byte, sizeByteLen)
 	if err := binary.Read(reader, binary.BigEndian, sizeByte); err != nil {
 		return nil, err
