@@ -9,7 +9,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 contract L1Sequencer is OwnableUpgradeable {
     // ============ Types ============
 
-    struct SequencerRecord {
+    struct HistoryRecord {
         uint64 startL2Block;
         address sequencerAddr;
     }
@@ -18,7 +18,7 @@ contract L1Sequencer is OwnableUpgradeable {
 
     /// @notice Ordered array of sequencer records (by startL2Block ascending).
     ///         sequencerHistory[0] is the first sequencer after PBFT → single-sequencer upgrade.
-    SequencerRecord[] public sequencerHistory;
+    HistoryRecord[] public sequencerHistory;
 
     /// @notice The L2 block height at which single-sequencer mode activates.
     ///         Set by initializeHistory(). Nodes read this to know when to switch consensus.
@@ -54,7 +54,7 @@ contract L1Sequencer is OwnableUpgradeable {
         require(sequencerHistory.length == 0, "already initialized");
         require(firstSequencer != address(0), "invalid address");
 
-        sequencerHistory.push(SequencerRecord({
+        sequencerHistory.push(HistoryRecord({
             startL2Block: upgradeL2Block,
             sequencerAddr: firstSequencer
         }));
@@ -81,7 +81,7 @@ contract L1Sequencer is OwnableUpgradeable {
 
         address oldSequencer = sequencerHistory[sequencerHistory.length - 1].sequencerAddr;
 
-        sequencerHistory.push(SequencerRecord({
+        sequencerHistory.push(HistoryRecord({
             startL2Block: startL2Block,
             sequencerAddr: newSequencer
         }));
@@ -126,7 +126,7 @@ contract L1Sequencer is OwnableUpgradeable {
     }
 
     /// @notice Get the full sequencer history (for L2 node bulk sync at startup).
-    function getSequencerHistory() external view returns (SequencerRecord[] memory) {
+    function getSequencerHistory() external view returns (HistoryRecord[] memory) {
         return sequencerHistory;
     }
 
