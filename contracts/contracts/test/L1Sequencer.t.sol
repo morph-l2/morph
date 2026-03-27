@@ -227,7 +227,7 @@ contract L1SequencerTest is L1SequencerBaseTest {
         vm.prank(owner);
         l1Sequencer.updateSequencer(sequencerB, 200);
 
-        L1Sequencer.SequencerRecord[] memory history = l1Sequencer.getSequencerHistory();
+        L1Sequencer.HistoryRecord[] memory history = l1Sequencer.getSequencerHistory();
         assertEq(history.length, 2);
         assertEq(history[0].startL2Block, 100);
         assertEq(history[0].sequencerAddr, sequencerA);
