@@ -34,7 +34,7 @@ type sequencerCursor struct {
 // All L1 reads use the finalized block tag to avoid ingesting reorged data.
 type SequencerVerifier struct {
 	mu     sync.Mutex
-	history []bindings.L1SequencerHistoryRecord
+	history []bindings.L1SequencerSequencerRecord
 	cursor  sequencerCursor
 
 	caller *bindings.L1SequencerCaller
@@ -100,18 +100,46 @@ func (c *SequencerVerifier) syncHistory() error {
 	return nil
 }
 
-// refreshLoop polls L1 every refreshInterval until ctx is cancelled.
+// refreshLoop polls L1 until ctx is cancelled.
+// Uses exponential backoff (10s -> 20s -> ... -> 5min) while history is empty,
+// then switches to the normal 5-minute interval once loaded.
 func (c *SequencerVerifier) refreshLoop(ctx context.Context) {
-	ticker := time.NewTicker(refreshInterval)
-	defer ticker.Stop()
+	const minRetry = 10 * time.Second
+
+	interval := refreshInterval
+	c.mu.Lock()
+	empty := len(c.history) == 0
+	c.mu.Unlock()
+	if empty {
+		interval = minRetry
+	}
+
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-timer.C:
 			if err := c.syncHistory(); err != nil {
 				c.logger.Error("Failed to refresh sequencer history", "err", err)
 			}
+
+			c.mu.Lock()
+			empty = len(c.history) == 0
+			c.mu.Unlock()
+
+			if empty {
+				// Exponential backoff, capped at refreshInterval
+				interval = interval * 2
+				if interval > refreshInterval {
+					interval = refreshInterval
+				}
+			} else {
+				interval = refreshInterval
+			}
+			timer.Reset(interval)
 		}
 	}
 }
