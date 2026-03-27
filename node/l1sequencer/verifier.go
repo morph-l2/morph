@@ -34,7 +34,7 @@ type sequencerCursor struct {
 // All L1 reads use the finalized block tag to avoid ingesting reorged data.
 type SequencerVerifier struct {
 	mu     sync.Mutex
-	history []bindings.L1SequencerSequencerRecord
+	history []bindings.L1SequencerHistoryRecord
 	cursor  sequencerCursor
 
 	caller *bindings.L1SequencerCaller
