@@ -618,14 +618,36 @@ test_p2p_security() {
 
     cd "$DOCKER_DIR"
 
-    # Pre-check: devnet must be running
+    # ==========================================
+    # Phase 0: Precondition checks
+    # ==========================================
+    local switch_height="${CONSENSUS_SWITCH_HEIGHT:-10}"
     local height
     height=$(get_block_number "$L2_RPC")
-    if [ "$height" -lt 5 ]; then
-        log_error "Devnet not running or not producing blocks (height=$height)"
+
+    # Check 1: chain must be past upgrade height
+    if [ "$height" -le "$switch_height" ]; then
+        log_error "Chain height ($height) <= CONSENSUS_SWITCH_HEIGHT ($switch_height). V2 not active."
         return 1
     fi
-    log_info "Devnet running at height $height"
+
+    # Check 2: node-0 must be in V2 mode with signer
+    local node0_v2
+    node0_v2=$($COMPOSE_CMD logs node-0 2>/dev/null | grep -c "StateV2 initialized.*hasSigner=true" || true)
+    if [ "$node0_v2" -lt 1 ]; then
+        log_error "node-0 not in V2 mode with signer. Check SEQUENCER_PRIVATE_KEY and L1 initializeHistory."
+        return 1
+    fi
+
+    # Check 3: sentry must be in V2 path (not PBFT consensus reactor)
+    local sentry_v2
+    sentry_v2=$($COMPOSE_CMD logs sentry-node-0 2>/dev/null | grep -c "Starting block apply routine" || true)
+    if [ "$sentry_v2" -lt 1 ]; then
+        log_error "sentry-node-0 not in V2 path. Check CONSENSUS_SWITCH_HEIGHT."
+        return 1
+    fi
+
+    log_info "Preconditions OK: height=$height, switchHeight=$switch_height, V2 active"
 
     local pass=0
     local fail=0
@@ -704,32 +726,73 @@ test_p2p_security() {
     rm -f "$mal_log" "$victim_log" "$log_baseline"
 
     # ==========================================
-    # Phase 2: sync-forge (T-06)
+    # Phase 2: BlockSync forge (T-06) - V1 main vulnerability
     # ==========================================
-    log_info "---------- Phase 2: sync-forge attack ----------"
+    log_info "---------- Phase 2: BlockSync forge (T-06) ----------"
+    log_info "Testing blocksync/reactor.go:respondToPeerV2 path (BlocksyncChannel 0x40)"
 
-    swap_sentry_to_malicious "sync-forge"
-    log_info "Waiting for sync-forge (~30s)..."
-    sleep 30
+    # Step 1: Swap sentry to malicious image (blocksync-forge mode)
+    # The malicious sentry will respond to BlockSync requests with forged blocks
+    swap_sentry_to_malicious "blocksync-forge"
+    sleep 5
 
-    local mal_sync_log="/tmp/mal_sync_$$.log"
+    # Step 2: Stop node-3 to create a sync gap
+    log_info "Stopping node-3 to create BlockSync gap..."
+    $COMPOSE_CMD stop node-3 2>/dev/null || true
+    sleep 20  # Let chain advance while node-3 is down
+
+    # Step 3: Restart node-3 — it will BlockSync from peers (including malicious sentry)
+    log_info "Restarting node-3 (will BlockSync from peers including malicious sentry)..."
+    $COMPOSE_CMD start node-3
+
+    # Step 4: Wait for node-3 to catch up
+    local target_height
+    target_height=$(get_block_number "$L2_RPC")
+    log_info "Waiting for node-3 to sync to ~$target_height..."
+    local max_wait=120
+    local waited=0
+    while [ $waited -lt $max_wait ]; do
+        local n3_height
+        n3_height=$(get_block_number "http://127.0.0.1:8845")
+        if [ "$n3_height" -ge "$((target_height - 3))" ]; then
+            log_info "node-3 synced to $n3_height"
+            break
+        fi
+        sleep 5
+        waited=$((waited + 5))
+    done
+
+    # Step 5: Dump logs (separate files for isolation)
+    local mal_bs_log="/tmp/mal_blocksync_$$.log"
     docker compose \
         -f docker-compose-4nodes.yml \
         -f docker-compose.override.yml \
         -f docker-compose.malicious-override.yml \
-        logs sentry-node-0 2>/dev/null > "$mal_sync_log"
+        logs sentry-node-0 2>/dev/null > "$mal_bs_log"
+
+    local node3_log="/tmp/node3_blocksync_$$.log"
+    $COMPOSE_CMD logs node-3 2>/dev/null > "$node3_log"
 
     restore_sentry_to_normal
 
-    local sync_forged
-    sync_forged=$(grep -c "\[MALICIOUS\] Sent forged sync response" "$mal_sync_log" 2>/dev/null || true)
-    rm -f "$mal_sync_log"
+    # Step 6: Verify
+    local bs_forged
+    bs_forged=$(grep -c "\[MALICIOUS\] Sent forged blocksync response" "$mal_bs_log" 2>/dev/null || true)
+    local bs_rejected
+    bs_rejected=$(grep -c "Block signature verification failed" "$node3_log" 2>/dev/null || true)
+    local n3_final
+    n3_final=$(get_block_number "http://127.0.0.1:8845")
 
-    if [ "$sync_forged" -ge 1 ]; then
-        log_success "T-06 sync-forge: PASSED (intercepted $sync_forged sync requests with forged responses)"
+    rm -f "$mal_bs_log" "$node3_log"
+
+    if [ "$bs_forged" -ge 1 ] && [ "$bs_rejected" -ge 1 ]; then
+        log_success "T-06 BlockSync forge: PASSED (sent $bs_forged forged, rejected $bs_rejected, node-3 at $n3_final)"
         pass=$((pass + 1))
+    elif [ "$bs_forged" -ge 1 ]; then
+        log_warn "T-06 BlockSync forge: PARTIAL (sent $bs_forged forged, but node-3 may not have queried malicious peer)"
+        skip=$((skip + 1))
     else
-        log_warn "T-06 sync-forge: SKIPPED (no peers requested blocks from malicious sentry)"
+        log_warn "T-06 BlockSync forge: SKIPPED (malicious sentry not queried via BlockSync)"
         skip=$((skip + 1))
     fi
 
