@@ -213,6 +213,26 @@ for i in range(4):
                  '--private-key', deploy_config['l2StakingPks'][i]
                  ])
 
+# Initialize L1Sequencer history for V2 mode
+# Register the first sequencer (node-0's staking address) at upgrade height
+l1_sequencer_addr = addresses.get('Proxy__L1Sequencer', '')
+if l1_sequencer_addr:
+    upgrade_height = os.environ.get('UPGRADE_HEIGHT', os.environ.get('CONSENSUS_SWITCH_HEIGHT', '10'))
+    sequencer_addr = deploy_config['l2StakingAddresses'][0]  # node-0's address
+    deployer_pk = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+    log.info(f'Initializing L1Sequencer history: sequencer={sequencer_addr}, startL2Block={upgrade_height}')
+    try:
+        run_command([
+            'cast', 'send', l1_sequencer_addr,
+            'initializeHistory(address,uint64)',
+            sequencer_addr, str(upgrade_height),
+            '--rpc-url', 'http://127.0.0.1:9545',
+            '--private-key', deployer_pk
+        ])
+        log.info('L1Sequencer history initialized successfully')
+    except Exception as e:
+        log.info(f'L1Sequencer initializeHistory failed (may already be initialized): {e}')
+
 # Update .env file
 log.info('Updating .env file...')
 env_file = pjoin(ops_dir, '.env')
