@@ -77,15 +77,6 @@ wait_for_block() {
 
 # ========== Setup Functions ==========
 
-# Export consensus switch height as environment variable for Docker containers
-# The morphnode binary reads MORPH_NODE_CONSENSUS_SWITCH_HEIGHT at runtime
-set_upgrade_height() {
-    local height=$1
-    log_info "Setting consensus switch height to $height (via CONSENSUS_SWITCH_HEIGHT env)..."
-    export CONSENSUS_SWITCH_HEIGHT="$height"
-    log_success "CONSENSUS_SWITCH_HEIGHT=$height (will be passed to containers)"
-}
-
 # Build test images (with -test suffix)
 # Uses bitget/ as build context to access local go-ethereum and tendermint
 build_test_images() {
@@ -217,7 +208,7 @@ for i in range(4):
 # Register the first sequencer (node-0's staking address) at upgrade height
 l1_sequencer_addr = addresses.get('Proxy__L1Sequencer', '')
 if l1_sequencer_addr:
-    upgrade_height = os.environ.get('UPGRADE_HEIGHT', os.environ.get('CONSENSUS_SWITCH_HEIGHT', '10'))
+    upgrade_height = os.environ.get('UPGRADE_HEIGHT', '10')
     sequencer_addr = deploy_config['l2StakingAddresses'][0]  # node-0's address
     deployer_pk = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
     log.info(f'Initializing L1Sequencer history: sequencer={sequencer_addr}, startL2Block={upgrade_height}')
@@ -279,30 +270,70 @@ remove_override() {
     rm -f "$DOCKER_DIR/docker-compose.override.yml"
 }
 
+# Wait for L1 finalized block to reach at least the given height.
+# This ensures contract data (e.g., initializeHistory) is visible via
+# the finalized block tag when L2 nodes start their verifier sync.
+wait_for_l1_finalized() {
+    local min_block=${1:-1}
+    local l1_rpc="${2:-http://127.0.0.1:9545}"
+    local max_wait=120
+    local waited=0
+
+    log_info "Waiting for L1 finalized block >= $min_block..."
+    while [ $waited -lt $max_wait ]; do
+        local fin
+        fin=$(curl -s -X POST -H "Content-Type: application/json" \
+            --data '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["finalized",false],"id":1}' \
+            "$l1_rpc" 2>/dev/null | grep -o '"number":"0x[^"]*"' | head -1 | cut -d'"' -f4)
+        if [ -n "$fin" ]; then
+            local fin_dec
+            fin_dec=$(printf "%d" "$fin" 2>/dev/null || echo 0)
+            if [ "$fin_dec" -ge "$min_block" ]; then
+                log_success "L1 finalized block: $fin_dec (>= $min_block)"
+                return 0
+            fi
+            echo -ne "\r  L1 finalized: $fin_dec / $min_block"
+        fi
+        sleep 3
+        waited=$((waited + 3))
+    done
+    log_warn "Timeout waiting for L1 finalized >= $min_block (continuing anyway)"
+}
+
 # Start L2 with test images
 start_l2_test() {
     log_info "Starting L2 with test images..."
     cd "$DOCKER_DIR"
-    
+
     # Setup override file
     setup_override
-    
+
     # Read the .env file to get contract addresses
     source .env 2>/dev/null || true
-    
+
     # Set sequencer private key
     export SEQUENCER_PRIVATE_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-    
+
+    # Wait for L1 to finalize past the contract deployment block.
+    # The verifier reads history via finalized tag; if L1 hasn't finalized
+    # the initializeHistory tx yet, the initial sync will miss it.
+    local l1_latest
+    l1_latest=$(curl -s -X POST -H "Content-Type: application/json" \
+        --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+        http://127.0.0.1:9545 2>/dev/null | grep -o '"result":"0x[^"]*"' | cut -d'"' -f4)
+    l1_latest=$(printf "%d" "$l1_latest" 2>/dev/null || echo 1)
+    wait_for_l1_finalized "$l1_latest"
+
     # Stop any existing L2 containers
     $COMPOSE_CMD stop \
         morph-geth-0 morph-geth-1 morph-geth-2 morph-geth-3 \
         node-0 node-1 node-2 node-3 2>/dev/null || true
-    
+
     # Note: Test images should already be built by build_test_images()
     # Uncomment below if you need to rebuild during start
     # log_info "Building L2 containers with test images..."
     # $COMPOSE_CMD build morph-geth-0 node-0
-    
+
     # Start L2 geth nodes
     log_info "Starting L2 geth nodes..."
     $COMPOSE_CMD up -d morph-geth-0 morph-geth-1 morph-geth-2 morph-geth-3 sentry-geth-0
@@ -456,10 +487,7 @@ run_full_test() {
     
     trap cleanup EXIT
     
-    # Set upgrade height BEFORE building (so it's compiled into the binary)
-    set_upgrade_height "$UPGRADE_HEIGHT"
-    
-    # Build test images (now with correct upgrade height)
+    # Build test images
     build_test_images
     
     # Setup devnet (L1 + contracts + L2 genesis)
@@ -584,7 +612,6 @@ services:
       - MORPH_NODE_L2_ENGINE_RPC=http://sentry-geth-0:8551
       - MORPH_NODE_L2_ENGINE_AUTH=\${JWT_SECRET_PATH}
       - MORPH_NODE_L1_ETH_RPC=\${L1_ETH_RPC}
-      - MORPH_NODE_CONSENSUS_SWITCH_HEIGHT=\${CONSENSUS_SWITCH_HEIGHT:-10}
       - MORPH_NODE_ROLLUP_ADDRESS=\${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=\${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
       - MORPH_NODE_L1_SEQUENCER_CONTRACT=\${L1_SEQUENCER_CONTRACT}
@@ -621,13 +648,12 @@ test_p2p_security() {
     # ==========================================
     # Phase 0: Precondition checks
     # ==========================================
-    local switch_height="${CONSENSUS_SWITCH_HEIGHT:-10}"
     local height
     height=$(get_block_number "$L2_RPC")
 
-    # Check 1: chain must be past upgrade height
-    if [ "$height" -le "$switch_height" ]; then
-        log_error "Chain height ($height) <= CONSENSUS_SWITCH_HEIGHT ($switch_height). V2 not active."
+    # Check 1: chain must be past upgrade height (read from L1 contract via verifier)
+    if [ "$height" -le "$UPGRADE_HEIGHT" ]; then
+        log_error "Chain height ($height) <= UPGRADE_HEIGHT ($UPGRADE_HEIGHT). V2 not active."
         return 1
     fi
 
@@ -643,11 +669,11 @@ test_p2p_security() {
     local sentry_v2
     sentry_v2=$($COMPOSE_CMD logs sentry-node-0 2>/dev/null | grep -c "Starting block apply routine" || true)
     if [ "$sentry_v2" -lt 1 ]; then
-        log_error "sentry-node-0 not in V2 path. Check CONSENSUS_SWITCH_HEIGHT."
+        log_error "sentry-node-0 not in V2 path. Check L1 contract initializeHistory."
         return 1
     fi
 
-    log_info "Preconditions OK: height=$height, switchHeight=$switch_height, V2 active"
+    log_info "Preconditions OK: height=$height, upgradeHeight=$UPGRADE_HEIGHT, V2 active"
 
     local pass=0
     local fail=0
@@ -864,9 +890,6 @@ case "${1:-}" in
     status)
         show_status
         ;;
-    upgrade-height)
-        set_upgrade_height "${2:-50}"
-        ;;
     build-malicious)
         build_malicious_image
         ;;
@@ -876,7 +899,7 @@ case "${1:-}" in
     *)
         echo "Sequencer Upgrade Test Runner"
         echo ""
-        echo "Usage: $0 {build|setup|start|stop|clean|logs|test|tx|status|upgrade-height|build-malicious|p2p-test}"
+        echo "Usage: $0 {build|setup|start|stop|clean|logs|test|tx|status|build-malicious|p2p-test}"
         echo ""
         echo "Commands:"
         echo "  build             - Build test Docker images (morph-geth-test, morph-node-test)"
@@ -890,7 +913,6 @@ case "${1:-}" in
         echo "  p2p-test          - Run P2P anti-malicious security tests"
         echo "  tx                - Start transaction generator"
         echo "  status            - Show current block numbers"
-        echo "  upgrade-height N  - Set upgrade height to N"
         echo ""
         echo "Environment Variables:"
         echo "  UPGRADE_HEIGHT    - Block height for consensus switch (default: 10)"

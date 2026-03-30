@@ -16,7 +16,6 @@ import (
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	tmnode "github.com/tendermint/tendermint/node"
 	"github.com/tendermint/tendermint/privval"
-	"github.com/tendermint/tendermint/upgrade"
 	"github.com/urfave/cli"
 
 	"morph-l2/bindings/bindings"
@@ -75,11 +74,6 @@ func L2NodeMain(ctx *cli.Context) error {
 	)
 	isMockSequencer := ctx.GlobalBool(flags.MockEnabled.Name)
 	isValidator := ctx.GlobalBool(flags.ValidatorEnable.Name)
-
-	// Apply consensus switch height if explicitly set via flag
-	if ctx.GlobalIsSet(flags.ConsensusSwitchHeight.Name) {
-		upgrade.SetUpgradeBlockHeight(ctx.GlobalInt64(flags.ConsensusSwitchHeight.Name))
-	}
 
 	if err = nodeConfig.SetCliContext(ctx); err != nil {
 		return err
@@ -256,7 +250,7 @@ func initL1SequencerComponents(
 		verifier = l1sequencer.NewSequencerVerifier(caller, logger)
 		logger.Info("Sequencer verifier initialized", "contract", contractAddr.Hex())
 	} else {
-		logger.Info("L1 Sequencer contract not configured, verifier disabled")
+		return nil, nil, nil, fmt.Errorf("L1 Sequencer contract address is required, check l1.sequencerContract configuration")
 	}
 
 	// Initialize Signer (optional)
