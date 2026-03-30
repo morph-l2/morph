@@ -13,6 +13,7 @@ import (
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
+	"github.com/tendermint/tendermint/upgrade"
 
 	"morph-l2/bindings/bindings"
 )
@@ -96,6 +97,13 @@ func (c *SequencerVerifier) syncHistory() error {
 			"startL2Block", c.history[i].StartL2Block,
 			"address", c.history[i].SequencerAddr.Hex())
 	}
+	// Set upgrade height from L1 contract on first successful load
+	if prev == 0 && len(c.history) > 0 {
+		height := int64(c.history[0].StartL2Block)
+		upgrade.SetUpgradeBlockHeight(height)
+		c.logger.Info("Upgrade height set from L1 contract", "height", height)
+	}
+
 	c.logger.Info("Sequencer history synced", "total", len(c.history), "new", len(c.history)-prev)
 	return nil
 }
