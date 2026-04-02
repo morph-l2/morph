@@ -149,8 +149,9 @@ devnet-down:
 	cd ops/docker && docker compose -f docker-compose-4nodes.yml down
 .PHONY: devnet-down
 
-devnet-clean-build: devnet-down devnet-l1-clean
-	docker volume ls --filter name=docker-* --format='{{.Name}}' | xargs -r docker volume rm
+devnet-clean-build: devnet-l1-clean
+	cd ops/docker && docker compose -f docker-compose-4nodes.yml down --volumes --remove-orphans
+	docker volume ls --filter name=docker_ --format='{{.Name}}' | xargs docker volume rm 2>/dev/null || true
 	rm -rf ops/l2-genesis/.devnet
 	rm -rf ops/docker/.devnet
 	rm -rf ops/docker/consensus/beacondata ops/docker/consensus/validatordata ops/docker/consensus/genesis.ssz
