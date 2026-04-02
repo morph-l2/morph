@@ -152,7 +152,7 @@ func (r *Rollup) Start() error {
 	}
 	// pendingtxs
 	r.pendingTxs = NewPendingTxs(r.abi.Methods[constants.MethodCommitBatch].ID, r.abi.Methods[constants.MethodFinalizeBatch].ID, jn)
-	txs, err := jn.ParseAllTxs()
+	txs, err := jn.ParseAllTxsAndCleanJournal()
 	if err != nil {
 		log.Crit("parse l1 mempool error", "error", err)
 	}
