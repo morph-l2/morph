@@ -317,8 +317,20 @@ func (r *Rollup) ProcessTx() error {
 	// Check if this submitter should process transactions
 	if err = r.checkSubmitterTurn(); err != nil {
 		if errors.Is(err, errNotMyTurn) {
+			// If rotator is not configured or not yet initialized, just skip this round safely.
+			if r.rotator == nil || r.rotator.startTime == nil || r.rotator.epoch == nil {
+				log.Info("Awaiting turn for transaction processing, but rotator state is not initialized",
+					"has_rotator", r.rotator != nil)
+				return nil
+			}
+
 			// Get current submitter index for logging
-			activeSubmitter, activeIndex, _ := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
+			activeSubmitter, activeIndex, rotErr := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
+			if rotErr != nil || activeSubmitter == nil {
+				log.Warn("Failed to get current submitter while awaiting turn",
+					"error", rotErr)
+				return nil
+			}
 
 			// Calculate rotation timing information
 			past := (time.Now().Unix() - r.rotator.startTime.Int64()) % r.rotator.epoch.Int64()
@@ -371,9 +383,11 @@ func (r *Rollup) detectReorgWithRetry() (bool, uint64, error) {
 var errNotMyTurn = errors.New("not my turn")
 
 func (r *Rollup) checkSubmitterTurn() error {
-	if r.cfg.PriorityRollup {
+	// If we are in priority rollup mode or rotator is not configured, always allow processing.
+	if r.cfg.PriorityRollup || r.rotator == nil {
 		return nil
 	}
+
 	activeSubmitter, submitterIndex, err := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
 	if err != nil {
 		return fmt.Errorf("rollup: get current submitter err, %w", err)
@@ -384,6 +398,11 @@ func (r *Rollup) checkSubmitterTurn() error {
 	isMyTurn := activeAddress == myAddress
 
 	// Calculate rotation timing information
+	if r.rotator.startTime == nil || r.rotator.epoch == nil {
+		log.Warn("rotator state not initialized, skipping submitter turn check",
+			"has_rotator", r.rotator != nil)
+		return errNotMyTurn
+	}
 	past := (time.Now().Unix() - r.rotator.startTime.Int64()) % r.rotator.epoch.Int64()
 	start := time.Now().Unix() - past
 	end := start + r.rotator.epoch.Int64()
