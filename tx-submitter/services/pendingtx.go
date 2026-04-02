@@ -276,17 +276,31 @@ func (pt *PendingTxs) Recover(txs []*ethtypes.Transaction, abi *abi.ABI) error {
 			"type", tx.Type(),
 		)
 
-		if err := pt.Add(tx); err != nil {
-			return fmt.Errorf("failed to add tx during recovery: %w", err)
+		// Add to in-memory map only; do not write to journal yet.
+		// The original journal data is preserved until dump() succeeds below,
+		// so a crash here is safe — the next restart will re-read the original entries.
+		pt.mu.Lock()
+		pt.txinfos[tx.Hash()] = &types.TxRecord{
+			Tx:         tx,
+			SendTime:   uint64(time.Now().Unix()),
+			QueryTimes: 0,
+			Confirmed:  false,
 		}
+		pt.mu.Unlock()
 	}
 
 	pt.SetPindex(maxCommitBatchIndex)
 	pt.SetPFinalize(maxFinalizeBatchIndex)
 	pt.SetNonce(txs[len(txs)-1].Nonce())
 
+	// Rewrite the journal with the deduplicated in-memory set.
+	// This replaces any duplicate entries accumulated by previous buggy restarts.
+	if err := pt.dump(); err != nil {
+		return fmt.Errorf("failed to rewrite journal after recovery: %w", err)
+	}
+
 	log.Info("Recovered from mempool",
-		"tx_count", len(txs),
+		"tx_count", len(pt.txinfos),
 		"max_batch_index", maxCommitBatchIndex,
 		"max_finalize_index", maxFinalizeBatchIndex,
 		"max_nonce", pt.GetNonce(),
