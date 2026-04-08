@@ -15,7 +15,6 @@ import {IL1Staking} from "../staking/IL1Staking.sol";
 
 /// @title Rollup
 /// @notice This contract maintains data for the Morph rollup.
-/// +----------------------+--------+---------+--------+--------------------------------------------------+
 contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /*************
      * Constants *

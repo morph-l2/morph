@@ -34,7 +34,7 @@ func TestValidator_ChallengeState(t *testing.T) {
 	}
 	err = v.ChallengeState(10)
 	log.Info("addr:", addr)
-	require.EqualError(t, err, "execution reverted: caller challenger allowed")
+	require.EqualError(t, err, "execution reverted: only challenger allowed")
 }
 
 func newSimulatedBackend(key *ecdsa.PrivateKey) (*backends.SimulatedBackend, ethdb.Database) {
