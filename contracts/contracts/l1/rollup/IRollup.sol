@@ -187,6 +187,13 @@ interface IRollup {
         BatchSignatureInput calldata batchSignatureInput
     ) external payable;
 
+    /// @notice Commit batch state when blob hash is already stored (recommit after revert without blob).
+    /// @dev Requires batchBlobVersionedHashes[nextBatchIndex] != 0.
+    function commitState(
+        BatchDataInput calldata batchDataInput,
+        BatchSignatureInput calldata batchSignatureInput
+    ) external;
+
     /// @notice Commit a batch with ZKP proof for permissionless submission.
     /// @dev This function allows anyone to submit batches when the sequencer is offline or censoring.
     ///
