@@ -31,7 +31,7 @@ type blockInfo struct {
 func NewReorgDetector(l1Client iface.Client) *ReorgDetector {
 	return &ReorgDetector{
 		blockHistory: make([]blockInfo, 0),
-		maxHistory:   5, // Track last 50 blocks
+		maxHistory:   5, // Track last 5 blocks
 		l1Client:     l1Client,
 	}
 }
