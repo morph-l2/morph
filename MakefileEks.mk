@@ -63,7 +63,7 @@ start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler:
 build-bk-prod-morph-prod-mainnet-to-morph-shadow-proving:
 	if [ ! -d dist ]; then mkdir -p dist; fi
 	cd $(PWD)/prover/bin/shadow-prove && cargo build --release
-	cp prover/bin/shadow-prove/target/release/shadow-proving dist/
+	cp prover/target/release/shadow-proving dist/
 	aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/secret-manager-wrapper.tar.gz ./
 	tar -xvzf secret-manager-wrapper.tar.gz
 
@@ -187,7 +187,7 @@ start-bk-prod-morph-prod-testnet-to-morph-challenge-handler-holesky:
 build-bk-prod-morph-prod-testnet-to-morph-shadow-proving-holesky:
 	if [ ! -d dist ]; then mkdir -p dist; fi
 	cd $(PWD)/prover/bin/shadow-prove && cargo build --release
-	cp prover/bin/shadow-prove/target/release/shadow-proving dist/
+	cp prover/target/release/shadow-proving dist/
 	aws s3 cp s3://morph-0582-morph-technical-department-testnet-data/testnet/holesky/morph-setup/secret-manager-wrapper.tar.gz ./
 	tar -xvzf secret-manager-wrapper.tar.gz
 
