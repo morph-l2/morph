@@ -1,0 +1,59 @@
+version: '3.8'
+# HA test override for Sequencer HA V2 testing.
+# Stack on top of docker-compose.override.yml:
+#
+#   docker compose \
+#     -f docker-compose-4nodes.yml \
+#     -f docker-compose.override.yml \
+#     -f docker-compose.ha-override.yml \
+#     up -d
+#
+# Raft cluster: node-0 (bootstrap leader) + node-1 & node-2 (followers).
+# All 3 share the SAME sequencer key — they are replicas of ONE logical sequencer.
+# Raft leader is the active block producer; followers only apply blocks.
+#
+# node-3 intentionally runs WITHOUT HA (plain V2 follower) to verify
+# non-HA nodes coexist correctly with the HA cluster.
+#
+# Port assignments (host → container):
+#   node-0  HA Admin RPC:  9501 → 9401
+#   node-1  HA Admin RPC:  9601 → 9401
+#   node-2  HA Admin RPC:  9701 → 9401
+
+services:
+  # ─── node-0: Raft bootstrap leader ───────────────────────────────────────
+  node-0:
+    environment:
+      - MORPH_NODE_HA_ENABLED=true
+      - MORPH_NODE_HA_BOOTSTRAP=true
+      - MORPH_NODE_HA_SERVER_ID=node-0
+      # Use Docker service hostname so Raft survives IP changes on container restart
+      - MORPH_NODE_HA_ADVERTISED_ADDR=node-0:9400
+      - MORPH_NODE_LOG_LEVEL=debug
+    ports:
+      - "9501:9401"   # HA Admin RPC for external curl tests
+
+  # ─── node-1: Raft follower ───────────────────────────────────────────────
+  node-1:
+    environment:
+      # Same sequencer key as node-0: all HA nodes are replicas of ONE sequencer
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+      - MORPH_NODE_HA_ENABLED=true
+      - MORPH_NODE_HA_JOIN=node-0:9401   # docker service name resolves inside network
+      - MORPH_NODE_HA_SERVER_ID=node-1
+      - MORPH_NODE_HA_ADVERTISED_ADDR=node-1:9400
+    ports:
+      - "9601:9401"   # HA Admin RPC for external curl tests
+
+  # ─── node-2: Raft follower ───────────────────────────────────────────────
+  node-2:
+    environment:
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+      - MORPH_NODE_HA_ENABLED=true
+      - MORPH_NODE_HA_JOIN=node-0:9401
+      - MORPH_NODE_HA_SERVER_ID=node-2
+      - MORPH_NODE_HA_ADVERTISED_ADDR=node-2:9400
+    ports:
+      - "9701:9401"   # HA Admin RPC for external curl tests
+
+  # node-3 intentionally omitted — inherits docker-compose.override.yml without HA
