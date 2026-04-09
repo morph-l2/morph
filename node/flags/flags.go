@@ -265,6 +265,43 @@ var (
 		EnvVar: prefixEnvVar("SEQUENCER_PRIVATE_KEY"),
 	}
 
+	// Sequencer HA flags (all prefixed with ha.)
+	SequencerHAEnabled = cli.BoolFlag{
+		Name:   "ha.enabled",
+		Usage:  "Enable sequencer HA mode (overrides config file).",
+		EnvVar: prefixEnvVar("HA_ENABLED"),
+	}
+	SequencerHAConfig = cli.StringFlag{
+		Name:   "ha.config",
+		Usage:  "Path to sequencer HA config file (TOML). If not set, HA is disabled.",
+		EnvVar: prefixEnvVar("HA_CONFIG"),
+	}
+	SequencerHABootstrap = cli.BoolFlag{
+		Name:   "ha.bootstrap",
+		Usage:  "Bootstrap a new Raft cluster as leader (overrides config file).",
+		EnvVar: prefixEnvVar("HA_BOOTSTRAP"),
+	}
+	SequencerHAJoin = cli.StringSliceFlag{
+		Name:   "ha.join",
+		Usage:  "Management RPC addresses of existing cluster nodes to join (comma-separated, overrides config file).",
+		EnvVar: prefixEnvVar("HA_JOIN"),
+	}
+	SequencerHAServerID = cli.StringFlag{
+		Name:   "ha.server-id",
+		Usage:  "Unique server ID for this node (overrides config file; defaults to hostname).",
+		EnvVar: prefixEnvVar("HA_SERVER_ID"),
+	}
+	SequencerHAAdvertisedAddr = cli.StringFlag{
+		Name:   "ha.advertised-addr",
+		Usage:  "Raft advertised address (host:port). Supports hostname (e.g. node-0:9400) or IP. Auto-detected if not set.",
+		EnvVar: prefixEnvVar("HA_ADVERTISED_ADDR"),
+	}
+	SequencerHARPCToken = cli.StringFlag{
+		Name:   "ha.rpc-token",
+		Usage:  "Auth token for HAKeeper RPC write APIs. If empty, auth is disabled.",
+		EnvVar: prefixEnvVar("HA_RPC_TOKEN"),
+	}
+
 	// Batch rules
 	UpgradeBatchTime = cli.Uint64Flag{
 		Name:   "upgrade.batchTime",
@@ -398,6 +435,13 @@ var Flags = []cli.Flag{
 	L1SequencerContractAddr,
 	L1SyncLagThreshold,
 	SequencerPrivateKey,
+	SequencerHAEnabled,
+	SequencerHAConfig,
+	SequencerHABootstrap,
+	SequencerHAJoin,
+	SequencerHAServerID,
+	SequencerHAAdvertisedAddr,
+	SequencerHARPCToken,
 
 	// batch rules
 	UpgradeBatchTime,

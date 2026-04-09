@@ -56,6 +56,7 @@ func LoadTmConfig(ctx *cli.Context, home string) (*config.Config, error) {
 // SetupNode creates a tendermint node with the given configuration.
 // verifier: L1 sequencer verifier for signature verification (optional, can be nil)
 // signer: sequencer signer for block signing (optional, can be nil)
+// ha: SequencerHA implementation for Raft HA cluster (optional, can be nil)
 func SetupNode(
 	tmCfg *config.Config,
 	privValidator types.PrivValidator,
@@ -63,6 +64,7 @@ func SetupNode(
 	logger tmlog.Logger,
 	verifier *l1sequencer.SequencerVerifier,
 	signer l1sequencer.Signer,
+	ha tmsequencer.SequencerHA,
 ) (*tmnode.Node, error) {
 	nodeLogger := logger.With("module", "main")
 
@@ -98,6 +100,7 @@ func SetupNode(
 		nodeLogger,
 		tmVerifier,
 		signer,
+		ha,
 	)
 	return n, err
 }
