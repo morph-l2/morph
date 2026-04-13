@@ -1,6 +1,6 @@
 ARG GO_VERSION=1.24
 
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 RUN apt-get update --fix-missing && ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
 

@@ -1,1 +1,6 @@
 prover/
+.git/
+contracts/node_modules/
+ops/reth-cross-test/
+ops/publicnode/
+docs/

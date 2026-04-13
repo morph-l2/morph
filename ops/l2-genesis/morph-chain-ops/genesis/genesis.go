@@ -75,10 +75,11 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		EmeraldTime:             emeraldTime,
 		TerminalTotalDifficulty: big.NewInt(0),
 		Morph: params.MorphConfig{
-			UseZktrie:                 true,
+			UseZktrie:                 false,
 			MaxTxPayloadBytesPerBlock: &maxTxPayloadBytesPerBlock,
 			FeeVaultAddress:           &sequencerFeeVaultReceipt,
 		},
+		JadeForkTime: new(uint64),
 	}
 
 	gasLimit := config.L2GenesisBlockGasLimit
@@ -88,6 +89,8 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 	var baseFee *big.Int
 	if config.L2GenesisBlockBaseFeePerGas != nil {
 		baseFee = config.L2GenesisBlockBaseFeePerGas.ToInt()
+	} else {
+		baseFee = big.NewInt(1_000_000)
 	}
 
 	difficulty := config.L2GenesisBlockDifficulty
