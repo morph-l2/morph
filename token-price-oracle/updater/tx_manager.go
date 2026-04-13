@@ -13,6 +13,20 @@ import (
 	"morph-l2/token-price-oracle/client"
 )
 
+// abiMethodSig returns the canonical method signature string (e.g. "batchUpdatePrices(uint16[],uint256[])")
+// for the named method, looked up from the contract's MetaData ABI.
+func abiMethodSig(meta *bind.MetaData, method string) (string, error) {
+	parsed, err := meta.GetAbi()
+	if err != nil {
+		return "", fmt.Errorf("failed to parse ABI: %w", err)
+	}
+	m, ok := parsed.Methods[method]
+	if !ok {
+		return "", fmt.Errorf("method %q not found in ABI", method)
+	}
+	return m.Sig, nil
+}
+
 // TxManager manages transaction sending to avoid nonce conflicts
 type TxManager struct {
 	l2Client *client.L2Client
@@ -29,12 +43,14 @@ func NewTxManager(l2Client *client.L2Client) *TxManager {
 // SendTransaction sends a transaction in a thread-safe manner
 // It ensures only one transaction is sent at a time to avoid nonce conflicts
 // Before sending, it checks if there are any pending transactions by comparing nonces
-func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.TransactOpts) (*types.Transaction, error)) (*types.Receipt, error) {
+// methodSig is the human-readable method signature (e.g. "batchUpdatePrices(uint16[],uint256[])")
+// and is only used for external signing (remote signer V2 API).
+func (m *TxManager) SendTransaction(ctx context.Context, txFunc func(*bind.TransactOpts) (*types.Transaction, error), methodSig string) (*types.Receipt, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if m.l2Client.IsExternalSign() {
-		return m.sendWithExternalSign(ctx, txFunc)
+		return m.sendWithExternalSign(ctx, txFunc, methodSig)
 	}
 	return m.sendWithLocalSign(ctx, txFunc)
 }
@@ -71,6 +87,11 @@ func (m *TxManager) sendWithLocalSign(ctx context.Context, txFunc func(*bind.Tra
 	// Get transaction options (returns a copy)
 	auth := m.l2Client.GetOpts()
 	auth.Context = ctx
+
+	// Apply gas caps if configured (same logic as external sign)
+	if err := m.applyGasCaps(ctx, auth); err != nil {
+		return nil, fmt.Errorf("failed to apply gas caps: %w", err)
+	}
 
 	// First, estimate gas with GasLimit = 0
 	auth.GasLimit = 0
@@ -110,7 +131,7 @@ func (m *TxManager) sendWithLocalSign(ctx context.Context, txFunc func(*bind.Tra
 }
 
 // sendWithExternalSign sends transaction using external signing service
-func (m *TxManager) sendWithExternalSign(ctx context.Context, txFunc func(*bind.TransactOpts) (*types.Transaction, error)) (*types.Receipt, error) {
+func (m *TxManager) sendWithExternalSign(ctx context.Context, txFunc func(*bind.TransactOpts) (*types.Transaction, error), methodSig string) (*types.Receipt, error) {
 	signer := m.l2Client.GetSigner()
 	if signer == nil {
 		return nil, fmt.Errorf("external signer is not initialized")
@@ -167,7 +188,7 @@ func (m *TxManager) sendWithExternalSign(ctx context.Context, txFunc func(*bind.
 		"calldata_len", len(callData))
 
 	// Create and sign transaction using external signer
-	signedTx, err := signer.CreateAndSignTx(ctx, m.l2Client, toAddr, callData)
+	signedTx, err := signer.CreateAndSignTx(ctx, m.l2Client, toAddr, callData, methodSig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create and sign transaction: %w", err)
 	}
@@ -191,6 +212,19 @@ func (m *TxManager) sendWithExternalSign(ctx context.Context, txFunc func(*bind.
 		return nil, err
 	}
 	return receipt, nil
+}
+
+// applyGasCaps applies configured gas caps as upper limits to dynamic gas prices
+// This ensures consistent behavior between local sign and external sign
+func (m *TxManager) applyGasCaps(ctx context.Context, auth *bind.TransactOpts) error {
+	caps, err := client.CalculateGasCaps(ctx, m.l2Client)
+	if err != nil {
+		return err
+	}
+
+	auth.GasTipCap = caps.TipCap
+	auth.GasFeeCap = caps.FeeCap
+	return nil
 }
 
 // waitForReceipt waits for a transaction receipt with timeout and custom polling interval

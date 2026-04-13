@@ -248,6 +248,7 @@ def devnet_deploy(paths, args):
         env_data['MORPH_ROLLUP'] = addresses['Proxy__Rollup']
         env_data['RUST_LOG'] = rust_log_level
         env_data['Proxy__L1Staking'] = addresses['Proxy__L1Staking']
+        env_data['L1_SEQUENCER_CONTRACT'] = addresses.get('Proxy__L1Sequencer', '')
         envfile.seek(0)
         for key, value in env_data.items():
             envfile.write(f'{key}={value}\n')

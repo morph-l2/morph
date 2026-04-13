@@ -18,12 +18,12 @@ contract SP1Verifier is PlonkVerifier, ISP1VerifierWithHash {
     error InvalidProof();
 
     function VERSION() external pure returns (string memory) {
-        return "v3.0.0-rc1-scroll";
+        return "v5.0.0";
     }
 
     /// @inheritdoc ISP1VerifierWithHash
     function VERIFIER_HASH() public pure returns (bytes32) {
-        return 0xffea2d2e12ed24da258af874d77eee7ee91a1e050ee197052908089e57681e67;
+        return 0xd4e8ecd2357dd882209800acd6abb443d231cf287d77ba62b732ce937c8b56e7;
     }
 
     /// @notice Hashes the public values to a field elements inside Bn254.

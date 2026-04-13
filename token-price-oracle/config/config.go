@@ -85,6 +85,10 @@ type Config struct {
 	LogFileMaxSize int
 	LogFileMaxAge  int
 	LogCompress    bool
+
+	// Gas fee caps (optional - if set, use as max cap)
+	GasFeeCap *uint64 // Max gas fee cap in wei (nil means no cap)
+	GasTipCap *uint64 // Max gas tip cap in wei (nil means no cap)
 }
 
 // LoadConfig loads configuration from cli.Context
@@ -110,6 +114,21 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 		LogFileMaxSize: ctx.Int(flags.LogFileMaxSizeFlag.Name),
 		LogFileMaxAge:  ctx.Int(flags.LogFileMaxAgeFlag.Name),
 		LogCompress:    ctx.Bool(flags.LogCompressFlag.Name),
+	}
+
+	// Gas fee caps (only set if flag is explicitly provided)
+	if ctx.IsSet(flags.GasFeeCapFlag.Name) {
+		v := ctx.Uint64(flags.GasFeeCapFlag.Name)
+		cfg.GasFeeCap = &v
+	}
+	if ctx.IsSet(flags.GasTipCapFlag.Name) {
+		v := ctx.Uint64(flags.GasTipCapFlag.Name)
+		cfg.GasTipCap = &v
+	}
+
+	// Validate GasFeeCap >= GasTipCap when both are set (EIP-1559 invariant)
+	if cfg.GasFeeCap != nil && cfg.GasTipCap != nil && *cfg.GasFeeCap < *cfg.GasTipCap {
+		return nil, fmt.Errorf("--gas-fee-cap (%d) must be >= --gas-tip-cap (%d)", *cfg.GasFeeCap, *cfg.GasTipCap)
 	}
 
 	// Parse token registry address (optional)

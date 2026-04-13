@@ -10,6 +10,7 @@ import {L1MessageQueueWithGasPriceOracle} from "../../l1/rollup/L1MessageQueueWi
 import {L1Staking} from "../../l1/staking/L1Staking.sol";
 import {Rollup} from "../../l1/rollup/Rollup.sol";
 import {IRollup} from "../../l1/rollup/IRollup.sol";
+import {BatchHeaderCodecV0} from "../../libraries/codec/BatchHeaderCodecV0.sol";
 import {MockZkEvmVerifier} from "../../mock/MockZkEvmVerifier.sol";
 
 contract L1MessageBaseTest is CommonTest {
@@ -45,6 +46,81 @@ contract L1MessageBaseTest is CommonTest {
     L1CrossDomainMessenger public l1CrossDomainMessengerImpl;
 
     address public l1FeeVault = address(3033);
+
+    // Rollup storage slot for batchBlobVersionedHashes (forge inspect Rollup storage-layout)
+    uint256 internal constant BATCH_BLOB_VERSIONED_HASHES_SLOT = 173;
+    uint256 internal constant ROLLUP_DELAY_PERIOD_SLOT = 172;
+    bytes32 internal constant ZERO_VERSIONED_HASH = 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014;
+
+    /// @dev Sets batchBlobVersionedHashes[batchIndex] so commitState/commitBatchWithProof can use stored hash in tests.
+    function _setStoredBlobHash(uint256 batchIndex) internal {
+        bytes32 slot = keccak256(abi.encode(batchIndex, BATCH_BLOB_VERSIONED_HASHES_SLOT));
+        hevm.store(address(rollup), slot, ZERO_VERSIONED_HASH);
+    }
+
+    /// @dev Data hash for batch when numL1Messages=0: keccak256(8 bytes lastBlockNumber || 2 bytes numL1Messages).
+    function _computeDataHash(uint64 lastBlockNumber, uint16 numL1Messages) internal pure returns (bytes32) {
+        bytes memory data = new bytes(10);
+        assembly {
+            mstore(add(data, 0x20), shl(192, lastBlockNumber))
+            mstore(add(data, 0x28), shl(240, numL1Messages))
+        }
+        return keccak256(data);
+    }
+
+    /// @dev Setup rollup delay and warp so commitBatchWithProof timing passes.
+    function _setupDelayAndWarpForProof() internal {
+        hevm.store(address(rollup), bytes32(ROLLUP_DELAY_PERIOD_SLOT), bytes32(uint256(3600)));
+        hevm.warp(block.timestamp + 3601);
+    }
+
+    /// @dev Mock L1 message queue so getFirstUnfinalizedMessageEnqueueTime is not delayed (avoids "l1msg delay" when rollupDelay is used).
+    function _mockMessageQueueNotDelayedForProof() internal {
+        hevm.mockCall(
+            address(l1MessageQueueWithGasPriceOracle),
+            abi.encodeWithSignature("getFirstUnfinalizedMessageEnqueueTime()"),
+            abi.encode(block.timestamp)
+        );
+    }
+
+    /// @dev Mock verifier for commitBatchWithProof.
+    function _mockVerifierForProof() internal {
+        hevm.mockCall(
+            rollup.verifier(),
+            abi.encodeWithSignature("verifyAggregateProof(uint256,uint256,bytes,bytes32)"),
+            abi.encode()
+        );
+    }
+
+    /// @dev Build V0 batch header for commitBatchWithProof (blob = ZERO_VERSIONED_HASH).
+    function _createBatchHeaderV0ForProof(
+        uint256 batchIndex,
+        uint64 l1MessagePopped,
+        uint64 totalL1MessagePopped,
+        bytes32 dataHash,
+        bytes32 prevStateRoot,
+        bytes32 postStateRoot,
+        bytes32 withdrawalRoot,
+        bytes32 sequencerSetVerifyHash,
+        bytes32 parentBatchHash
+    ) internal pure returns (bytes memory batchHeader) {
+        batchHeader = new bytes(BatchHeaderCodecV0.BATCH_HEADER_LENGTH);
+        bytes32 blobHash = ZERO_VERSIONED_HASH;
+        assembly {
+            let p := add(batchHeader, 0x20)
+            mstore(p, 0)
+            mstore(add(p, 1), shl(192, batchIndex))
+            mstore(add(p, 9), shl(192, l1MessagePopped))
+            mstore(add(p, 17), shl(192, totalL1MessagePopped))
+            mstore(add(p, 25), dataHash)
+            mstore(add(p, 57), blobHash)
+            mstore(add(p, 89), prevStateRoot)
+            mstore(add(p, 121), postStateRoot)
+            mstore(add(p, 153), withdrawalRoot)
+            mstore(add(p, 185), sequencerSetVerifyHash)
+            mstore(add(p, 217), parentBatchHash)
+        }
+    }
 
     function setUp() public virtual override {
         super.setUp();
