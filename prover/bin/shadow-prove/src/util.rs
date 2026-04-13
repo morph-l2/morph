@@ -1,7 +1,9 @@
-use std::{env::var, str::FromStr};
+use std::str::FromStr;
+
+use crate::SHADOW_PROVING_PROVER_RPC;
 
 pub fn call_prover(param: String, function: &str) -> Option<String> {
-    let prover_rpc = var("SHADOW_PROVING_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
+    let prover_rpc = SHADOW_PROVING_PROVER_RPC.clone();
 
     let client = reqwest::blocking::Client::new();
     let url = prover_rpc.to_owned() + function;
@@ -40,10 +42,10 @@ pub fn read_env_var<T: Clone + FromStr>(var_name: &'static str, default: T) -> T
 
 pub fn read_parse_env<T: Clone + FromStr>(var_name: &'static str) -> T {
     let var_value =
-        std::env::var(var_name).unwrap_or_else(|_| panic!("Can not read env of {}", var_name));
+        std::env::var(var_name).unwrap_or_else(|_| panic!("Can not read env of {var_name}"));
     match var_value.parse::<T>() {
         Ok(v) => v,
-        Err(_) => panic!("Cannot parse {} env var", var_name),
+        Err(_) => panic!("Cannot parse {var_name} env var"),
     }
 }
 
@@ -61,16 +63,18 @@ async fn test_call_prover() {
         shadow: true,
     };
 
-    let rt = tokio::task::spawn_blocking(move || call_prover(serde_json::to_string(&request).unwrap(), "/query_proof"))
-        .await
-        .unwrap();
+    let rt = tokio::task::spawn_blocking(move || {
+        call_prover(serde_json::to_string(&request).unwrap(), "/query_proof")
+    })
+    .await
+    .unwrap();
 
     match rt {
         Some(info) => {
             if info.eq("success") {
                 log::info!("successfully submitted prove task, waiting for proof to be generated");
             } else {
-                log::error!("submitt prove task failed: {:#?}", info);
+                log::error!("submitt prove task failed: {info:#?}");
             }
         }
         None => {

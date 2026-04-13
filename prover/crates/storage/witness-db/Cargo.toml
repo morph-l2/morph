@@ -1,0 +1,21 @@
+[package]
+name = "prover-storage-witness"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+
+[dependencies]
+anyhow = { workspace = true }
+alloy-primitives = { workspace = true, features = [
+    "sha3-keccak",
+    "map-foldhash",
+] }
+alloy-consensus = { workspace = true }
+revm = { workspace = true, features = ["serde", "bn"] }
+prover-mpt = { workspace = true }
+

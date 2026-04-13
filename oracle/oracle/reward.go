@@ -310,7 +310,7 @@ func (o *Oracle) setStartBlock() {
 			if errors.Is(err, ErrRewardNotStart) {
 				log.Info(err.Error())
 			} else {
-				log.Error("query reward start failed", "error", err)
+				log.Error("query reward start falied", "error", err)
 			}
 			time.Sleep(defaultSleepTime)
 			continue

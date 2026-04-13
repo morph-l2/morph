@@ -7,7 +7,6 @@ services:
       dockerfile: Dockerfile.sp1-app
     image: sp1-app:latest
     volumes:
-    - /data/develop/sp1-apps/data/plonk-circuits:/root/.sp1/circuits/v1.3.0-rc2-scroll
     - /data/develop/sp1-apps/data/proof:/root/data/proof
     restart: unless-stopped
     container_name: 'prover'

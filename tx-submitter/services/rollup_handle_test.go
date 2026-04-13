@@ -114,6 +114,7 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 		nil,
 		nil,
 		eventStorage,
+		nil,
 	)
 
 	// Initialize pending transactions

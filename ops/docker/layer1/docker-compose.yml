@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  # ========== Ethereum Node ==========
+  # Note: Kurtosis executes "geth init && geth run" in the same container
+  # with datadir=/data/geth/execution-data
+  layer1-el:
+    image: ethereum/client-go:latest
+    container_name: layer1-el
+    networks:
+      - morph-network
+    ports:
+      - "9545:8545"   # RPC
+      - "9546:8546"   # WebSocket
+      # - "30303:30303" # P2P TCP
+      # - "30303:30303/udp" # P2P UDP
+      - "8551:8551"   # Engine API
+    volumes:
+      - ./genesis:/network-configs:ro
+      - ./jwt:/jwt:ro
+      - layer1-el-data:/data
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mkdir -p /data/geth/execution-data
+        if [ ! -f /data/geth/execution-data/geth/chaindata/CURRENT ]; then
+          echo "Initializing genesis..."
+          geth init --datadir=/data/geth/execution-data /network-configs/genesis.json || exit 1
+        else
+          echo "Genesis already initialized, skipping init"
+        fi
+        exec geth --networkid=900 --datadir=/data/geth/execution-data --http --http.addr=0.0.0.0 --http.port=8545 --http.api=admin,engine,net,eth,web3,debug,txpool --http.vhosts=* --http.corsdomain=* --ws --ws.addr=0.0.0.0 --ws.port=8546 --ws.api=admin,engine,net,eth,web3,debug,txpool --ws.origins=* --allow-insecure-unlock --authrpc.port=8551 --authrpc.addr=0.0.0.0 --authrpc.vhosts=* --authrpc.jwtsecret=/jwt/jwtsecret --syncmode=full --miner.gasprice=1 --rpc.allow-unprotected-txs --metrics --metrics.addr=0.0.0.0 --metrics.port=9001 --discovery.port=30303 --port=30303
+    restart: unless-stopped
+
+  layer1-cl:
+    image: sigp/lighthouse:latest
+    container_name: layer1-cl
+    depends_on:
+      - layer1-el
+    networks:
+      - morph-network
+    ports:
+      - "4000:4000"   # HTTP API
+      - "9000:9000"   # P2P TCP/UDP
+      - "9000:9000/udp" # P2P UDP
+      - "9001:9001"   # P2P QUIC
+      - "5054:5054"   # Metrics
+    volumes:
+      - ./genesis:/network-configs:ro
+      - ./jwt:/jwt:ro
+      - layer1-cl-data:/data
+    command:
+      - lighthouse
+      - beacon_node
+      - --debug-level=info
+      - --datadir=/data/lighthouse/beacon-data
+      - --listen-address=0.0.0.0
+      - --port=9000
+      - --http
+      - --http-address=0.0.0.0
+      - --http-port=4000
+      - --disable-packet-filter
+      - --execution-endpoints=http://layer1-el:8551
+      - --jwt-secrets=/jwt/jwtsecret
+      - --suggested-fee-recipient=0x8943545177806ED17B9F23F0a21ee5948eCaa776
+      - --testnet-dir=/network-configs
+      - --allow-insecure-genesis-sync
+      - --disable-enr-auto-update
+      - --enr-tcp-port=9000
+      - --enr-udp-port=9000
+      - --enr-quic-port=9001
+      - --quic-port=9001
+      - --metrics
+      - --metrics-address=0.0.0.0
+      - --metrics-allow-origin=*
+      - --metrics-port=5054
+      - --enable-private-discovery
+    restart: unless-stopped
+
+  layer1-vc:
+    image: sigp/lighthouse:latest
+    container_name: layer1-vc
+    depends_on:
+      - layer1-cl
+    networks:
+      - morph-network
+    volumes:
+      - ./genesis:/network-configs:ro
+      - ./keystores/layer1:/validator-keys
+      - layer1-vc-data:/data
+    command:
+      - lighthouse
+      - vc
+      - --debug-level=info
+      - --testnet-dir=/network-configs
+      - --validators-dir=/validator-keys/keys
+      - --secrets-dir=/validator-keys/secrets
+      - --init-slashing-protection
+      - --beacon-nodes=http://layer1-cl:4000
+      - --suggested-fee-recipient=0x8943545177806ED17B9F23F0a21ee5948eCaa776
+      - --metrics
+      - --metrics-address=0.0.0.0
+      - --metrics-allow-origin=*
+      - --metrics-port=5064
+    restart: unless-stopped
+
+networks:
+  morph-network:
+    driver: bridge
+    name: morph-network
+
+volumes:
+  layer1-el-data:
+  layer1-cl-data:
+  layer1-vc-data:
+

@@ -2,6 +2,7 @@ use crate::{
     queue::{ProveRequest, Prover},
     read_env_var, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME, REGISTRY,
 };
+use alloy_primitives::hex;
 use axum::{
     routing::{get, post},
     Router,
@@ -136,8 +137,7 @@ async fn add_pending_req(param: String) -> String {
     let blocks_len = prove_request.end_block - prove_request.start_block + 1;
     if blocks_len as usize > *MAX_PROVE_BLOCKS {
         return format!(
-            "blocks len = {:?} exceeds MAX_PROVE_BLOCKS = {:?}",
-            blocks_len, MAX_PROVE_BLOCKS
+            "blocks len = {blocks_len:?} exceeds MAX_PROVE_BLOCKS = {MAX_PROVE_BLOCKS:?}"
         );
     }
 
@@ -190,7 +190,10 @@ async fn query_prove_result(batch_index: String) -> String {
 
 async fn query_proof(batch_index: String) -> ProveResult {
     if batch_index.is_empty() {
-        return ProveResult { error_msg: "batch_index is empty ".to_string(), ..Default::default() };
+        return ProveResult {
+            error_msg: "batch_index is empty ".to_string(),
+            ..Default::default()
+        };
     }
     let proof_dir = match fs::read_dir(PROVER_PROOF_DIR.to_string()) {
         Ok(dir) => dir,
@@ -224,6 +227,31 @@ async fn query_proof(batch_index: String) -> ProveResult {
             .unwrap_or("nothing")
             .ends_with(format!("batch_{}", batch_index.trim()).as_str())
         {
+            // execute_result
+            let prove_result_path = path.join("execute_result.json");
+            if prove_result_path.exists() {
+                match fs::File::open(prove_result_path) {
+                    Ok(file) => {
+                        let reader = BufReader::new(file);
+                        let prove_result: serde_json::Value =
+                            serde_json::from_reader(reader).unwrap_or_default();
+                        if let Some(error_code) = prove_result.get("error_code") {
+                            result.error_code = error_code.as_str().unwrap_or("").to_string();
+                        }
+                        if let Some(error_msg) = prove_result.get("error_msg") {
+                            result.error_msg = error_msg.as_str().unwrap_or("").to_string();
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Failed to load prove_result: {:#?}", e);
+                        result.error_msg = String::from("Failed to load prove_result");
+                    }
+                }
+            }
+            if !result.error_code.is_empty() {
+                return result;
+            }
+
             //pi_batch_agg.data
             let proof_path = path.join("plonk_proof.json");
             if !proof_path.exists() {
@@ -236,7 +264,13 @@ async fn query_proof(batch_index: String) -> ProveResult {
                 Ok(file) => {
                     let reader = BufReader::new(file);
                     let proof: EvmProofFixture = serde_json::from_reader(reader).unwrap();
-                    proof_data.extend(alloy::hex::decode(proof.proof).unwrap());
+                    match hex::decode(proof.proof) {
+                        Ok(data) => proof_data.extend(data),
+                        Err(e) => {
+                            log::error!("Failed to decode proof data: {:#?}", e);
+                            result.error_msg = String::from("Failed to decode proof data");
+                        }
+                    }
                 }
                 Err(e) => {
                     log::error!("Failed to load proof_data: {:#?}", e);
@@ -261,7 +295,7 @@ async fn query_proof(batch_index: String) -> ProveResult {
             break;
         }
     }
-    if result.proof_data.is_empty() {
+    if result.proof_data.is_empty() && result.error_msg.is_empty() {
         result.error_msg = String::from("No proof was found");
     }
     result
