@@ -1,0 +1,17 @@
+# Build token-price-oracle in a stock Go builder container
+FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.24-ubuntu as builder
+
+COPY . /morph
+
+WORKDIR /morph/token-price-oracle
+
+RUN make build
+
+# Copy binary into a lightweight runtime container
+FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.24-ubuntu
+
+RUN apt-get -qq update \
+    && apt-get -qq install -y --no-install-recommends ca-certificates
+COPY --from=builder /morph/token-price-oracle/build/bin/token-price-oracle /usr/local/bin/
+
+CMD ["token-price-oracle"]

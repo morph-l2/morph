@@ -95,7 +95,7 @@ func (o *Oracle) getBatchSubmissionByLogs(rLogs []types.Log, recordBatchSubmissi
 		if err != nil {
 			return fmt.Errorf("get transaction by hash error:%v", err)
 		}
-		signer := types.NewLondonSignerWithEIP4844(tx.ChainId())
+		signer := types.NewViridianSigner(tx.ChainId())
 		msg, err := tx.AsMessage(signer, tx.GasFeeCap())
 		if err != nil {
 			return err
@@ -192,7 +192,7 @@ func (o *Oracle) getBatchSubmissionByLogs(rLogs []types.Log, recordBatchSubmissi
 			continue
 		}
 		if rollupCommitBatch.BatchIndex.Uint64() > batchIndex {
-			return fmt.Errorf(fmt.Sprintf("batch is incontinuity,expect %v,have %v", batchIndex, rollupCommitBatch.BatchIndex.Uint64()))
+			return fmt.Errorf("batch is incontinuity, expect %v, have %v", batchIndex, rollupCommitBatch.BatchIndex.Uint64())
 		}
 		// set batchIndex to new batch index + 1
 		batchIndex = rollupCommitBatch.BatchIndex.Uint64() + 1

@@ -387,6 +387,12 @@ contract StakingTest is L1MessageBaseTest {
         assertEq(stakersAddr.length, stakersConvert.length);
         assertEq(stakersAddr[0], stakersConvert[0]);
         assertEq(stakersAddr[stakersAddr.length - 1], stakersConvert[stakersConvert.length - 1]);
+
+        // console.logString("......................");
+        // console.logUint(bitmap);
+        // console.logUint(stakersAddr.length);
+        // console.logUint(stakersConvert.length);
+        // console.logString("......................");
     }
 
     function test_slash_succeeds() external {

@@ -1,4 +1,4 @@
-go 1.22
+go 1.24.0
 
 use (
 	./bindings
@@ -7,5 +7,6 @@ use (
 	./ops/l2-genesis
 	./ops/tools
 	./oracle
+	./token-price-oracle
 	./tx-submitter
 )

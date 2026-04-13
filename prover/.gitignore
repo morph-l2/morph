@@ -25,3 +25,6 @@ contracts/cache
 contracts
 out
 lib
+
+proof
+state

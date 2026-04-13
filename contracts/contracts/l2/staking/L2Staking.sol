@@ -78,9 +78,6 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice delegator's undelegations
     mapping(address delegator => Undelegation[]) public undelegations;
 
-    /// @notice nonce of staking L1 => L2 msg
-    uint256 public nonce;
-
     /**********************
      * Function Modifiers *
      **********************/
@@ -94,12 +91,6 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice only staker allowed
     modifier onlyStaker() {
         require(stakerRankings[_msgSender()] > 0, "only staker allowed");
-        _;
-    }
-
-    /// @notice check nonce
-    modifier checkNonce(uint256 _nonce) {
-        require(_nonce == nonce, "invalid nonce");
         _;
     }
 
@@ -163,10 +154,8 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
      ************************/
 
     /// @notice add staker, sync from L1
-    /// @param _nonce   msg nonce
-    /// @param add      staker to add. {addr, tmKey, blsKey}
-    function addStaker(uint256 _nonce, Types.StakerInfo calldata add) external onlyOtherStaking checkNonce(_nonce) {
-        nonce = _nonce + 1;
+    /// @param add   staker to add. {addr, tmKey, blsKey}
+    function addStaker(Types.StakerInfo calldata add) external onlyOtherStaking {
         if (stakerRankings[add.addr] == 0) {
             stakerAddresses.push(add.addr);
             stakerRankings[add.addr] = stakerAddresses.length;
@@ -180,62 +169,8 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     }
 
     /// @notice remove stakers, sync from L1. If new sequencer set is nil, layer2 will stop producing blocks
-    /// @param _nonce   msg nonce
-    /// @param remove   staker to remove
-    function removeStakers(uint256 _nonce, address[] calldata remove) external onlyOtherStaking checkNonce(_nonce) {
-        nonce = _nonce + 1;
-        bool updateSequencerSet = false;
-        for (uint256 i = 0; i < remove.length; i++) {
-            if (stakerRankings[remove[i]] <= latestSequencerSetSize) {
-                updateSequencerSet = true;
-            }
-
-            if (stakerRankings[remove[i]] > 0) {
-                // update stakerRankings
-                for (uint256 j = stakerRankings[remove[i]] - 1; j < stakerAddresses.length - 1; j++) {
-                    stakerAddresses[j] = stakerAddresses[j + 1];
-                    stakerRankings[stakerAddresses[j]] -= 1;
-                }
-                stakerAddresses.pop();
-                delete stakerRankings[remove[i]];
-
-                // update candidateNumber
-                if (stakerDelegations[remove[i]] > 0) {
-                    candidateNumber -= 1;
-                }
-            }
-
-            delete stakers[remove[i]];
-        }
-        emit StakerRemoved(remove);
-
-        if (updateSequencerSet) {
-            _updateSequencerSet();
-        }
-    }
-
-    /// @notice add staker. Only can be called when a serious bug causes L1 and L2 data to be out of sync
-    /// @param _nonce   msg nonce
-    /// @param add      staker to add. {addr, tmKey, blsKey}
-    function emergencyAddStaker(uint256 _nonce, Types.StakerInfo calldata add) external onlyOwner checkNonce(_nonce) {
-        nonce = _nonce + 1;
-        if (stakerRankings[add.addr] == 0) {
-            stakerAddresses.push(add.addr);
-            stakerRankings[add.addr] = stakerAddresses.length;
-        }
-        stakers[add.addr] = add;
-        emit StakerAdded(add.addr, add.tmKey, add.blsKey);
-
-        if (!rewardStarted && stakerAddresses.length <= sequencerSetMaxSize) {
-            _updateSequencerSet();
-        }
-    }
-
-    /// @notice remove stakers. Only can be called when a serious bug causes L1 and L2 data to be out of sync
-    /// @param _nonce   msg nonce
-    /// @param remove   staker to remove
-    function emergencyRemoveStakers(uint256 _nonce, address[] calldata remove) external onlyOwner checkNonce(_nonce) {
-        nonce = _nonce + 1;
+    /// @param remove    staker to remove
+    function removeStakers(address[] calldata remove) external onlyOtherStaking {
         bool updateSequencerSet = false;
         for (uint256 i = 0; i < remove.length; i++) {
             if (stakerRankings[remove[i]] <= latestSequencerSetSize) {
@@ -552,10 +487,8 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         if (end > (delegatorsTotalNumber - 1)) {
             end = delegatorsTotalNumber - 1;
         }
-        uint256 i = start;
-        uint256 j = 0;
-        while (i <= end) {
-            delegatorsInPage[j++] = delegators[staker].at(i++);
+        for (uint256 i = start; i <= end; i++) {
+            delegatorsInPage[i] = delegators[staker].at(i);
         }
         return (delegatorsTotalNumber, delegatorsInPage);
     }
@@ -604,7 +537,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice transfer morph token
     function _transfer(address _to, uint256 _amount) internal {
         uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
-        require(IMorphToken(MORPH_TOKEN_CONTRACT).transfer(_to, _amount), "transfer failed");
+        IMorphToken(MORPH_TOKEN_CONTRACT).transfer(_to, _amount);
         uint256 balanceAfter = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
         require(_amount > 0 && balanceAfter - balanceBefore == _amount, "morph token transfer failed");
     }
@@ -612,7 +545,7 @@ contract L2Staking is IL2Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice transfer morph token from
     function _transferFrom(address _from, address _to, uint256 _amount) internal {
         uint256 balanceBefore = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
-        require(IMorphToken(MORPH_TOKEN_CONTRACT).transferFrom(_from, _to, _amount), "transferFrom failed");
+        IMorphToken(MORPH_TOKEN_CONTRACT).transferFrom(_from, _to, _amount);
         uint256 balanceAfter = IMorphToken(MORPH_TOKEN_CONTRACT).balanceOf(_to);
         require(_amount > 0 && balanceAfter - balanceBefore == _amount, "morph token transfer failed");
     }

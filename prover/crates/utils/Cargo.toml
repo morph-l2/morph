@@ -1,35 +1,13 @@
 [package]
-name = "sbv-utils"
+name = "prover-utils"
 homepage = "https://github.com/morph-l2/morph/tree/main/prover"
-
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-license.workspace = true
-repository.workspace = true
-
-[lints]
-workspace = true
+version = "0.1.0"
+edition = "2021"
 
 [dependencies]
-revm.workspace = true
-
-csv = { workspace = true, optional = true }
-hyper = { workspace = true, optional = true }
-hyper-util = { workspace = true, optional = true }
-http-body-util = { workspace = true, optional = true }
-once_cell = { workspace = true, optional = true }
-prometheus-client = { workspace = true, optional = true }
-serde = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true }
-tracing = { workspace = true, optional = true }
-
-[dev-dependencies]
-rand.workspace = true
-reqwest.workspace = true
-
-[features]
-debug-account = ["dep:csv", "dep:serde", "revm/serde"]
-debug-storage = ["dep:csv", "dep:serde", "revm/serde"]
-dev = ["dep:tracing"]
-metrics = ["dep:hyper", "dep:hyper-util", "dep:http-body-util", "dep:once_cell", "dep:prometheus-client", "dep:tokio", "tokio/macros", "tokio/signal"]
+anyhow = { workspace = true }
+alloy-provider = { workspace = true }
+alloy-network = { workspace = true }
+alloy-json-rpc = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+log = { workspace = true }

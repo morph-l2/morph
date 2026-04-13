@@ -140,7 +140,6 @@ linters:
         - goprintffuncname
         - depguard
         - gocyclo
-        - exportloopref
         - sqlclosecheck
         - rowserrcheck
         - durationcheck
@@ -176,6 +175,10 @@ issues:
               - staticcheck
           text: "SA9003:"
 
+        - linters:
+              - staticcheck
+          text: "SA1019:"
+
         # Exclude lll issues for long lines with go:generate
         - linters:
               - lll
@@ -198,6 +201,10 @@ issues:
         - linters:
               - gosec
           text: "G404"
+
+        - linters:
+              - gosec
+          text: "G115"
 
         - linters:
               - wsl

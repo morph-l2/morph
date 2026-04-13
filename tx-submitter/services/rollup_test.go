@@ -64,7 +64,7 @@ func TestGetGasTipAndCap(t *testing.T) {
 	l1Mock.TipCap = initTip
 	l1Mock.Block = block
 
-	tip, feecap, blobfee, err := r.GetGasTipAndCap()
+	tip, feecap, blobfee, _, err := r.GetGasTipAndCap()
 	require.NoError(t, err)
 	require.NotNil(t, tip)
 	require.NotNil(t, feecap)
@@ -77,7 +77,7 @@ func TestGetGasTipAndCap(t *testing.T) {
 	l1Mock.Block = block
 	r.cfg.TipFeeBump = 200
 
-	tip, feecap, blobfee, err = r.GetGasTipAndCap()
+	tip, feecap, blobfee, _, err = r.GetGasTipAndCap()
 	require.NoError(t, err)
 	require.NotNil(t, tip)
 	require.NotNil(t, feecap)
@@ -90,7 +90,7 @@ func TestGetGasTipAndCap(t *testing.T) {
 	l1Mock.Block = block
 	r.cfg.MaxBaseFee = baseFee.Uint64() - 1
 
-	_, _, _, err = r.GetGasTipAndCap()
+	_, _, _, _, err = r.GetGasTipAndCap()
 	require.ErrorContains(t, err, "base fee is too high")
 
 	// Test with tip too high
@@ -99,7 +99,7 @@ func TestGetGasTipAndCap(t *testing.T) {
 	l1Mock.Block = block
 	r.cfg.MaxTip = initTip.Uint64() - 1
 
-	_, _, _, err = r.GetGasTipAndCap()
+	_, _, _, _, err = r.GetGasTipAndCap()
 	require.ErrorContains(t, err, "tip is too high")
 }
 

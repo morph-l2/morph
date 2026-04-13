@@ -52,17 +52,13 @@ func RetrieveBlobBytes(blob *kzg4844.Blob) ([]byte, error) {
 	return data, nil
 }
 
-func makeBCP(bz []byte) (b kzg4844.Blob, c kzg4844.Commitment, p kzg4844.Proof, err error) {
+func makeBlobCommitment(bz []byte) (b kzg4844.Blob, c kzg4844.Commitment, err error) {
 	blob, err := MakeBlobCanonical(bz)
 	if err != nil {
 		return
 	}
 	b = *blob
 	c, err = kzg4844.BlobToCommitment(&b)
-	if err != nil {
-		return
-	}
-	p, err = kzg4844.ComputeBlobProof(&b, c)
 	if err != nil {
 		return
 	}
@@ -85,20 +81,19 @@ func MakeBlobTxSidecar(blobBytes []byte) (*eth.BlobTxSidecar, error) {
 		err         error
 		blobs       = make([]kzg4844.Blob, blobCount)
 		commitments = make([]kzg4844.Commitment, blobCount)
-		proofs      = make([]kzg4844.Proof, blobCount)
 	)
 	switch blobCount {
 	case 1:
-		blobs[0], commitments[0], proofs[0], err = makeBCP(blobBytes)
+		blobs[0], commitments[0], err = makeBlobCommitment(blobBytes)
 		if err != nil {
 			return nil, err
 		}
 	case 2:
-		blobs[0], commitments[0], proofs[0], err = makeBCP(blobBytes[:MaxBlobBytesSize])
+		blobs[0], commitments[0], err = makeBlobCommitment(blobBytes[:MaxBlobBytesSize])
 		if err != nil {
 			return nil, err
 		}
-		blobs[1], commitments[1], proofs[1], err = makeBCP(blobBytes[MaxBlobBytesSize:])
+		blobs[1], commitments[1], err = makeBlobCommitment(blobBytes[MaxBlobBytesSize:])
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +101,6 @@ func MakeBlobTxSidecar(blobBytes []byte) (*eth.BlobTxSidecar, error) {
 	return &eth.BlobTxSidecar{
 		Blobs:       blobs,
 		Commitments: commitments,
-		Proofs:      proofs,
 	}, nil
 }
 
@@ -121,292 +115,122 @@ func CompressBatchBytes(batchBytes []byte) ([]byte, error) {
 	return compressedBatchBytes, nil
 }
 
-func EncodeTxsPayloadToBlob(batchBytes []byte) (*eth.BlobTxSidecar, error) {
-	if len(batchBytes) == 0 {
-		return MakeBlobTxSidecar(batchBytes)
-	}
-	compressedBatchBytes, err := zstd.CompressBatchBytes(batchBytes)
-	if err != nil {
-		return nil, err
-	}
-	return MakeBlobTxSidecar(compressedBatchBytes)
-}
-
-// Deprecated: DecodeTxsFromBlob is recommended
-func DecodeLegacyTxsFromBlob(b *kzg4844.Blob) (eth.Transactions, error) {
-	data, err := RetrieveBlobBytes(b)
-	if err != nil {
-		return nil, err
-	}
-
-	// metadata || tx_payload
-	// metadata consists of num_chunks (2 bytes) and chunki_size (4 bytes per chunk)
-	dataReader := bytes.NewReader(data[2:])
-	var txPayloadSize uint32
-	for i := 0; i < 15; i++ {
-		var size uint32
-		if err := binary.Read(dataReader, binary.BigEndian, size); err != nil {
-			return nil, err
-		}
-		txPayloadSize += size
-	}
-	txPayload := data[62 : 62+txPayloadSize]
-
-	var byteOccupied int
-	var sizeBytes []byte
-	b3 := byte(txPayloadSize >> 16)
-	b2 := byte(txPayloadSize >> 8)
-	b1 := byte(txPayloadSize)
-	if b3 > 0 {
-		byteOccupied = 3
-		sizeBytes = []byte{b3, b2, b1}
-	} else if b2 > 0 {
-		byteOccupied = 2
-		sizeBytes = []byte{b2, b1}
-	} else {
-		byteOccupied = 1
-		sizeBytes = []byte{b1}
-	}
-
-	fistByte := byte(247 + byteOccupied)
-	simulatedRLP := append(append([]byte{fistByte}, sizeBytes...), txPayload...)
-	decoded := make([]*eth.Transaction, 0)
-	if err := rlp.DecodeBytes(simulatedRLP, &decoded); err != nil {
-		return nil, err
-	}
-	return decoded, nil
-}
-
-func DecodeTxsFromBlob(blob *kzg4844.Blob) (eth.Transactions, error) {
-	if isEmptyBlob(blob) {
-		return eth.Transactions{}, nil
-	}
-	data, err := RetrieveBlobBytes(blob)
-	if err != nil {
-		return nil, err
-	}
-	batchBytes, err := zstd.DecompressBatchBytes(data)
-	if err != nil {
-		return nil, err
-	}
-	reader := bytes.NewReader(batchBytes)
-	txs := make(eth.Transactions, 0)
-	for {
-		var (
-			firstByte   byte
-			fullTxBytes []byte
-			innerTx     eth.TxData
-			err         error
-		)
-		if err = binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-			// if the blob byte array is completely consumed, then break the loop
-			if err == io.EOF {
-				break
-			}
-			return nil, err
-		}
-		// zero byte is found after valid tx bytes, break the loop
-		if firstByte == 0 {
-			break
-		}
-
-		switch firstByte {
-		case eth.AccessListTxType:
-			if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-				return nil, err
-			}
-			innerTx = new(eth.AccessListTx)
-		case eth.DynamicFeeTxType:
-			if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-				return nil, err
-			}
-			innerTx = new(eth.DynamicFeeTx)
-		default:
-			if firstByte <= 0xf7 { // legacy tx first byte must be greater than 0xf7(247)
-				return nil, fmt.Errorf("not supported tx type: %d", firstByte)
-			}
-			innerTx = new(eth.LegacyTx)
-		}
-
-		// we support the tx types of LegacyTxType/AccessListTxType/DynamicFeeTxType
-		//if firstByte == eth.AccessListTxType || firstByte == eth.DynamicFeeTxType {
-		//	// the firstByte here is used to indicate tx type, so skip it
-		//	if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-		//		return nil, err
-		//	}
-		//} else if firstByte <= 0xf7 { // legacy tx first byte must be greater than 0xf7(247)
-		//	return nil, fmt.Errorf("not supported tx type: %d", firstByte)
-		//}
-		fullTxBytes, err = extractInnerTxFullBytes(firstByte, reader)
-		if err != nil {
-			return nil, err
-		}
-		if err = rlp.DecodeBytes(fullTxBytes, innerTx); err != nil {
-			return nil, err
-		}
-		txs = append(txs, eth.NewTx(innerTx))
-	}
-	return txs, nil
-}
-
-func DecodeBlocksFromBlob(blob *kzg4844.Blob) (eth.Transactions, error) {
-	if isEmptyBlob(blob) {
-		return eth.Transactions{}, nil
-	}
-	data, err := RetrieveBlobBytes(blob)
-	if err != nil {
-		return nil, err
-	}
-	batchBytes, err := zstd.DecompressBatchBytes(data)
-	if err != nil {
-		return nil, err
-	}
-	reader := bytes.NewReader(batchBytes)
-	txs := make(eth.Transactions, 0)
-	for {
-		var (
-			firstByte   byte
-			fullTxBytes []byte
-			innerTx     eth.TxData
-			err         error
-		)
-		if err = binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-			// if the blob byte array is completely consumed, then break the loop
-			if err == io.EOF {
-				break
-			}
-			return nil, err
-		}
-		// zero byte is found after valid tx bytes, break the loop
-		if firstByte == 0 {
-			break
-		}
-
-		switch firstByte {
-		case eth.AccessListTxType:
-			if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-				return nil, err
-			}
-			innerTx = new(eth.AccessListTx)
-		case eth.DynamicFeeTxType:
-			if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-				return nil, err
-			}
-			innerTx = new(eth.DynamicFeeTx)
-		default:
-			if firstByte <= 0xf7 { // legacy tx first byte must be greater than 0xf7(247)
-				return nil, fmt.Errorf("not supported tx type: %d", firstByte)
-			}
-			innerTx = new(eth.LegacyTx)
-		}
-
-		// we support the tx types of LegacyTxType/AccessListTxType/DynamicFeeTxType
-		//if firstByte == eth.AccessListTxType || firstByte == eth.DynamicFeeTxType {
-		//	// the firstByte here is used to indicate tx type, so skip it
-		//	if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-		//		return nil, err
-		//	}
-		//} else if firstByte <= 0xf7 { // legacy tx first byte must be greater than 0xf7(247)
-		//	return nil, fmt.Errorf("not supported tx type: %d", firstByte)
-		//}
-		fullTxBytes, err = extractInnerTxFullBytes(firstByte, reader)
-		if err != nil {
-			return nil, err
-		}
-		if err = rlp.DecodeBytes(fullTxBytes, innerTx); err != nil {
-			return nil, err
-		}
-		txs = append(txs, eth.NewTx(innerTx))
-	}
-	return txs, nil
-}
-
 func DecodeTxsFromBytes(txsBytes []byte) (eth.Transactions, error) {
-	//if isEmptyBlob(blob) {
-	//	return eth.Transactions{}, nil
-	//}
-	//data, err := RetrieveBlobBytes(blob)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//batchBytes, err := zstd.DecompressBatchBytes(data)
-	//if err != nil {
-	//	return nil, err
-	//}
 	reader := bytes.NewReader(txsBytes)
 	txs := make(eth.Transactions, 0)
 	for {
 		var (
-			firstByte   byte
-			fullTxBytes []byte
-			innerTx     eth.TxData
-			err         error
+			typeByte byte
+			err      error
 		)
-		if err = binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-			// if the blob byte array is completely consumed, then break the loop
+		if err = binary.Read(reader, binary.BigEndian, &typeByte); err != nil {
 			if err == io.EOF {
 				break
 			}
 			return nil, err
 		}
-		// zero byte is found after valid tx bytes, break the loop
-		if firstByte == 0 {
+		if typeByte == 0 {
 			break
 		}
 
-		switch firstByte {
-		case eth.AccessListTxType:
-			if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
+		switch typeByte {
+		case eth.AccessListTxType, eth.DynamicFeeTxType, eth.SetCodeTxType:
+			tx, err := decodeTypedTx(typeByte, reader)
+			if err != nil {
 				return nil, err
 			}
-			innerTx = new(eth.AccessListTx)
-		case eth.DynamicFeeTxType:
-			if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-				return nil, err
-			}
-			innerTx = new(eth.DynamicFeeTx)
-		default:
-			if firstByte <= 0xf7 { // legacy tx first byte must be greater than 0xf7(247)
-				return nil, fmt.Errorf("not supported tx type: %d", firstByte)
-			}
-			innerTx = new(eth.LegacyTx)
-		}
+			txs = append(txs, tx)
 
-		// we support the tx types of LegacyTxType/AccessListTxType/DynamicFeeTxType
-		//if firstByte == eth.AccessListTxType || firstByte == eth.DynamicFeeTxType {
-		//	// the firstByte here is used to indicate tx type, so skip it
-		//	if err := binary.Read(reader, binary.BigEndian, &firstByte); err != nil {
-		//		return nil, err
-		//	}
-		//} else if firstByte <= 0xf7 { // legacy tx first byte must be greater than 0xf7(247)
-		//	return nil, fmt.Errorf("not supported tx type: %d", firstByte)
-		//}
-		fullTxBytes, err = extractInnerTxFullBytes(firstByte, reader)
-		if err != nil {
-			return nil, err
+		case eth.MorphTxType:
+			tx, err := decodeMorphTx(reader)
+			if err != nil {
+				return nil, err
+			}
+			txs = append(txs, tx)
+
+		default:
+			if typeByte <= 0xf7 {
+				return nil, fmt.Errorf("not supported tx type: %d", typeByte)
+			}
+			fullTxBytes, err := extractInnerTxFullBytes(typeByte, reader)
+			if err != nil {
+				return nil, err
+			}
+			var inner eth.LegacyTx
+			if err = rlp.DecodeBytes(fullTxBytes, &inner); err != nil {
+				return nil, err
+			}
+			txs = append(txs, eth.NewTx(&inner))
 		}
-		if err = rlp.DecodeBytes(fullTxBytes, innerTx); err != nil {
-			return nil, err
-		}
-		txs = append(txs, eth.NewTx(innerTx))
 	}
 	return txs, nil
 }
 
-func isEmptyBlob(blob *kzg4844.Blob) bool {
-	for _, b := range blob {
-		if b != 0 {
-			return false
+// decodeTypedTx decodes a standard EIP-2718 typed tx (AccessList, DynamicFee, SetCode)
+// from the reader. The type byte has already been consumed; the next byte is the RLP prefix.
+func decodeTypedTx(typeByte byte, reader io.Reader) (*eth.Transaction, error) {
+	var rlpPrefix byte
+	if err := binary.Read(reader, binary.BigEndian, &rlpPrefix); err != nil {
+		return nil, err
+	}
+	rlpBytes, err := extractInnerTxFullBytes(rlpPrefix, reader)
+	if err != nil {
+		return nil, err
+	}
+	txBinary := make([]byte, 0, 1+len(rlpBytes))
+	txBinary = append(txBinary, typeByte)
+	txBinary = append(txBinary, rlpBytes...)
+
+	var tx eth.Transaction
+	if err := tx.UnmarshalBinary(txBinary); err != nil {
+		return nil, err
+	}
+	return &tx, nil
+}
+
+// decodeMorphTx decodes a MorphTx from the reader. The type byte (0x7f) has already
+// been consumed. MorphTx has two wire formats:
+//   - V0: type(0x7f) || RLP(fields)              — next byte is RLP prefix (>= 0xC0)
+//   - V1: type(0x7f) || version(0x01) || RLP(fields) — next byte is version, then RLP prefix
+func decodeMorphTx(reader io.Reader) (*eth.Transaction, error) {
+	var nextByte byte
+	if err := binary.Read(reader, binary.BigEndian, &nextByte); err != nil {
+		return nil, err
+	}
+
+	var versionPrefix []byte
+	rlpFirstByte := nextByte
+	if nextByte != 0 && nextByte < 0xC0 {
+		// V1+: nextByte is the version byte, read the actual RLP prefix
+		versionPrefix = []byte{nextByte}
+		if err := binary.Read(reader, binary.BigEndian, &rlpFirstByte); err != nil {
+			return nil, err
 		}
 	}
-	return true
+
+	rlpBytes, err := extractInnerTxFullBytes(rlpFirstByte, reader)
+	if err != nil {
+		return nil, err
+	}
+
+	txBinary := make([]byte, 0, 1+len(versionPrefix)+len(rlpBytes))
+	txBinary = append(txBinary, eth.MorphTxType)
+	txBinary = append(txBinary, versionPrefix...)
+	txBinary = append(txBinary, rlpBytes...)
+
+	var tx eth.Transaction
+	if err := tx.UnmarshalBinary(txBinary); err != nil {
+		return nil, err
+	}
+	return &tx, nil
 }
 
 func extractInnerTxFullBytes(firstByte byte, reader io.Reader) ([]byte, error) {
-	//the occupied byte length for storing the size of the following rlp encoded bytes
 	sizeByteLen := firstByte - 0xf7
+	if sizeByteLen > 4 {
+		return nil, fmt.Errorf("invalid RLP size byte length: %d (firstByte=0x%x)", sizeByteLen, firstByte)
+	}
 
-	// the size of the following rlp encoded bytes
 	sizeByte := make([]byte, sizeByteLen)
 	if err := binary.Read(reader, binary.BigEndian, sizeByte); err != nil {
 		return nil, err
