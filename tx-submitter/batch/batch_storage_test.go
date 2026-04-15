@@ -10,7 +10,7 @@ import (
 
 func Test_storageBatch(t *testing.T) {
 	testDB := setupTestDB(t)
-	cache := NewBatchCache(nil, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
+	cache := NewBatchCache(nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
 	err := cache.InitAndSyncFromRollup()
 	require.NoError(t, err)
 

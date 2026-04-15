@@ -3,7 +3,6 @@ package batch
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"morph-l2/node/zstd"
@@ -65,7 +64,7 @@ func makeBlobCommitment(bz []byte) (b kzg4844.Blob, c kzg4844.Commitment, err er
 	return
 }
 
-func MakeBlobTxSidecar(blobBytes []byte) (*eth.BlobTxSidecar, error) {
+func MakeBlobTxSidecar(blobBytes []byte, maxBlobs int) (*eth.BlobTxSidecar, error) {
 	if len(blobBytes) == 0 {
 		return &eth.BlobTxSidecar{
 			Blobs:       []kzg4844.Blob{*emptyBlob},
@@ -73,27 +72,25 @@ func MakeBlobTxSidecar(blobBytes []byte) (*eth.BlobTxSidecar, error) {
 			Proofs:      []kzg4844.Proof{emptyBlobProof},
 		}, nil
 	}
-	if len(blobBytes) > 2*MaxBlobBytesSize {
-		return nil, errors.New("only 2 blobs at most is allowed")
+	if maxBlobs <= 0 {
+		maxBlobs = 1
 	}
-	blobCount := len(blobBytes)/(MaxBlobBytesSize+1) + 1
+	if len(blobBytes) > maxBlobs*MaxBlobBytesSize {
+		return nil, fmt.Errorf("data size %d exceeds %d blobs capacity (%d bytes)", len(blobBytes), maxBlobs, maxBlobs*MaxBlobBytesSize)
+	}
+	blobCount := (len(blobBytes) + MaxBlobBytesSize - 1) / MaxBlobBytesSize
 	var (
 		err         error
 		blobs       = make([]kzg4844.Blob, blobCount)
 		commitments = make([]kzg4844.Commitment, blobCount)
 	)
-	switch blobCount {
-	case 1:
-		blobs[0], commitments[0], err = makeBlobCommitment(blobBytes)
-		if err != nil {
-			return nil, err
+	for i := 0; i < blobCount; i++ {
+		start := i * MaxBlobBytesSize
+		end := start + MaxBlobBytesSize
+		if end > len(blobBytes) {
+			end = len(blobBytes)
 		}
-	case 2:
-		blobs[0], commitments[0], err = makeBlobCommitment(blobBytes[:MaxBlobBytesSize])
-		if err != nil {
-			return nil, err
-		}
-		blobs[1], commitments[1], err = makeBlobCommitment(blobBytes[MaxBlobBytesSize:])
+		blobs[i], commitments[i], err = makeBlobCommitment(blobBytes[start:end])
 		if err != nil {
 			return nil, err
 		}

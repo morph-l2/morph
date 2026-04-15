@@ -71,11 +71,13 @@ type BatchCache struct {
 	// config
 	batchTimeOut  uint64
 	blockInterval uint64
+	maxBlobCount  int
 }
 
 // NewBatchCache creates and initializes a new BatchCache instance
 func NewBatchCache(
 	isBatchUpgraded func(uint64) bool,
+	maxBlobCount int,
 	l1Client iface.Client,
 	l2Clients []iface.L2Client,
 	rollupContract iface.IRollup,
@@ -85,6 +87,9 @@ func NewBatchCache(
 	if isBatchUpgraded == nil {
 		// Default implementation: always returns true (use V1 version)
 		isBatchUpgraded = func(uint64) bool { return true }
+	}
+	if maxBlobCount <= 0 {
+		maxBlobCount = 2
 	}
 	ctx := context.Background()
 	ifL2Clients := iface.L2Clients{Clients: l2Clients}
@@ -118,6 +123,7 @@ func NewBatchCache(
 		rollupContract:                    rollupContract,
 		l2Caller:                          l2Caller,
 		batchStorage:                      NewBatchStorage(ldb),
+		maxBlobCount:                      maxBlobCount,
 	}
 }
 
@@ -516,9 +522,9 @@ func (bc *BatchCache) CalculateCapWithProposalBlock(blockNumber uint64, withdraw
 	// Check capacity: if compressed size would exceed limit after adding current block
 	var exceeded bool
 	if bc.isBatchUpgraded(header.Time) {
-		exceeded, err = bc.batchData.WillExceedCompressedSizeLimit(blockContext, txsPayload)
+		exceeded, err = bc.batchData.WillExceedCompressedSizeLimit(blockContext, txsPayload, bc.maxBlobCount)
 	} else {
-		exceeded, err = bc.batchData.EstimateCompressedSizeWithNewPayload(txsPayload)
+		exceeded, err = bc.batchData.EstimateCompressedSizeWithNewPayload(txsPayload, bc.maxBlobCount)
 	}
 	if err != nil {
 		return false, fmt.Errorf("failed to estimate compressed size: %w", err)
@@ -624,14 +630,15 @@ func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64) (ui
 	}
 
 	// Check if sealed data size reaches expected value
-	// Expected value: compressed payload size close to or reaches MaxBlobBytesSize
-	// Use 90% as threshold, i.e., if compressed size >= MaxBlobBytesSize * 0.9, consider it reached expected
-	threshold := float64(MaxBlobBytesSize) * 0.9
+	// Expected value: compressed payload size close to or reaches total blob capacity
+	// Use 90% as threshold, i.e., if compressed size >= totalCapacity * 0.9, consider it reached expected
+	totalBlobCapacity := bc.maxBlobCount * MaxBlobBytesSize
+	threshold := float64(totalBlobCapacity) * 0.9
 	expectedSizeThreshold := uint64(threshold)
 	reachedExpectedSize := uint64(len(compressedPayload)) >= expectedSizeThreshold
 
 	// Generate blob sidecar
-	sidecar, err := MakeBlobTxSidecar(compressedPayload)
+	sidecar, err := MakeBlobTxSidecar(compressedPayload, bc.maxBlobCount)
 	if err != nil {
 		return 0, BatchHeaderBytes{}, false, fmt.Errorf("failed to create blob sidecar: %w", err)
 	}
@@ -735,7 +742,7 @@ func (bc *BatchCache) handleBatchSealing(blockTimestamp uint64) ([]byte, common.
 			return nil, common.Hash{}, fmt.Errorf("failed to compress upgraded payload: %w", err)
 		}
 
-		if len(compressedPayload) <= MaxBlobBytesSize {
+		if len(compressedPayload) <= bc.maxBlobCount*MaxBlobBytesSize {
 			batchDataHash, err = bc.batchData.DataHashV2()
 			if err != nil {
 				return nil, common.Hash{}, fmt.Errorf("failed to calculate upgraded data hash: %w", err)
@@ -790,6 +797,14 @@ func (bc *BatchCache) createBatchHeader(dataHash common.Hash, sidecar *ethtypes.
 		batchHeaderV1 := BatchHeaderV1{
 			BatchHeaderV0:   batchHeaderV0,
 			LastBlockNumber: bc.lastPackedBlockHeight,
+		}
+		// Use V2 header when there are multiple blobs, to store all blob hashes
+		if len(blobHashes) > 1 {
+			return BatchHeaderV2{
+				BatchHeaderV1:   batchHeaderV1,
+				BlobCount:       uint8(len(blobHashes)),
+				ExtraBlobHashes: blobHashes[1:],
+			}.Bytes()
 		}
 		return batchHeaderV1.Bytes()
 	}

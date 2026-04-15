@@ -126,16 +126,17 @@ func (cks *BatchData) TxsPayloadV2() []byte {
 
 func (cks *BatchData) BlockNum() uint16 { return cks.blockNum }
 
-func (cks *BatchData) EstimateCompressedSizeWithNewPayload(txPayload []byte) (bool, error) {
+func (cks *BatchData) EstimateCompressedSizeWithNewPayload(txPayload []byte, maxBlobCount int) (bool, error) {
+	limit := maxBlobCount * MaxBlobBytesSize
 	blobBytes := append(cks.txsPayload, txPayload...)
-	if len(blobBytes) <= MaxBlobBytesSize {
+	if len(blobBytes) <= limit {
 		return false, nil
 	}
 	compressed, err := zstd.CompressBatchBytes(blobBytes)
 	if err != nil {
 		return false, err
 	}
-	return len(compressed) > MaxBlobBytesSize, nil
+	return len(compressed) > limit, nil
 }
 
 func (cks *BatchData) combinePayloads(newBlockContext, newTxPayload []byte) []byte {
@@ -150,15 +151,16 @@ func (cks *BatchData) combinePayloads(newBlockContext, newTxPayload []byte) []by
 
 // WillExceedCompressedSizeLimit checks if the size of the combined block contexts
 // and transaction payloads (after compression) exceeds the maximum allowed size.
-func (cks *BatchData) WillExceedCompressedSizeLimit(newBlockContext, newTxPayload []byte) (bool, error) {
+func (cks *BatchData) WillExceedCompressedSizeLimit(newBlockContext, newTxPayload []byte, maxBlobCount int) (bool, error) {
+	limit := maxBlobCount * MaxBlobBytesSize
 	// Combine the existing and new block contexts and transaction payloads
 	combinedBytes := cks.combinePayloads(newBlockContext, newTxPayload)
-	if len(combinedBytes) <= MaxBlobBytesSize {
+	if len(combinedBytes) <= limit {
 		return false, nil
 	}
 	compressed, err := zstd.CompressBatchBytes(combinedBytes)
 	if err != nil {
 		return false, fmt.Errorf("compression failed: %w", err)
 	}
-	return len(compressed) > MaxBlobBytesSize, nil
+	return len(compressed) > limit, nil
 }

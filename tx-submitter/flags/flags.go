@@ -331,6 +331,14 @@ var (
 		Usage:  "Enable seal batch",
 		EnvVar: prefixEnvVar("SEAL_BATCH"),
 	}
+
+	// max blob count per batch
+	MaxBlobCountFlag = cli.IntFlag{
+		Name:   "max_blob_count",
+		Usage:  "Maximum number of blobs per batch submission (1-6)",
+		Value:  2,
+		EnvVar: prefixEnvVar("MAX_BLOB_COUNT"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -391,6 +399,7 @@ var optionalFlags = []cli.Flag{
 	BlockNotIncreasedThreshold,
 
 	SealBatch,
+	MaxBlobCountFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

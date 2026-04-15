@@ -112,6 +112,8 @@ type Config struct {
 	BlockNotIncreasedThreshold int64
 	// enable seal batch
 	SealBatch bool
+	// max blob count per batch
+	MaxBlobCount int
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -187,6 +189,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		BlockNotIncreasedThreshold: ctx.GlobalInt64(flags.BlockNotIncreasedThreshold.Name),
 		// SealBatch
 		SealBatch: ctx.GlobalBool(flags.SealBatch.Name),
+		// MaxBlobCount
+		MaxBlobCount: ctx.GlobalInt(flags.MaxBlobCountFlag.Name),
 	}
 
 	return cfg, nil
