@@ -5,6 +5,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import {BatchHeaderCodecV0} from "../../libraries/codec/BatchHeaderCodecV0.sol";
 import {BatchHeaderCodecV1} from "../../libraries/codec/BatchHeaderCodecV1.sol";
+import {BatchHeaderCodecV2} from "../../libraries/codec/BatchHeaderCodecV2.sol";
 import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IRollup} from "./IRollup.sol";
@@ -29,6 +30,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
     /// @dev Address of the point evaluation precompile used for EIP-4844 blob verification.
     address internal constant POINT_EVALUATION_PRECOMPILE_ADDR = address(0x0A);
+
+    /// @notice Maximum number of blobs per L1 block (EIP-4844).
+    uint8 internal constant MAX_BLOB_PER_BLOCK = 6;
 
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable LAYER_2_CHAIN_ID;
@@ -257,6 +261,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput
     ) external override onlyActiveStaker nonReqRevert whenNotPaused {
+        require(batchDataInput.version < 2, "V2 batches do not support commitState");
         require(blobhash(0) == bytes32(0), "commitState must not carry blob");
         (uint256 _batchPtr, ) = _loadBatchHeader(batchDataInput.parentBatchHeader);
         uint256 _nextBatchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr) + 1;
@@ -281,7 +286,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         uint256 submitterBitmap,
         bytes32 blobVersionedHash
     ) internal {
-        require(batchDataInput.version == 0 || batchDataInput.version == 1, "invalid version");
+        require(batchDataInput.version <= 2, "invalid version");
         require(batchDataInput.prevStateRoot != bytes32(0), "previous state root is zero");
         require(batchDataInput.postStateRoot != bytes32(0), "new state root is zero");
 
@@ -321,31 +326,76 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         bytes32 _blobVersionedHash = blobVersionedHash;
 
         {
-            uint256 _headerLength = BatchHeaderCodecV0.BATCH_HEADER_LENGTH;
-            if (batchDataInput.version == 1) {
-                _headerLength = BatchHeaderCodecV1.BATCH_HEADER_LENGTH;
-            }
-            assembly {
-                _batchPtr := mload(0x40)
-                mstore(0x40, add(_batchPtr, _headerLength))
+            uint256 _headerLength;
+
+            if (batchDataInput.version == 2) {
+                // V2: count blobs attached to this transaction
+                uint8 blobCount = 0;
+                for (uint8 i = 0; i < MAX_BLOB_PER_BLOCK; i++) {
+                    if (blobhash(i) == bytes32(0)) break;
+                    blobCount++;
+                }
+                require(blobCount > 0, "V2 requires at least 1 blob");
+
+                _headerLength = BatchHeaderCodecV2.BASE_LENGTH + uint256(blobCount - 1) * 32;
+                assembly {
+                    _batchPtr := mload(0x40)
+                    mstore(0x40, add(_batchPtr, _headerLength))
+                }
+
+                // store V0/V1 shared fields
+                BatchHeaderCodecV0.storeVersion(_batchPtr, 2);
+                BatchHeaderCodecV0.storeBatchIndex(_batchPtr, _batchIndex);
+                BatchHeaderCodecV0.storeL1MessagePopped(_batchPtr, batchDataInput.numL1Messages);
+                BatchHeaderCodecV0.storeTotalL1MessagePopped(_batchPtr, _totalL1MessagesPoppedOverall);
+                BatchHeaderCodecV0.storeDataHash(_batchPtr, dataHash);
+                BatchHeaderCodecV0.storePrevStateHash(_batchPtr, batchDataInput.prevStateRoot);
+                BatchHeaderCodecV0.storePostStateHash(_batchPtr, batchDataInput.postStateRoot);
+                BatchHeaderCodecV0.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
+                BatchHeaderCodecV0.storeSequencerSetVerifyHash(
+                    _batchPtr,
+                    keccak256(batchSignatureInput.sequencerSets)
+                );
+                BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
+                BatchHeaderCodecV1.storeLastBlockNumber(_batchPtr, batchDataInput.lastBlockNumber);
+
+                // store V2 fields: blobCount + all blob versioned hashes
+                BatchHeaderCodecV2.storeBlobCount(_batchPtr, blobCount);
+                for (uint8 i = 0; i < blobCount; i++) {
+                    BatchHeaderCodecV2.storeBlobVersionedHash(_batchPtr, i, blobhash(i));
+                }
+
+                _blobVersionedHash = blobhash(0);
+            } else {
+                // V0/V1 path (unchanged)
+                _headerLength = BatchHeaderCodecV0.BATCH_HEADER_LENGTH;
+                if (batchDataInput.version == 1) {
+                    _headerLength = BatchHeaderCodecV1.BATCH_HEADER_LENGTH;
+                }
+                assembly {
+                    _batchPtr := mload(0x40)
+                    mstore(0x40, add(_batchPtr, _headerLength))
+                }
+
+                BatchHeaderCodecV0.storeVersion(_batchPtr, batchDataInput.version);
+                BatchHeaderCodecV0.storeBatchIndex(_batchPtr, _batchIndex);
+                BatchHeaderCodecV0.storeL1MessagePopped(_batchPtr, batchDataInput.numL1Messages);
+                BatchHeaderCodecV0.storeTotalL1MessagePopped(_batchPtr, _totalL1MessagesPoppedOverall);
+                BatchHeaderCodecV0.storeDataHash(_batchPtr, dataHash);
+                BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
+                BatchHeaderCodecV0.storePrevStateHash(_batchPtr, batchDataInput.prevStateRoot);
+                BatchHeaderCodecV0.storePostStateHash(_batchPtr, batchDataInput.postStateRoot);
+                BatchHeaderCodecV0.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
+                BatchHeaderCodecV0.storeSequencerSetVerifyHash(
+                    _batchPtr,
+                    keccak256(batchSignatureInput.sequencerSets)
+                );
+                BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
+                if (batchDataInput.version >= 1) {
+                    BatchHeaderCodecV1.storeLastBlockNumber(_batchPtr, batchDataInput.lastBlockNumber);
+                }
             }
 
-            // store entries, the order matters
-            BatchHeaderCodecV0.storeVersion(_batchPtr, batchDataInput.version);
-            BatchHeaderCodecV0.storeBatchIndex(_batchPtr, _batchIndex);
-            BatchHeaderCodecV0.storeL1MessagePopped(_batchPtr, batchDataInput.numL1Messages);
-            BatchHeaderCodecV0.storeTotalL1MessagePopped(_batchPtr, _totalL1MessagesPoppedOverall);
-            BatchHeaderCodecV0.storeDataHash(_batchPtr, dataHash);
-            BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
-            BatchHeaderCodecV0.storePrevStateHash(_batchPtr, batchDataInput.prevStateRoot);
-            BatchHeaderCodecV0.storePostStateHash(_batchPtr, batchDataInput.postStateRoot);
-            BatchHeaderCodecV0.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
-            BatchHeaderCodecV0.storeSequencerSetVerifyHash(_batchPtr, keccak256(batchSignatureInput.sequencerSets));
-            BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
-            // store last block number if version >= 1
-            if (batchDataInput.version >= 1) {
-                BatchHeaderCodecV1.storeLastBlockNumber(_batchPtr, batchDataInput.lastBlockNumber);
-            }
             committedBatches[_batchIndex] = BatchHeaderCodecV0.computeBatchHash(_batchPtr, _headerLength);
             committedStateRoots[_batchIndex] = batchDataInput.postStateRoot;
             batchBlobVersionedHashes[_batchIndex] = _blobVersionedHash;
@@ -755,7 +805,16 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(_batchProof.length > 0, "Invalid batch proof");
 
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
-        bytes32 _blobVersionedHash = BatchHeaderCodecV0.getBlobVersionedHash(memPtr);
+
+        // For V2 batches: blobHashInput = keccak256(hash[0] || ... || hash[N-1])
+        // For V0/V1 batches: blobHashInput = hash[0] (single blob hash, backward-compatible)
+        bytes32 _blobHashInput;
+        if (BatchHeaderCodecV0.getVersion(memPtr) == 2) {
+            uint8 _blobCount = BatchHeaderCodecV2.getBlobCount(memPtr);
+            _blobHashInput = BatchHeaderCodecV2.getBlobHashesHash(memPtr, _blobCount);
+        } else {
+            _blobHashInput = BatchHeaderCodecV0.getBlobVersionedHash(memPtr);
+        }
 
         bytes32 _publicInputHash = keccak256(
             abi.encodePacked(
@@ -765,7 +824,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 BatchHeaderCodecV0.getWithdrawRootHash(memPtr),
                 BatchHeaderCodecV0.getSequencerSetVerifyHash(memPtr),
                 BatchHeaderCodecV0.getDataHash(memPtr),
-                _blobVersionedHash
+                _blobHashInput
             )
         );
 
@@ -863,6 +922,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             (_memPtr, _length) = BatchHeaderCodecV0.loadAndValidate(_batchHeader);
         } else if (_version == 1) {
             (_memPtr, _length) = BatchHeaderCodecV1.loadAndValidate(_batchHeader);
+        } else if (_version == 2) {
+            (_memPtr, _length) = BatchHeaderCodecV2.loadAndValidate(_batchHeader);
         } else {
             revert("Unsupported batch version");
         }
