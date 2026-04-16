@@ -77,6 +77,25 @@ impl BatchInfo {
         hasher.finalize()
     }
 
+    /// V2 public input hash: uses keccak256(hash[0] || ... || hash[N-1]) as blob input
+    pub fn public_input_hash_v2(&self, blob_hashes: &[B256]) -> B256 {
+        let mut blob_hasher = Keccak256::new();
+        for h in blob_hashes {
+            blob_hasher.update(h.as_slice());
+        }
+        let blob_hashes_hash: B256 = blob_hasher.finalize();
+
+        let mut hasher = Keccak256::new();
+        hasher.update(self.chain_id.to_be_bytes());
+        hasher.update(self.prev_state_root.as_slice());
+        hasher.update(self.post_state_root.as_slice());
+        hasher.update(self.withdraw_root.unwrap().as_slice());
+        hasher.update(self.sequencer_root.unwrap().as_slice());
+        hasher.update(self.data_hash.as_slice());
+        hasher.update(blob_hashes_hash.as_slice());
+        hasher.finalize()
+    }
+
     /// Chain ID of this chunk
     pub fn chain_id(&self) -> u64 {
         self.chain_id

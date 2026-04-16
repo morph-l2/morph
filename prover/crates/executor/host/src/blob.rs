@@ -16,6 +16,9 @@ const BLOB_WIDTH: usize = 4096;
 /// The bytes len of one blob.
 const BLOB_DATA_SIZE: usize = BLOB_WIDTH * N_BYTES_U256;
 
+/// Maximum payload bytes that fit in a single blob (4096 field elements × 31 usable bytes each).
+const MAX_BLOB_BYTES_SIZE: usize = BLOB_WIDTH * (N_BYTES_U256 - 1); // 4096 * 31 = 126,976
+
 // Get blob info from L2 blocks
 pub fn get_blob_info_from_blocks(blocks: &Vec<L2Block>) -> Result<BlobInfo> {
     // Assemble batch data from block header and transactions.
@@ -40,6 +43,58 @@ pub fn get_blob_info_from_traces(
     let blob_data = encode_blob(batch_data)?;
     // Populate kzg commitment & proof.
     populate_kzg(&blob_data)
+}
+
+/// Encode batch data from L2 blocks into multiple blob infos (one per 126,976-byte chunk).
+pub fn get_blob_infos_from_blocks(blocks: &[L2Block]) -> Result<Vec<BlobInfo>> {
+    let batch_data = get_blob_data_from_blocks(&blocks.to_vec());
+    let compressed = compresse_batch(batch_data.as_slice())?;
+    encode_multi_blob(compressed)
+}
+
+/// Encode batch data from block traces into multiple blob infos.
+pub fn get_blob_infos_from_traces(traces: &[BlockTrace]) -> Result<Vec<BlobInfo>> {
+    let batch_data = get_blob_data_from_traces(&traces.to_vec());
+    let compressed = compresse_batch(batch_data.as_slice())?;
+    encode_multi_blob(compressed)
+}
+
+/// Split compressed data into N blobs, each holding up to MAX_BLOB_BYTES_SIZE bytes.
+fn encode_multi_blob(compressed: Vec<u8>) -> Result<Vec<BlobInfo>> {
+    if compressed.is_empty() {
+        return Ok(vec![populate_kzg(&[0u8; BLOB_DATA_SIZE])?]);
+    }
+    let blob_count = compressed.len().div_ceil(MAX_BLOB_BYTES_SIZE);
+    let mut infos = Vec::with_capacity(blob_count);
+    for i in 0..blob_count {
+        let start = i * MAX_BLOB_BYTES_SIZE;
+        let end = std::cmp::min(start + MAX_BLOB_BYTES_SIZE, compressed.len());
+        let chunk = &compressed[start..end];
+        let blob_data = encode_blob_from_bytes(chunk)?;
+        infos.push(populate_kzg(&blob_data)?);
+    }
+    Ok(infos)
+}
+
+/// Encode a byte slice (already compressed) into an EIP-4844 blob payload (131072 bytes).
+///
+/// Packs bytes into 4096 BLS12-381 field elements with the MSB forced to 0x00.
+pub fn encode_blob_from_bytes(data: &[u8]) -> Result<[u8; BLOB_DATA_SIZE]> {
+    ensure!(
+        data.len() <= MAX_BLOB_BYTES_SIZE,
+        "data size {} exceeds max blob capacity {}",
+        data.len(),
+        MAX_BLOB_BYTES_SIZE
+    );
+    let mut coefficients = [[0u8; N_BYTES_U256]; BLOB_WIDTH];
+    for (i, byte) in data.iter().enumerate() {
+        coefficients[i / 31][1 + (i % 31)] = *byte;
+    }
+    let mut blob_bytes = [0u8; BLOB_DATA_SIZE];
+    for (index, value) in coefficients.iter().enumerate() {
+        blob_bytes[index * 32..(index + 1) * 32].copy_from_slice(value.as_slice());
+    }
+    Ok(blob_bytes)
 }
 
 /// Encode `tx_bytes` into an EIP-4844 blob payload (131072 bytes).

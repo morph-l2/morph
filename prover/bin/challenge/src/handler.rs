@@ -413,12 +413,14 @@ struct BatchInfo {
     l1_message_popped: u64,
     total_l1_message_popped: u64,
     data_hash: [u8; 32],
-    blob_versioned_hash: [u8; 32],
+    blob_versioned_hash: [u8; 32],    // kept for V0/V1; also blobHash[0] for V2
     prev_state_root: [u8; 32],
     post_state_root: [u8; 32],
     withdrawal_root: [u8; 32],
     sequencer_set_verify_hash: [u8; 32],
     parent_batch_hash: [u8; 32],
+    blob_count: u8,                   // V2: number of blobs
+    extra_blob_hashes: Vec<[u8; 32]>, // V2: hash[1..N-1]
 }
 
 async fn batch_inspect(l1_rollup: &RollupType, l1_provider: &Provider<Http>, batch_index: u64, hash: TxHash) -> Option<BatchInfo> {
@@ -509,6 +511,12 @@ impl BatchInfo {
         batch_header.extend_from_slice(&self.sequencer_set_verify_hash);
         batch_header.extend_from_slice(&self.parent_batch_hash);
         batch_header.extend_from_slice(&self.end_block.to_be_bytes());
+        if self.version >= 2 {
+            batch_header.push(self.blob_count);
+            for extra in &self.extra_blob_hashes {
+                batch_header.extend_from_slice(extra);
+            }
+        }
         Bytes::from(batch_header)
     }
 }

@@ -4,7 +4,7 @@ use alloy_provider::{Provider, ProviderBuilder};
 use clap::Parser;
 use morph_prove::{execute::execute_batch, utils::command_args::parse_u64_auto_radix, BatchProver};
 use prover_executor_client::types::input::ExecutorInput;
-use prover_executor_host::{blob::get_blob_info_from_traces, trace::trace_to_input};
+use prover_executor_host::{blob::get_blob_infos_from_traces, trace::trace_to_input};
 use prover_primitives::types::BlockTrace;
 
 /// The arguments for the command.
@@ -52,7 +52,8 @@ async fn main() {
         let blocks_inputs = block_traces.iter().map(trace_to_input).collect::<Vec<_>>();
         ExecutorInput {
             block_inputs: blocks_inputs,
-            blob_info: get_blob_info_from_traces(block_traces).unwrap(),
+            blob_infos: get_blob_infos_from_traces(block_traces).unwrap(),
+            batch_version: 0,
         }
     };
     if args.save_input {

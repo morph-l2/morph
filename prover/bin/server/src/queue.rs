@@ -136,7 +136,7 @@ async fn gen_client_input(
 
     // Step3. Save batch header or error info.
     if let Ok(batch_info) = verify_result {
-        let (versioned_hash, _) = BlobVerifier::verify(&executor_input.blob_info)?;
+        let (versioned_hash, _) = BlobVerifier::verify(executor_input.blob_infos.first().ok_or_else(|| anyhow::anyhow!("no blob_infos"))?)?;
         // Save batch_header
         // | batch_data_hash | versioned_hash | sequencer_root |
         // |-----------------|----------------|----------------|

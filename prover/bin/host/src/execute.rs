@@ -1,7 +1,7 @@
 use alloy_provider::DynProvider;
 use prover_executor_client::{types::input::ExecutorInput, EVMVerifier};
 use prover_executor_host::{
-    blob::{get_blob_info_from_blocks, get_blob_info_from_traces},
+    blob::{get_blob_infos_from_blocks, get_blob_infos_from_traces},
     execute::HostExecutor,
     trace::trace_to_input,
     utils::{assemble_block_input, query_block, HostExecutorOutput},
@@ -49,15 +49,20 @@ pub async fn execute_batch(
         }
         ExecutorInput {
             block_inputs: block_inputs.clone(),
-            blob_info: get_blob_info_from_blocks(
+            blob_infos: get_blob_infos_from_blocks(
                 &block_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
             )?,
+            batch_version: 0,
         }
     } else {
         // Use sequencer's trace rpc.
         let traces = &mut get_block_traces(batch_index, start_block, end_block, provider).await?;
         let blocks_inputs = traces.iter().map(trace_to_input).collect::<Vec<_>>();
-        ExecutorInput { block_inputs: blocks_inputs, blob_info: get_blob_info_from_traces(traces)? }
+        ExecutorInput {
+            block_inputs: blocks_inputs,
+            blob_infos: get_blob_infos_from_traces(traces)?,
+            batch_version: 0,
+        }
     };
 
     Ok(executor_input)

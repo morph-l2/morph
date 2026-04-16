@@ -7,7 +7,7 @@ use prover_executor_client::{
     verify,
 };
 use prover_executor_host::{
-    blob::{get_blob_info_from_blocks, get_blob_info_from_traces},
+    blob::{get_blob_infos_from_blocks, get_blob_infos_from_traces},
     execute::HostExecutor,
     trace::trace_to_input,
     utils::{assemble_block_input, query_block, HostExecutorOutput},
@@ -61,9 +61,10 @@ pub async fn try_execute_batch(
 
         ExecutorInput {
             block_inputs: blocks_inputs.clone(),
-            blob_info: get_blob_info_from_blocks(
+            blob_infos: get_blob_infos_from_blocks(
                 &blocks_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
             )?,
+            batch_version: 0,
         }
     } else {
         // Use sequencer's trace rpc.
@@ -71,7 +72,11 @@ pub async fn try_execute_batch(
             &mut get_block_traces(batch.batch_index, batch.start_block, batch.end_block, provider)
                 .await?;
         let blocks_inputs = traces.iter().map(trace_to_input).collect::<Vec<_>>();
-        ExecutorInput { block_inputs: blocks_inputs, blob_info: get_blob_info_from_traces(traces)? }
+        ExecutorInput {
+            block_inputs: blocks_inputs,
+            blob_infos: get_blob_infos_from_traces(traces)?,
+            batch_version: 0,
+        }
     };
 
     verify(client_input.clone()).context("native execution failed")

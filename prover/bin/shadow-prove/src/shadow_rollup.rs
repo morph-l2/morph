@@ -447,21 +447,43 @@ where
         chain_id: u64,
         batch_header: &Bytes,
     ) -> Result<B256, anyhow::Error> {
+        let version = batch_header.first().copied().unwrap_or(0);
+
         let prev_state_root: &[u8] = batch_header.get(89..121).unwrap_or_default();
         let post_state_root: &[u8] = batch_header.get(121..153).unwrap_or_default();
         let withdrawal_root: &[u8] = batch_header.get(153..185).unwrap_or_default();
         let data_hash: &[u8] = batch_header.get(25..57).unwrap_or_default();
-        let blob_versioned_hash: &[u8] = batch_header.get(57..89).unwrap_or_default();
         let sequencer_set_verify_hash: &[u8] = batch_header.get(185..217).unwrap_or_default();
 
+        // blob input depends on version
+        let blob_input: Vec<u8> = if version >= 2 {
+            let blob_count = *batch_header.get(257).unwrap_or(&0) as usize;
+            let mut concat = Vec::with_capacity(blob_count * 32);
+            // hash[0] at offset 57
+            concat.extend_from_slice(batch_header.get(57..89).unwrap_or_default());
+            // hash[1..N-1] at 258 + (i-1)*32
+            for i in 1..blob_count {
+                let off = 258 + (i - 1) * 32;
+                concat.extend_from_slice(batch_header.get(off..off + 32).unwrap_or_default());
+            }
+            {
+                let mut blob_hasher = Keccak256::new();
+                blob_hasher.update(&concat);
+                blob_hasher.finalize().to_vec()
+            }
+        } else {
+            batch_header.get(57..89).unwrap_or_default().to_vec()
+        };
+
         log::info!(
-            "calc_batch_pi, prevStateRoot = {:?}, postStateRoot = {:?}, withdrawalRoot = {:?},
-            dataHash = {:?}, blobVersionedHash = {:?}, sequencerSetVerifyHash = {:?}",
+            "calc_batch_pi, version = {}, prevStateRoot = {:?}, postStateRoot = {:?}, withdrawalRoot = {:?},
+            dataHash = {:?}, blobInput = {:?}, sequencerSetVerifyHash = {:?}",
+            version,
             hex::encode_prefixed(prev_state_root),
             hex::encode_prefixed(post_state_root),
             hex::encode_prefixed(withdrawal_root),
             hex::encode_prefixed(data_hash),
-            hex::encode_prefixed(blob_versioned_hash),
+            hex::encode_prefixed(&blob_input),
             hex::encode_prefixed(sequencer_set_verify_hash),
         );
         let mut hasher = Keccak256::new();
@@ -471,7 +493,7 @@ where
         hasher.update(withdrawal_root);
         hasher.update(sequencer_set_verify_hash);
         hasher.update(data_hash);
-        hasher.update(blob_versioned_hash);
+        hasher.update(&blob_input);
         Ok(hasher.finalize())
     }
 }
