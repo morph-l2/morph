@@ -492,8 +492,30 @@ impl BatchInfo {
         log::debug!("batch_header_ex len: {:#?}", batch_header_ex.len());
 
         self.data_hash = batch_header_ex.get(0..32).unwrap_or_default().try_into().unwrap_or_default();
+        // For V0/V1: blobVersionedHash; for V2: blobHashesHash (aggregated)
         self.blob_versioned_hash = batch_header_ex.get(32..64).unwrap_or_default().try_into().unwrap_or_default();
         self.sequencer_set_verify_hash = batch_header_ex.get(64..96).unwrap_or_default().try_into().unwrap_or_default();
+
+        // V2: parse individual blob hashes appended after the base 96 bytes
+        // Format: blob_count(1) | blob_hash[0](32) | blob_hash[1](32) | ...
+        if self.version >= 2 {
+            if let Some(&count) = batch_header_ex.get(96) {
+                self.blob_count = count;
+                if count > 0 {
+                    // blob_hash[0] goes into blob_versioned_hash (already at offset 57 in header)
+                    self.blob_versioned_hash = batch_header_ex.get(97..129)
+                        .unwrap_or_default().try_into().unwrap_or_default();
+                }
+                let mut extra = Vec::new();
+                for i in 1..count as usize {
+                    let off = 97 + i * 32;
+                    let hash: [u8; 32] = batch_header_ex.get(off..off + 32)
+                        .unwrap_or_default().try_into().unwrap_or_default();
+                    extra.push(hash);
+                }
+                self.extra_blob_hashes = extra;
+            }
+        }
         self
     }
 

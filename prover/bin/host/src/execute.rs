@@ -29,6 +29,7 @@ pub async fn execute_batch(
     end_block: u64,
     provider: &DynProvider,
     use_rpc_db: bool,
+    batch_version: u8,
 ) -> Result<ExecutorInput, anyhow::Error> {
     assert!(
         end_block >= start_block,
@@ -52,7 +53,7 @@ pub async fn execute_batch(
             blob_infos: get_blob_infos_from_blocks(
                 &block_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
             )?,
-            batch_version: 0,
+            batch_version,
         }
     } else {
         // Use sequencer's trace rpc.
@@ -61,7 +62,7 @@ pub async fn execute_batch(
         ExecutorInput {
             block_inputs: blocks_inputs,
             blob_infos: get_blob_infos_from_traces(traces)?,
-            batch_version: 0,
+            batch_version,
         }
     };
 

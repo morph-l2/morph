@@ -44,6 +44,7 @@ pub async fn execute(
 pub async fn try_execute_batch(
     batch: &BatchInfo,
     provider: &DynProvider,
+    batch_version: u8,
 ) -> Result<B256, anyhow::Error> {
     let client_input = if *SHADOW_EXECUTE_USE_RPC_DB {
         let start_block = batch.start_block;
@@ -64,7 +65,7 @@ pub async fn try_execute_batch(
             blob_infos: get_blob_infos_from_blocks(
                 &blocks_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
             )?,
-            batch_version: 0,
+            batch_version,
         }
     } else {
         // Use sequencer's trace rpc.
@@ -75,7 +76,7 @@ pub async fn try_execute_batch(
         ExecutorInput {
             block_inputs: blocks_inputs,
             blob_infos: get_blob_infos_from_traces(traces)?,
-            batch_version: 0,
+            batch_version,
         }
     };
 
@@ -161,6 +162,7 @@ mod tests {
             try_execute_batch(
                 &BatchInfo { batch_index: 1, start_block: 53, end_block: 54, total_txn: 1 },
                 &provider,
+                0,
             )
             .await
             .unwrap();

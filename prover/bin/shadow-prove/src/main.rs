@@ -75,7 +75,8 @@ async fn main() {
             if *SHADOW_EXECUTE {
                 log::info!(">Start shadow execute batch: {:#?}", batch_info.batch_index);
                 // Execute batch
-                let offchain_batch_pi = match try_execute_batch(&batch_info, &l2_provider).await {
+                let batch_version = batch_header.first().copied().unwrap_or(0);
+                let offchain_batch_pi = match try_execute_batch(&batch_info, &l2_provider, batch_version).await {
                     Ok(pi) => {
                         // Update the latest processed batch index
                         pi
@@ -317,7 +318,8 @@ async fn test_shadow() {
     let (batch_info, batch_header) =
         batch_syncer.get_specified_batch(batch_num).await.unwrap().unwrap();
 
-    let offchain_batch_pi = try_execute_batch(&batch_info, &l2_provider).await.unwrap();
+    let batch_version = batch_header.first().copied().unwrap_or(0);
+    let offchain_batch_pi = try_execute_batch(&batch_info, &l2_provider, batch_version).await.unwrap();
 
     let onchain_batch_pi = batch_syncer.calc_batch_pi(chain_id, &batch_header).unwrap_or_default();
     if offchain_batch_pi != onchain_batch_pi {
