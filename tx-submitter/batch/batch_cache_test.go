@@ -45,7 +45,7 @@ func setupTestDB(t *testing.T) *db.Db {
 
 func TestBatchCacheInitServer(t *testing.T) {
 	testDB := setupTestDB(t)
-	cache := NewBatchCache(nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
+	cache := NewBatchCache(nil, nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
 
 	var batchCacheSyncMu sync.Mutex
 
@@ -81,14 +81,14 @@ func TestBatchCacheInitServer(t *testing.T) {
 
 func TestBatchCacheInit(t *testing.T) {
 	testDB := setupTestDB(t)
-	cache := NewBatchCache(nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
+	cache := NewBatchCache(nil, nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
 	err := cache.InitAndSyncFromRollup()
 	require.NoError(t, err)
 }
 
 func TestBatchCacheInitByBlockRange(t *testing.T) {
 	testDB := setupTestDB(t)
-	cache := NewBatchCache(nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
+	cache := NewBatchCache(nil, nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
 	err := cache.InitFromRollupByRange()
 	require.NoError(t, err)
 }

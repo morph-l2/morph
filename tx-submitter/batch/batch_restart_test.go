@@ -61,7 +61,7 @@ func Test_GetFinalizeBatchHeader(t *testing.T) {
 	testDB, err := db.New(testDir)
 	require.NoError(t, err)
 
-	bc := NewBatchCache(nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
+	bc := NewBatchCache(nil, nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
 	headerBytes, err := bc.getLastFinalizeBatchHeaderFromRollupByIndex(0)
 	require.NoError(t, err)
 	t.Log("headerBytes", hex.EncodeToString(headerBytes.Bytes()))
@@ -95,7 +95,7 @@ func TestBatchRestartInit(t *testing.T) {
 	t.Log("sequencer set verify hash", hex.EncodeToString(sequencerSetVerifyHash[:]))
 	ci, fi := getInfosFromContract()
 	t.Log("commit index", ci, " ", "finalize index", fi)
-	bc := NewBatchCache(nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
+	bc := NewBatchCache(nil, nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
 	startBlockNum, endBlockNum, err := getFirstUnFinalizeBatchBlockNumRange(fi)
 	require.NoError(t, err)
 	startBlockNum = new(big.Int).Add(startBlockNum, new(big.Int).SetUint64(1))

@@ -31,9 +31,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @dev Address of the point evaluation precompile used for EIP-4844 blob verification.
     address internal constant POINT_EVALUATION_PRECOMPILE_ADDR = address(0x0A);
 
-    /// @notice Maximum number of blobs per L1 block (EIP-4844).
-    uint8 internal constant MAX_BLOB_PER_BLOCK = 6;
-
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable LAYER_2_CHAIN_ID;
 
@@ -329,9 +326,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             uint256 _headerLength;
 
             if (batchDataInput.version == 2) {
-                // V2: count blobs attached to this transaction
+                // V2: count blobs attached to this transaction.
+                // No hardcoded max — blobhash(i) returns bytes32(0) when i exceeds the
+                // protocol limit, so the loop terminates naturally. This avoids coupling
+                // the contract to a specific Ethereum blob-per-block cap (design §9).
                 uint8 blobCount = 0;
-                for (uint8 i = 0; i < MAX_BLOB_PER_BLOCK; i++) {
+                for (uint8 i = 0; ; i++) {
                     if (blobhash(i) == bytes32(0)) break;
                     blobCount++;
                 }

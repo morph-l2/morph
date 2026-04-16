@@ -38,7 +38,7 @@ func TestRollupWithProof(t *testing.T) {
 	testDB, err := db.New(testDir)
 	require.NoError(t, err)
 
-	cache := NewBatchCache(nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
+	cache := NewBatchCache(nil, nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
 	err = cache.InitFromRollupByRange()
 	require.NoError(t, err)
 

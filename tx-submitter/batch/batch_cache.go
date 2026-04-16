@@ -59,8 +59,10 @@ type BatchCache struct {
 	currentBlockNumber                uint64
 	currentBlockHash                  common.Hash
 
-	// Function to determine if batch is upgraded
+	// Function to determine if batch is upgraded (V0 -> V1)
 	isBatchUpgraded func(uint64) bool
+	// Function to determine if batch is V2 upgraded (V1 -> V2, multi-blob)
+	isBatchV2Upgraded func(uint64) bool
 
 	// Clients and contracts
 	l1Client       iface.Client
@@ -77,6 +79,7 @@ type BatchCache struct {
 // NewBatchCache creates and initializes a new BatchCache instance
 func NewBatchCache(
 	isBatchUpgraded func(uint64) bool,
+	isBatchV2Upgraded func(uint64) bool,
 	maxBlobCount int,
 	l1Client iface.Client,
 	l2Clients []iface.L2Client,
@@ -87,6 +90,10 @@ func NewBatchCache(
 	if isBatchUpgraded == nil {
 		// Default implementation: always returns true (use V1 version)
 		isBatchUpgraded = func(uint64) bool { return true }
+	}
+	if isBatchV2Upgraded == nil {
+		// Default: V2 not yet activated
+		isBatchV2Upgraded = func(uint64) bool { return false }
 	}
 	if maxBlobCount <= 0 {
 		maxBlobCount = 2
@@ -118,6 +125,7 @@ func NewBatchCache(
 		currentBlockNumber:                0,
 		currentBlockHash:                  common.Hash{},
 		isBatchUpgraded:                   isBatchUpgraded,
+		isBatchV2Upgraded:                 isBatchV2Upgraded,
 		l1Client:                          l1Client,
 		l2Clients:                         iface.L2Clients{Clients: l2Clients},
 		rollupContract:                    rollupContract,
@@ -798,8 +806,10 @@ func (bc *BatchCache) createBatchHeader(dataHash common.Hash, sidecar *ethtypes.
 			BatchHeaderV0:   batchHeaderV0,
 			LastBlockNumber: bc.lastPackedBlockHeight,
 		}
-		// Use V2 header when there are multiple blobs, to store all blob hashes
-		if len(blobHashes) > 1 {
+		// V2 is activated: always use V2 header regardless of blob count.
+		// V2 uses keccak(hash[0]||...||hash[N-1]) as public input even for single blob,
+		// which is incompatible with V1's direct hash[0] — do not fall back to V1.
+		if bc.isBatchV2Upgraded(blockTimestamp) {
 			return BatchHeaderV2{
 				BatchHeaderV1:   batchHeaderV1,
 				BlobCount:       uint8(len(blobHashes)),

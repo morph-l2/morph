@@ -123,7 +123,7 @@ func NewRollup(
 		cfg:              cfg,
 		signer:           ethtypes.LatestSignerForChainID(chainId),
 		externalRsaPriv:  rsaPriv,
-		batchCache:       batch.NewBatchCache(nil, cfg.MaxBlobCount, l1, l2Clients, rollup, l2Caller, ldb),
+		batchCache:       batch.NewBatchCache(nil, nil, cfg.MaxBlobCount, l1, l2Clients, rollup, l2Caller, ldb),
 		ldb:              ldb,
 		bm:               bm,
 		eventInfoStorage: eventInfoStorage,
