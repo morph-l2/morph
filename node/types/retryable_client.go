@@ -25,6 +25,8 @@ const (
 	ExecutionAborted        = "execution aborted"
 	Timeout                 = "timed out"
 	DiscontinuousBlockError = "discontinuous block number"
+	WrongBlockNumberError   = "wrong block number"
+	ParentNotFoundError     = "parent block not found"
 
 	GethRetryMaxElapsedTime = 30 * time.Minute
 )
@@ -91,6 +93,26 @@ func (rc *RetryableClient) NewL2Block(ctx context.Context, executableL2Data *cat
 		if respErr != nil {
 			rc.logger.Error("NewL2Block failed",
 				"block_number", executableL2Data.Number,
+				"error", respErr)
+			if retryableError(respErr) {
+				return respErr
+			}
+			err = respErr
+		}
+		return nil
+	}, rc.b); retryErr != nil {
+		return retryErr
+	}
+	return
+}
+
+func (rc *RetryableClient) NewL2BlockV2(ctx context.Context, executableL2Data *catalyst.ExecutableL2Data, isSafe bool) (err error) {
+	if retryErr := backoff.Retry(func() error {
+		respErr := rc.authClient.NewL2BlockV2(ctx, executableL2Data, isSafe)
+		if respErr != nil {
+			rc.logger.Error("NewL2BlockV2 failed",
+				"block_number", executableL2Data.Number,
+				"isSafe", isSafe,
 				"error", respErr)
 			if retryableError(respErr) {
 				return respErr
@@ -229,9 +251,13 @@ func (rc *RetryableClient) SetBlockTags(ctx context.Context, safeBlockHash commo
 	return
 }
 
-// currently we want every error retryable, except the DiscontinuousBlockError
+// retryableError returns true for transient errors that should be retried.
+// Permanent logic errors (wrong block number, missing parent) are not retried.
 func retryableError(err error) bool {
-	return !strings.Contains(err.Error(), DiscontinuousBlockError)
+	msg := err.Error()
+	return !strings.Contains(msg, DiscontinuousBlockError) &&
+		!strings.Contains(msg, WrongBlockNumberError) &&
+		!strings.Contains(msg, ParentNotFoundError)
 }
 
 // ============================================================================
