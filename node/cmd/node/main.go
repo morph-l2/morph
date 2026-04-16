@@ -16,6 +16,7 @@ import (
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	tmnode "github.com/tendermint/tendermint/node"
 	"github.com/tendermint/tendermint/privval"
+	tmsequencer "github.com/tendermint/tendermint/sequencer"
 	"github.com/urfave/cli"
 
 	"morph-l2/bindings/bindings"
@@ -25,6 +26,7 @@ import (
 	"morph-l2/node/db"
 	"morph-l2/node/derivation"
 	"morph-l2/node/flags"
+	"morph-l2/node/hakeeper"
 	"morph-l2/node/l1sequencer"
 	"morph-l2/node/sequencer"
 	"morph-l2/node/sequencer/mock"
@@ -69,6 +71,7 @@ func L2NodeMain(ctx *cli.Context) error {
 		tracker     *l1sequencer.L1Tracker
 		verifier    *l1sequencer.SequencerVerifier
 		signer      l1sequencer.Signer
+		haService   *hakeeper.HAService
 
 		nodeConfig = node.DefaultConfig()
 	)
@@ -152,6 +155,11 @@ func L2NodeMain(ctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
+		haService, err = initHAService(ctx, home, nodeConfig.Logger)
+		if err != nil {
+			return err
+		}
+
 		if isMockSequencer {
 			ms, err = mock.NewSequencer(executor)
 			if err != nil {
@@ -159,7 +167,13 @@ func L2NodeMain(ctx *cli.Context) error {
 			}
 			go ms.Start()
 		} else {
-			tmNode, err = sequencer.SetupNode(tmCfg, tmVal, executor, nodeConfig.Logger, verifier, signer)
+			// Convert typed nil (*HAService)(nil) to untyped nil interface to avoid
+			// Go's nil interface gotcha: a typed nil satisfies (ha != nil) checks.
+			var ha tmsequencer.SequencerHA
+			if haService != nil {
+				ha = haService
+			}
+			tmNode, err = sequencer.SetupNode(tmCfg, tmVal, executor, nodeConfig.Logger, verifier, signer, ha)
 			if err != nil {
 				return fmt.Errorf("failed to setup consensus node: %v", err)
 			}
@@ -210,6 +224,57 @@ func L2NodeMain(ctx *cli.Context) error {
 	}
 
 	return nil
+}
+
+// initHAService builds the HA config and creates the HAService.
+// Loading order: defaults → config file → flag overrides → auto-resolve → validate.
+// Returns nil (no error) if HA is not enabled.
+func initHAService(ctx *cli.Context, home string, logger tmlog.Logger) (*hakeeper.HAService, error) {
+	cfg := hakeeper.DefaultConfig()
+
+	if cfgPath := ctx.GlobalString(flags.SequencerHAConfig.Name); cfgPath != "" {
+		if err := cfg.LoadFile(cfgPath); err != nil {
+			return nil, fmt.Errorf("HA config: %w", err)
+		}
+	}
+
+	if ctx.GlobalBool(flags.SequencerHAEnabled.Name) {
+		cfg.Enabled = true
+	}
+	if ctx.GlobalBool(flags.SequencerHABootstrap.Name) {
+		cfg.Bootstrap = true
+	}
+	if addrs := ctx.GlobalStringSlice(flags.SequencerHAJoin.Name); len(addrs) > 0 {
+		cfg.JoinAddrs = addrs
+	}
+	if id := ctx.GlobalString(flags.SequencerHAServerID.Name); id != "" {
+		cfg.ServerID = id
+	}
+	if addr := ctx.GlobalString(flags.SequencerHAAdvertisedAddr.Name); addr != "" {
+		cfg.Consensus.AdvertisedAddr = addr
+	}
+	if token := ctx.GlobalString(flags.SequencerHARPCToken.Name); token != "" {
+		cfg.RPC.Token = token
+	}
+
+	if !cfg.Enabled {
+		return nil, nil
+	}
+
+	// Propagate node log level to Raft internal logger
+	if logLevel := ctx.GlobalString(flags.LogLevel.Name); logLevel == "debug" {
+		cfg.Debug = true
+	}
+
+	if err := cfg.Resolve(home); err != nil {
+		return nil, fmt.Errorf("HA config resolve: %w", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("HA config: %w", err)
+	}
+
+	cfg.LogEffectiveConfig(logger)
+	return hakeeper.New(cfg, logger.With("module", "hakeeper"))
 }
 
 // initL1SequencerComponents initializes all L1 sequencer related components:
