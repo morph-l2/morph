@@ -535,41 +535,48 @@ func (e *Executor) RequestBlockDataV2(parentHashBytes []byte) (*l2node.BlockV2, 
 }
 
 // ApplyBlockV2 applies a block to the L2 execution layer.
-// This is used in sequencer mode after block validation.
-func (e *Executor) ApplyBlockV2(block *l2node.BlockV2) error {
-	// Convert BlockV2 to ExecutableL2Data for geth
+// This is a pass-through: upper layer (StateV2.ApplyBlock) handles idempotency
+// and reorg detection; lower layer (NewL2BlockV2 + SetCanonical) handles the
+// actual chain reorganization automatically.
+func (e *Executor) ApplyBlockV2(block *l2node.BlockV2) (applied bool, err error) {
 	execBlock := blockV2ToExecutableL2Data(block)
 
-	// Check if block is already applied
-	height, err := e.l2Client.BlockNumber(context.Background())
-	if err != nil {
-		return err
+	// Reorg / idempotent detection: only check when incoming block height
+	// is at or below the current geth head (normal sequential blocks skip this).
+	currentHeight, chkErr := e.l2Client.BlockNumber(context.Background())
+	if chkErr == nil && block.Number <= currentHeight {
+		existing, exErr := e.l2Client.BlockByNumber(context.Background(), big.NewInt(int64(block.Number)))
+		if exErr == nil && existing != nil {
+			if existing.Hash() == execBlock.Hash {
+				e.logger.Debug("ApplyBlockV2: idempotent skip", "number", execBlock.Number)
+				return false, nil
+			}
+			e.logger.Info("ApplyBlockV2: REORG detected",
+				"targetHeight", execBlock.Number,
+				"newHash", execBlock.Hash.Hex(),
+				"existingHash", existing.Hash().Hex(),
+				"currentHead", currentHeight,
+			)
+		}
 	}
 
-	if execBlock.Number <= height {
-		e.logger.Info("ignore it, the block was already applied", "block number", execBlock.Number)
-		return nil
+	if err := e.l2Client.NewL2BlockV2(context.Background(), execBlock, false); err != nil {
+		e.logger.Error("failed to apply block v2",
+			"number", execBlock.Number,
+			"hash", execBlock.Hash.Hex(),
+			"parentHash", execBlock.ParentHash.Hex(),
+			"error", err)
+		return false, err
 	}
 
-	// We only accept continuous blocks
-	if execBlock.Number > height+1 {
-		return types.ErrWrongBlockNumber
-	}
-
-	// Apply the block (no batch hash in sequencer mode for now)
-	err = e.l2Client.NewL2Block(context.Background(), execBlock, nil)
-	if err != nil {
-		e.logger.Error("failed to apply block v2", "error", err)
-		return err
-	}
-
-	// Update L1 message index
 	e.updateNextL1MessageIndex(execBlock)
-
 	e.metrics.Height.Set(float64(execBlock.Number))
-	e.logger.Info("ApplyBlockV2 success", "number", execBlock.Number, "hash", execBlock.Hash.Hex())
+	e.logger.Info("ApplyBlockV2 success",
+		"number", execBlock.Number,
+		"hash", execBlock.Hash.Hex(),
+		"parentHash", execBlock.ParentHash.Hex())
 
-	return nil
+	return true, nil
 }
 
 // GetBlockByNumber retrieves a block by its number from the L2 execution layer.

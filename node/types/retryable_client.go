@@ -29,6 +29,8 @@ const (
 	ExecutionAborted        = "execution aborted"
 	Timeout                 = "timed out"
 	DiscontinuousBlockError = "discontinuous block number"
+	WrongBlockNumberError   = "wrong block number"
+	ParentNotFoundError     = "parent block not found"
 
 	// Geth connection retry settings
 	GethRetryAttempts       = 60              // max retry attempts
@@ -356,6 +358,28 @@ func (rc *RetryableClient) NewL2Block(ctx context.Context, executableL2Data *cat
 	return
 }
 
+func (rc *RetryableClient) NewL2BlockV2(ctx context.Context, executableL2Data *catalyst.ExecutableL2Data, isSafe bool) (err error) {
+	rc.switchClient(ctx, executableL2Data.Timestamp, executableL2Data.Number)
+
+	if retryErr := backoff.Retry(func() error {
+		respErr := rc.aClient().NewL2BlockV2(ctx, executableL2Data, isSafe)
+		if respErr != nil {
+			rc.logger.Error("NewL2BlockV2 failed",
+				"block_number", executableL2Data.Number,
+				"isSafe", isSafe,
+				"error", respErr)
+			if retryableError(respErr) {
+				return respErr
+			}
+			err = respErr
+		}
+		return nil
+	}, rc.b); retryErr != nil {
+		return retryErr
+	}
+	return
+}
+
 func (rc *RetryableClient) NewSafeL2Block(ctx context.Context, safeL2Data *catalyst.SafeL2Data) (ret *eth.Header, err error) {
 	rc.switchClient(ctx, safeL2Data.Timestamp, safeL2Data.Number)
 	if retryErr := backoff.Retry(func() error {
@@ -516,16 +540,13 @@ func (rc *RetryableClient) SetBlockTags(ctx context.Context, safeBlockHash commo
 	return
 }
 
-// currently we want every error retryable, except the DiscontinuousBlockError
+// retryableError returns true for transient errors that should be retried.
+// Permanent logic errors (wrong block number, missing parent) are not retried.
 func retryableError(err error) bool {
-	// return strings.Contains(err.Error(), ConnectionRefused) ||
-	// 	strings.Contains(err.Error(), EOFError) ||
-	// 	strings.Contains(err.Error(), JWTStaleToken) ||
-	// 	strings.Contains(err.Error(), JWTExpiredToken) ||
-	// 	strings.Contains(err.Error(), MinerClosed) ||
-	// 	strings.Contains(err.Error(), ExecutionAborted) ||
-	// 	strings.Contains(err.Error(), Timeout)
-	return !strings.Contains(err.Error(), DiscontinuousBlockError)
+	msg := err.Error()
+	return !strings.Contains(msg, DiscontinuousBlockError) &&
+		!strings.Contains(msg, WrongBlockNumberError) &&
+		!strings.Contains(msg, ParentNotFoundError)
 }
 
 // ============================================================================
