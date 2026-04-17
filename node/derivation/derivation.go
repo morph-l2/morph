@@ -256,7 +256,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			// TODO The challenge switch is currently on and will be turned on in the future
 			if d.validator != nil && d.validator.ChallengeEnable() {
 				if err := d.validator.ChallengeState(batchInfo.batchIndex); err != nil {
-					d.logger.Error("challenge state failed")
+					d.logger.Error("challenge state failed", "batchIndex", batchInfo.batchIndex, "error", err)
 					return
 				}
 			}
