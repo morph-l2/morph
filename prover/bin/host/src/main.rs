@@ -48,7 +48,9 @@ async fn main() {
     let mut input = if args.use_rpc_db {
         // Use RPC to fetch state.
         let provider = ProviderBuilder::new().connect_http(args.rpc.parse().unwrap()).erased();
-        execute_batch(1, args.start_block, args.end_block, &provider, true, args.batch_version).await.unwrap()
+        execute_batch(1, args.start_block, args.end_block, &provider, true, args.batch_version)
+            .await
+            .unwrap()
     } else {
         // Use local traces file.
         let block_traces = &mut load_trace(&args.block_path);

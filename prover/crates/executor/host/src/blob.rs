@@ -115,13 +115,11 @@ pub fn encode_blob(tx_bytes: Vec<u8>) -> Result<[u8; 131072]> {
     }
     // zstd compresse
     let compressed_batch = compresse_batch(tx_bytes.as_slice()).context("compress batch failed")?;
-    let max = BLOB_WIDTH * (N_BYTES_U256 - 1);
-
     ensure!(
-        compressed_batch.len() <= max,
+        compressed_batch.len() <= MAX_BLOB_BYTES_SIZE,
         "compressed batch size {} exceeds the max capacity {}",
         compressed_batch.len(),
-        max
+        MAX_BLOB_BYTES_SIZE
     );
 
     let mut coefficients = [[0u8; N_BYTES_U256]; BLOB_WIDTH];

@@ -83,19 +83,26 @@ impl Prover {
             };
 
             // Step2. Generate ExecutorInput
-            let mut input =
-                match gen_client_input(batch_index, start_block, end_block, &self.provider, batch_version).await {
-                    Ok(input) => input,
-                    Err(e) => {
-                        log::error!(
-                            "Generate ExecutorInput error for batch-{:?}, error: {:?}",
-                            batch_index,
-                            e
-                        );
-                        PROVE_RESULT.set(2);
-                        continue;
-                    }
-                };
+            let mut input = match gen_client_input(
+                batch_index,
+                start_block,
+                end_block,
+                &self.provider,
+                batch_version,
+            )
+            .await
+            {
+                Ok(input) => input,
+                Err(e) => {
+                    log::error!(
+                        "Generate ExecutorInput error for batch-{:?}, error: {:?}",
+                        batch_index,
+                        e
+                    );
+                    PROVE_RESULT.set(2);
+                    continue;
+                }
+            };
 
             // Step3. Generate evm proof
             log::info!("Generate evm proof");
@@ -131,8 +138,15 @@ async fn gen_client_input(
     batch_version: u8,
 ) -> Result<ExecutorInput, anyhow::Error> {
     // Step1. Get ExecutorInput
-    let executor_input =
-        execute_batch(batch_index, start_block, end_block, provider, *PROVER_USE_RPC_DB, batch_version).await?;
+    let executor_input = execute_batch(
+        batch_index,
+        start_block,
+        end_block,
+        provider,
+        *PROVER_USE_RPC_DB,
+        batch_version,
+    )
+    .await?;
     let proof_dir =
         PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{batch_index}"));
     std::fs::create_dir_all(&proof_dir).expect("failed to create proof path");
@@ -161,7 +175,6 @@ async fn gen_client_input(
         let mut batch_header: Vec<u8> = Vec::with_capacity(96);
         batch_header.extend_from_slice(&batch_info.data_hash().0);
         batch_header.extend_from_slice(&blob_input.0);
-        batch_header.extend_from_slice(&batch_info.sequencer_root().0);
         batch_header.extend_from_slice(&batch_info.sequencer_root().0);
         if batch_version >= 2 {
             batch_header.push(versioned_hashes.len() as u8);

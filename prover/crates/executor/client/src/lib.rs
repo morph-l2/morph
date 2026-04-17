@@ -10,8 +10,7 @@ pub const EVM_VERIFY: &str = "evm verify";
 
 pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
     // Verify DA
-    let (versioned_hashes, batch_data_from_blob) =
-        BlobVerifier::verify_blobs(&input.blob_infos)?;
+    let (versioned_hashes, batch_data_from_blob) = BlobVerifier::verify_blobs(&input.blob_infos)?;
     let batch_data_from_blocks = get_blob_data_from_blocks(
         &input.block_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
     );
