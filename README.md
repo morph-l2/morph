@@ -85,6 +85,6 @@ X (formerly Twitter): https://x.com/MorphNetwork
 
 Medium: [Morph – Medium](https://medium.com/@morphlayer2)
 
-Telegram: https://t.me/morphoffical
+Telegram: https://t.me/MorphGlobal
 
 Gmail: info@morphl2.io
