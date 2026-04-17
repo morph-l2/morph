@@ -258,7 +258,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         BatchDataInput calldata batchDataInput,
         BatchSignatureInput calldata batchSignatureInput
     ) external override onlyActiveStaker nonReqRevert whenNotPaused {
-        require(batchDataInput.version < 2, "V2 batches do not support commitState");
         require(blobhash(0) == bytes32(0), "commitState must not carry blob");
         (uint256 _batchPtr, ) = _loadBatchHeader(batchDataInput.parentBatchHeader);
         uint256 _nextBatchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr) + 1;

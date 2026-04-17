@@ -1468,14 +1468,6 @@ contract RollupCommitStateTest is L1MessageBaseTest {
         rollup.commitBatch(batchDataInput, batchSignatureInput);
     }
 
-    /// @dev commitState reverts for V2 batches (multi-blob data expires on L1, cannot recommit).
-    function test_commitState_reverts_for_v2() public {
-        _setupCommitStatePrecondition();
-        batchDataInput = IRollup.BatchDataInput(2, _genesisBatchHeader(), 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
-        hevm.prank(alice);
-        hevm.expectRevert("V2 batches do not support commitState");
-        rollup.commitState(batchDataInput, batchSignatureInput);
-    }
 }
 
 /// @dev Tests for Rollup V2 multi-blob batch header support (simplified: 257-byte header with aggregated blob hash).
@@ -1580,26 +1572,6 @@ contract RollupCommitBatchV2Test is L1MessageBaseTest {
         hevm.prank(alice);
         hevm.expectRevert("V2 requires at least 1 blob");
         rollup.commitBatch(batchDataInput, batchSignatureInput);
-    }
-
-    /// @dev commitState reverts for V2 (blob data expires on L1, cannot recommit).
-    function test_commitState_reverts_for_v2() public {
-        // Setup stored blob hash for batch 1 (needed to reach version check)
-        _setStoredBlobHash(1);
-
-        IRollup.BatchDataInput memory batchDataInput = IRollup.BatchDataInput({
-            version: 2,
-            parentBatchHeader: batchHeader0,
-            lastBlockNumber: 1,
-            numL1Messages: 0,
-            prevStateRoot: stateRoot,
-            postStateRoot: bytes32(uint256(2)),
-            withdrawalRoot: getTreeRoot()
-        });
-
-        hevm.prank(alice);
-        hevm.expectRevert("V2 batches do not support commitState");
-        rollup.commitState(batchDataInput, batchSignatureInput);
     }
 
     /// @dev V2 _loadBatchHeader accepts a valid 257-byte V2 header (uses V1 loader).
