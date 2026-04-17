@@ -413,14 +413,12 @@ struct BatchInfo {
     l1_message_popped: u64,
     total_l1_message_popped: u64,
     data_hash: [u8; 32],
-    blob_versioned_hash: [u8; 32],    // kept for V0/V1; also blobHash[0] for V2
+    blob_hashes: Vec<[u8; 32]>,
     prev_state_root: [u8; 32],
     post_state_root: [u8; 32],
     withdrawal_root: [u8; 32],
     sequencer_set_verify_hash: [u8; 32],
     parent_batch_hash: [u8; 32],
-    blob_count: u8,                   // V2: number of blobs
-    extra_blob_hashes: Vec<[u8; 32]>, // V2: hash[1..N-1]
 }
 
 async fn batch_inspect(l1_rollup: &RollupType, l1_provider: &Provider<Http>, batch_index: u64, hash: TxHash) -> Option<BatchInfo> {
@@ -492,29 +490,27 @@ impl BatchInfo {
         log::debug!("batch_header_ex len: {:#?}", batch_header_ex.len());
 
         self.data_hash = batch_header_ex.get(0..32).unwrap_or_default().try_into().unwrap_or_default();
-        // For V0/V1: blobVersionedHash; for V2: blobHashesHash (aggregated)
-        self.blob_versioned_hash = batch_header_ex.get(32..64).unwrap_or_default().try_into().unwrap_or_default();
         self.sequencer_set_verify_hash = batch_header_ex.get(64..96).unwrap_or_default().try_into().unwrap_or_default();
 
-        // V2: parse individual blob hashes appended after the base 96 bytes
-        // Format: blob_count(1) | blob_hash[0](32) | blob_hash[1](32) | ...
+        // V2: blob_count(1) | blob_hash[0](32) | ... appended after base 96 bytes
         if self.version >= 2 {
             if let Some(&count) = batch_header_ex.get(96) {
-                self.blob_count = count;
-                if count > 0 {
-                    // blob_hash[0] goes into blob_versioned_hash (already at offset 57 in header)
-                    self.blob_versioned_hash = batch_header_ex.get(97..129)
-                        .unwrap_or_default().try_into().unwrap_or_default();
-                }
-                let mut extra = Vec::new();
-                for i in 1..count as usize {
+                let mut hashes = Vec::with_capacity(count as usize);
+                for i in 0..count as usize {
                     let off = 97 + i * 32;
-                    let hash: [u8; 32] = batch_header_ex.get(off..off + 32)
-                        .unwrap_or_default().try_into().unwrap_or_default();
-                    extra.push(hash);
+                    let hash: [u8; 32] = batch_header_ex
+                        .get(off..off + 32)
+                        .unwrap_or_default()
+                        .try_into()
+                        .unwrap_or_default();
+                    hashes.push(hash);
                 }
-                self.extra_blob_hashes = extra;
+                self.blob_hashes = hashes;
             }
+        } else {
+            // V0/V1: single versioned hash at [32..64]
+            let hash: [u8; 32] = batch_header_ex.get(32..64).unwrap_or_default().try_into().unwrap_or_default();
+            self.blob_hashes = vec![hash];
         }
         self
     }
@@ -526,7 +522,8 @@ impl BatchInfo {
         batch_header.extend_from_slice(&self.l1_message_popped.to_be_bytes());
         batch_header.extend_from_slice(&self.total_l1_message_popped.to_be_bytes());
         batch_header.extend_from_slice(&self.data_hash);
-        batch_header.extend_from_slice(&self.blob_versioned_hash);
+        // blob_hashes[0] at offset 57 (same position for all versions)
+        batch_header.extend_from_slice(self.blob_hashes.first().unwrap_or(&[0u8; 32]));
         batch_header.extend_from_slice(&self.prev_state_root);
         batch_header.extend_from_slice(&self.post_state_root);
         batch_header.extend_from_slice(&self.withdrawal_root);
@@ -534,9 +531,9 @@ impl BatchInfo {
         batch_header.extend_from_slice(&self.parent_batch_hash);
         batch_header.extend_from_slice(&self.end_block.to_be_bytes());
         if self.version >= 2 {
-            batch_header.push(self.blob_count);
-            for extra in &self.extra_blob_hashes {
-                batch_header.extend_from_slice(extra);
+            batch_header.push(self.blob_hashes.len() as u8);
+            for hash in self.blob_hashes.iter().skip(1) {
+                batch_header.extend_from_slice(hash);
             }
         }
         Bytes::from(batch_header)
