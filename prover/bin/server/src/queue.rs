@@ -169,19 +169,12 @@ async fn gen_client_input(
         } else {
             versioned_hashes[0]
         };
-        // Save batch_header_ex:
-        // V0/V1: | data_hash(32) | blobVersionedHash(32) | seqSetVerifyHash(32) |  (96 bytes)
-        // V2:    | data_hash(32) | blobHashesHash(32)    | seqSetVerifyHash(32) | blob_count(1) | blob_hash[0](32) | ... | blob_hash[N-1](32) |
+        // Save batch_header_ex (uniform for all versions):
+        // | data_hash(32) | blob_input(32) | seqSetVerifyHash(32) | (96 bytes)
         let mut batch_header: Vec<u8> = Vec::with_capacity(96);
         batch_header.extend_from_slice(&batch_info.data_hash().0);
         batch_header.extend_from_slice(&blob_input.0);
         batch_header.extend_from_slice(&batch_info.sequencer_root().0);
-        if batch_version >= 2 {
-            batch_header.push(versioned_hashes.len() as u8);
-            for h in &versioned_hashes {
-                batch_header.extend_from_slice(&h.0);
-            }
-        }
         let mut batch_file = File::create(proof_dir.join("batch_header.data"))?;
         batch_file.write_all(&batch_header[..]).expect("failed to batch_header");
     } else {

@@ -806,15 +806,13 @@ func (bc *BatchCache) createBatchHeader(dataHash common.Hash, sidecar *ethtypes.
 			BatchHeaderV0:   batchHeaderV0,
 			LastBlockNumber: bc.lastPackedBlockHeight,
 		}
-		// V2 is activated: always use V2 header regardless of blob count.
-		// V2 uses keccak(hash[0]||...||hash[N-1]) as public input even for single blob,
-		// which is incompatible with V1's direct hash[0] — do not fall back to V1.
+		// V2 is activated: use V1-format header (257 bytes) with version byte 2.
+		// Store keccak256(concat all blob hashes) at offset 57 as the aggregated blob hash.
 		if bc.isBatchV2Upgraded(blockTimestamp) {
-			return BatchHeaderV2{
-				BatchHeaderV1:   batchHeaderV1,
-				BlobCount:       uint8(len(blobHashes)),
-				ExtraBlobHashes: blobHashes[1:],
-			}.Bytes()
+			batchHeaderV1.BlobVersionedHash = aggregateBlobHashes(blobHashes)
+			h := batchHeaderV1.Bytes()
+			h[0] = BatchHeaderVersion2
+			return h
 		}
 		return batchHeaderV1.Bytes()
 	}
@@ -863,6 +861,15 @@ func parsingTxs(transactions []*ethtypes.Transaction, totalL1MessagePoppedBefore
 // isL1MessageTxType checks if transaction is L1 message transaction type
 func isL1MessageTxType(tx *ethtypes.Transaction) bool {
 	return tx.Type() == ethtypes.L1MessageTxType
+}
+
+// aggregateBlobHashes computes keccak256 of the concatenation of all blob hash bytes.
+func aggregateBlobHashes(hashes []common.Hash) common.Hash {
+	var concat []byte
+	for _, h := range hashes {
+		concat = append(concat, h[:]...)
+	}
+	return crypto.Keccak256Hash(concat)
 }
 
 // buildBlockContext builds BlockContext from block header (60 bytes)

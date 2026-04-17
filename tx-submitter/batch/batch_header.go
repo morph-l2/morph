@@ -14,9 +14,8 @@ type (
 )
 
 const (
-	expectedLengthV0    = 249
-	expectedLengthV1    = 257
-	expectedLengthV2Min = 258 // V2 minimum: V1(257) + blobCount(1)
+	expectedLengthV0 = 249
+	expectedLengthV1 = 257
 
 	BatchHeaderVersion0 = 0
 	BatchHeaderVersion1 = 1
@@ -45,15 +44,7 @@ func (b BatchHeaderBytes) validate() error {
 			return ErrInvalidBatchHeaderLength
 		}
 	case BatchHeaderVersion2:
-		if len(b) < expectedLengthV2Min {
-			return ErrInvalidBatchHeaderLength
-		}
-		blobCount := b[257]
-		if blobCount == 0 {
-			return ErrInvalidBatchHeaderLength
-		}
-		expectedLen := expectedLengthV1 + 1 + int(blobCount-1)*32
-		if len(b) != expectedLen {
+		if len(b) != expectedLengthV1 {
 			return ErrInvalidBatchHeaderLength
 		}
 	default:
@@ -228,57 +219,3 @@ func (b BatchHeaderV1) Bytes() BatchHeaderBytes {
 	return batchBytes
 }
 
-// BatchHeaderV2 extends V1 with a blobCount field and additional blob versioned hashes.
-// Format: V1(257B) + blobCount(1B) + blobHash[1..N-1]((N-1)*32B)
-// blobHash[0] is retained at the V0/V1 offset 57 for backward compatibility.
-type BatchHeaderV2 struct {
-	BatchHeaderV1
-	BlobCount       uint8
-	ExtraBlobHashes []common.Hash // blobHash[1..N-1], does not include blobHash[0]
-
-	//cache
-	EncodedBytes hexutil.Bytes
-}
-
-func (b BatchHeaderV2) Bytes() BatchHeaderBytes {
-	if len(b.EncodedBytes) > 0 {
-		return BatchHeaderBytes(b.EncodedBytes)
-	}
-	// Total size: 257 (V1) + 1 (blobCount) + (N-1)*32 (extra hashes)
-	size := expectedLengthV1 + 1 + len(b.ExtraBlobHashes)*32
-	batchBytes := make([]byte, size)
-	// Copy V1 fields (uses BatchHeaderV1's own Bytes() for correct encoding)
-	v1Bytes := b.BatchHeaderV1.Bytes()
-	copy(batchBytes, v1Bytes)
-	// Override version byte
-	batchBytes[0] = BatchHeaderVersion2
-	// Write blobCount at offset 257
-	batchBytes[257] = b.BlobCount
-	// Write extra blob hashes starting at offset 258
-	for i, h := range b.ExtraBlobHashes {
-		copy(batchBytes[258+i*32:], h[:])
-	}
-	b.EncodedBytes = batchBytes
-	return BatchHeaderBytes(batchBytes)
-}
-
-// BlobVersionedHashes returns all blob versioned hashes.
-// For V0/V1, returns a single-element slice (the hash at offset 57).
-// For V2, returns all N hashes: [blobHash[0], blobHash[1], ..., blobHash[N-1]].
-func (b BatchHeaderBytes) BlobVersionedHashes() ([]common.Hash, error) {
-	if err := b.validate(); err != nil {
-		return nil, err
-	}
-	version, _ := b.Version()
-	if version < BatchHeaderVersion2 {
-		return []common.Hash{common.BytesToHash(b[57:89])}, nil
-	}
-	blobCount := int(b[257])
-	hashes := make([]common.Hash, blobCount)
-	hashes[0] = common.BytesToHash(b[57:89])
-	for i := 1; i < blobCount; i++ {
-		offset := 258 + (i-1)*32
-		hashes[i] = common.BytesToHash(b[offset : offset+32])
-	}
-	return hashes, nil
-}

@@ -1,5 +1,5 @@
 use crate::types::{
-    blob::{decompress_batch, get_origin_batch, unpack_blob},
+    blob::{decode_blob_scalars, decompress_batch, get_origin_batch},
     input::BlobInfo,
 };
 use anyhow::anyhow;
@@ -11,20 +11,19 @@ pub struct BlobVerifier;
 
 impl BlobVerifier {
     /// Verify multiple blobs:
-    /// - KZG-verify each blob independently
-    /// - Unpack each blob's field elements into its compressed-data chunk
-    /// - Concatenate all chunks, then decompress once
+    /// - KZG-verify each blob and decode its BLS scalars (no decompression)
+    /// - Concatenate all raw scalar bytes, then decompress once
     ///
     /// Returns `(versioned_hashes, decompressed_batch_data)`.
     pub fn verify_blobs(blob_infos: &[BlobInfo]) -> Result<(Vec<B256>, Vec<u8>), anyhow::Error> {
         let mut hashes = Vec::new();
-        let mut compressed = Vec::new();
+        let mut raw_bytes = Vec::new();
         for info in blob_infos {
-            let hash = Self::verify_kzg(info)?;
+            let (hash, raw) = Self::verify_raw(info)?;
             hashes.push(hash);
-            compressed.extend(unpack_blob(&info.blob_data)?);
+            raw_bytes.extend(raw);
         }
-        let batch_data = decompress_batch(&compressed)?;
+        let batch_data = decompress_batch(&raw_bytes)?;
         Ok((hashes, batch_data))
     }
 
@@ -33,6 +32,14 @@ impl BlobVerifier {
         let hash = Self::verify_kzg(blob_info)?;
         let origin_batch = get_origin_batch(&blob_info.blob_data)?;
         Ok((hash, origin_batch))
+    }
+
+    /// KZG-verify a single blob and decode its BLS scalars without decompression.
+    /// Returns `(versioned_hash, raw_scalar_bytes)`.
+    pub fn verify_raw(blob_info: &BlobInfo) -> Result<(B256, Vec<u8>), anyhow::Error> {
+        let hash = Self::verify_kzg(blob_info)?;
+        let raw = decode_blob_scalars(&blob_info.blob_data)?;
+        Ok((hash, raw))
     }
 
     /// KZG-verify a blob's commitment/proof and return its versioned hash.

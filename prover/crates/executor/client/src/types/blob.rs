@@ -12,9 +12,9 @@ pub const BLOB_WIDTH: usize = 4096;
 #[derive(Clone, Debug)]
 pub struct BlobData {}
 
-/// Unpack a single blob's field elements into its raw compressed-data bytes (4096 × 31 bytes).
+/// Decode a single blob's BLS12-381 field elements into raw bytes (4096 x 31 bytes).
 /// Does NOT decompress — call [`decompress_batch`] on the concatenated output of all blobs.
-pub fn unpack_blob(blob_data: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
+pub fn decode_blob_scalars(blob_data: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
     let mut chunk = vec![0u8; BLOB_WIDTH * 31];
     for i in 0..BLOB_WIDTH {
         if blob_data[i * 32] != 0 {
@@ -29,9 +29,14 @@ pub fn unpack_blob(blob_data: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
     Ok(chunk)
 }
 
-/// Unpack a single blob and immediately decompress it (single-blob / V0/V1 path).
+/// Alias for [`decode_blob_scalars`] — kept for backward compatibility.
+pub fn unpack_blob(blob_data: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
+    decode_blob_scalars(blob_data)
+}
+
+/// Decode a single blob's scalars and immediately decompress (single-blob / V0/V1 path).
 pub fn get_origin_batch(blob_data: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
-    let chunk = unpack_blob(blob_data)?;
+    let chunk = decode_blob_scalars(blob_data)?;
     decompress_batch(&chunk)
 }
 

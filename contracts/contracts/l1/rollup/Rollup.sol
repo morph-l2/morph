@@ -5,7 +5,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import {BatchHeaderCodecV0} from "../../libraries/codec/BatchHeaderCodecV0.sol";
 import {BatchHeaderCodecV1} from "../../libraries/codec/BatchHeaderCodecV1.sol";
-import {BatchHeaderCodecV2} from "../../libraries/codec/BatchHeaderCodecV2.sol";
+
 import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IRollup} from "./IRollup.sol";
@@ -326,10 +326,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             uint256 _headerLength;
 
             if (batchDataInput.version == 2) {
-                // V2: count blobs attached to this transaction.
-                // No hardcoded max — blobhash(i) returns bytes32(0) when i exceeds the
-                // protocol limit, so the loop terminates naturally. This avoids coupling
-                // the contract to a specific Ethereum blob-per-block cap (design §9).
+                // V2: count blobs, compute aggregated hash = keccak256(blobhash(0) || ... || blobhash(N-1)),
+                // and store it at offset 57 (same slot as V0/V1 single blob hash).
+                // Header is 257 bytes, identical to V1 format, with version byte = 2.
                 uint8 blobCount = 0;
                 for (uint8 i = 0; ; i++) {
                     if (blobhash(i) == bytes32(0)) break;
@@ -337,18 +336,28 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 }
                 require(blobCount > 0, "V2 requires at least 1 blob");
 
-                _headerLength = BatchHeaderCodecV2.BASE_LENGTH + uint256(blobCount - 1) * 32;
+                // Compute aggregated blob hash: keccak256(blobhash(0) || ... || blobhash(N-1))
+                bytes32 aggregatedBlobHash;
+                assembly {
+                    let scratchPtr := mload(0x40)
+                    for { let i := 0 } lt(i, blobCount) { i := add(i, 1) } {
+                        mstore(add(scratchPtr, mul(i, 32)), blobhash(i))
+                    }
+                    aggregatedBlobHash := keccak256(scratchPtr, mul(blobCount, 32))
+                }
+
+                _headerLength = BatchHeaderCodecV1.BATCH_HEADER_LENGTH;
                 assembly {
                     _batchPtr := mload(0x40)
                     mstore(0x40, add(_batchPtr, _headerLength))
                 }
 
-                // store V0/V1 shared fields
                 BatchHeaderCodecV0.storeVersion(_batchPtr, 2);
                 BatchHeaderCodecV0.storeBatchIndex(_batchPtr, _batchIndex);
                 BatchHeaderCodecV0.storeL1MessagePopped(_batchPtr, batchDataInput.numL1Messages);
                 BatchHeaderCodecV0.storeTotalL1MessagePopped(_batchPtr, _totalL1MessagesPoppedOverall);
                 BatchHeaderCodecV0.storeDataHash(_batchPtr, dataHash);
+                BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, aggregatedBlobHash);
                 BatchHeaderCodecV0.storePrevStateHash(_batchPtr, batchDataInput.prevStateRoot);
                 BatchHeaderCodecV0.storePostStateHash(_batchPtr, batchDataInput.postStateRoot);
                 BatchHeaderCodecV0.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
@@ -358,12 +367,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 );
                 BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
                 BatchHeaderCodecV1.storeLastBlockNumber(_batchPtr, batchDataInput.lastBlockNumber);
-
-                // store V2 fields: blobCount + all blob versioned hashes
-                BatchHeaderCodecV2.storeBlobCount(_batchPtr, blobCount);
-                for (uint8 i = 0; i < blobCount; i++) {
-                    BatchHeaderCodecV2.storeBlobVersionedHash(_batchPtr, i, blobhash(i));
-                }
 
                 _blobVersionedHash = blobhash(0);
             } else {
@@ -806,15 +809,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
 
-        // For V2 batches: blobHashInput = keccak256(hash[0] || ... || hash[N-1])
-        // For V0/V1 batches: blobHashInput = hash[0] (single blob hash, backward-compatible)
-        bytes32 _blobHashInput;
-        if (BatchHeaderCodecV0.getVersion(memPtr) == 2) {
-            uint8 _blobCount = BatchHeaderCodecV2.getBlobCount(memPtr);
-            _blobHashInput = BatchHeaderCodecV2.getBlobHashesHash(memPtr, _blobCount);
-        } else {
-            _blobHashInput = BatchHeaderCodecV0.getBlobVersionedHash(memPtr);
-        }
+        // All versions (V0, V1, V2) store the blob hash input at offset 57.
+        // For V2, this is the aggregated blob hash (keccak256 of all blob hashes concatenated),
+        // stored at commit time. For V0/V1, it is the single blob versioned hash.
+        bytes32 _blobHashInput = BatchHeaderCodecV0.getBlobVersionedHash(memPtr);
 
         bytes32 _publicInputHash = keccak256(
             abi.encodePacked(
@@ -920,10 +918,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         uint256 _length;
         if (_version == 0) {
             (_memPtr, _length) = BatchHeaderCodecV0.loadAndValidate(_batchHeader);
-        } else if (_version == 1) {
+        } else if (_version == 1 || _version == 2) {
+            // V2 uses same 257-byte format as V1 (aggregated blob hash at offset 57)
             (_memPtr, _length) = BatchHeaderCodecV1.loadAndValidate(_batchHeader);
-        } else if (_version == 2) {
-            (_memPtr, _length) = BatchHeaderCodecV2.loadAndValidate(_batchHeader);
         } else {
             revert("Unsupported batch version");
         }

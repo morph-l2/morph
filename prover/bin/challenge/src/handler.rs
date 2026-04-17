@@ -492,26 +492,9 @@ impl BatchInfo {
         self.data_hash = batch_header_ex.get(0..32).unwrap_or_default().try_into().unwrap_or_default();
         self.sequencer_set_verify_hash = batch_header_ex.get(64..96).unwrap_or_default().try_into().unwrap_or_default();
 
-        // V2: blob_count(1) | blob_hash[0](32) | ... appended after base 96 bytes
-        if self.version >= 2 {
-            if let Some(&count) = batch_header_ex.get(96) {
-                let mut hashes = Vec::with_capacity(count as usize);
-                for i in 0..count as usize {
-                    let off = 97 + i * 32;
-                    let hash: [u8; 32] = batch_header_ex
-                        .get(off..off + 32)
-                        .unwrap_or_default()
-                        .try_into()
-                        .unwrap_or_default();
-                    hashes.push(hash);
-                }
-                self.blob_hashes = hashes;
-            }
-        } else {
-            // V0/V1: single versioned hash at [32..64]
-            let hash: [u8; 32] = batch_header_ex.get(32..64).unwrap_or_default().try_into().unwrap_or_default();
-            self.blob_hashes = vec![hash];
-        }
+        // All versions: single hash at [32..64] (aggregated for V2, versioned for V0/V1)
+        let hash: [u8; 32] = batch_header_ex.get(32..64).unwrap_or_default().try_into().unwrap_or_default();
+        self.blob_hashes = vec![hash];
         self
     }
 
@@ -522,7 +505,7 @@ impl BatchInfo {
         batch_header.extend_from_slice(&self.l1_message_popped.to_be_bytes());
         batch_header.extend_from_slice(&self.total_l1_message_popped.to_be_bytes());
         batch_header.extend_from_slice(&self.data_hash);
-        // blob_hashes[0] at offset 57 (same position for all versions)
+        // blob hash at offset 57 (same position for all versions; aggregated for V2)
         batch_header.extend_from_slice(self.blob_hashes.first().unwrap_or(&[0u8; 32]));
         batch_header.extend_from_slice(&self.prev_state_root);
         batch_header.extend_from_slice(&self.post_state_root);
@@ -530,12 +513,6 @@ impl BatchInfo {
         batch_header.extend_from_slice(&self.sequencer_set_verify_hash);
         batch_header.extend_from_slice(&self.parent_batch_hash);
         batch_header.extend_from_slice(&self.end_block.to_be_bytes());
-        if self.version >= 2 {
-            batch_header.push(self.blob_hashes.len() as u8);
-            for hash in self.blob_hashes.iter().skip(1) {
-                batch_header.extend_from_slice(hash);
-            }
-        }
         Bytes::from(batch_header)
     }
 }
