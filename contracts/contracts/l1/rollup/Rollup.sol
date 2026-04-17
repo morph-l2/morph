@@ -248,7 +248,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             require(batchDataInput.numL1Messages > 0, "l1msg delay");
         }
         uint256 submitterBitmap = IL1Staking(l1StakingContract).getStakerBitmap(_msgSender());
-        bytes32 _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
+        bytes32 _blobVersionedHash = _computeBlobVersionedHash(batchDataInput.version);
         _commitBatchWithBatchData(batchDataInput, batchSignatureInput, submitterBitmap, _blobVersionedHash);
     }
 
@@ -320,88 +320,39 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         assembly {
             _batchIndex := add(_batchIndex, 1) // increase batch index
         }
-        bytes32 _blobVersionedHash = blobVersionedHash;
-
         {
-            uint256 _headerLength;
-
-            if (batchDataInput.version == 2) {
-                // V2: count blobs, compute aggregated hash = keccak256(blobhash(0) || ... || blobhash(N-1)),
-                // and store it at offset 57 (same slot as V0/V1 single blob hash).
-                // Header is 257 bytes, identical to V1 format, with version byte = 2.
-                uint8 blobCount = 0;
-                for (uint8 i = 0; ; i++) {
-                    if (blobhash(i) == bytes32(0)) break;
-                    blobCount++;
-                }
-                require(blobCount > 0, "V2 requires at least 1 blob");
-
-                // Compute aggregated blob hash: keccak256(blobhash(0) || ... || blobhash(N-1))
-                bytes32 aggregatedBlobHash;
-                assembly {
-                    let scratchPtr := mload(0x40)
-                    for { let i := 0 } lt(i, blobCount) { i := add(i, 1) } {
-                        mstore(add(scratchPtr, mul(i, 32)), blobhash(i))
-                    }
-                    aggregatedBlobHash := keccak256(scratchPtr, mul(blobCount, 32))
-                }
-
+            // Determine header length: V0 = 249, V1/V2 = 257
+            uint256 _headerLength = BatchHeaderCodecV0.BATCH_HEADER_LENGTH;
+            if (batchDataInput.version >= 1) {
                 _headerLength = BatchHeaderCodecV1.BATCH_HEADER_LENGTH;
-                assembly {
-                    _batchPtr := mload(0x40)
-                    mstore(0x40, add(_batchPtr, _headerLength))
-                }
+            }
+            assembly {
+                _batchPtr := mload(0x40)
+                mstore(0x40, add(_batchPtr, _headerLength))
+            }
 
-                BatchHeaderCodecV0.storeVersion(_batchPtr, 2);
-                BatchHeaderCodecV0.storeBatchIndex(_batchPtr, _batchIndex);
-                BatchHeaderCodecV0.storeL1MessagePopped(_batchPtr, batchDataInput.numL1Messages);
-                BatchHeaderCodecV0.storeTotalL1MessagePopped(_batchPtr, _totalL1MessagesPoppedOverall);
-                BatchHeaderCodecV0.storeDataHash(_batchPtr, dataHash);
-                BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, aggregatedBlobHash);
-                BatchHeaderCodecV0.storePrevStateHash(_batchPtr, batchDataInput.prevStateRoot);
-                BatchHeaderCodecV0.storePostStateHash(_batchPtr, batchDataInput.postStateRoot);
-                BatchHeaderCodecV0.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
-                BatchHeaderCodecV0.storeSequencerSetVerifyHash(
-                    _batchPtr,
-                    keccak256(batchSignatureInput.sequencerSets)
-                );
-                BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
+            // Store header fields (identical layout for all versions)
+            BatchHeaderCodecV0.storeVersion(_batchPtr, batchDataInput.version);
+            BatchHeaderCodecV0.storeBatchIndex(_batchPtr, _batchIndex);
+            BatchHeaderCodecV0.storeL1MessagePopped(_batchPtr, batchDataInput.numL1Messages);
+            BatchHeaderCodecV0.storeTotalL1MessagePopped(_batchPtr, _totalL1MessagesPoppedOverall);
+            BatchHeaderCodecV0.storeDataHash(_batchPtr, dataHash);
+            BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, blobVersionedHash);
+            BatchHeaderCodecV0.storePrevStateHash(_batchPtr, batchDataInput.prevStateRoot);
+            BatchHeaderCodecV0.storePostStateHash(_batchPtr, batchDataInput.postStateRoot);
+            BatchHeaderCodecV0.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
+            BatchHeaderCodecV0.storeSequencerSetVerifyHash(
+                _batchPtr,
+                keccak256(batchSignatureInput.sequencerSets)
+            );
+            BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
+            if (batchDataInput.version >= 1) {
                 BatchHeaderCodecV1.storeLastBlockNumber(_batchPtr, batchDataInput.lastBlockNumber);
-
-                _blobVersionedHash = aggregatedBlobHash;
-            } else {
-                // V0/V1 path (unchanged)
-                _headerLength = BatchHeaderCodecV0.BATCH_HEADER_LENGTH;
-                if (batchDataInput.version == 1) {
-                    _headerLength = BatchHeaderCodecV1.BATCH_HEADER_LENGTH;
-                }
-                assembly {
-                    _batchPtr := mload(0x40)
-                    mstore(0x40, add(_batchPtr, _headerLength))
-                }
-
-                BatchHeaderCodecV0.storeVersion(_batchPtr, batchDataInput.version);
-                BatchHeaderCodecV0.storeBatchIndex(_batchPtr, _batchIndex);
-                BatchHeaderCodecV0.storeL1MessagePopped(_batchPtr, batchDataInput.numL1Messages);
-                BatchHeaderCodecV0.storeTotalL1MessagePopped(_batchPtr, _totalL1MessagesPoppedOverall);
-                BatchHeaderCodecV0.storeDataHash(_batchPtr, dataHash);
-                BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
-                BatchHeaderCodecV0.storePrevStateHash(_batchPtr, batchDataInput.prevStateRoot);
-                BatchHeaderCodecV0.storePostStateHash(_batchPtr, batchDataInput.postStateRoot);
-                BatchHeaderCodecV0.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
-                BatchHeaderCodecV0.storeSequencerSetVerifyHash(
-                    _batchPtr,
-                    keccak256(batchSignatureInput.sequencerSets)
-                );
-                BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
-                if (batchDataInput.version >= 1) {
-                    BatchHeaderCodecV1.storeLastBlockNumber(_batchPtr, batchDataInput.lastBlockNumber);
-                }
             }
 
             committedBatches[_batchIndex] = BatchHeaderCodecV0.computeBatchHash(_batchPtr, _headerLength);
             committedStateRoots[_batchIndex] = batchDataInput.postStateRoot;
-            batchBlobVersionedHashes[_batchIndex] = _blobVersionedHash;
+            batchBlobVersionedHashes[_batchIndex] = blobVersionedHash;
             uint256 proveRemainingTime = 0;
             if (inChallenge) {
                 // Make the batch finalize time longer than the time required for the current challenge
@@ -459,12 +410,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // check if the next batch has a stored blob hash
         (uint256 _batchPtr, ) = _loadBatchHeader(batchDataInput.parentBatchHeader);
         uint256 _nextBatchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr) + 1;
-        bytes32 _blobVersionedHash = bytes32(0);
+        bytes32 _blobVersionedHash;
         if (batchBlobVersionedHashes[_nextBatchIndex] != bytes32(0)) {
             require(blobhash(0) == bytes32(0), "must not carry blob when using stored blob hash");
             _blobVersionedHash = batchBlobVersionedHashes[_nextBatchIndex];
         } else {
-           _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
+            _blobVersionedHash = _computeBlobVersionedHash(batchDataInput.version);
         }
         _commitBatchWithBatchData(batchDataInput, batchSignatureInput, 0, _blobVersionedHash);
 
@@ -962,6 +913,30 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // compute data hash and store to memory
         assembly {
             _dataHash := keccak256(startDataPtr, sub(dataPtr, startDataPtr))
+        }
+    }
+
+    /// @dev Compute the blob versioned hash for the current transaction.
+    ///      V0/V1: blobhash(0), or ZERO_VERSIONED_HASH if no blob is attached.
+    ///      V2: keccak256(blobhash(0) || ... || blobhash(N-1)), requires at least 1 blob.
+    function _computeBlobVersionedHash(uint256 _version) internal view returns (bytes32 _blobVersionedHash) {
+        if (_version == 2) {
+            uint256 _blobCount;
+            assembly {
+                let scratchPtr := mload(0x40)
+                let i := 0
+                for {} 1 {} {
+                    let h := blobhash(i)
+                    if iszero(h) { break }
+                    mstore(add(scratchPtr, mul(i, 32)), h)
+                    i := add(i, 1)
+                }
+                _blobCount := i
+                _blobVersionedHash := keccak256(scratchPtr, mul(i, 32))
+            }
+            require(_blobCount > 0, "V2 requires at least 1 blob");
+        } else {
+            _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
         }
     }
 
