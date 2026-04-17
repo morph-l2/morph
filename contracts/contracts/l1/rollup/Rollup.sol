@@ -368,7 +368,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
                 BatchHeaderCodecV1.storeLastBlockNumber(_batchPtr, batchDataInput.lastBlockNumber);
 
-                _blobVersionedHash = blobhash(0);
+                _blobVersionedHash = aggregatedBlobHash;
             } else {
                 // V0/V1 path (unchanged)
                 _headerLength = BatchHeaderCodecV0.BATCH_HEADER_LENGTH;
