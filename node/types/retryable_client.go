@@ -32,6 +32,14 @@ const (
 	WrongBlockNumberError   = "wrong block number"
 	ParentNotFoundError     = "parent block not found"
 
+	// Block validation errors raised by geth (see go-ethereum/eth/catalyst/l2_api.go
+	// NewL2BlockV2 and go-ethereum/core/blockchain_l2.go writeBlockStateWithoutHead).
+	// These indicate the block payload is permanently invalid (signature replay,
+	// tampered field, or local corruption); retrying with the same payload will
+	// always fail and only delay error surfacing to the consensus layer.
+	BlockHashMismatchError     = "block hash mismatch"
+	InvalidNextL1MsgIndexError = "invalid block.NextL1MsgIndex"
+
 	// Geth connection retry settings
 	GethRetryAttempts       = 60              // max retry attempts
 	GethRetryInterval       = 5 * time.Second // interval between retries
@@ -541,12 +549,16 @@ func (rc *RetryableClient) SetBlockTags(ctx context.Context, safeBlockHash commo
 }
 
 // retryableError returns true for transient errors that should be retried.
-// Permanent logic errors (wrong block number, missing parent) are not retried.
+// Permanent logic errors (wrong block number, missing parent) and block
+// validation errors (hash mismatch, invalid NextL1MsgIndex) are not retried,
+// because the same payload will always fail and only delay error surfacing.
 func retryableError(err error) bool {
 	msg := err.Error()
 	return !strings.Contains(msg, DiscontinuousBlockError) &&
 		!strings.Contains(msg, WrongBlockNumberError) &&
-		!strings.Contains(msg, ParentNotFoundError)
+		!strings.Contains(msg, ParentNotFoundError) &&
+		!strings.Contains(msg, BlockHashMismatchError) &&
+		!strings.Contains(msg, InvalidNextL1MsgIndexError)
 }
 
 // ============================================================================
