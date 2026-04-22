@@ -16,9 +16,15 @@ type (
 const (
 	expectedLengthV0 = 249
 	expectedLengthV1 = 257
+	// V2 reuses the V1 wire format (257 bytes). The only semantic
+	// difference is that the 32-byte field at offset 57 stores
+	// keccak256(blobhash(0) || ... || blobhash(N-1)) instead of a
+	// single blob versioned hash.
+	expectedLengthV2 = 257
 
 	BatchHeaderVersion0 = 0
 	BatchHeaderVersion1 = 1
+	BatchHeaderVersion2 = 2
 )
 
 var (
@@ -40,6 +46,10 @@ func (b BatchHeaderBytes) validate() error {
 		}
 	case BatchHeaderVersion1:
 		if len(b) != expectedLengthV1 {
+			return ErrInvalidBatchHeaderLength
+		}
+	case BatchHeaderVersion2:
+		if len(b) != expectedLengthV2 {
 			return ErrInvalidBatchHeaderLength
 		}
 	default:
@@ -94,9 +104,31 @@ func (b BatchHeaderBytes) DataHash() (common.Hash, error) {
 	return common.BytesToHash(b[25:57]), nil
 }
 
+// BlobVersionedHash returns the EIP-4844 blob versioned hash recorded at
+// offset [57:89]. This is only meaningful for V0/V1 batches, where the field
+// holds the single blob's versioned hash. For V2 batches the same offset
+// holds an aggregated hash; callers must use BlobHashesHash instead.
 func (b BatchHeaderBytes) BlobVersionedHash() (common.Hash, error) {
 	if err := b.validate(); err != nil {
 		return common.Hash{}, err
+	}
+	version, _ := b.Version()
+	if version >= BatchHeaderVersion2 {
+		return common.Hash{}, errors.New("BlobVersionedHash is not available for V2+; use BlobHashesHash")
+	}
+	return common.BytesToHash(b[57:89]), nil
+}
+
+// BlobHashesHash returns the aggregated blob hash recorded at offset [57:89]
+// for V2+ batches, defined as keccak256(blobhash(0) || ... || blobhash(N-1)).
+// V0/V1 batches do not aggregate and will return an error.
+func (b BatchHeaderBytes) BlobHashesHash() (common.Hash, error) {
+	if err := b.validate(); err != nil {
+		return common.Hash{}, err
+	}
+	version, _ := b.Version()
+	if version < BatchHeaderVersion2 {
+		return common.Hash{}, errors.New("BlobHashesHash is only available for V2+; use BlobVersionedHash")
 	}
 	return common.BytesToHash(b[57:89]), nil
 }
