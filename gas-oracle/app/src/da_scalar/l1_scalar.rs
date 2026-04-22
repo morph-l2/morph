@@ -17,8 +17,8 @@ use crate::{
     metrics::ORACLE_SERVICE_METRICS,
     signer::send_transaction,
 };
-use remote_signer_client::SignerClient;
 use ethers::{abi::AbiDecode, prelude::*, utils::hex};
+use remote_signer_client::SignerClient;
 use serde_json::Value;
 
 const PRECISION: u64 = 10u64.pow(9);
@@ -369,17 +369,13 @@ impl ScalarUpdater {
             ))));
         }
 
-        let tx_payloads = extract_tx_payload(indexed_hashes, sidecars)?;
-        let data_with_txn_count: Vec<(u64, u64)> = tx_payloads
-            .iter()
-            .map(|batch: &Vec<u8>| {
-                (batch.len() as u64, extract_txn_count(batch, last_block_num).unwrap_or_default())
-            })
-            .collect();
-
-        let (total_size, total_count) = data_with_txn_count
-            .iter()
-            .fold((0u64, 0u64), |acc, &(size, count)| (acc.0 + size, acc.1 + count));
+        // All blobs belong to the same batch: the batch is compressed as a whole,
+        // split into multiple segments across blobs, then reconstructed by concatenating
+        // the segments, trimming the valid compressed payload, and decompressing once.
+        // This also remains compatible with the single-blob case.
+        let origin_batch = extract_tx_payload(indexed_hashes, sidecars)?;
+        let total_size = origin_batch.len() as u64;
+        let total_count = extract_txn_count(&origin_batch, last_block_num).unwrap_or_default();
 
         Ok((total_size, total_count))
     }
@@ -387,47 +383,9 @@ impl ScalarUpdater {
 
 #[cfg(test)]
 mod tests {
-    use crate::da_scalar::blob::Blob;
 
     use super::*;
-    use std::{env::var, fs, path::Path, str::FromStr, sync::Arc};
-
-    #[test]
-    fn test_blob_data() {
-        let blob_data_path = Path::new("data/blob_with_context.data");
-        let data = fs::read_to_string(blob_data_path).expect("Unable to read file");
-        let hex_data: Vec<u8> = hex::decode(data.trim()).unwrap();
-
-        let mut blob_array = [0u8; 131072];
-        blob_array.copy_from_slice(&hex_data);
-
-        let blob_struct = Blob(blob_array);
-        let origin_batch = blob_struct
-            .get_origin_batch()
-            .map_err(|e| {
-                ScalarError::CalculateError(anyhow!(format!(
-                    "Failed to decode blob tx payload: {}",
-                    e
-                )))
-            })
-            .unwrap();
-
-        let mut tx_payloads: Vec<Vec<u8>> = vec![];
-        tx_payloads.push(origin_batch);
-
-        let data_with_txn_count: Vec<(u64, u64)> = tx_payloads
-            .iter()
-            .map(|batch: &Vec<u8>| {
-                (batch.len() as u64, extract_txn_count(batch, 328208).unwrap_or_default())
-            })
-            .collect();
-
-        let (total_size, total_count) = data_with_txn_count
-            .iter()
-            .fold((0u64, 0u64), |acc, &(size, count)| (acc.0 + size, acc.1 + count));
-
-        println!("total_size: {}, total_count: {}", total_size, total_count)
-    }
+    use std::{env::var, str::FromStr, sync::Arc};
 
     #[tokio::test]
     #[ignore]
@@ -464,7 +422,8 @@ mod tests {
 
         let l2_oracle_contract = GasPriceOracle::new(l2_oracle_address, l2_signer);
 
-        let ext_signer = SignerClient::new("appid", "privkey_pem", "address", "chain", "url").unwrap();
+        let ext_signer =
+            SignerClient::new("appid", "privkey_pem", "address", "chain", "url").unwrap();
         let mut overhead: ScalarUpdater = ScalarUpdater::new(
             l1_provider,
             l2_provider,

@@ -7,17 +7,22 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::{
-    blob::{kzg_to_versioned_hash, Blob},
+    blob::{decompress_batch, kzg_to_versioned_hash, Blob},
     error::ScalarError,
     typed_tx::TypedTransaction,
     MAX_BLOB_TX_PAYLOAD_SIZE,
 };
 
+/// Extract the full batch data from multiple blobs.
+/// All blobs belong to the same batch: the batch is compressed as a whole, split into
+/// multiple segments (each at most 4096 * 31 bytes), and then encoded into BLS12-381
+/// field elements stored in the blobs.
+/// This function remains compatible with the single-blob case.
 pub(super) fn extract_tx_payload(
     indexed_hashes: Vec<IndexedBlobHash>,
     sidecars: &[Value],
-) -> Result<Vec<Vec<u8>>, ScalarError> {
-    let mut batch_bytes = Vec::<Vec<u8>>::new();
+) -> Result<Vec<u8>, ScalarError> {
+    let mut combined_payload = Vec::<u8>::new();
     for i_h in indexed_hashes {
         if let Some(sidecar) = sidecars.iter().find(|sidecar| {
             sidecar["index"].as_str().unwrap_or("1000").parse::<u64>().unwrap_or(1000) == i_h.index
@@ -62,14 +67,15 @@ pub(super) fn extract_tx_payload(
 
             let blob_array: [u8; MAX_BLOB_TX_PAYLOAD_SIZE] = decoded_blob.try_into().unwrap();
             let blob_struct = Blob(blob_array);
-            let origin_batch = blob_struct.get_origin_batch().map_err(|e| {
+            // Extract the raw payload segment by removing only the BLS12-381 encoding,
+            // without zstd decompression.
+            let payload_bytes = blob_struct.get_payload_bytes().map_err(|e| {
                 ScalarError::CalculateError(anyhow!(format!(
-                    "Failed to decode blob tx payload: {}",
-                    e
+                    "Failed to get payload bytes from blob, blob_hash: {:?}, err: {}",
+                    i_h.hash, e
                 )))
             })?;
-
-            batch_bytes.push(origin_batch);
+            combined_payload.extend_from_slice(&payload_bytes);
         } else {
             return Err(ScalarError::CalculateError(anyhow!(format!(
                 "no blob in response matches desired index: {}",
@@ -77,7 +83,21 @@ pub(super) fn extract_tx_payload(
             ))));
         }
     }
-    Ok(batch_bytes)
+
+    // After concatenation, use detect_zstd_compressed to trim the valid compressed payload
+    // (excluding trailing zero padding), then decompress the batch as a whole.
+    let compressed_data = Blob::detect_zstd_compressed(combined_payload).map_err(|e| {
+        ScalarError::CalculateError(anyhow!(format!(
+            "Failed to detect zstd compressed data from combined blob payload: {}",
+            e
+        )))
+    })?;
+    decompress_batch(&compressed_data).map_err(|e| {
+        ScalarError::CalculateError(anyhow!(format!(
+            "Failed to decompress combined blob payload: {}",
+            e
+        )))
+    })
 }
 
 pub fn extract_txn_count(origin_batch: &Vec<u8>, last_block_num: u64) -> Option<u64> {
