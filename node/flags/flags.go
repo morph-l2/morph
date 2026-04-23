@@ -253,12 +253,6 @@ var (
 		EnvVar: prefixEnvVar("SEQUENCER_PRIVATE_KEY"),
 	}
 
-	// Batch rules
-	UpgradeBatchTime = cli.Uint64Flag{
-		Name:   "upgrade.batchTime",
-		Usage:  "Batch index at which the sequencers start to upgrade the batch format",
-		EnvVar: prefixEnvVar("UPGRADE_BATCH_TIME"),
-	}
 	MainnetFlag = cli.BoolFlag{
 		Name:  "mainnet",
 		Usage: "Morph mainnet",
@@ -332,11 +326,6 @@ var (
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
 
-	BlsKeyCheckForkHeight = cli.Uint64Flag{
-		Name:   "bls-key-check-fork-height",
-		Usage:  "The height at which the BLS key check fork occurs",
-		EnvVar: prefixEnvVar("BLS_KEY_CHECK_FORK_HEIGHT"),
-	}
 )
 
 var Flags = []cli.Flag{
@@ -396,8 +385,6 @@ var Flags = []cli.Flag{
 	// consensus
 	ConsensusSwitchHeight,
 
-	// batch rules
-	UpgradeBatchTime,
 	MainnetFlag,
 
 	// logger
@@ -412,6 +399,4 @@ var Flags = []cli.Flag{
 	MetricsServerEnable,
 	MetricsPort,
 	MetricsHostname,
-
-	BlsKeyCheckForkHeight,
 }

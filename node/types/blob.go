@@ -3,10 +3,8 @@ package types
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
-	"morph-l2/node/zstd"
 
 	eth "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
@@ -14,32 +12,6 @@ import (
 )
 
 const MaxBlobBytesSize = 4096 * 31
-
-var (
-	emptyBlob          = new(kzg4844.Blob)
-	emptyBlobCommit, _ = kzg4844.BlobToCommitment(emptyBlob)
-	emptyBlobProof, _  = kzg4844.ComputeBlobProof(emptyBlob, emptyBlobCommit)
-)
-
-// MakeBlobCanonical converts the raw blob data into the canonical blob representation of 4096 BLSFieldElements.
-func MakeBlobCanonical(blobBytes []byte) (b *kzg4844.Blob, err error) {
-	if len(blobBytes) > MaxBlobBytesSize {
-		return nil, fmt.Errorf("data is too large for blob. len=%v", len(blobBytes))
-	}
-	offset := 0
-	b = new(kzg4844.Blob)
-	// encode (up to) 31 bytes of remaining input data at a time into the subsequent field element
-	for i := 0; i < 4096; i++ {
-		offset += copy(b[i*32+1:i*32+32], blobBytes[offset:])
-		if offset == len(blobBytes) {
-			break
-		}
-	}
-	if offset < len(blobBytes) {
-		return nil, fmt.Errorf("failed to fit all data into blob. bytes remaining: %v", len(blobBytes)-offset)
-	}
-	return
-}
 
 func RetrieveBlobBytes(blob *kzg4844.Blob) ([]byte, error) {
 	data := make([]byte, MaxBlobBytesSize)
@@ -50,69 +22,6 @@ func RetrieveBlobBytes(blob *kzg4844.Blob) ([]byte, error) {
 		copy(data[i*31:i*31+31], blob[i*32+1:i*32+32])
 	}
 	return data, nil
-}
-
-func makeBlobCommitment(bz []byte) (b kzg4844.Blob, c kzg4844.Commitment, err error) {
-	blob, err := MakeBlobCanonical(bz)
-	if err != nil {
-		return
-	}
-	b = *blob
-	c, err = kzg4844.BlobToCommitment(&b)
-	if err != nil {
-		return
-	}
-	return
-}
-
-func MakeBlobTxSidecar(blobBytes []byte) (*eth.BlobTxSidecar, error) {
-	if len(blobBytes) == 0 {
-		return &eth.BlobTxSidecar{
-			Blobs:       []kzg4844.Blob{*emptyBlob},
-			Commitments: []kzg4844.Commitment{emptyBlobCommit},
-			Proofs:      []kzg4844.Proof{emptyBlobProof},
-		}, nil
-	}
-	if len(blobBytes) > 2*MaxBlobBytesSize {
-		return nil, errors.New("only 2 blobs at most is allowed")
-	}
-	blobCount := len(blobBytes)/(MaxBlobBytesSize+1) + 1
-	var (
-		err         error
-		blobs       = make([]kzg4844.Blob, blobCount)
-		commitments = make([]kzg4844.Commitment, blobCount)
-	)
-	switch blobCount {
-	case 1:
-		blobs[0], commitments[0], err = makeBlobCommitment(blobBytes)
-		if err != nil {
-			return nil, err
-		}
-	case 2:
-		blobs[0], commitments[0], err = makeBlobCommitment(blobBytes[:MaxBlobBytesSize])
-		if err != nil {
-			return nil, err
-		}
-		blobs[1], commitments[1], err = makeBlobCommitment(blobBytes[MaxBlobBytesSize:])
-		if err != nil {
-			return nil, err
-		}
-	}
-	return &eth.BlobTxSidecar{
-		Blobs:       blobs,
-		Commitments: commitments,
-	}, nil
-}
-
-func CompressBatchBytes(batchBytes []byte) ([]byte, error) {
-	if len(batchBytes) == 0 {
-		return nil, nil
-	}
-	compressedBatchBytes, err := zstd.CompressBatchBytes(batchBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compress batch bytes, err: %w", err)
-	}
-	return compressedBatchBytes, nil
 }
 
 func DecodeTxsFromBytes(txsBytes []byte) (eth.Transactions, error) {

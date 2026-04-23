@@ -12,7 +12,5 @@ const (
 
 type Metrics struct {
 	Height                  metrics.Gauge
-	BatchPointHeight        metrics.Gauge
-	BatchIndex              metrics.Gauge
 	NextL1MessageQueueIndex metrics.Gauge
 }

@@ -7,10 +7,8 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/morph-l2/go-ethereum/accounts/abi"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/common/hexutil"
 	eth "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/eth/catalyst"
 	"github.com/morph-l2/go-ethereum/ethclient"
@@ -43,18 +41,13 @@ type Executor struct {
 	l2StakingCaller *bindings.L2StakingCaller
 
 	currentSeqHash *[32]byte
-	valsByTmKey    map[[tmKeySize]byte]validatorInfo
+	seqTmKeySet    map[[tmKeySize]byte]struct{}
 
 	nextValidators [][]byte
 	batchParams    tmproto.BatchParams
 	tmPubKey       []byte
 	isSequencer    bool
 	devSequencer   bool
-
-	UpgradeBatchTime      uint64
-	blsKeyCheckForkHeight uint64
-	rollupABI             *abi.ABI
-	batchingCache         *BatchingCache
 
 	logger  tmlog.Logger
 	metrics *Metrics
@@ -100,31 +93,23 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		return nil, err
 	}
 
-	rollupAbi, err := bindings.RollupMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
 	var tmPubKeyBytes []byte
 	if tmPubKey != nil {
 		tmPubKeyBytes = tmPubKey.Bytes()
 	}
 	executor := &Executor{
-		l2Client:              l2Client,
-		bc:                    &Version1Converter{},
-		govCaller:             gov,
-		sequencerCaller:       sequencer,
-		l2StakingCaller:       l2Staking,
-		tmPubKey:              tmPubKeyBytes,
-		nextL1MsgIndex:        index,
-		maxL1MsgNumPerBlock:   config.MaxL1MessageNumPerBlock,
-		newSyncerFunc:         newSyncFunc,
-		devSequencer:          config.DevSequencer,
-		rollupABI:             rollupAbi,
-		batchingCache:         NewBatchingCache(),
-		UpgradeBatchTime:      config.UpgradeBatchTime,
-		blsKeyCheckForkHeight: config.BlsKeyCheckForkHeight,
-		logger:                logger,
-		metrics:               PrometheusMetrics("morphnode"),
+		l2Client:            l2Client,
+		bc:                  &Version1Converter{},
+		govCaller:           gov,
+		sequencerCaller:     sequencer,
+		l2StakingCaller:     l2Staking,
+		tmPubKey:            tmPubKeyBytes,
+		nextL1MsgIndex:      index,
+		maxL1MsgNumPerBlock: config.MaxL1MessageNumPerBlock,
+		newSyncerFunc:       newSyncFunc,
+		devSequencer:        config.DevSequencer,
+		logger:              logger,
+		metrics:             PrometheusMetrics("morphnode"),
 	}
 
 	if config.DevSequencer {
@@ -265,8 +250,7 @@ func (e *Executor) CheckBlockData(txs [][]byte, metaData []byte) (valid bool, er
 
 func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2node.ConsensusData) (nextBatchParams *tmproto.BatchParams, nextValidatorSet [][]byte, err error) {
 	e.logger.Info("DeliverBlock request", "txs length", len(txs),
-		"blockMeta length", len(metaData),
-		"batchHash", hexutil.Encode(consensusData.BatchHash))
+		"blockMeta length", len(metaData))
 	height, err := e.l2Client.BlockNumber(context.Background())
 	if err != nil {
 		return nil, nil, err
@@ -299,10 +283,6 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 		return nil, nil, types.ErrWrongBlockNumber
 	}
 
-	if len(consensusData.BatchHash) > 0 {
-		e.metrics.BatchPointHeight.Set(float64(wrappedBlock.Number))
-	}
-
 	l2Block := &catalyst.ExecutableL2Data{
 		ParentHash:         wrappedBlock.ParentHash,
 		Miner:              wrappedBlock.Miner,
@@ -320,12 +300,7 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 
 		Transactions: txs,
 	}
-	var batchHash *common.Hash
-	if consensusData.BatchHash != nil {
-		batchHash = new(common.Hash)
-		copy(batchHash[:], consensusData.BatchHash)
-	}
-	err = e.l2Client.NewL2Block(context.Background(), l2Block, batchHash)
+	err = e.l2Client.NewL2Block(context.Background(), l2Block)
 	if err != nil {
 		e.logger.Error("failed to NewL2Block",
 			"error", err,
@@ -405,13 +380,6 @@ func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams,
 	}
 	newValidators := make([][]byte, 0, len(addrs))
 	for i := range stakesInfo {
-		// validate blsKey to keep consistent with sequencerSetUpdates
-		if _, err := decodeBlsPubKey(stakesInfo[i].BlsKey); err != nil {
-			e.logger.Error("getParamsAndValsAtHeight: failed to decode bls key", "key bytes", hexutil.Encode(stakesInfo[i].BlsKey), "error", err)
-			if e.isBlsKeyCheckFork(uint64(height)) {
-				continue
-			}
-		}
 		newValidators = append(newValidators, stakesInfo[i].TmKey[:])
 	}
 
@@ -498,8 +466,7 @@ func (e *Executor) ApplyBlockV2(block *l2node.BlockV2) error {
 		return types.ErrWrongBlockNumber
 	}
 
-	// Apply the block (no batch hash in sequencer mode for now)
-	err = e.l2Client.NewL2Block(context.Background(), execBlock, nil)
+	err = e.l2Client.NewL2Block(context.Background(), execBlock)
 	if err != nil {
 		e.logger.Error("failed to apply block v2", "error", err)
 		return err
