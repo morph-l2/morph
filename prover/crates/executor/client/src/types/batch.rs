@@ -101,6 +101,18 @@ impl BatchInfo {
         self.chain_id
     }
 
+    #[cfg(test)]
+    fn test_instance(chain_id: u64) -> Self {
+        BatchInfo {
+            chain_id,
+            prev_state_root: B256::ZERO,
+            post_state_root: B256::ZERO,
+            withdraw_root: Some(B256::ZERO),
+            sequencer_root: Some(B256::ZERO),
+            data_hash: B256::ZERO,
+        }
+    }
+
     /// State root before this chunk
     pub fn prev_state_root(&self) -> B256 {
         self.prev_state_root
@@ -124,5 +136,120 @@ impl BatchInfo {
     /// Data hash of this chunk
     pub fn data_hash(&self) -> B256 {
         self.data_hash
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::keccak256;
+
+    // LAYER_2_CHAIN_ID used in Rollup.sol test environment
+    const TEST_CHAIN_ID: u64 = 53077;
+
+    fn make_hash(val: u64) -> B256 {
+        let mut b = [0u8; 32];
+        b[24..].copy_from_slice(&val.to_be_bytes());
+        B256::from(b)
+    }
+
+    /// V2 aggregated hash for a single blob: keccak256(h0) != h0 (not backward-compatible with V1).
+    #[test]
+    fn test_public_input_hash_v2_single_blob_differs_from_v1() {
+        let batch = BatchInfo::test_instance(TEST_CHAIN_ID);
+        let h0 = make_hash(0xBEEF);
+
+        let v1_hash = batch.public_input_hash(&h0);
+        let v2_hash = batch.public_input_hash_v2(&[h0]);
+
+        assert_ne!(v1_hash, v2_hash, "V2 single-blob must differ from V1");
+    }
+
+    /// V2 aggregated hash for two blobs: keccak256(h0 || h1) matches contract formula.
+    #[test]
+    fn test_public_input_hash_v2_two_blobs_matches_contract() {
+        let batch = BatchInfo::test_instance(TEST_CHAIN_ID);
+        let h0 = make_hash(0xAAAA);
+        let h1 = make_hash(0xBBBB);
+
+        // Replicate contract formula: aggregatedBlobHash = keccak256(h0 || h1)
+        let mut concat = [0u8; 64];
+        concat[..32].copy_from_slice(h0.as_slice());
+        concat[32..].copy_from_slice(h1.as_slice());
+        let aggregated = keccak256(&concat);
+
+        // V2 public input uses aggregated as blob input
+        let mut hasher = Keccak256::new();
+        hasher.update(TEST_CHAIN_ID.to_be_bytes());
+        hasher.update(B256::ZERO.as_slice()); // prev_state_root
+        hasher.update(B256::ZERO.as_slice()); // post_state_root
+        hasher.update(B256::ZERO.as_slice()); // withdraw_root
+        hasher.update(B256::ZERO.as_slice()); // sequencer_root
+        hasher.update(B256::ZERO.as_slice()); // data_hash
+        hasher.update(aggregated.as_slice());
+        let expected: B256 = hasher.finalize();
+
+        let result = batch.public_input_hash_v2(&[h0, h1]);
+        assert_eq!(result, expected, "V2 two-blob hash must match contract formula");
+    }
+
+    /// V2 aggregated hash for three blobs: keccak256(h0 || h1 || h2).
+    #[test]
+    fn test_public_input_hash_v2_three_blobs() {
+        let batch = BatchInfo::test_instance(TEST_CHAIN_ID);
+        let h0 = make_hash(0xAAAA);
+        let h1 = make_hash(0xBBBB);
+        let h2 = make_hash(0xCCCC);
+
+        let mut concat = [0u8; 96];
+        concat[..32].copy_from_slice(h0.as_slice());
+        concat[32..64].copy_from_slice(h1.as_slice());
+        concat[64..].copy_from_slice(h2.as_slice());
+        let aggregated = keccak256(&concat);
+
+        let mut hasher = Keccak256::new();
+        hasher.update(TEST_CHAIN_ID.to_be_bytes());
+        hasher.update(B256::ZERO.as_slice());
+        hasher.update(B256::ZERO.as_slice());
+        hasher.update(B256::ZERO.as_slice());
+        hasher.update(B256::ZERO.as_slice());
+        hasher.update(B256::ZERO.as_slice());
+        hasher.update(aggregated.as_slice());
+        let expected: B256 = hasher.finalize();
+
+        let result = batch.public_input_hash_v2(&[h0, h1, h2]);
+        assert_eq!(result, expected, "V2 three-blob hash must match contract formula");
+    }
+
+    /// V2 aggregated hash is order-sensitive: (h0,h1) != (h1,h0).
+    #[test]
+    fn test_public_input_hash_v2_order_sensitive() {
+        let batch = BatchInfo::test_instance(TEST_CHAIN_ID);
+        let h0 = make_hash(0xAAAA);
+        let h1 = make_hash(0xBBBB);
+
+        let fwd = batch.public_input_hash_v2(&[h0, h1]);
+        let rev = batch.public_input_hash_v2(&[h1, h0]);
+        assert_ne!(fwd, rev, "V2 aggregated hash must be order-sensitive");
+    }
+
+    /// V2 and V1 produce the same result only when blob_hashes_hash accidentally equals
+    /// the raw versioned hash — which should never happen in practice.
+    /// This test confirms the structural difference by construction.
+    #[test]
+    fn test_public_input_hash_v2_vs_v1_structural_difference() {
+        let batch = BatchInfo::test_instance(TEST_CHAIN_ID);
+        let h0 = make_hash(0x1234);
+
+        // V1: uses h0 directly as blob input
+        let v1 = batch.public_input_hash(&h0);
+        // V2: uses keccak256(h0) as blob input — structurally different
+        let v2 = batch.public_input_hash_v2(&[h0]);
+        assert_ne!(v1, v2);
+
+        // Confirm: if we manually pass keccak256(h0) into V1, it matches V2
+        let agg = keccak256(h0.as_slice());
+        let v1_with_agg = batch.public_input_hash(&agg);
+        assert_eq!(v1_with_agg, v2, "V2 is equivalent to V1 with pre-aggregated hash");
     }
 }

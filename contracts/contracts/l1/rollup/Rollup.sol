@@ -931,9 +931,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                     i := add(i, 1)
                 }
                 _blobCount := i
-                _blobVersionedHash := keccak256(scratchPtr, mul(i, 32))
             }
             require(_blobCount > 0, "V2 requires at least 1 blob");
+            assembly {
+                let scratchPtr := mload(0x40)
+                _blobVersionedHash := keccak256(scratchPtr, mul(_blobCount, 32))
+            }
         } else {
             _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
         }
