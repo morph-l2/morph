@@ -16,7 +16,6 @@ import (
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	tmnode "github.com/tendermint/tendermint/node"
 	"github.com/tendermint/tendermint/privval"
-	"github.com/tendermint/tendermint/upgrade"
 	"github.com/urfave/cli"
 
 	"morph-l2/bindings/bindings"
@@ -75,11 +74,6 @@ func L2NodeMain(ctx *cli.Context) error {
 	)
 	isMockSequencer := ctx.GlobalBool(flags.MockEnabled.Name)
 	isValidator := ctx.GlobalBool(flags.ValidatorEnable.Name)
-
-	// Apply consensus switch height if explicitly set via flag
-	if ctx.GlobalIsSet(flags.ConsensusSwitchHeight.Name) {
-		upgrade.SetUpgradeBlockHeight(ctx.GlobalInt64(flags.ConsensusSwitchHeight.Name))
-	}
 
 	if err = nodeConfig.SetCliContext(ctx); err != nil {
 		return err
@@ -211,6 +205,9 @@ func L2NodeMain(ctx *cli.Context) error {
 	if tracker != nil {
 		tracker.Stop()
 	}
+	if verifier != nil {
+		verifier.Stop()
+	}
 
 	return nil
 }
@@ -243,18 +240,17 @@ func initL1SequencerComponents(
 	}
 	logger.Info("L1 Tracker started", "lagThreshold", lagThreshold)
 
-	// Initialize Sequencer Verifier (optional)
+	// Initialize Sequencer Verifier
 	var verifier *l1sequencer.SequencerVerifier
 	if contractAddr != (common.Address{}) {
 		caller, err := bindings.NewL1SequencerCaller(contractAddr, l1Client)
 		if err != nil {
-			tracker.Stop()
 			return nil, nil, nil, fmt.Errorf("failed to create L1Sequencer caller: %w", err)
 		}
 		verifier = l1sequencer.NewSequencerVerifier(caller, logger)
 		logger.Info("Sequencer verifier initialized", "contract", contractAddr.Hex())
 	} else {
-		logger.Info("L1 Sequencer contract not configured, verifier disabled")
+		return nil, nil, nil, fmt.Errorf("L1 Sequencer contract address is required, check l1.sequencerContract configuration")
 	}
 
 	// Initialize Signer (optional)
@@ -263,12 +259,10 @@ func initL1SequencerComponents(
 		seqPrivKeyHex = strings.TrimPrefix(seqPrivKeyHex, "0x")
 		privKey, err := crypto.HexToECDSA(seqPrivKeyHex)
 		if err != nil {
-			tracker.Stop()
 			return nil, nil, nil, fmt.Errorf("invalid sequencer private key: %w", err)
 		}
-		signer, err = l1sequencer.NewLocalSigner(privKey, verifier, logger)
+		signer, err = l1sequencer.NewLocalSigner(privKey, logger)
 		if err != nil {
-			tracker.Stop()
 			return nil, nil, nil, err
 		}
 		logger.Info("Sequencer signer initialized", "address", signer.Address().Hex())

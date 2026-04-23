@@ -3,95 +3,206 @@ package l1sequencer
 import (
 	"context"
 	"fmt"
+	"math"
+	"math/big"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
+	"github.com/tendermint/tendermint/upgrade"
 
 	"morph-l2/bindings/bindings"
 )
 
-const (
-	// CacheTTL is the time-to-live for the sequencer verifier cache
-	//CacheTTL = 30 * time.Minute
-	CacheTTL = 10 * time.Second
-)
+const refreshInterval = 5 * time.Minute
 
-// SequencerVerifier verifies L1 sequencer status with caching.
-// It provides IsSequencer() for checking if an address is the current sequencer.
+// sequencerCursor caches the current sequencer interval for O(1) lookup.
+type sequencerCursor struct {
+	from  uint64
+	to    uint64 // exclusive; math.MaxUint64 = no upper bound
+	addr  common.Address
+	valid bool
+}
+
+// SequencerVerifier verifies L1 sequencer status.
+// Implements tendermint SequencerVerifier interface.
+//
+// History is loaded from L1 at construction and refreshed every 5 minutes.
+// All L1 reads use the finalized block tag to avoid ingesting reorged data.
 type SequencerVerifier struct {
-	mutex       sync.Mutex
-	sequencer   common.Address
-	cacheExpiry time.Time
+	mu     sync.Mutex
+	history []bindings.L1SequencerHistoryRecord
+	cursor  sequencerCursor
 
 	caller *bindings.L1SequencerCaller
 	logger tmlog.Logger
+	cancel context.CancelFunc
 }
 
-// NewSequencerVerifier creates a new SequencerVerifier
+// NewSequencerVerifier creates a new SequencerVerifier, loads the full sequencer
+// history from L1 (finalized), and starts a background refresh goroutine.
+// Call Stop to terminate the background loop.
 func NewSequencerVerifier(caller *bindings.L1SequencerCaller, logger tmlog.Logger) *SequencerVerifier {
-	return &SequencerVerifier{
+	ctx, cancel := context.WithCancel(context.Background())
+	v := &SequencerVerifier{
 		caller: caller,
 		logger: logger.With("module", "l1sequencer_verifier"),
+		cancel: cancel,
 	}
+	if err := v.syncHistory(); err != nil {
+		v.logger.Error("Failed to load sequencer history from L1", "err", err)
+	}
+	go v.refreshLoop(ctx)
+	return v
 }
 
-// flushCache refreshes the cache (caller must hold the lock)
-func (c *SequencerVerifier) flushCache(ctx context.Context) error {
-	newSeq, err := c.caller.GetSequencer(&bind.CallOpts{Context: ctx})
+// Stop terminates the background refresh loop.
+func (c *SequencerVerifier) Stop() {
+	c.cancel()
+}
+
+// syncHistory fetches the full sequencer history from L1 (finalized tag) and
+// replaces the local cache if anything changed.
+func (c *SequencerVerifier) syncHistory() error {
+	raw, err := c.caller.GetSequencerHistory(&bind.CallOpts{
+		BlockNumber: big.NewInt(int64(rpc.FinalizedBlockNumber)),
+	})
 	if err != nil {
-		return fmt.Errorf("failed to get sequencer from L1: %w", err)
+		return fmt.Errorf("GetSequencerHistory: %w", err)
 	}
 
-	if c.sequencer != newSeq {
-		c.logger.Info("Sequencer address updated",
-			"old", c.sequencer.Hex(),
-			"new", newSeq.Hex())
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if len(raw) == len(c.history) {
+		return nil // no change
 	}
 
-	c.sequencer = newSeq
-	c.cacheExpiry = time.Now().Add(CacheTTL)
+	prev := len(c.history)
+	c.history = raw
+	// Only invalidate cursor if it was pointing at the last record (to == MaxUint64),
+	// because new records change that interval's upper bound.
+	// Existing records never change, so earlier cursor intervals remain valid.
+	if c.cursor.valid && c.cursor.to == math.MaxUint64 {
+		c.cursor.valid = false
+	}
+
+	// Log new records
+	for i := prev; i < len(c.history); i++ {
+		c.logger.Info("Sequencer record",
+			"startL2Block", c.history[i].StartL2Block,
+			"address", c.history[i].SequencerAddr.Hex())
+	}
+	// Set upgrade height from L1 contract on first successful load
+	if prev == 0 && len(c.history) > 0 {
+		height := int64(c.history[0].StartL2Block)
+		upgrade.SetUpgradeBlockHeight(height)
+		c.logger.Info("Upgrade height set from L1 contract", "height", height)
+	}
+
+	c.logger.Info("Sequencer history synced", "total", len(c.history), "new", len(c.history)-prev)
 	return nil
 }
 
-// IsSequencer checks if the given address is the current sequencer.
-// It uses lazy loading: refreshes cache if expired, and retries on miss.
-func (c *SequencerVerifier) IsSequencer(ctx context.Context, addr common.Address) (bool, error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+// refreshLoop polls L1 until ctx is cancelled.
+// Uses exponential backoff (10s -> 20s -> ... -> 5min) while history is empty,
+// then switches to the normal 5-minute interval once loaded.
+func (c *SequencerVerifier) refreshLoop(ctx context.Context) {
+	const minRetry = 10 * time.Second
 
-	// Cache expired, refresh
-	if time.Now().After(c.cacheExpiry) {
-		if err := c.flushCache(ctx); err != nil {
-			return false, err
+	interval := refreshInterval
+	c.mu.Lock()
+	empty := len(c.history) == 0
+	c.mu.Unlock()
+	if empty {
+		interval = minRetry
+	}
+
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+			if err := c.syncHistory(); err != nil {
+				c.logger.Error("Failed to refresh sequencer history", "err", err)
+			}
+
+			c.mu.Lock()
+			empty = len(c.history) == 0
+			c.mu.Unlock()
+
+			if empty {
+				// Exponential backoff, capped at refreshInterval
+				interval = interval * 2
+				if interval > refreshInterval {
+					interval = refreshInterval
+				}
+			} else {
+				interval = refreshInterval
+			}
+			timer.Reset(interval)
 		}
 	}
-
-	// Cache hit
-	if c.sequencer == addr {
-		return true, nil
-	}
-
-	// Cache miss - maybe sequencer just updated, force refresh once
-	if err := c.flushCache(ctx); err != nil {
-		return false, err
-	}
-
-	return c.sequencer == addr, nil
 }
 
-// GetSequencer returns the cached sequencer address (refreshes if expired)
-func (c *SequencerVerifier) GetSequencer(ctx context.Context) (common.Address, error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+// SequencerAtHeight returns the sequencer address at the given L2 height.
+func (c *SequencerVerifier) SequencerAtHeight(l2Height uint64) (common.Address, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	if time.Now().After(c.cacheExpiry) {
-		if err := c.flushCache(ctx); err != nil {
-			return common.Address{}, err
-		}
+	if len(c.history) == 0 {
+		return common.Address{}, false
 	}
 
-	return c.sequencer, nil
+	if c.cursor.valid && l2Height >= c.cursor.from && l2Height < c.cursor.to {
+		return c.cursor.addr, true
+	}
+
+	idx := sort.Search(len(c.history), func(i int) bool {
+		return c.history[i].StartL2Block > l2Height
+	}) - 1
+	if idx < 0 {
+		return common.Address{}, false
+	}
+
+	c.cursor.from = c.history[idx].StartL2Block
+	if idx+1 < len(c.history) {
+		c.cursor.to = c.history[idx+1].StartL2Block
+	} else {
+		c.cursor.to = math.MaxUint64
+	}
+	c.cursor.addr = c.history[idx].SequencerAddr
+	c.cursor.valid = true
+	return c.cursor.addr, true
+}
+
+// ============================================================================
+// Interface implementation
+// ============================================================================
+
+// IsSequencerAt checks if addr was the sequencer at the given L2 height.
+func (c *SequencerVerifier) IsSequencerAt(addr common.Address, l2Height uint64) (bool, error) {
+	histAddr, found := c.SequencerAtHeight(l2Height)
+	if !found {
+		return false, fmt.Errorf("no sequencer record for height %d", l2Height)
+	}
+	return addr == histAddr, nil
+}
+
+// VerificationStartHeight returns history[0].StartL2Block (= contract activeHeight).
+// Returns math.MaxUint64 if history is empty.
+func (c *SequencerVerifier) VerificationStartHeight() uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.history) == 0 {
+		return math.MaxUint64
+	}
+	return c.history[0].StartL2Block
 }
