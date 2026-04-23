@@ -325,7 +325,6 @@ var (
 		Value:  26660,
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
-
 )
 
 var Flags = []cli.Flag{
