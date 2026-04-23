@@ -79,7 +79,7 @@ func TestBatchHeaderV2(t *testing.T) {
 	aggregated := common.BigToHash(big.NewInt(0xABCDEF))
 
 	// Start from a V1 encoding (identical byte layout), then flip the version
-	// byte to V2. This matches the on-chain behaviour where a V2 header is
+	// byte to V2. This matches the on-chain behavior where a V2 header is
 	// produced by tx-submitter with the aggregated hash stored at offset 57.
 	raw := BatchHeaderV1{
 		BatchHeaderV0: BatchHeaderV0{

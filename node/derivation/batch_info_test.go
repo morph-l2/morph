@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	eth "github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	geth "github.com/morph-l2/go-ethereum/eth"
 	"github.com/stretchr/testify/require"
 
