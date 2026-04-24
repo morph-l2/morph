@@ -31,7 +31,6 @@ type Config struct {
 	L2                            *types.L2Config `json:"l2"`
 	L2CrossDomainMessengerAddress common.Address  `json:"cross_domain_messenger_address"`
 	SequencerAddress              common.Address  `json:"sequencer_address"`
-	GovAddress                    common.Address  `json:"gov_address"`
 	L2StakingAddress              common.Address  `json:"l2staking_address"`
 	MaxL1MessageNumPerBlock       uint64          `json:"max_l1_message_num_per_block"`
 	DevSequencer                  bool            `json:"dev_sequencer"`
@@ -45,7 +44,6 @@ func DefaultConfig() *Config {
 		MaxL1MessageNumPerBlock:       100,
 		L2CrossDomainMessengerAddress: predeploys.L2CrossDomainMessengerAddr,
 		SequencerAddress:              predeploys.SequencerAddr,
-		GovAddress:                    predeploys.GovAddr,
 		L2StakingAddress:              predeploys.L2StakingAddr,
 	}
 }
@@ -141,14 +139,6 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		c.SequencerAddress = addr
 		if len(c.SequencerAddress.Bytes()) == 0 {
 			return errors.New("invalid L2SequencerAddr")
-		}
-	}
-
-	if ctx.GlobalIsSet(flags.GovAddr.Name) {
-		addr := common.HexToAddress(ctx.GlobalString(flags.GovAddr.Name))
-		c.GovAddress = addr
-		if len(c.GovAddress.Bytes()) == 0 {
-			return errors.New("invalid GovAddr")
 		}
 	}
 

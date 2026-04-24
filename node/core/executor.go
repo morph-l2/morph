@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"time"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
@@ -17,7 +16,6 @@ import (
 	"github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/l2node"
 	tmlog "github.com/tendermint/tendermint/libs/log"
-	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/node/sync"
@@ -36,7 +34,6 @@ type Executor struct {
 	newSyncerFunc NewSyncerFunc
 	syncer        *sync.Syncer
 
-	govCaller       *bindings.GovCaller
 	sequencerCaller *bindings.SequencerCaller
 	l2StakingCaller *bindings.L2StakingCaller
 
@@ -44,7 +41,6 @@ type Executor struct {
 	seqTmKeySet    map[[tmKeySize]byte]struct{}
 
 	nextValidators [][]byte
-	batchParams    tmproto.BatchParams
 	tmPubKey       []byte
 	isSequencer    bool
 	devSequencer   bool
@@ -84,10 +80,6 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	if err != nil {
 		return nil, err
 	}
-	gov, err := bindings.NewGovCaller(config.GovAddress, l2Client)
-	if err != nil {
-		return nil, err
-	}
 	l2Staking, err := bindings.NewL2StakingCaller(config.L2StakingAddress, l2Client)
 	if err != nil {
 		return nil, err
@@ -100,7 +92,6 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	executor := &Executor{
 		l2Client:            l2Client,
 		bc:                  &Version1Converter{},
-		govCaller:           gov,
 		sequencerCaller:     sequencer,
 		l2StakingCaller:     l2Staking,
 		tmPubKey:            tmPubKeyBytes,
@@ -248,30 +239,30 @@ func (e *Executor) CheckBlockData(txs [][]byte, metaData []byte) (valid bool, er
 	return validated, err
 }
 
-func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2node.ConsensusData) (nextBatchParams *tmproto.BatchParams, nextValidatorSet [][]byte, err error) {
+func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2node.ConsensusData) (nextValidatorSet [][]byte, err error) {
 	e.logger.Info("DeliverBlock request", "txs length", len(txs),
 		"blockMeta length", len(metaData))
 	height, err := e.l2Client.BlockNumber(context.Background())
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if metaData == nil {
 		e.logger.Error("blockMeta cannot be nil")
-		return nil, nil, errors.New("blockMeta cannot be nil")
+		return nil, errors.New("blockMeta cannot be nil")
 	}
 
 	wrappedBlock := new(types.WrappedBlock)
 	if err = wrappedBlock.UnmarshalBinary(metaData); err != nil {
 		e.logger.Error("failed to UnmarshalBinary meta data bytes", "err", err)
-		return nil, nil, err
+		return nil, err
 	}
 
 	if wrappedBlock.Number <= height {
 		e.logger.Info("block already delivered by geth (via P2P sync)", "block_number", wrappedBlock.Number)
 		if e.devSequencer {
-			return nil, consensusData.ValidatorSet, nil
+			return consensusData.ValidatorSet, nil
 		}
-		return e.getParamsAndValsAtHeight(int64(wrappedBlock.Number))
+		return e.getValidatorsAtHeight(int64(wrappedBlock.Number))
 	}
 
 	// We only accept the continuous blocks for now.
@@ -280,7 +271,7 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 		e.logger.Error("geth is behind",
 			"consensus_block", wrappedBlock.Number,
 			"geth_height", height)
-		return nil, nil, types.ErrWrongBlockNumber
+		return nil, types.ErrWrongBlockNumber
 	}
 
 	l2Block := &catalyst.ExecutableL2Data{
@@ -306,27 +297,21 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 			"error", err,
 			"block_number", l2Block.Number,
 			"block_timestamp", l2Block.Timestamp)
-		return nil, nil, err
+		return nil, err
 	}
 
-	// end block
 	e.updateNextL1MessageIndex(l2Block)
 
-	var newValidatorSet = consensusData.ValidatorSet
-	var newBatchParams *tmproto.BatchParams
+	newValidatorSet := consensusData.ValidatorSet
 	if !e.devSequencer {
 		if newValidatorSet, err = e.updateSequencerSet(l2Block.Number); err != nil {
-			return nil, nil, err
-		}
-		if newBatchParams, err = e.batchParamsUpdates(l2Block.Number); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
 
 	e.metrics.Height.Set(float64(l2Block.Number))
 
-	return newBatchParams, newValidatorSet,
-		nil
+	return newValidatorSet, nil
 }
 
 // EncodeTxs
@@ -357,36 +342,23 @@ func (e *Executor) RequestHeight(tmHeight int64) (int64, error) {
 	return int64(curHeight), nil
 }
 
-func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams, [][]byte, error) {
+func (e *Executor) getValidatorsAtHeight(height int64) ([][]byte, error) {
 	callOpts := &bind.CallOpts{
 		BlockNumber: big.NewInt(height),
 	}
-	batchBlockInterval, err := e.govCaller.BatchBlockInterval(callOpts)
-	if err != nil {
-		return nil, nil, err
-	}
-	batchTimeout, err := e.govCaller.BatchTimeout(callOpts)
-	if err != nil {
-		return nil, nil, err
-	}
-	// fetch current sequencerSet info at certain height
 	addrs, err := e.sequencerCaller.GetSequencerSet2(callOpts)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	stakesInfo, err := e.l2StakingCaller.GetStakesInfo(callOpts, addrs)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	newValidators := make([][]byte, 0, len(addrs))
 	for i := range stakesInfo {
 		newValidators = append(newValidators, stakesInfo[i].TmKey[:])
 	}
-
-	return &tmproto.BatchParams{
-		BlocksInterval: batchBlockInterval.Int64(),
-		Timeout:        time.Duration(batchTimeout.Int64() * int64(time.Second)),
-	}, newValidators, nil
+	return newValidators, nil
 }
 
 func (e *Executor) L2Client() *types.RetryableClient {

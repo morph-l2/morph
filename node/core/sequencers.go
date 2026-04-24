@@ -2,13 +2,10 @@ package node
 
 import (
 	"bytes"
-	"math/big"
 	"slices"
-	"time"
 
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/tendermint/tendermint/crypto/ed25519"
-	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
 )
 
 const tmKeySize = ed25519.PubKeySize
@@ -64,36 +61,6 @@ func (e *Executor) sequencerSetUpdates(height uint64) ([][]byte, error) {
 	e.nextValidators = nextValidators
 	e.currentSeqHash = &seqHash
 	return nextValidators, nil
-}
-
-func (e *Executor) batchParamsUpdates(height uint64) (*tmproto.BatchParams, error) {
-	var (
-		batchBlockInterval, batchTimeout *big.Int
-		err                              error
-	)
-
-	if batchBlockInterval, err = e.govCaller.BatchBlockInterval(nil); err != nil {
-		return nil, err
-	}
-	if batchTimeout, err = e.govCaller.BatchTimeout(nil); err != nil {
-		return nil, err
-	}
-
-	changed := e.batchParams.BlocksInterval != batchBlockInterval.Int64() ||
-		int64(e.batchParams.Timeout.Seconds()) != batchTimeout.Int64()
-
-	if changed {
-		e.batchParams.BlocksInterval = batchBlockInterval.Int64()
-		e.batchParams.Timeout = time.Duration(batchTimeout.Int64() * int64(time.Second))
-		e.logger.Info("batch params changed", "height", height,
-			"batchBlockInterval", batchBlockInterval.Int64(),
-			"batchTimeout", batchTimeout.Int64())
-		return &tmproto.BatchParams{
-			BlocksInterval: batchBlockInterval.Int64(),
-			Timeout:        time.Duration(batchTimeout.Int64() * int64(time.Second)),
-		}, nil
-	}
-	return nil, nil
 }
 
 func (e *Executor) updateSequencerSet(height uint64) ([][]byte, error) {

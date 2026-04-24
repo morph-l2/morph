@@ -1,7 +1,7 @@
 ################## update dependencies ####################
 ETHEREUM_SUBMODULE_COMMIT_OR_TAG := morph-v2.2.2-alpha.2
 ETHEREUM_TARGET_VERSION := morph-v2.2.2-alpha.2
-TENDERMINT_TARGET_VERSION := v0.3.5-alpha.1
+TENDERMINT_TARGET_VERSION := v0.3.5-alpha.2
 
 
 ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum

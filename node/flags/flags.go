@@ -58,12 +58,6 @@ var (
 		EnvVar: prefixEnvVar("L2_SEQUENCER_CONTRACT_ADDRESS"),
 	}
 
-	GovAddr = cli.StringFlag{
-		Name:   "govContractAddr",
-		Usage:  "gov contract address",
-		EnvVar: prefixEnvVar("GOV_CONTRACT_ADDRESS"),
-	}
-
 	L1NodeAddr = cli.StringFlag{
 		Name:   "l1.rpc",
 		Usage:  "Address of L1 User JSON-RPC endpoint to use (eth namespace required)",
@@ -338,7 +332,6 @@ var Flags = []cli.Flag{
 	MaxL1MessageNumPerBlock,
 	L2CrossDomainMessengerContractAddr,
 	L2SequencerAddr,
-	GovAddr,
 
 	// sync optioins
 	SyncDepositContractAddr,
