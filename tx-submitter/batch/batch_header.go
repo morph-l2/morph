@@ -218,4 +218,3 @@ func (b BatchHeaderV1) Bytes() BatchHeaderBytes {
 	b.EncodedBytes = batchBytes
 	return batchBytes
 }
-

@@ -1,10 +1,8 @@
 package derivation
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"math/big"
 
 	"github.com/morph-l2/go-ethereum/common"
@@ -98,8 +96,27 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	bi.withdrawalRoot = batch.WithdrawRoot
 	bi.version = uint64(batch.Version)
 	tq := newTxQueue()
-	var rawBlockContexts hexutil.Bytes
-	var txsData []byte
+
+	// Multi-blob batches (V2+) are produced by zstd-compressing the entire
+	// batch payload as a single stream and then splitting the compressed
+	// bytes across N blobs in submission order. To recover the payload we
+	// must concatenate all blob bodies first and decompress once; per-blob
+	// decompression would fail on the second blob since it is not a
+	// standalone zstd stream.
+	compressed := make([]byte, 0, len(batch.Sidecar.Blobs)*types.MaxBlobBytesSize)
+	for i := range batch.Sidecar.Blobs {
+		blobCopy := batch.Sidecar.Blobs[i]
+		blobData, err := types.RetrieveBlobBytes(&blobCopy)
+		if err != nil {
+			return err
+		}
+		compressed = append(compressed, blobData...)
+	}
+	batchBytes, err := zstd.DecompressBatchBytes(compressed)
+	if err != nil {
+		return fmt.Errorf("decompress batch bytes error:%v", err)
+	}
+
 	var blockCount uint64
 	if batch.Version > 0 {
 		parentVersion, err := parentBatchHeader.Version()
@@ -107,13 +124,11 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 			return fmt.Errorf("decode batch header version error:%v", err)
 		}
 		if parentVersion == 0 {
-			blobData, err := types.RetrieveBlobBytes(&batch.Sidecar.Blobs[0])
-			if err != nil {
-				return err
-			}
-			batchBytes, err := zstd.DecompressBatchBytes(blobData)
-			if err != nil {
-				return fmt.Errorf("decompress batch bytes error:%v", err)
+			// V0 -> V1+ transition: parent header carries no LastBlockNumber,
+			// so derive blockCount from the first block context embedded at
+			// the start of the decompressed batch.
+			if len(batchBytes) < 60 {
+				return fmt.Errorf("decompressed batch too short for start block context: have %d, need 60", len(batchBytes))
 			}
 			var startBlock BlockContext
 			if err := startBlock.Decode(batchBytes[:60]); err != nil {
@@ -127,47 +142,30 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 			}
 			blockCount = batch.LastBlockNumber - parentBatchBlock
 		}
+	}
 
-	}
-	// If BlockContexts is not nil, the block context should not be included in the blob.
-	// Therefore, the required length must be zero.
-	length := blockCount * 60
-	for _, blob := range batch.Sidecar.Blobs {
-		blobCopy := blob
-		blobData, err := types.RetrieveBlobBytes(&blobCopy)
-		if err != nil {
-			return err
-		}
-		batchBytes, err := zstd.DecompressBatchBytes(blobData)
-		if err != nil {
-			return err
-		}
-		reader := bytes.NewReader(batchBytes)
-		if batch.BlockContexts == nil {
-			if len(batchBytes) < int(length) {
-				rawBlockContexts = append(rawBlockContexts, batchBytes...)
-				length -= uint64(len(batchBytes))
-				reader.Reset(nil)
-			} else {
-				bcBytes := make([]byte, length)
-				_, err = reader.Read(bcBytes)
-				if err != nil {
-					return fmt.Errorf("read block context error:%s", err.Error())
-				}
-				rawBlockContexts = append(rawBlockContexts, bcBytes...)
-				length = 0
-			}
-		}
-		data, err := io.ReadAll(reader)
-		if err != nil {
-			return fmt.Errorf("read txBytes error:%s", err.Error())
-		}
-		txsData = append(txsData, data...)
-	}
+	var rawBlockContexts hexutil.Bytes
+	var txsData []byte
 	if batch.BlockContexts != nil {
+		// Block contexts come from calldata; the entire decompressed stream
+		// is tx payload data.
 		blockCount = uint64(binary.BigEndian.Uint16(batch.BlockContexts[:2]))
+		if uint64(len(batch.BlockContexts)) < 2+60*blockCount {
+			return fmt.Errorf("calldata block contexts too short: have %d, need %d", len(batch.BlockContexts), 2+60*blockCount)
+		}
 		rawBlockContexts = batch.BlockContexts[2 : 60*blockCount+2]
+		txsData = batchBytes
+	} else {
+		// Block contexts are at the head of the decompressed stream,
+		// immediately followed by the tx payload bytes.
+		bcLen := blockCount * 60
+		if uint64(len(batchBytes)) < bcLen {
+			return fmt.Errorf("decompressed batch too short for block contexts: have %d, need %d", len(batchBytes), bcLen)
+		}
+		rawBlockContexts = batchBytes[:bcLen]
+		txsData = batchBytes[bcLen:]
 	}
+
 	data, err := types.DecodeTxsFromBytes(txsData)
 	if err != nil {
 		return err
