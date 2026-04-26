@@ -18,13 +18,6 @@ import (
 	"github.com/morph-l2/go-ethereum/log"
 )
 
-const (
-	// MethodCommitBatch is the method name for committing a batch
-	MethodCommitBatch = "commitBatch"
-	// MethodFinalizeBatch is the method name for finalizing a batch
-	MethodFinalizeBatch = "finalizeBatch"
-)
-
 // Journal defines the interface for transaction journaling
 type Journal interface {
 	Init() error
@@ -43,21 +36,16 @@ type PendingTxs struct {
 	pindex    uint64 // pending batch index
 	pfinalize uint64
 
-	commitBatchId   []byte
-	finalizeBatchId []byte
-
 	journal Journal
 }
 
-// NewPendingTxs creates a new PendingTxs instance
-func NewPendingTxs(commitBatchMethodId, finalizeBatchMethodId []byte, journal Journal) *PendingTxs {
-	pt := &PendingTxs{
-		txinfos:         make(map[common.Hash]*types.TxRecord),
-		journal:         journal,
-		commitBatchId:   commitBatchMethodId,
-		finalizeBatchId: finalizeBatchMethodId,
+// NewPendingTxs creates a new PendingTxs instance.
+// Commit-like txs (commitBatch / commitState) are detected via utils.ParseMethod + constants.IsCommitLikeMethod, not stored method IDs.
+func NewPendingTxs(journal Journal) *PendingTxs {
+	return &PendingTxs{
+		txinfos: make(map[common.Hash]*types.TxRecord),
+		journal: journal,
 	}
-	return pt
 }
 
 // Store persists a transaction to the journal
@@ -129,6 +117,13 @@ func (pt *PendingTxs) GetAll() []*types.TxRecord {
 	pt.mu.RLock()
 	defer pt.mu.RUnlock()
 	return pt.getAll()
+}
+
+// Len returns the number of pending transactions (thread-safe).
+func (pt *PendingTxs) Len() int {
+	pt.mu.RLock()
+	defer pt.mu.RUnlock()
+	return len(pt.txinfos)
 }
 
 func (pt *PendingTxs) getAll() []*types.TxRecord {
@@ -217,7 +212,7 @@ func (pt *PendingTxs) GetPFinalize() uint64 {
 
 // ExistedIndex checks if a batch index exists
 func (pt *PendingTxs) ExistedIndex(index uint64) bool {
-	txs := pt.GetAll() // already has RLock
+	txs := pt.GetAll() // snapshot taken under RLock inside GetAll; caller does not hold the mutex
 	abi, err := bindings.RollupMetaData.GetAbi()
 	if err != nil {
 		log.Error("Failed to get ABI", "err", err)
@@ -226,7 +221,7 @@ func (pt *PendingTxs) ExistedIndex(index uint64) bool {
 
 	for i := len(txs) - 1; i >= 0; i-- {
 		tx := txs[i].Tx
-		if utils.ParseMethod(tx, abi) == constants.MethodCommitBatch {
+		if constants.IsCommitLikeMethod(utils.ParseMethod(tx, abi)) {
 			pindex := utils.ParseParentBatchIndex(tx.Data()) + 1
 			if index == pindex {
 				return true
@@ -252,7 +247,7 @@ func (pt *PendingTxs) Recover(txs []*ethtypes.Transaction, abi *abi.ABI) error {
 
 		// Get batch index based on method
 		var batchIndex uint64
-		if method == constants.MethodCommitBatch {
+		if constants.IsCommitLikeMethod(method) {
 			batchIndex = utils.ParseParentBatchIndex(tx.Data()) + 1
 			if batchIndex > maxCommitBatchIndex {
 				maxCommitBatchIndex = batchIndex
@@ -281,17 +276,31 @@ func (pt *PendingTxs) Recover(txs []*ethtypes.Transaction, abi *abi.ABI) error {
 			"type", tx.Type(),
 		)
 
-		if err := pt.Add(tx); err != nil {
-			return fmt.Errorf("failed to add tx during recovery: %w", err)
+		// Add to in-memory map only; do not write to journal yet.
+		// The original journal data is preserved until dump() succeeds below,
+		// so a crash here is safe — the next restart will re-read the original entries.
+		pt.mu.Lock()
+		pt.txinfos[tx.Hash()] = &types.TxRecord{
+			Tx:         tx,
+			SendTime:   uint64(time.Now().Unix()),
+			QueryTimes: 0,
+			Confirmed:  false,
 		}
+		pt.mu.Unlock()
 	}
 
 	pt.SetPindex(maxCommitBatchIndex)
 	pt.SetPFinalize(maxFinalizeBatchIndex)
 	pt.SetNonce(txs[len(txs)-1].Nonce())
 
+	// Rewrite the journal with the deduplicated in-memory set.
+	// This replaces any duplicate entries accumulated by previous buggy restarts.
+	if err := pt.dump(); err != nil {
+		return fmt.Errorf("failed to rewrite journal after recovery: %w", err)
+	}
+
 	log.Info("Recovered from mempool",
-		"tx_count", len(txs),
+		"tx_count", len(pt.txinfos),
 		"max_batch_index", maxCommitBatchIndex,
 		"max_finalize_index", maxFinalizeBatchIndex,
 		"max_nonce", pt.GetNonce(),
