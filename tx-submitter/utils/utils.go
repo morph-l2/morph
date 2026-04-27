@@ -12,13 +12,11 @@ import (
 	"time"
 
 	"morph-l2/bindings/bindings"
-	ntype "morph-l2/node/types"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/core/types"
-	"github.com/morph-l2/go-ethereum/log"
 	"github.com/morph-l2/go-ethereum/rpc"
 )
 
@@ -162,40 +160,6 @@ func ParseMempoolLatestBatchIndex(id []byte, txs []*types.Transaction) uint64 {
 
 	return res + 1
 
-}
-
-func ParseBusinessInfo(tx *types.Transaction, a *abi.ABI) []interface{} {
-	// var method string
-	// var batchIndex uint64
-	// var finalizedIndex uint64
-	var res []interface{}
-	if len(tx.Data()) > 0 {
-		id := tx.Data()[:4]
-		if bytes.Equal(id, a.Methods["commitBatch"].ID) {
-			method := "commitBatch"
-			batchIndex := ParseParentBatchIndex(tx.Data()) + 1
-			res = append(res,
-				"method", method,
-				"batchIndex", batchIndex,
-			)
-		} else if bytes.Equal(id, a.Methods["finalizeBatch"].ID) {
-			method := "finalizeBatch"
-			parms, err := a.Methods["finalizeBatch"].Inputs.Unpack(tx.Data()[4:])
-			if err != nil {
-				log.Error("unpack finalizeBatch error", "err", err)
-			}
-			batchIndex, _ := ntype.BatchHeaderBytes(parms[0].([]byte)).BatchIndex()
-			res = append(res,
-				"method", method,
-				"finalizedIndex", batchIndex,
-			)
-
-		}
-
-	} else {
-		return []interface{}{}
-	}
-	return res
 }
 
 func ParseMethod(tx *types.Transaction, a *abi.ABI) string {
