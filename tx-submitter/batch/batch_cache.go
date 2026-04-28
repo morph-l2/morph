@@ -528,11 +528,20 @@ func (bc *BatchCache) CalculateCapWithProposalBlock(blockNumber uint64, withdraw
 	bc.currentWithdrawRoot = withdrawRoot
 
 	// Check capacity: if compressed size would exceed limit after adding current block
+	effectiveBlobCount := bc.effectiveMaxBlobCount(header.Time)
+	log.Debug("batch capacity check",
+		"proposedBlock", blockNumber,
+		"blockTime", header.Time,
+		"compressedLimitBytes", effectiveBlobCount*MaxBlobBytesSize,
+		"effectiveBlobCount", effectiveBlobCount,
+		"configuredMaxBlobCount", bc.maxBlobCount,
+		"v2Upgraded", bc.isBatchV2Upgraded(header.Time),
+	)
 	var exceeded bool
 	if bc.isBatchUpgraded(header.Time) {
-		exceeded, err = bc.batchData.WillExceedCompressedSizeLimit(blockContext, txsPayload, bc.maxBlobCount)
+		exceeded, err = bc.batchData.WillExceedCompressedSizeLimit(blockContext, txsPayload, effectiveBlobCount)
 	} else {
-		exceeded, err = bc.batchData.EstimateCompressedSizeWithNewPayload(txsPayload, bc.maxBlobCount)
+		exceeded, err = bc.batchData.EstimateCompressedSizeWithNewPayload(txsPayload, effectiveBlobCount)
 	}
 	if err != nil {
 		return false, fmt.Errorf("failed to estimate compressed size: %w", err)
@@ -640,16 +649,25 @@ func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64) (ui
 	// Check if sealed data size reaches expected value
 	// Expected value: compressed payload size close to or reaches total blob capacity
 	// Use 90% as threshold, i.e., if compressed size >= totalCapacity * 0.9, consider it reached expected
-	totalBlobCapacity := bc.maxBlobCount * MaxBlobBytesSize
+	effectiveBlobCount := bc.effectiveMaxBlobCount(blockTimestamp)
+	totalBlobCapacity := effectiveBlobCount * MaxBlobBytesSize
 	threshold := float64(totalBlobCapacity) * 0.9
 	expectedSizeThreshold := uint64(threshold)
 	reachedExpectedSize := uint64(len(compressedPayload)) >= expectedSizeThreshold
 
 	// Generate blob sidecar
-	sidecar, err := MakeBlobTxSidecar(compressedPayload, bc.maxBlobCount)
+	sidecar, err := MakeBlobTxSidecar(compressedPayload, effectiveBlobCount)
 	if err != nil {
 		return 0, BatchHeaderBytes{}, false, fmt.Errorf("failed to create blob sidecar: %w", err)
 	}
+	log.Info("Sealing batch payload stats",
+		"compressedPayloadBytes", len(compressedPayload),
+		"effectiveBlobCount", effectiveBlobCount,
+		"configuredMaxBlobCount", bc.maxBlobCount,
+		"v2Upgraded", bc.isBatchV2Upgraded(blockTimestamp),
+		"sidecarBlobCount", len(sidecar.Blobs),
+		"sidecarCapacityBytes", effectiveBlobCount*MaxBlobBytesSize,
+	)
 
 	// Create batch header
 	batchHeader := bc.createBatchHeader(batchDataHash, sidecar, crypto.Keccak256Hash(sequencerSets), blockTimestamp)
@@ -727,7 +745,7 @@ func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64) (ui
 
 	// Save block count before resetting batch data for logging
 	blockCount := bc.batchData.BlockNum()
-	bc.logSealedBatch(batchHeader, batchHash, blockCount)
+	bc.logSealedBatch(batchHeader, batchHash, blockCount, len(sidecar.Blobs))
 
 	// Reset currently accumulated batch data
 	bc.batchData = NewBatchData()
@@ -750,7 +768,7 @@ func (bc *BatchCache) handleBatchSealing(blockTimestamp uint64) ([]byte, common.
 			return nil, common.Hash{}, fmt.Errorf("failed to compress upgraded payload: %w", err)
 		}
 
-		if len(compressedPayload) <= bc.maxBlobCount*MaxBlobBytesSize {
+		if len(compressedPayload) <= bc.effectiveMaxBlobCount(blockTimestamp)*MaxBlobBytesSize {
 			batchDataHash, err = bc.batchData.DataHashV2()
 			if err != nil {
 				return nil, common.Hash{}, fmt.Errorf("failed to calculate upgraded data hash: %w", err)
@@ -870,6 +888,15 @@ func aggregateBlobHashes(hashes []common.Hash) common.Hash {
 		concat = append(concat, h[:]...)
 	}
 	return crypto.Keccak256Hash(concat)
+}
+
+// effectiveMaxBlobCount returns the allowed blob count for the given block timestamp.
+// V2 multi-blob is only permitted when isBatchV2Upgraded returns true; otherwise cap at 1.
+func (bc *BatchCache) effectiveMaxBlobCount(blockTimestamp uint64) int {
+	if bc.isBatchV2Upgraded(blockTimestamp) {
+		return bc.maxBlobCount
+	}
+	return 1
 }
 
 // buildBlockContext builds BlockContext from block header (60 bytes)
@@ -1111,19 +1138,20 @@ func (bc *BatchCache) Delete(batchIndex uint64) error {
 }
 
 // logSealedBatch logs the details of the sealed batch for debugging purposes.
-func (bc *BatchCache) logSealedBatch(batchHeader BatchHeaderBytes, batchHash common.Hash, blockCount uint16) {
+func (bc *BatchCache) logSealedBatch(batchHeader BatchHeaderBytes, batchHash common.Hash, blockCount uint16, blobCount int) {
 	log.Info("Sealed batch header", "batchHash", batchHash.Hex())
 	batchIndex, _ := batchHeader.BatchIndex()
 	l1MessagePopped, _ := batchHeader.L1MessagePopped()
 	totalL1MessagePopped, _ := batchHeader.TotalL1MessagePopped()
 	dataHash, _ := batchHeader.DataHash()
 	parentBatchHash, _ := batchHeader.ParentBatchHash()
-	log.Info(fmt.Sprintf("===batchIndex: %d \n===L1MessagePopped: %d \n===TotalL1MessagePopped: %d \n===dataHash: %x \n===blockCount: %d \n===ParentBatchHash: %x \n",
+	log.Info(fmt.Sprintf("===batchIndex: %d \n===L1MessagePopped: %d \n===TotalL1MessagePopped: %d \n===dataHash: %x \n===blockCount: %d \n===blobCount: %d \n===ParentBatchHash: %x \n",
 		batchIndex,
 		l1MessagePopped,
 		totalL1MessagePopped,
 		dataHash,
 		blockCount,
+		blobCount,
 		parentBatchHash))
 }
 
