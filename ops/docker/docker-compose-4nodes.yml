@@ -482,7 +482,7 @@ services:
      - TX_SUBMITTER_MIN_BLOCK=50
      - TX_SUBMITTER_FINALIZE=true
      - TX_SUBMITTER_MAX_FINALIZE_NUM=100
-     - TX_SUBMITTER_PRIORITY_ROLLUP=false
+     - TX_SUBMITTER_PRIORITY_ROLLUP=true
      - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
      - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
      - TX_SUBMITTER_METRICS_PORT=6060
@@ -493,9 +493,11 @@ services:
      - TX_SUBMITTER_LOG_COMPRESS=true
      - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
      - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
+     - TX_SUBMITTER_SEAL_BATCH=true
 
   tx-submitter-1:
    container_name: tx-submitter-1
+   profiles: ["multi-submitter"]
    depends_on:
      node-1:
        condition: service_started
@@ -538,6 +540,7 @@ services:
 
   tx-submitter-2:
     container_name: tx-submitter-2
+    profiles: ["multi-submitter"]
     depends_on:
       node-2:
         condition: service_started
@@ -580,6 +583,7 @@ services:
 
   tx-submitter-3:
     container_name: tx-submitter-3
+    profiles: ["multi-submitter"]
     depends_on:
       node-3:
         condition: service_started

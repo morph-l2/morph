@@ -14,14 +14,13 @@ const MAX_BLOB_TX_PAYLOAD_SIZE: usize = 131072; // 131072 = 4096 * 32 = 1024 * 4
 pub struct Blob(pub [u8; MAX_BLOB_TX_PAYLOAD_SIZE]);
 
 impl Blob {
-    pub fn get_origin_batch(&self) -> Result<Vec<u8>, BlobError> {
-        let compressed_data = self.get_compressed_batch()?;
-        decompress_batch(&compressed_data)
-    }
-
-    pub fn get_compressed_batch(&self) -> Result<Vec<u8>, BlobError> {
-        // Decode blob, recovering BLS12-381 scalars.
-        let mut data = vec![0u8; MAX_BLOB_TX_PAYLOAD_SIZE];
+    /// Extract the raw payload segment from a blob by removing the BLS12-381 field encoding,
+    /// without performing zstd decompression.
+    /// Under the new format, the concatenation of multiple blob segments forms the full zstd payload.
+    pub fn get_payload_bytes(&self) -> Result<Vec<u8>, BlobError> {
+        // Decode blob and recover BLS12-381 scalars.
+        // Each field element is 32 bytes, with 31 bytes of usable payload.
+        let mut data = vec![0u8; 4096 * 31];
         for i in 0..4096 {
             if self.0[i * 32] != 0 {
                 return Err(BlobError::InvalidBlob(anyhow!(format!(
@@ -32,12 +31,10 @@ impl Blob {
             }
             data[i * 31..i * 31 + 31].copy_from_slice(&self.0[i * 32 + 1..i * 32 + 32]);
         }
-
-        // detect_zstd_compressed
-        Ok(Self::detect_zstd_compressed(data)?)
+        Ok(data)
     }
 
-    fn detect_zstd_compressed(decoded_blob: Vec<u8>) -> Result<Vec<u8>, BlobError> {
+    pub fn detect_zstd_compressed(decoded_blob: Vec<u8>) -> Result<Vec<u8>, BlobError> {
         // The format of zstd_compression is shown in the following link:
         // https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_header
         let fcs_field_size = match parse_frame_header_descriptor(&decoded_blob) {
@@ -200,10 +197,10 @@ mod tests {
         let blob_bytes = load_zstd_blob();
         let blob = Blob(blob_bytes);
 
-        let result = blob.get_compressed_batch();
-        assert!(result.is_ok(), "{}", result.err().unwrap());
-
-        let compressed_batch: Vec<u8> = result.unwrap();
+        // Under the new format, a single blob still uses the multi-blob decoding path
+        // (get_payload_bytes -> detect_zstd_compressed -> decompress_batch).
+        let payload = blob.get_payload_bytes().expect("get_payload_bytes failed");
+        let compressed_batch = Blob::detect_zstd_compressed(payload).expect("detect_zstd_compressed failed");
         assert_eq!(compressed_batch.len(), 60576);
 
         let origin_batch = super::decompress_batch(&compressed_batch).unwrap();
@@ -239,25 +236,18 @@ mod tests {
             encoded_bytes
         };
 
-        let origin_batch = decompress_batch(&encoded_bytes).unwrap();
-        println!(
-            "=======origin_batch_len: {:?}, batch_data_bytes_len: {:?}",
-            origin_batch.len(),
-            batch_data_bytes.len()
-        );
-
-        // Encode to blob
+        // Encode to blob under the new format: encode compressed bytes into BLS12-381
+        // field elements in 31-byte groups.
         let mut blob_data = [0u8; MAX_BLOB_TX_PAYLOAD_SIZE];
         for (i, &byte) in encoded_bytes.iter().enumerate() {
             blob_data[1 + (i % 31) + 32 * (i / 31)] = byte;
         }
         let blob = Blob(blob_data);
 
-        // Test compressed_batch from blob
-        let result = blob.get_compressed_batch();
-        assert!(result.is_ok(), "{}", result.err().unwrap());
-
-        let compressed_batch: Vec<u8> = result.unwrap();
+        // Under the new format, a single blob still uses the multi-blob decoding path
+        // (get_payload_bytes -> detect_zstd_compressed -> decompress_batch).
+        let payload = blob.get_payload_bytes().expect("get_payload_bytes failed");
+        let compressed_batch = Blob::detect_zstd_compressed(payload).expect("detect_zstd_compressed failed");
         println!("encoded_bytes_len: {:?}", encoded_bytes.len());
         assert_eq!(compressed_batch.len(), encoded_bytes.len());
         assert_eq!(compressed_batch, encoded_bytes);

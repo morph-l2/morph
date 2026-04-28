@@ -331,6 +331,22 @@ var (
 		Usage:  "Enable seal batch",
 		EnvVar: prefixEnvVar("SEAL_BATCH"),
 	}
+
+	// max blob count per batch
+	MaxBlobCountFlag = cli.IntFlag{
+		Name:   "max_blob_count",
+		Usage:  "Maximum number of blobs per batch submission (1-6)",
+		Value:  6,
+		EnvVar: prefixEnvVar("MAX_BLOB_COUNT"),
+	}
+
+	// batch v2 upgrade time
+	BatchV2UpgradeTimeFlag = cli.Uint64Flag{
+		Name:   "batch_v2_upgrade_time",
+		Usage:  "Unix timestamp at which V2 multi-blob batch format is activated (0 = disabled)",
+		Value:  0,
+		EnvVar: prefixEnvVar("BATCH_V2_UPGRADE_TIME"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -391,6 +407,8 @@ var optionalFlags = []cli.Flag{
 	BlockNotIncreasedThreshold,
 
 	SealBatch,
+	MaxBlobCountFlag,
+	BatchV2UpgradeTimeFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

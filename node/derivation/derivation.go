@@ -338,49 +338,47 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 			return nil, fmt.Errorf("failed to get blobs, continuing processing:%v", err)
 		}
 		if len(blobSidecars) > 0 {
-			// Create blob sidecar
-			var blobTxSidecar eth.BlobTxSidecar
-			matchedCount := 0
-
-			// Match blobs
+			// Index beacon sidecars by their KZG-derived versioned hash so we
+			// can assemble the local sidecar in the exact order the L1 tx
+			// declared its blobs. Multi-blob batches are decoded by
+			// concatenating blob bodies in tx order; any reordering here
+			// would corrupt the resulting zstd stream.
+			byHash := make(map[common.Hash]*BlobSidecar, len(blobSidecars))
 			for _, sidecar := range blobSidecars {
 				var commitment kzg4844.Commitment
 				copy(commitment[:], sidecar.KZGCommitment[:])
 				versionedHash := KZGToVersionedHash(commitment)
+				byHash[versionedHash] = sidecar
+			}
 
-				for _, expectedHash := range blobHashes {
-					if bytes.Equal(versionedHash[:], expectedHash[:]) {
-						matchedCount++
-						d.logger.Info("Found matching blob", "index", sidecar.Index, "hash", versionedHash.Hex())
-
-						// Decode and process blob data
-						var blob Blob
-						b, err := hexutil.Decode(sidecar.Blob)
-						if err != nil {
-							d.logger.Error("Failed to decode blob data", "error", err)
-							continue
-						}
-						copy(blob[:], b)
-
-						// Verify blob
-						//if err := VerifyBlobProof(&blob, commitment, kzg4844.Proof(sidecar.KZGProof)); err != nil {
-						//	d.logger.Error("Blob verification failed", "error", err)
-						//	continue
-						//}
-
-						// Add to sidecar
-						blobTxSidecar.Blobs = append(blobTxSidecar.Blobs, *blob.KZGBlob())
-						blobTxSidecar.Commitments = append(blobTxSidecar.Commitments, commitment)
-						blobTxSidecar.Proofs = append(blobTxSidecar.Proofs, kzg4844.Proof(sidecar.KZGProof))
-						break
-					}
+			var blobTxSidecar eth.BlobTxSidecar
+			for i, expectedHash := range blobHashes {
+				sidecar, ok := byHash[expectedHash]
+				if !ok {
+					return nil, fmt.Errorf("blob %d (hash=%s) not found in beacon sidecars", i, expectedHash.Hex())
 				}
+				var commitment kzg4844.Commitment
+				copy(commitment[:], sidecar.KZGCommitment[:])
+
+				var blob Blob
+				b, err := hexutil.Decode(sidecar.Blob)
+				if err != nil {
+					return nil, fmt.Errorf("failed to decode blob %d: %w", i, err)
+				}
+				copy(blob[:], b)
+
+				proof := kzg4844.Proof(sidecar.KZGProof)
+				if err := VerifyBlobProof(&blob, commitment, proof); err != nil {
+					return nil, fmt.Errorf("blob %d KZG proof verification failed: %w", i, err)
+				}
+
+				d.logger.Info("Matched blob", "txOrder", i, "beaconIndex", sidecar.Index, "hash", expectedHash.Hex())
+				blobTxSidecar.Blobs = append(blobTxSidecar.Blobs, *blob.KZGBlob())
+				blobTxSidecar.Commitments = append(blobTxSidecar.Commitments, commitment)
+				blobTxSidecar.Proofs = append(blobTxSidecar.Proofs, proof)
 			}
 
-			d.logger.Info("Blob matching results", "matched", matchedCount, "expected", len(blobHashes))
-			if matchedCount == 0 {
-				return nil, fmt.Errorf("no matching versionedHash was found")
-			}
+			d.logger.Info("Blob matching results", "matched", len(blobTxSidecar.Blobs), "expected", len(blobHashes))
 			batch.Sidecar = blobTxSidecar
 		} else {
 			return nil, fmt.Errorf("not matched blob,txHash:%v,blockNumber:%v", txHash, blockNumber)

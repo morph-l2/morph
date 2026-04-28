@@ -19,6 +19,7 @@ const (
 
 	BatchHeaderVersion0 = 0
 	BatchHeaderVersion1 = 1
+	BatchHeaderVersion2 = 2
 )
 
 var (
@@ -39,6 +40,10 @@ func (b BatchHeaderBytes) validate() error {
 			return ErrInvalidBatchHeaderLength
 		}
 	case BatchHeaderVersion1:
+		if len(b) != expectedLengthV1 {
+			return ErrInvalidBatchHeaderLength
+		}
+	case BatchHeaderVersion2:
 		if len(b) != expectedLengthV1 {
 			return ErrInvalidBatchHeaderLength
 		}

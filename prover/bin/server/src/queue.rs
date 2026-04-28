@@ -7,6 +7,7 @@ use std::{
 };
 
 use crate::{PROVER_L2_RPC, PROVER_PROOF_DIR, PROVER_USE_RPC_DB, PROVE_RESULT, PROVE_TIME};
+use alloy_primitives::Keccak256;
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use morph_prove::{evm::EvmProofFixture, execute::execute_batch, BatchProver, DefaultClient};
 use prover_executor_client::{types::input::ExecutorInput, BlobVerifier, EVMVerifier};
@@ -23,6 +24,8 @@ pub struct ProveRequest {
     pub end_block: u64,
     pub rpc: String,
     pub shadow: Option<bool>,
+    #[serde(default)]
+    pub batch_version: u8,
 }
 
 /// The prover that processes prove requests from a queue.
@@ -50,7 +53,7 @@ impl Prover {
             tokio::time::sleep(Duration::from_millis(12000)).await;
 
             // Step1. Get request from queue
-            let (batch_index, start_block, end_block, shadow) = match self
+            let (batch_index, start_block, end_block, shadow, batch_version) = match self
                 .prove_queue
                 .lock()
                 .await
@@ -58,17 +61,19 @@ impl Prover {
             {
                 Some(req) => {
                     log::info!(
-                        "received prove request, batch index = {:#?}, blocks len = {:#?}, start_block = {:#?}, shadow = {:#?}",
+                        "received prove request, batch index = {:#?}, blocks len = {:#?}, start_block = {:#?}, shadow = {:#?}, batch_version = {}",
                         req.batch_index,
                         req.end_block - req.start_block + 1,
                         req.start_block,
                         req.shadow,
+                        req.batch_version,
                     );
                     (
                         req.batch_index,
                         req.start_block,
                         req.end_block,
                         req.shadow.unwrap_or_default(),
+                        req.batch_version,
                     )
                 }
                 None => {
@@ -78,19 +83,26 @@ impl Prover {
             };
 
             // Step2. Generate ExecutorInput
-            let mut input =
-                match gen_client_input(batch_index, start_block, end_block, &self.provider).await {
-                    Ok(input) => input,
-                    Err(e) => {
-                        log::error!(
-                            "Generate ExecutorInput error for batch-{:?}, error: {:?}",
-                            batch_index,
-                            e
-                        );
-                        PROVE_RESULT.set(2);
-                        continue;
-                    }
-                };
+            let mut input = match gen_client_input(
+                batch_index,
+                start_block,
+                end_block,
+                &self.provider,
+                batch_version,
+            )
+            .await
+            {
+                Ok(input) => input,
+                Err(e) => {
+                    log::error!(
+                        "Generate ExecutorInput error for batch-{:?}, error: {:?}",
+                        batch_index,
+                        e
+                    );
+                    PROVE_RESULT.set(2);
+                    continue;
+                }
+            };
 
             // Step3. Generate evm proof
             log::info!("Generate evm proof");
@@ -123,10 +135,18 @@ async fn gen_client_input(
     start_block: u64,
     end_block: u64,
     provider: &DynProvider,
+    batch_version: u8,
 ) -> Result<ExecutorInput, anyhow::Error> {
     // Step1. Get ExecutorInput
-    let executor_input =
-        execute_batch(batch_index, start_block, end_block, provider, *PROVER_USE_RPC_DB).await?;
+    let executor_input = execute_batch(
+        batch_index,
+        start_block,
+        end_block,
+        provider,
+        *PROVER_USE_RPC_DB,
+        batch_version,
+    )
+    .await?;
     let proof_dir =
         PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{batch_index}"));
     std::fs::create_dir_all(&proof_dir).expect("failed to create proof path");
@@ -136,15 +156,24 @@ async fn gen_client_input(
 
     // Step3. Save batch header or error info.
     if let Ok(batch_info) = verify_result {
-        let (versioned_hash, _) = BlobVerifier::verify(&executor_input.blob_info)?;
-        // Save batch_header
-        // | batch_data_hash | versioned_hash | sequencer_root |
-        // |-----------------|----------------|----------------|
-        // |     bytes32     |     bytes32    |     bytes32    |
+        let (versioned_hashes, _) = BlobVerifier::verify_blobs(&executor_input.blob_infos)?;
+        // Compute the blob input for the batch header:
+        // V2: blobHashesHash = keccak256(hash[0] || ... || hash[N-1])
+        // V0/V1: just the single versioned hash
+        let blob_input = if batch_version >= 2 {
+            let mut blob_hasher = Keccak256::new();
+            for h in &versioned_hashes {
+                blob_hasher.update(h.as_slice());
+            }
+            blob_hasher.finalize()
+        } else {
+            versioned_hashes[0]
+        };
+        // Save batch_header_ex (uniform for all versions):
+        // | data_hash(32) | blob_input(32) | seqSetVerifyHash(32) | (96 bytes)
         let mut batch_header: Vec<u8> = Vec::with_capacity(96);
         batch_header.extend_from_slice(&batch_info.data_hash().0);
-        batch_header.extend_from_slice(&versioned_hash.0);
-        batch_header.extend_from_slice(&batch_info.sequencer_root().0);
+        batch_header.extend_from_slice(&blob_input.0);
         batch_header.extend_from_slice(&batch_info.sequencer_root().0);
         let mut batch_file = File::create(proof_dir.join("batch_header.data"))?;
         batch_file.write_all(&batch_header[..]).expect("failed to batch_header");

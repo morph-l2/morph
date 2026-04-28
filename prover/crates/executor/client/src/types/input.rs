@@ -69,7 +69,9 @@ impl BlockInput {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutorInput {
     pub block_inputs: Vec<BlockInput>,
-    pub blob_info: BlobInfo,
+    pub blob_infos: Vec<BlobInfo>,
+    #[serde(default)]
+    pub batch_version: u8,
 }
 
 #[cfg(test)]

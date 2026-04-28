@@ -413,7 +413,7 @@ struct BatchInfo {
     l1_message_popped: u64,
     total_l1_message_popped: u64,
     data_hash: [u8; 32],
-    blob_versioned_hash: [u8; 32],
+    blob_hashes: Vec<[u8; 32]>,
     prev_state_root: [u8; 32],
     post_state_root: [u8; 32],
     withdrawal_root: [u8; 32],
@@ -490,8 +490,11 @@ impl BatchInfo {
         log::debug!("batch_header_ex len: {:#?}", batch_header_ex.len());
 
         self.data_hash = batch_header_ex.get(0..32).unwrap_or_default().try_into().unwrap_or_default();
-        self.blob_versioned_hash = batch_header_ex.get(32..64).unwrap_or_default().try_into().unwrap_or_default();
         self.sequencer_set_verify_hash = batch_header_ex.get(64..96).unwrap_or_default().try_into().unwrap_or_default();
+
+        // All versions: single hash at [32..64] (aggregated for V2, versioned for V0/V1)
+        let hash: [u8; 32] = batch_header_ex.get(32..64).unwrap_or_default().try_into().unwrap_or_default();
+        self.blob_hashes = vec![hash];
         self
     }
 
@@ -502,7 +505,8 @@ impl BatchInfo {
         batch_header.extend_from_slice(&self.l1_message_popped.to_be_bytes());
         batch_header.extend_from_slice(&self.total_l1_message_popped.to_be_bytes());
         batch_header.extend_from_slice(&self.data_hash);
-        batch_header.extend_from_slice(&self.blob_versioned_hash);
+        // blob hash at offset 57 (same position for all versions; aggregated for V2)
+        batch_header.extend_from_slice(self.blob_hashes.first().unwrap_or(&[0u8; 32]));
         batch_header.extend_from_slice(&self.prev_state_root);
         batch_header.extend_from_slice(&self.post_state_root);
         batch_header.extend_from_slice(&self.withdrawal_root);
