@@ -515,8 +515,12 @@ func (d *Derivation) parseBatch(batch geth.RPCRollupBatch, l2Height uint64) (*Ba
 func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1MessagePopped, l2Height uint64) error {
 	totalL1MessagePopped := parentTotalL1MessagePopped
 	for bIndex, block := range rollupData.blockContexts {
-		// This may happen to nodes started from snapshot, in which case we will no longer handle L1Msg
+		// Nodes started from a snapshot may have already executed earlier blocks in
+		// this batch. We skip injecting L1 messages for those blocks, but the L1
+		// message cursor must still advance so that subsequent blocks in the same
+		// batch read their L1 messages from the correct offset.
 		if block.Number <= l2Height {
+			totalL1MessagePopped += uint64(block.l1MsgNum)
 			continue
 		}
 		var l1Transactions []*eth.Transaction
@@ -525,7 +529,7 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1Message
 			return fmt.Errorf("get l1 message error:%v", err)
 		}
 		if len(l1Messages) != int(block.l1MsgNum) {
-			return fmt.Errorf("invalid l1 msg num,expect %v,have %v", block.l1MsgNum, l1Messages)
+			return fmt.Errorf("invalid l1 msg num,expect %v,have %v", block.l1MsgNum, len(l1Messages))
 		}
 		totalL1MessagePopped += uint64(block.l1MsgNum)
 		if len(l1Messages) > 0 {
