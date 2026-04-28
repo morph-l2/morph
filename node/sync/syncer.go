@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/morph-l2/go-ethereum/common"
@@ -26,6 +27,7 @@ type Syncer struct {
 	logProgressInterval time.Duration
 	stop                chan struct{}
 	isFake              bool
+	started             atomic.Bool
 }
 
 func NewSyncer(ctx context.Context, db Database, config *Config, logger tmlog.Logger) (*Syncer, error) {
@@ -76,6 +78,10 @@ func NewSyncer(ctx context.Context, db Database, config *Config, logger tmlog.Lo
 }
 
 func (s *Syncer) Start() {
+	if !s.started.CompareAndSwap(false, true) {
+		s.logger.Info("syncer already started, skipping duplicate Start()")
+		return
+	}
 	if s.isFake {
 		return
 	}

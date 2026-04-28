@@ -155,6 +155,21 @@ func L2NodeMain(ctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
+
+		// Eagerly start the L1 message syncer for post-upgrade sequencer nodes that
+		// are NOT in the PBFT validator set (separated-deployment / HA cluster).
+		// In the combined-deployment case, updateSequencerSet already started the
+		// syncer inside NewExecutor, so SetSyncer is a no-op there.
+		if signer != nil && executor.Syncer() == nil {
+			l1Syncer, err := node.NewSyncer(ctx, home, nodeConfig)
+			if err != nil {
+				return fmt.Errorf("failed to init L1 syncer for post-upgrade sequencer: %w", err)
+			}
+			executor.SetSyncer(l1Syncer)
+			l1Syncer.Start()
+			nodeConfig.Logger.Info("L1 syncer start", "reason", "post-upgrade sequencer not in PBFT validator set")
+		}
+
 		haService, err = initHAService(ctx, home, nodeConfig.Logger)
 		if err != nil {
 			return err

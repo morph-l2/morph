@@ -483,6 +483,28 @@ func (e *Executor) L2Client() *types.RetryableClient {
 	return e.l2Client
 }
 
+// Syncer returns the current L1 message syncer instance, or nil if not yet
+// initialized. Callers can use this to detect whether the syncer has already
+// been set up (e.g. by updateSequencerSet in the PBFT-validator path) and
+// avoid creating a duplicate.
+func (e *Executor) Syncer() *sync.Syncer {
+	return e.syncer
+}
+
+// SetSyncer installs a pre-built syncer on the executor and wires it in as the
+// l1MsgReader. This is intended for the V2/HA separated-deployment case, where
+// a node holds a sequencer signer but is not a PBFT validator, so the normal
+// lazy-init path in updateSequencerSet never fires.
+//
+// The call is idempotent: if a syncer is already set, it is left untouched.
+func (e *Executor) SetSyncer(s *sync.Syncer) {
+	if e.syncer != nil {
+		return
+	}
+	e.syncer = s
+	e.l1MsgReader = s
+}
+
 // ============================================================================
 // L2NodeV2 interface implementation for sequencer mode
 // ============================================================================
