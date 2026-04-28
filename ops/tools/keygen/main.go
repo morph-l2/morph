@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/morph-l2/go-ethereum/crypto"
-	"github.com/morph-l2/go-ethereum/crypto/bls12381"
-	"github.com/tendermint/tendermint/blssignatures"
 	"github.com/tendermint/tendermint/crypto/ed25519"
 	tmjson "github.com/tendermint/tendermint/libs/json"
 	"github.com/tendermint/tendermint/p2p"
@@ -35,21 +33,6 @@ func main() {
 	}
 	fmt.Printf("%v \n", string(nodeKeyJsBz))
 	fmt.Printf("nodeID: %v \n", nodeKey.ID())
-
-	fmt.Println()
-	fmt.Printf("--------------------------generating content for bls_key.json--------------------------\n")
-	fileBlsKey := blssignatures.GenFileBLSKey()
-	bkJsBz, err := tmjson.MarshalIndent(fileBlsKey, "", "  ")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("%v \n", string(bkJsBz))
-	blsPublicKey, err := blssignatures.PublicKeyFromBytes(fileBlsKey.PubKey, true)
-	if err != nil {
-		panic(err)
-	}
-	encodedPoint := bls12381.NewG2().EncodePoint(blsPublicKey.Key)
-	fmt.Printf("converted bls encoded key: 0x%x \n", encodedPoint)
 
 	fmt.Println()
 	fmt.Printf("--------------------------generating a new ETH account--------------------------\n")

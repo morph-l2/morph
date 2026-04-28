@@ -104,12 +104,9 @@ def setup_devnet_nodes():
             print(f"Error: Missing source or destination directory for {node}. Exiting.")
             sys.exit(1)
 
-        # Copy specific files
         shutil.copyfile(os.path.join(source_dir, "node_key.json"), os.path.join(dest_dir, "node_key.json"))
 
-        # Skip copying for node4 bls_key.json and priv_validator_key.json
         if node != "node4":
-            shutil.copyfile(os.path.join(source_dir, "bls_key.json"), os.path.join(dest_dir, "bls_key.json"))
             shutil.copyfile(os.path.join(source_dir, "priv_validator_key.json"), os.path.join(dest_dir, "priv_validator_key.json"))
 
         # Copy and rename genesis file
