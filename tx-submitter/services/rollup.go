@@ -26,7 +26,7 @@ import (
 	"github.com/morph-l2/go-ethereum/rpc"
 
 	"morph-l2/bindings/bindings"
-	"morph-l2/tx-submitter/batch"
+	"morph-l2/common/batch"
 	"morph-l2/tx-submitter/constants"
 	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/event"
@@ -943,7 +943,7 @@ func (r *Rollup) finalize() error {
 		return fmt.Errorf("get gas tip and cap error:%v", err)
 	}
 
-	gas, err := r.EstimateGas(r.WalletAddr(), r.rollupAddr, calldata, feecap, tip)
+	gas, err := r.EstimateGas(r.WalletAddr(), r.rollupAddr, calldata, feecap, tip, nil, nil)
 	if err != nil {
 		log.Warn("estimate finalize tx gas error",
 			"error", err,
@@ -1173,8 +1173,16 @@ func (r *Rollup) rollup() error {
 	if err != nil {
 		return fmt.Errorf("pack calldata error:%v", err)
 	}
-	// Estimate gas for transaction
-	gas, err := r.EstimateGas(r.WalletAddr(), r.rollupAddr, calldata, gasFeeCap, tip)
+	// Estimate gas for transaction.
+	// For blob batches (e.g. V2), include BlobHashes/BlobGasFeeCap so `blobhash(i)`
+	// is available during eth_estimateGas simulation.
+	var estimateBlobHashes []common.Hash
+	var estimateBlobFeeCap *big.Int
+	if len(rpcRollupBatch.Sidecar.Blobs) > 0 {
+		estimateBlobHashes = types.BlobHashes(rpcRollupBatch.Sidecar.Blobs, rpcRollupBatch.Sidecar.Commitments)
+		estimateBlobFeeCap = blobFee
+	}
+	gas, err := r.EstimateGas(r.WalletAddr(), r.rollupAddr, calldata, gasFeeCap, tip, estimateBlobHashes, estimateBlobFeeCap)
 	if err != nil {
 		log.Warn("Estimate gas failed", "batch_index", batchIndex, "error", err)
 		// Use estimation based on L1 message count
@@ -1787,7 +1795,14 @@ func (r *Rollup) IsStaker() (bool, error) {
 	return isStaker, nil
 }
 
-func (r *Rollup) EstimateGas(from, to common.Address, data []byte, feecap *big.Int, tip *big.Int) (uint64, error) {
+func (r *Rollup) EstimateGas(
+	from, to common.Address,
+	data []byte,
+	feecap *big.Int,
+	tip *big.Int,
+	blobHashes []common.Hash,
+	blobGasFeeCap *big.Int,
+) (uint64, error) {
 
 	gas, err := r.L1Client.EstimateGas(context.Background(), ethereum.CallMsg{
 		From:      from,
@@ -1795,6 +1810,8 @@ func (r *Rollup) EstimateGas(from, to common.Address, data []byte, feecap *big.I
 		GasFeeCap: feecap,
 		GasTipCap: tip,
 		Data:      data,
+		BlobHashes: blobHashes,
+		BlobGasFeeCap: blobGasFeeCap,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("call estimate gas error:%v", err)

@@ -3,7 +3,6 @@ package batch
 import (
 	"context"
 	"fmt"
-	"morph-l2/tx-submitter/utils"
 	"os"
 	"os/signal"
 	"sync"
@@ -12,6 +11,7 @@ import (
 
 	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/iface"
+	"morph-l2/tx-submitter/utils"
 
 	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/log"

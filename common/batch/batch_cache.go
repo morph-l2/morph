@@ -1139,17 +1139,24 @@ func (bc *BatchCache) Delete(batchIndex uint64) error {
 
 // logSealedBatch logs the details of the sealed batch for debugging purposes.
 func (bc *BatchCache) logSealedBatch(batchHeader BatchHeaderBytes, batchHash common.Hash, blockCount uint16, blobCount int) {
-	log.Info("Sealed batch header", "batchHash", batchHash.Hex())
+	version, err := batchHeader.Version()
+	if err != nil {
+		version = 0
+	}
+	blobVersionedHash, _ := batchHeader.BlobVersionedHash()
+	log.Info("Sealed batch header", "batchHash", batchHash.Hex(), "version", version, "blobVersionedHash", blobVersionedHash.Hex())
 	batchIndex, _ := batchHeader.BatchIndex()
 	l1MessagePopped, _ := batchHeader.L1MessagePopped()
 	totalL1MessagePopped, _ := batchHeader.TotalL1MessagePopped()
 	dataHash, _ := batchHeader.DataHash()
 	parentBatchHash, _ := batchHeader.ParentBatchHash()
-	log.Info(fmt.Sprintf("===batchIndex: %d \n===L1MessagePopped: %d \n===TotalL1MessagePopped: %d \n===dataHash: %x \n===blockCount: %d \n===blobCount: %d \n===ParentBatchHash: %x \n",
+	log.Info(fmt.Sprintf("===version: %d \n===batchIndex: %d \n===L1MessagePopped: %d \n===TotalL1MessagePopped: %d \n===dataHash: %x \n===BlobVersionedHash: %x \n===blockCount: %d \n===blobCount: %d \n===ParentBatchHash: %x \n",
+		version,
 		batchIndex,
 		l1MessagePopped,
 		totalL1MessagePopped,
 		dataHash,
+		blobVersionedHash,
 		blockCount,
 		blobCount,
 		parentBatchHash))
