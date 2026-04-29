@@ -57,10 +57,16 @@ export const ContractInit = async (
         // submitter and challenger
         const submitter: string = config.rollupProposer
         const challenger: string = config.rollupChallenger
+        const rollupDelayPeriod: number = config.rollupDelayPeriod
+
         if (!ethers.utils.isAddress(submitter)
             || !ethers.utils.isAddress(challenger)
         ) {
             console.error('please check your address')
+            return ''
+        }
+        if (rollupDelayPeriod==0){
+            console.error('rollupDelayPeriod cannot set zero')
             return ''
         }
         let res = await Rollup.importGenesisBatch(batchHeader)
@@ -69,6 +75,14 @@ export const ContractInit = async (
         res = await Rollup.addChallenger(challenger)
         rec = await res.wait()
         console.log(`addChallenger(%s) ${rec.status == 1 ? "success" : "failed"}`, challenger)
+
+        res =await Rollup.initialize2("0x0000000000000000000000000000000000000000000000000000000000000001")
+        rec = await res.wait()
+        console.log(`initialize2(%s) ${rec.status == 1 ? "success" : "failed"}`)
+
+        res = await Rollup.initialize3(rollupDelayPeriod)
+        rec = await res.wait()
+        console.log(`initialize3(%s) ${rec.status == 1 ? "success" : "failed"}`)
     }
 
     // ------------------ staking init -----------------

@@ -4,7 +4,7 @@ use alloy_consensus::{SignableTransaction, TxEip1559, TxEip2930, TxEip7702, TxLe
 use alloy_eips::eip2930::AccessList;
 use alloy_eips::Encodable2718;
 use alloy_primitives::{Bytes, ChainId, Signature, SignatureError, TxKind};
-use morph_primitives::{TxL1Msg, TxMorph};
+use morph_primitives::TxL1Msg;
 use std::fmt::Debug;
 
 /// Predeployed contracts
@@ -17,7 +17,7 @@ pub use alloy_consensus::Transaction;
 pub use alloy_eips::eip7702::SignedAuthorization;
 pub use alloy_primitives;
 pub use alloy_primitives::{Address, B256, U256};
-pub use morph_primitives::MorphTxEnvelope;
+pub use morph_primitives::{MorphTxEnvelope, TxMorph};
 
 /// Blanket trait for block trace extensions.
 pub trait Block: Debug {
@@ -162,6 +162,15 @@ pub trait TxTrace {
     /// Get `sig_v`.
     fn sig_v(&self) -> u64;
 
+    /// Get morph tx `version`.
+    fn morph_tx_version(&self) -> u8;
+
+    /// Get morph tx `reference`.
+    fn morph_tx_reference(&self) -> Option<B256>;
+
+    /// Get morph tx `memo`.
+    fn morph_tx_memo(&self) -> Option<Bytes>;
+
     /// Try to build a envelope tx
     fn try_build_tx_envelope(&self) -> Result<MorphTxEnvelope, SignatureError> {
         let chain_id = self.chain_id();
@@ -255,6 +264,9 @@ pub trait TxTrace {
                     input: self.data(),
                     fee_token_id: self.fee_token_id(),
                     fee_limit: self.fee_limit(),
+                    version: self.morph_tx_version(),
+                    reference: self.morph_tx_reference(),
+                    memo: self.morph_tx_memo(),
                 };
                 MorphTxEnvelope::Morph(tx.into_signed(self.signature()?))
             }
@@ -403,5 +415,17 @@ impl<T: TxTrace> TxTrace for &T {
 
     fn queue_index(&self) -> Option<u64> {
         (*self).queue_index()
+    }
+
+    fn morph_tx_version(&self) -> u8 {
+        (*self).morph_tx_version()
+    }
+
+    fn morph_tx_reference(&self) -> Option<B256> {
+        (*self).morph_tx_reference()
+    }
+
+    fn morph_tx_memo(&self) -> Option<Bytes> {
+        (*self).morph_tx_memo()
     }
 }

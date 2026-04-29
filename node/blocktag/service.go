@@ -63,20 +63,16 @@ type BlockTagService struct {
 // NewBlockTagService creates a new BlockTagService
 func NewBlockTagService(
 	ctx context.Context,
+	l1Client *ethclient.Client,
 	l2Client *types.RetryableClient,
 	config *Config,
 	logger tmlog.Logger,
 ) (*BlockTagService, error) {
-	if config.L1Addr == "" {
-		return nil, fmt.Errorf("L1 RPC address is required")
+	if l1Client == nil {
+		return nil, fmt.Errorf("L1 client is required")
 	}
 	if config.RollupAddress == (common.Address{}) {
 		return nil, fmt.Errorf("Rollup contract address is required")
-	}
-
-	l1Client, err := ethclient.Dial(config.L1Addr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to L1: %w", err)
 	}
 
 	rollup, err := bindings.NewRollup(config.RollupAddress, l1Client)
@@ -122,7 +118,6 @@ func (s *BlockTagService) Stop() {
 	s.logger.Info("Stopping BlockTagService")
 	s.cancel()
 	<-s.stop
-	s.l1Client.Close()
 	s.logger.Info("BlockTagService stopped")
 }
 

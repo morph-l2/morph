@@ -109,6 +109,7 @@ export const AdminTransferConcurrently = async (
         ProxyStorageName.L1CrossDomainMessengerProxyStorageName,
         ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName,
         ProxyStorageName.L1StakingProxyStorageName,
+        ProxyStorageName.L1SequencerProxyStorageName,  // Added L1Sequencer
         ProxyStorageName.RollupProxyStorageName,
         ProxyStorageName.L1GatewayRouterProxyStorageName,
         ProxyStorageName.L1ETHGatewayProxyStorageName,
@@ -159,6 +160,7 @@ export const AdminTransfer = async (
 
     const RollupProxyStorageName = ProxyStorageName.RollupProxyStorageName
     const L1StakingProxyStorageName = ProxyStorageName.L1StakingProxyStorageName
+    const L1SequencerProxyStorageName = ProxyStorageName.L1SequencerProxyStorageName
 
     const L1GatewayRouterProxyStorageName = ProxyStorageName.L1GatewayRouterProxyStorageName
     const L1ETHGatewayProxyStorageName = ProxyStorageName.L1ETHGatewayProxyStorageName
@@ -188,6 +190,13 @@ export const AdminTransfer = async (
     // ************************ staking contracts admin change ************************
     // StakingProxy admin change
     err = await AdminTransferByProxyStorageName(hre, path, deployer, L1StakingProxyStorageName)
+    if (err != '') {
+        return err
+    }
+
+    // ************************ sequencer contracts admin change ************************
+    // L1SequencerProxy admin change
+    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1SequencerProxyStorageName)
     if (err != '') {
         return err
     }

@@ -9,15 +9,15 @@ import (
 	"github.com/morph-l2/go-ethereum/log"
 )
 
-type BatchCache struct {
+type BatchCacheLegacy struct {
 	m          sync.RWMutex
 	batchCache map[uint64]*eth.RPCRollupBatch
 	fetcher    iface.BatchFetcher
 }
 
-// NewBatchCache creates a new batch cache instance
-func NewBatchCache(fetcher iface.BatchFetcher) *BatchCache {
-	return &BatchCache{
+// NewBatchCacheLegacy creates a new batch cache instance
+func NewBatchCacheLegacy(fetcher iface.BatchFetcher) *BatchCacheLegacy {
+	return &BatchCacheLegacy{
 		batchCache: make(map[uint64]*eth.RPCRollupBatch),
 		fetcher:    fetcher,
 	}
@@ -25,7 +25,7 @@ func NewBatchCache(fetcher iface.BatchFetcher) *BatchCache {
 
 // Get retrieves a batch from the cache by its index
 // If not found in cache, tries to fetch from node
-func (b *BatchCache) Get(batchIndex uint64) (*eth.RPCRollupBatch, bool) {
+func (b *BatchCacheLegacy) Get(batchIndex uint64) (*eth.RPCRollupBatch, bool) {
 	// First try to get from cache
 	b.m.RLock()
 	batch, ok := b.batchCache[batchIndex]
@@ -66,7 +66,7 @@ func (b *BatchCache) Get(batchIndex uint64) (*eth.RPCRollupBatch, bool) {
 	return nil, false
 }
 
-func (b *BatchCache) Set(batchIndex uint64, batch *eth.RPCRollupBatch) {
+func (b *BatchCacheLegacy) Set(batchIndex uint64, batch *eth.RPCRollupBatch) {
 	// Validate batch before caching - batch must exist and have signatures
 	if batch == nil || len(batch.Signatures) == 0 {
 		log.Debug("Refusing to cache invalid batch",
@@ -82,7 +82,7 @@ func (b *BatchCache) Set(batchIndex uint64, batch *eth.RPCRollupBatch) {
 	b.batchCache[batchIndex] = batch
 }
 
-func (b *BatchCache) Delete(batchIndex uint64) {
+func (b *BatchCacheLegacy) Delete(batchIndex uint64) {
 	b.m.Lock()
 	defer b.m.Unlock()
 
@@ -90,7 +90,7 @@ func (b *BatchCache) Delete(batchIndex uint64) {
 }
 
 // Clear removes all entries from the batch cache
-func (bc *BatchCache) Clear() {
+func (bc *BatchCacheLegacy) Clear() {
 	bc.m.Lock()
 	defer bc.m.Unlock()
 	bc.batchCache = make(map[uint64]*eth.RPCRollupBatch)

@@ -1,11 +1,12 @@
 use std::{str::FromStr, sync::Arc};
 
 use crate::{
-    abi::gas_price_oracle_abi::GasPriceOracle, external_sign::ExternalSign,
-    metrics::ORACLE_SERVICE_METRICS, signer::send_transaction, OracleError,
+    abi::gas_price_oracle_abi::GasPriceOracle, metrics::ORACLE_SERVICE_METRICS,
+    signer::send_transaction, OracleError,
 };
 use ethers::prelude::*;
 use eyre::anyhow;
+use remote_signer_client::SignerClient;
 
 const MAX_BASE_FEE: u128 = 1000 * 10i32.pow(9) as u128; // 1000Gwei
 const MAX_BLOB_BASE_FEE: u128 = 100 * 10i32.pow(9) as u128; // 100Gwei
@@ -13,7 +14,7 @@ const MAX_BLOB_BASE_FEE: u128 = 100 * 10i32.pow(9) as u128; // 100Gwei
 pub struct BaseFeeUpdater {
     l1_provider: Provider<Http>,
     l2_provider: Provider<Http>,
-    ext_signer: Option<ExternalSign>,
+    ext_signer: Option<SignerClient>,
     l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
     gas_threshold: u64,
     l1_base_fee_buffer: u64,
@@ -24,7 +25,7 @@ impl BaseFeeUpdater {
     pub fn new(
         l1_provider: Provider<Http>,
         l2_provider: Provider<Http>,
-        ext_signer: Option<ExternalSign>,
+        ext_signer: Option<SignerClient>,
         l2_oracle: GasPriceOracle<SignerMiddleware<Provider<Http>, LocalWallet>>,
         gas_threshold: u64,
         l1_base_fee_buffer: u64,
@@ -144,24 +145,17 @@ impl BaseFeeUpdater {
         let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> = self.l2_oracle.client();
         if need_update {
             // Update calldata basefee and blob baseFee
-            let calldata = self
+            let call = self
                 .l2_oracle
-                .set_l1_base_fee_and_blob_base_fee(l1_base_fee, l1_blob_base_fee)
-                .calldata();
-            let tx_hash = send_transaction(
-                self.l2_oracle.address(),
-                calldata,
-                &client,
-                &self.ext_signer,
-                &self.l2_provider,
-            )
-            .await
-            .map_err(|e| {
-                OracleError::L1BaseFeeError(anyhow!(format!(
-                    "set_l1_base_fee_and_blob_base_fee error: {:#?}",
-                    e
-                )))
-            })?;
+                .set_l1_base_fee_and_blob_base_fee(l1_base_fee, l1_blob_base_fee);
+            let tx_hash = send_transaction(call, &client, &self.ext_signer, &self.l2_provider)
+                .await
+                .map_err(|e| {
+                    OracleError::L1BaseFeeError(anyhow!(format!(
+                        "set_l1_base_fee_and_blob_base_fee error: {:#?}",
+                        e
+                    )))
+                })?;
             log::info!("set_l1_base_fee_and_blob_base_fee success, tx_hash: {:#?}", tx_hash);
 
             return Ok(());
@@ -180,18 +174,12 @@ impl BaseFeeUpdater {
         );
         if need_update {
             // Set l1_base_fee for l2.
-            let calldata = self.l2_oracle.set_l1_base_fee(l1_base_fee).calldata();
-            let tx_hash = send_transaction(
-                self.l2_oracle.address(),
-                calldata,
-                &client,
-                &self.ext_signer,
-                &self.l2_provider,
-            )
-            .await
-            .map_err(|e| {
-                OracleError::L1BaseFeeError(anyhow!(format!("set_l1_base_fee error: {:#?}", e)))
-            })?;
+            let call = self.l2_oracle.set_l1_base_fee(l1_base_fee);
+            let tx_hash = send_transaction(call, &client, &self.ext_signer, &self.l2_provider)
+                .await
+                .map_err(|e| {
+                    OracleError::L1BaseFeeError(anyhow!(format!("set_l1_base_fee error: {:#?}", e)))
+                })?;
             log::info!("set_l1_base_fee success, tx_hash: {:#?}", tx_hash);
         }
 

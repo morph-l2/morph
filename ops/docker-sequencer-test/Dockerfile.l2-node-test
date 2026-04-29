@@ -1,0 +1,47 @@
+# Build Stage
+FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.24-ubuntu AS builder
+
+# First: Copy only go.mod/go.sum files to cache dependencies
+# Order matters for cache efficiency
+
+# Copy go-ethereum dependency files
+COPY ./go-ethereum/go.mod ./go-ethereum/go.sum /bitget/go-ethereum/
+
+# Copy tendermint dependency files
+COPY ./tendermint/go.mod ./tendermint/go.sum /bitget/tendermint/
+
+# Copy morph go.work and all module dependency files
+COPY ./morph/go.work ./morph/go.work.sum /bitget/morph/
+COPY ./morph/node/go.mod ./morph/node/go.sum /bitget/morph/node/
+COPY ./morph/bindings/go.mod ./morph/bindings/go.sum /bitget/morph/bindings/
+COPY ./morph/contracts/go.mod ./morph/contracts/go.sum /bitget/morph/contracts/
+COPY ./morph/oracle/go.mod ./morph/oracle/go.sum /bitget/morph/oracle/
+COPY ./morph/tx-submitter/go.mod ./morph/tx-submitter/go.sum /bitget/morph/tx-submitter/
+COPY ./morph/ops/l2-genesis/go.mod ./morph/ops/l2-genesis/go.sum /bitget/morph/ops/l2-genesis/
+COPY ./morph/ops/tools/go.mod ./morph/ops/tools/go.sum /bitget/morph/ops/tools/
+COPY ./morph/token-price-oracle/go.mod ./morph/token-price-oracle/go.sum /bitget/morph/token-price-oracle/
+
+# Download dependencies (this layer is cached if go.mod/go.sum don't change)
+WORKDIR /bitget/morph/node
+RUN go mod download -x
+
+# Now copy all source code
+COPY ./go-ethereum /bitget/go-ethereum
+COPY ./tendermint /bitget/tendermint
+COPY ./morph /bitget/morph
+
+# Build (no need to download again, just compile)
+WORKDIR /bitget/morph/node
+RUN make build
+
+# Final Stage
+FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.24-ubuntu
+
+RUN apt-get -qq update \
+    && apt-get -qq install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /bitget/morph/node/build/bin/tendermint /usr/local/bin/
+COPY --from=builder /bitget/morph/node/build/bin/morphnode /usr/local/bin/
+
+CMD ["morphnode", "--home", "/data"]

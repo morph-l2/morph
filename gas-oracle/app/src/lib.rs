@@ -7,7 +7,6 @@ mod l1_base_fee;
 mod metrics;
 
 mod da_scalar;
-mod external_sign;
 mod signer;
 use abi::gas_price_oracle_abi::GasPriceOracleErrors;
 pub use error::*;

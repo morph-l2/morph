@@ -38,20 +38,6 @@ func (d *Derivation) verifyBatchRoots(batchInfo *BatchInfo, lastHeader *eth.Head
 	withdrawalMismatch := !bytes.Equal(withdrawalRoot[:], batchInfo.withdrawalRoot.Bytes())
 
 	if rootMismatch || withdrawalMismatch {
-		// Check if should skip validation during upgrade transition
-		if d.switchTime > 0 {
-			beforeSwitch := lastHeader.Time < d.switchTime
-			if (beforeSwitch && !d.useZktrie) || (!beforeSwitch && d.useZktrie) {
-				d.logger.Info("Root validation skipped during upgrade transition",
-					"originStateRootHash", batchInfo.root,
-					"deriveStateRootHash", lastHeader.Root.Hex(),
-					"blockTimestamp", lastHeader.Time,
-					"switchTime", d.switchTime,
-					"useZktrie", d.useZktrie,
-				)
-				return nil
-			}
-		}
 		return fmt.Errorf("root mismatch: stateRoot(l1=%s, local=%s) withdrawalRoot(l1=%s, local=%s)",
 			batchInfo.root.Hex(), lastHeader.Root.Hex(),
 			batchInfo.withdrawalRoot.Hex(), common.BytesToHash(withdrawalRoot[:]).Hex())

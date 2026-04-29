@@ -60,6 +60,41 @@ func (m *MockRollup) BatchExist(opts *bind.CallOpts, batchIndex *big.Int) (bool,
 	return m.batchExists, nil
 }
 
+// CommittedBatches implements IRollup
+func (m *MockRollup) CommittedBatches(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error) {
+	return [32]byte{}, nil
+}
+
+// BatchDataStore implements IRollup
+func (m *MockRollup) BatchDataStore(opts *bind.CallOpts, batchIndex *big.Int) (struct {
+	OriginTimestamp        *big.Int
+	FinalizeTimestamp      *big.Int
+	BlockNumber            *big.Int
+	SignedSequencersBitmap *big.Int
+}, error) {
+	return struct {
+		OriginTimestamp        *big.Int
+		FinalizeTimestamp      *big.Int
+		BlockNumber            *big.Int
+		SignedSequencersBitmap *big.Int
+	}{
+		OriginTimestamp:        big.NewInt(0),
+		FinalizeTimestamp:      big.NewInt(0),
+		BlockNumber:            big.NewInt(0),
+		SignedSequencersBitmap: big.NewInt(0),
+	}, nil
+}
+
+// FilterCommitBatch implements IRollup
+func (m *MockRollup) FilterCommitBatch(opts *bind.FilterOpts, batchIndex []*big.Int, batchHash [][32]byte) (*bindings.RollupCommitBatchIterator, error) {
+	return nil, nil
+}
+
+// FilterFinalizeBatch implements IRollup
+func (m *MockRollup) FilterFinalizeBatch(opts *bind.FilterOpts, batchIndex []*big.Int, batchHash [][32]byte) (*bindings.RollupFinalizeBatchIterator, error) {
+	return nil, nil
+}
+
 // SetLastCommittedBatchIndex sets the mock value for LastCommittedBatchIndex
 func (m *MockRollup) SetLastCommittedBatchIndex(index *big.Int) {
 	m.lastCommittedBatchIndex = index

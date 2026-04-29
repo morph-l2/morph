@@ -154,66 +154,7 @@ impl BatchProver<DefaultClient> {
 
 #[cfg(test)]
 mod tests {
-    use prover_executor_client::{
-        types::{
-            blob::{decode_transactions, get_origin_batch},
-            input::BlobInfo,
-        },
-        BlobVerifier,
-    };
-    use prover_executor_host::blob::{encode_blob, populate_kzg};
-    use prover_primitives::{MorphTxEnvelope, B256};
-    #[test]
-    fn test_blob() {
-        //blob to txn
-        let blob_bytes = load_zstd_blob();
-        println!("blob_bytes len: {:?}", blob_bytes.len());
-
-        let origin_batch = get_origin_batch(&blob_bytes).unwrap();
-        println!("origin_batch len: {:?}", origin_batch.len());
-
-        let mut block_contexts = origin_batch[0..600 * 60].to_vec();
-        let txs_data = origin_batch[600 * 60..origin_batch.len()].to_vec();
-        let tx_list: Vec<MorphTxEnvelope> = decode_transactions(txs_data.as_slice());
-        println!("decoded tx_list_len: {:?}", tx_list.len());
-
-        //txn to blob
-        let mut tx_bytes: Vec<u8> = vec![];
-        let x = tx_list.iter().flat_map(|tx| tx.rlp()).collect::<Vec<u8>>();
-        tx_bytes.extend(x);
-        assert!(tx_bytes == txs_data, "tx_bytes==txs_data");
-        block_contexts.extend_from_slice(&tx_bytes);
-        let blob = encode_blob(block_contexts).unwrap();
-        let blob_info: BlobInfo = populate_kzg(&blob).unwrap();
-        let (versioned_hash, batch_data) = BlobVerifier::verify(&blob_info, 600).unwrap();
-        let versioned_hash_hex = alloy::hex::encode_prefixed(versioned_hash.as_slice());
-        println!(
-            "versioned_hash: {:?}, batch_data len: {:?}",
-            versioned_hash_hex,
-            batch_data.len()
-        );
-        assert!(
-            versioned_hash_hex
-                == "0x012bdf80720ba8d07c589d672e47d4b183ac861a2fcb6a5dad0e320a4f368f4f",
-            "versioned_hash check"
-        );
-
-        assert!(batch_data.len() == origin_batch.len(), "batch_data.len() == origin_batch.len()");
-    }
-
-    pub fn load_zstd_blob() -> [u8; 131072] {
-        use prover_primitives::alloy_primitives::hex;
-        use std::{fs, path::Path};
-
-        //https://etherscan.io/blob/0x012bdf80720ba8d07c589d672e47d4b183ac861a2fcb6a5dad0e320a4f368f4f?bid=6318849
-        //https://explorer.morphl2.io/batches/47561
-        let blob_data_path = Path::new("../../testdata/blob/mainnet_47561.data");
-        let data = fs::read_to_string(blob_data_path).expect("Unable to read file");
-        let hex_data: Vec<u8> = hex::decode(data.trim()).unwrap();
-        let mut array = [0u8; 131072];
-        array.copy_from_slice(&hex_data);
-        array
-    }
+    use prover_primitives::B256;
 
     use sp1_sdk::{HashableKey, ProverClient, SP1ProofWithPublicValues};
     use sp1_verifier::PlonkVerifier;

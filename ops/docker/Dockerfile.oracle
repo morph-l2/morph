@@ -1,4 +1,7 @@
-FROM rust:1.70 as builder
+FROM rust:1.88-slim as builder
+
+RUN apt-get -qq update && apt-get -qq install -y --no-install-recommends \
+    pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
 COPY ./gas-oracle /gas-oracle
 

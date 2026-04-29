@@ -24,6 +24,11 @@ type BridgeClient struct {
 	logger             tmlog.Logger
 }
 
+// L1Client returns the underlying L1 client (for sharing with other services)
+func (c *BridgeClient) L1Client() *ethclient.Client {
+	return c.l1Client
+}
+
 func NewBridgeClient(l1Client *ethclient.Client, l1MessageQueueAddress common.Address, confirmations rpc.BlockNumber, logger tmlog.Logger) (*BridgeClient, error) {
 	logger = logger.With("module", "bridge")
 	filter, err := bindings.NewL1MessageQueueWithGasPriceOracleFilterer(l1MessageQueueAddress, l1Client)

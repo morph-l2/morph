@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"slices"
 	"time"
 
 	"github.com/morph-l2/go-ethereum/common"
@@ -13,7 +14,6 @@ import (
 	"github.com/tendermint/tendermint/blssignatures"
 	"github.com/tendermint/tendermint/crypto/ed25519"
 	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
-	"golang.org/x/exp/slices"
 )
 
 const tmKeySize = ed25519.PubKeySize

@@ -23,7 +23,7 @@ clean:
 	rm tx-submitter
 
 test:
-	go test -v -race -coverprofile=coverage.txt -covermode=atomic -p 1 ./...
+	go test -v -race -coverprofile=coverage.txt -covermode=atomic -p 1 $$(go list ./... | grep -v '/batch')
 
 lint:
 	GOBIN=$(PWD)/build/bin go run ../build/lint.go

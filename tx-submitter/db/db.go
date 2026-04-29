@@ -68,6 +68,28 @@ func (d *Db) PutString(key, val string) error {
 	defer d.m.Unlock()
 	return d.db.Put([]byte(key), []byte(val))
 }
+func (d *Db) GetBytes(key []byte) ([]byte, error) {
+	d.m.Lock()
+	defer d.m.Unlock()
+	v, err := d.db.Get(key)
+	if err != nil {
+		if err == errors.ErrNotFound {
+			return nil, ErrKeyNotFound
+		}
+		return nil, fmt.Errorf("failed to get key from leveldb: %w", err)
+	}
+	return v, nil
+}
+func (d *Db) PutBytes(key, val []byte) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.db.Put(key, val)
+}
+func (d *Db) Delete(key []byte) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.db.Delete(key)
+}
 func (d *Db) Close() error {
 	return d.db.Close()
 }
