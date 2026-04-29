@@ -9,8 +9,6 @@ import (
 	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
-
-	node "morph-l2/node/core"
 )
 
 func Test_BuildL2DeveloperGenesis(t *testing.T) {
@@ -78,7 +76,7 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 	require.NoError(t, err)
 
 	l2GenesisBlock := l2Genesis.ToBlock(nil)
-	genesisBatchHeader, err := node.GenesisBatchHeader(l2GenesisBlock.Header())
+	genesisBatchHeaderBytes, err := GenesisBatchHeader(l2GenesisBlock.Header())
 	require.NoError(t, err)
-	t.Logf("generated genesis batch header bytes: %x \n", genesisBatchHeader.Bytes())
+	t.Logf("generated genesis batch header bytes: %x \n", genesisBatchHeaderBytes)
 }
