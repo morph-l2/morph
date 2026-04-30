@@ -40,13 +40,18 @@ UPGRADE_HEIGHT=${UPGRADE_HEIGHT:-20}
 HA_FORM_WAIT=${HA_FORM_WAIT:-30}  # seconds after upgrade to wait for cluster formation
 REPORT_OUTPUT="${REPORT_OUTPUT:-$DOCS_DIR/ha-test-report.md}"
 
-# Geth RPC endpoints (host ports)
+# L2 Geth RPC endpoints for the PBFT nodes (non-HA, pre-upgrade consensus)
 L2_RPC_NODE0="http://127.0.0.1:8545"
 L2_RPC_NODE1="http://127.0.0.1:8645"
 L2_RPC_NODE2="http://127.0.0.1:8745"
 L2_RPC_NODE3="http://127.0.0.1:8845"
 
-# HA Admin RPC endpoints (host:9501/9601/9701 → container:9401)
+# L2 Geth RPC endpoints for the isolated HA cluster (ha-geth-0/1/2)
+HA_L2_RPC_0="http://127.0.0.1:9145"
+HA_L2_RPC_1="http://127.0.0.1:9245"
+HA_L2_RPC_2="http://127.0.0.1:9345"
+
+# HA Admin RPC endpoints (host 9501/9601/9701 → ha-node-0/1/2 container:9401)
 HA_RPC_NODE0="http://127.0.0.1:9501"
 HA_RPC_NODE1="http://127.0.0.1:9601"
 HA_RPC_NODE2="http://127.0.0.1:9701"
@@ -282,23 +287,23 @@ except:
 " 2>/dev/null || echo ""
 }
 
-# Map HA RPC URL to container name
+# Map HA RPC URL to container name (isolated HA cluster nodes)
 rpc_to_container() {
     case "$1" in
-        "$HA_RPC_NODE0") echo "node-0" ;;
-        "$HA_RPC_NODE1") echo "node-1" ;;
-        "$HA_RPC_NODE2") echo "node-2" ;;
+        "$HA_RPC_NODE0") echo "ha-node-0" ;;
+        "$HA_RPC_NODE1") echo "ha-node-1" ;;
+        "$HA_RPC_NODE2") echo "ha-node-2" ;;
         *) echo "unknown" ;;
     esac
 }
 
-# Get the geth RPC for a given HA RPC URL
+# Get the geth RPC for a given HA RPC URL (isolated HA cluster geth endpoints)
 ha_rpc_to_geth_rpc() {
     case "$1" in
-        "$HA_RPC_NODE0") echo "$L2_RPC_NODE0" ;;
-        "$HA_RPC_NODE1") echo "$L2_RPC_NODE1" ;;
-        "$HA_RPC_NODE2") echo "$L2_RPC_NODE2" ;;
-        *) echo "$L2_RPC_NODE0" ;;
+        "$HA_RPC_NODE0") echo "$HA_L2_RPC_0" ;;
+        "$HA_RPC_NODE1") echo "$HA_L2_RPC_1" ;;
+        "$HA_RPC_NODE2") echo "$HA_L2_RPC_2" ;;
+        *) echo "$HA_L2_RPC_0" ;;
     esac
 }
 
@@ -316,12 +321,71 @@ remove_ha_override() {
     rm -f "$DOCKER_DIR/docker-compose.ha-override.yml"
 }
 
+# Generate .devnet/ha-node{0,1,2}/ directories and ha-nodekey{0,1,2} files
+# for the isolated Raft cluster. Called once at start_ha_cluster time.
+#
+# Each ha-nodeN home contains:
+#   config/config.toml        — copied from node4 (fullnode template)
+#   config/genesis.json       — copied from node4 (same tendermint chain)
+#   config/node_key.json      — freshly generated, unique per node
+#   data/priv_validator_state.json — initial (height 0), fullnode never signs
+# No bls_key.json or priv_validator_key.json (fullnode mode).
+#
+# Each ha-nodekeyN is a 64-hex-char geth P2P private key (independent from node-*).
+setup_ha_nodes_config() {
+    log_info "Preparing .devnet/ha-node{0,1,2}/ configs and ha-nodekey{0,1,2}..."
+    cd "$DOCKER_DIR"
+
+    local template_dir="$DOCKER_DIR/.devnet/node4"
+    if [ ! -d "$template_dir/config" ]; then
+        log_error ".devnet/node4/config not found — run 'setup' first"
+        return 1
+    fi
+
+    for i in 0 1 2; do
+        local target=".devnet/ha-node$i"
+        if [ -d "$target" ]; then
+            log_info "  $target already exists, skipping"
+        else
+            mkdir -p "$target/config" "$target/data"
+            cp "$template_dir/config/config.toml"  "$target/config/"
+            cp "$template_dir/config/genesis.json" "$target/config/"
+            # Update moniker for log clarity
+            if [ "$(uname)" = "Darwin" ]; then
+                sed -i '' "s/moniker = \".*\"/moniker = \"ha-node-$i\"/" "$target/config/config.toml"
+            else
+                sed -i "s/moniker = \".*\"/moniker = \"ha-node-$i\"/" "$target/config/config.toml"
+            fi
+            # Initial priv_validator_state (file must exist even for fullnode)
+            echo '{"height":"0","round":0,"step":0}' > "$target/data/priv_validator_state.json"
+            # Generate a fresh tendermint node_key inside the test image so we
+            # don't depend on a host-installed tendermint binary.
+            docker run --rm --entrypoint tendermint \
+                -v "$PWD/$target:/home-ha" \
+                morph-node-test:latest gen-node-key --home /home-ha >/dev/null
+            log_success "  $target ready"
+        fi
+
+        # Geth P2P nodekey (64 hex chars)
+        local nodekey_file="ha-nodekey$i"
+        if [ -f "$nodekey_file" ]; then
+            log_info "  $nodekey_file already exists, skipping"
+        else
+            openssl rand -hex 32 > "$nodekey_file"
+            log_success "  $nodekey_file generated"
+        fi
+    done
+}
+
 start_ha_cluster() {
-    log_info "Starting 3-node HA cluster..."
+    log_info "Starting PBFT nodes + isolated HA cluster..."
     cd "$DOCKER_DIR"
 
     setup_ha_override
     source .env 2>/dev/null || true
+
+    # Prepare configs/keys for the isolated HA cluster
+    setup_ha_nodes_config
 
     # Wait for L1 to finalize past the contract deployment block
     local l1_latest
@@ -347,22 +411,28 @@ start_ha_cluster() {
         waited=$((waited + 3))
     done
 
-    # Stop any existing containers
+    # Stop any existing containers from a previous run
     $COMPOSE_HA stop morph-geth-0 morph-geth-1 morph-geth-2 morph-geth-3 \
-        node-0 node-1 node-2 node-3 sentry-geth-0 sentry-node-0 2>/dev/null || true
+        node-0 node-1 node-2 node-3 sentry-geth-0 sentry-node-0 \
+        ha-geth-0 ha-geth-1 ha-geth-2 ha-node-0 ha-node-1 ha-node-2 2>/dev/null || true
 
-    # Start geth nodes
-    log_info "Starting geth nodes..."
-    $COMPOSE_HA up -d morph-geth-0 morph-geth-1 morph-geth-2 morph-geth-3 sentry-geth-0
+    # Start ALL geth nodes (PBFT + isolated HA + sentry)
+    log_info "Starting geth nodes (PBFT morph-geth-* + ha-geth-* + sentry)..."
+    $COMPOSE_HA up -d morph-geth-0 morph-geth-1 morph-geth-2 morph-geth-3 \
+                       ha-geth-0 ha-geth-1 ha-geth-2 sentry-geth-0
     sleep 5
 
-    # Start tendermint nodes with HA config
-    log_info "Starting tendermint nodes (node-0: bootstrap, node-1/2: join)..."
-    $COMPOSE_HA up -d node-0 node-1 node-2 node-3 sentry-node-0
+    # Start tendermint nodes:
+    #   - node-0/1/2/3: PBFT validators (baseline), no HA config.
+    #   - ha-node-0 bootstrap, ha-node-1/2 join — isolated Raft cluster.
+    #   - sentry-node-0: non-HA V2 fullnode after upgrade.
+    log_info "Starting tendermint nodes (node-0..3 PBFT, ha-node-0 bootstrap, ha-node-1/2 join)..."
+    $COMPOSE_HA up -d node-0 node-1 node-2 node-3 ha-node-0 ha-node-1 ha-node-2 sentry-node-0
 
     log_info "Waiting for geth RPC..."
     wait_for_rpc "$L2_RPC_NODE0" 60
-    log_success "HA cluster started!"
+    wait_for_rpc "$HA_L2_RPC_0" 60 || log_warn "ha-geth-0 RPC not ready within 60s"
+    log_success "PBFT + HA cluster started!"
 }
 
 # ─── Category 1: Config Tests ─────────────────────────────────────────────────
@@ -384,20 +454,20 @@ run_config_tests() {
     resp_cfg01=$(ha_call "$HA_RPC_NODE0" "ha_leader" "[]")
     if [ "$node0_leader" -ge 1 ]; then
         record_test "TC-CFG-01" "bootstrap flag 生效" "PASS" \
-            "ha_leader on node-0: $resp_cfg01"
+            "ha_leader on ha-node-0: $resp_cfg01"
     else
-        # node-0 bootstrapped but Raft may have re-elected after restarts; as long as
-        # ANY node is leader, the bootstrap mechanism worked (cluster was seeded by node-0).
+        # ha-node-0 bootstrapped but Raft may have re-elected after restarts; as long as
+        # ANY node is leader, the bootstrap mechanism worked (cluster was seeded by ha-node-0).
         local any_leader_rpc
         any_leader_rpc=$(find_leader_rpc)
         if [ -n "$any_leader_rpc" ]; then
             local current_leader
             current_leader=$(rpc_to_container "$any_leader_rpc")
             record_test "TC-CFG-01" "bootstrap flag 生效" "PASS" \
-                "Current leader=$current_leader (node-0 bootstrapped the cluster, Raft re-elected after restart)\nnode-0 response: $resp_cfg01"
+                "Current leader=$current_leader (ha-node-0 bootstrapped the cluster, Raft re-elected after restart)\nha-node-0 response: $resp_cfg01"
         else
             record_test "TC-CFG-01" "bootstrap flag 生效" "FAIL" \
-                "ha_leader on node-0: $resp_cfg01\nNo leader found in cluster — bootstrap may have failed"
+                "ha_leader on ha-node-0: $resp_cfg01\nNo leader found in cluster — bootstrap may have failed"
         fi
     fi
 
@@ -425,14 +495,14 @@ run_config_tests() {
     if [ -n "$leader_rpc" ]; then
         server_ids=$(get_server_ids "$leader_rpc")
     fi
-    if echo "$server_ids" | grep -q "node-0" && \
-       echo "$server_ids" | grep -q "node-1" && \
-       echo "$server_ids" | grep -q "node-2"; then
+    if echo "$server_ids" | grep -q "ha-node-0" && \
+       echo "$server_ids" | grep -q "ha-node-1" && \
+       echo "$server_ids" | grep -q "ha-node-2"; then
         record_test "TC-CFG-03" "server-id flag 生效" "PASS" \
             "server_ids: $server_ids"
     else
         record_test "TC-CFG-03" "server-id flag 生效" "FAIL" \
-            "server_ids: $server_ids (expected node-0, node-1, node-2)"
+            "server_ids: $server_ids (expected ha-node-0, ha-node-1, ha-node-2)"
     fi
 
     # TC-CFG-04: 纯 flag 模式（无配置文件）
@@ -477,27 +547,26 @@ run_cluster_tests() {
     local leader_rpc
     leader_rpc=$(find_leader_rpc)
 
-    # TC-CLU-01: node-0 成为第一个 leader（bootstrap 节点）
-    log_info "--- TC-CLU-01: node-0 成为初始leader ---"
-    # Check node-0's HA log to see if it reported as leader first
+    # TC-CLU-01: ha-node-0 成为第一个 leader（bootstrap 节点）
+    log_info "--- TC-CLU-01: ha-node-0 成为初始leader ---"
     cd "$DOCKER_DIR"
     local node0_leader_log
-    node0_leader_log=$($COMPOSE_HA logs node-0 2>/dev/null | grep -i "leaderReady\|hakeeper: raft\|leader" | tail -5 || true)
+    node0_leader_log=$($COMPOSE_HA logs ha-node-0 2>/dev/null | grep -i "leaderReady\|hakeeper: raft\|leader" | tail -5 || true)
     local node0_is_leader
     node0_is_leader=$(is_ha_leader "$HA_RPC_NODE0")
     if [ "$node0_is_leader" -ge 1 ]; then
-        record_test "TC-CLU-01" "node-0成为初始leader（bootstrap节点）" "PASS" \
-            "ha_leader on node-0=true\nlog: $node0_leader_log"
+        record_test "TC-CLU-01" "ha-node-0成为初始leader（bootstrap节点）" "PASS" \
+            "ha_leader on ha-node-0=true\nlog: $node0_leader_log"
     else
-        # node-0 might have transferred leadership; check if any node is leader
+        # ha-node-0 might have transferred leadership; check if any node is leader
         if [ -n "$leader_rpc" ]; then
             local leader_node
             leader_node=$(rpc_to_container "$leader_rpc")
-            record_test "TC-CLU-01" "node-0成为初始leader（bootstrap节点）" "PASS" \
-                "Current leader=$leader_node (node-0 bootstrapped, may have transferred)\nnode0_log: $node0_leader_log"
+            record_test "TC-CLU-01" "ha-node-0成为初始leader（bootstrap节点）" "PASS" \
+                "Current leader=$leader_node (ha-node-0 bootstrapped, may have transferred)\nha-node-0 log: $node0_leader_log"
         else
-            record_test "TC-CLU-01" "node-0成为初始leader（bootstrap节点）" "FAIL" \
-                "No leader found. node-0 logs: $node0_leader_log"
+            record_test "TC-CLU-01" "ha-node-0成为初始leader（bootstrap节点）" "FAIL" \
+                "No leader found. ha-node-0 logs: $node0_leader_log"
         fi
     fi
 
@@ -523,7 +592,7 @@ run_cluster_tests() {
     log_info "--- TC-CLU-03: joinLoop重试机制 ---"
     cd "$DOCKER_DIR"
     local join_logs
-    join_logs=$($COMPOSE_HA logs node-1 node-2 2>/dev/null | \
+    join_logs=$($COMPOSE_HA logs ha-node-1 ha-node-2 2>/dev/null | \
         grep -i "joined cluster\|join attempt\|joining cluster\|hakeeper.*join" | head -10 || true)
     if echo "$join_logs" | grep -qi "joined"; then
         record_test "TC-CLU-03" "joinLoop重试机制" "PASS" \
@@ -543,12 +612,12 @@ run_cluster_tests() {
     log_info "--- TC-CLU-04: 重复bootstrap无害（ErrCantBootstrap忽略）---"
     cd "$DOCKER_DIR"
     local bootstrap_logs
-    bootstrap_logs=$($COMPOSE_HA logs node-0 2>/dev/null | \
+    bootstrap_logs=$($COMPOSE_HA logs ha-node-0 2>/dev/null | \
         grep -i "ErrCantBootstrap\|bootstrap\|already bootstrapped" | head -5 || true)
     # ErrCantBootstrap is silently ignored in the code (errors.Is check).
     # After restart with --ha.bootstrap on existing node, no fatal error should appear.
     local fatal_bootstrap_err
-    fatal_bootstrap_err=$($COMPOSE_HA logs node-0 2>/dev/null | \
+    fatal_bootstrap_err=$($COMPOSE_HA logs ha-node-0 2>/dev/null | \
         grep -i "bootstrap.*error\|fatal.*bootstrap" | grep -v "ErrCantBootstrap" | head -3 || true)
     if [ -z "$fatal_bootstrap_err" ]; then
         record_test "TC-CLU-04" "重复bootstrap无害" "PASS" \
@@ -593,11 +662,11 @@ run_block_tests() {
     # TC-BLK-02: follower 不出块（只有 leader 调用 produceBlock）
     log_info "--- TC-BLK-02: follower不出块 ---"
     cd "$DOCKER_DIR"
-    # Get non-leader HA nodes
+    # Check non-leader HA cluster nodes
     local follower_produce_logs=""
-    for node in node-1 node-2; do
+    for node in ha-node-1 ha-node-2; do
         local node_rpc="${HA_RPC_NODE1}"
-        if [ "$node" = "node-2" ]; then node_rpc="${HA_RPC_NODE2}"; fi
+        if [ "$node" = "ha-node-2" ]; then node_rpc="${HA_RPC_NODE2}"; fi
         local is_follower=0
         if [ "$(is_ha_leader "$node_rpc")" -eq 0 ]; then is_follower=1; fi
         if [ "$is_follower" -eq 1 ]; then
@@ -626,36 +695,42 @@ run_block_tests() {
         fi
     fi
 
-    # TC-BLK-03: follower 同步 — geth heights match across nodes
+    # TC-BLK-03: follower 同步 — geth heights match across all L2 nodes
+    # (PBFT nodes node-0..3, HA cluster ha-node-0..2 via ha-geth-0..2)
     log_info "--- TC-BLK-03: follower同步 ---"
     sleep 5  # allow sync to settle
-    local bn0 bn1 bn2 bn3
+    local bn0 bn1 bn2 bn3 h0 h1 h2
     bn0=$(get_block_number "$L2_RPC_NODE0")
     bn1=$(get_block_number "$L2_RPC_NODE1")
     bn2=$(get_block_number "$L2_RPC_NODE2")
     bn3=$(get_block_number "$L2_RPC_NODE3")
+    h0=$(get_block_number "$HA_L2_RPC_0")
+    h1=$(get_block_number "$HA_L2_RPC_1")
+    h2=$(get_block_number "$HA_L2_RPC_2")
     local max_diff=3
-    local diff01=$((bn0 - bn1)); diff01=${diff01#-}
-    local diff02=$((bn0 - bn2)); diff02=${diff02#-}
-    local diff03=$((bn0 - bn3)); diff03=${diff03#-}
-    if [ "$diff01" -le "$max_diff" ] && [ "$diff02" -le "$max_diff" ] && [ "$diff03" -le "$max_diff" ]; then
-        record_test "TC-BLK-03" "follower同步" "PASS" \
-            "Block heights: node-0=$bn0, node-1=$bn1, node-2=$bn2, node-3=$bn3\nMax diff: ${max_diff}; actual: 0/1/2/3 diffs=$diff01/$diff02/$diff03"
+    local ref=$bn0
+    local all_ok=1
+    for v in "$bn1" "$bn2" "$bn3" "$h0" "$h1" "$h2"; do
+        local d=$((ref - v)); d=${d#-}
+        if [ "$d" -gt "$max_diff" ]; then all_ok=0; fi
+    done
+    local evidence="PBFT: node-0=$bn0 node-1=$bn1 node-2=$bn2 node-3=$bn3\nHA:   ha-node-0=$h0 ha-node-1=$h1 ha-node-2=$h2\nMax diff allowed: $max_diff"
+    if [ "$all_ok" -eq 1 ]; then
+        record_test "TC-BLK-03" "follower同步（PBFT + HA 全部齐头）" "PASS" "$evidence"
     else
-        record_test "TC-BLK-03" "follower同步" "FAIL" \
-            "Block heights: node-0=$bn0, node-1=$bn1, node-2=$bn2, node-3=$bn3\nDiffs: $diff01/$diff02/$diff03 (max allowed: $max_diff)"
+        record_test "TC-BLK-03" "follower同步（PBFT + HA 全部齐头）" "FAIL" "$evidence"
     fi
 
     # TC-BLK-04: 已存在 block 幂等跳过（ApplyBlock idempotent）
     log_info "--- TC-BLK-04: 已存在block幂等跳过 ---"
     cd "$DOCKER_DIR"
-    # Check no "duplicate block" or reorg error logs on followers
+    # Check no "duplicate block" or reorg error logs on HA followers
     local dup_errors
-    dup_errors=$($COMPOSE_HA logs node-1 node-2 2>/dev/null | \
+    dup_errors=$($COMPOSE_HA logs ha-node-1 ha-node-2 2>/dev/null | \
         grep -i "duplicate block\|already applied\|idempotent\|already on-chain" | head -5 || true)
     # Check no panics or unexpected errors on block apply
     local apply_errors
-    apply_errors=$($COMPOSE_HA logs node-1 node-2 2>/dev/null | \
+    apply_errors=$($COMPOSE_HA logs ha-node-1 ha-node-2 2>/dev/null | \
         grep -i "FSM apply.*error\|ApplyBlock.*error" | head -3 || true)
     if [ -z "$apply_errors" ]; then
         record_test "TC-BLK-04" "已存在block幂等跳过" "PASS" \
@@ -859,10 +934,10 @@ run_failover_tests() {
             "No 3rd leader elected after 30s (killed: $current_leader_node)"
     fi
 
-    # Ensure all killed nodes are restarted before next tests
+    # Ensure all killed HA nodes are restarted before next tests
     cd "$DOCKER_DIR"
     log_info "Restarting all HA nodes for subsequent tests..."
-    $COMPOSE_HA up -d node-0 node-1 node-2 2>/dev/null || true
+    $COMPOSE_HA up -d ha-node-0 ha-node-1 ha-node-2 2>/dev/null || true
     sleep 15
     wait_for_ha_leader 30 || true
 }
@@ -931,12 +1006,12 @@ run_api_tests() {
 
     # Find a follower (non-leader) to remove
     local target_follower_id="" target_follower_addr=""
-    for node_id in "node-0" "node-1" "node-2"; do
+    for node_id in "ha-node-0" "ha-node-1" "ha-node-2"; do
         local node_rpc
         case "$node_id" in
-            "node-0") node_rpc="$HA_RPC_NODE0" ;;
-            "node-1") node_rpc="$HA_RPC_NODE1" ;;
-            "node-2") node_rpc="$HA_RPC_NODE2" ;;
+            "ha-node-0") node_rpc="$HA_RPC_NODE0" ;;
+            "ha-node-1") node_rpc="$HA_RPC_NODE1" ;;
+            "ha-node-2") node_rpc="$HA_RPC_NODE2" ;;
         esac
         if [ "$(is_ha_leader "$node_rpc")" -eq 0 ]; then
             local addr
@@ -1046,7 +1121,7 @@ run_api_tests() {
         current_leader_name=$(rpc_to_container "$leader_rpc")
         # Choose a target that is NOT the current leader
         local target_id target_addr
-        for node_id in "node-0" "node-1" "node-2"; do
+        for node_id in "ha-node-0" "ha-node-1" "ha-node-2"; do
             if [ "$node_id" != "$current_leader_name" ]; then
                 target_id="$node_id"
                 target_addr=$(get_server_addr_by_id "$leader_rpc" "$node_id")
@@ -1181,11 +1256,11 @@ run_lifecycle_tests() {
     log_info "--- TC-LIF-02: 全集群重启 ---"
     cd "$DOCKER_DIR"
     log_info "Stopping all HA nodes..."
-    $COMPOSE_HA stop node-0 node-1 node-2 2>/dev/null || true
+    $COMPOSE_HA stop ha-node-0 ha-node-1 ha-node-2 2>/dev/null || true
     sleep 5
 
     log_info "Restarting all HA nodes..."
-    $COMPOSE_HA up -d node-0 node-1 node-2
+    $COMPOSE_HA up -d ha-node-0 ha-node-1 ha-node-2
     sleep 5
 
     # Wait for leader re-election
@@ -1219,7 +1294,7 @@ run_lifecycle_tests() {
     cd "$DOCKER_DIR"
     # After the full restart above, check logs for HA startup sequence
     local ha_start_logs
-    ha_start_logs=$($COMPOSE_HA logs node-0 node-1 node-2 2>/dev/null | \
+    ha_start_logs=$($COMPOSE_HA logs ha-node-0 ha-node-1 ha-node-2 2>/dev/null | \
         grep -i "hakeeper.*started\|hakeeper.*raft\|hakeeper.*leader\|hakeeper.*Barrier\|leader ready" | \
         tail -10 || true)
     # Check that HA startup log appears (including 'became leader', 'Barrier', 'leader ready')
@@ -1278,7 +1353,7 @@ generate_report() {
         echo "| TC-CFG-03 | 配置验证 | server-id flag 生效 | - |"
         echo "| TC-CFG-04 | 配置验证 | 纯flag模式（无配置文件） | - |"
         echo "| TC-CFG-05 | 配置验证 | advertised_addr 自动检测 | - |"
-        echo "| TC-CLU-01 | 集群组建 | node-0 成为初始 leader | - |"
+        echo "| TC-CLU-01 | 集群组建 | ha-node-0 成为初始 leader | - |"
         echo "| TC-CLU-02 | 集群组建 | 3节点集群完整组建 | - |"
         echo "| TC-CLU-03 | 集群组建 | joinLoop 重试机制 | - |"
         echo "| TC-CLU-04 | 集群组建 | 重复 bootstrap 无害 | - |"
@@ -1315,6 +1390,120 @@ generate_report() {
     log_success "Report written to: $REPORT_OUTPUT"
 }
 
+# ─── Category 7: P2P Broadcast Reactor Optimization Tests ───────────────────
+# Validates the p2p-broadcast-reactor-optimize changes:
+#   - applyInterval=3s, syncInterval=5s (faster sync cadence)
+#   - maxPendingSyncPerPeer=200, rate limit=50qps (resource-protection)
+#   - NoBlockResponse no longer consumes sync slot
+#   - banPeer wiring in AddPeer / decode error / signature failure / timeout
+# These tests observe a running cluster (no malicious actor) — they verify
+# the code paths are taken and no regression breaks normal sync.
+
+run_p2p_opt_tests() {
+    log_section "Category 7: P2P Broadcast Reactor Optimization Tests"
+
+    # TC-P2P-01: fullnode applies blocks from HA sequencer (end-to-end sync path).
+    # The fullnodes (node-0/1/2/3, sentry-node-0) use broadcast_reactor.go's
+    # applyRoutine. If it works, they will stay within a few blocks of the HA
+    # leader. We give a 10s window and require delta >= 1.
+    log_info "--- TC-P2P-01: fullnode applies blocks via P2P ---"
+    local leader_height_before follower_height_before
+    local leader_height_after follower_height_after
+    leader_height_before=$(get_block_number "$HA_RPC_NODE0")
+    follower_height_before=$(get_block_number "$L2_RPC_NODE0")
+    sleep 10
+    leader_height_after=$(get_block_number "$HA_RPC_NODE0")
+    follower_height_after=$(get_block_number "$L2_RPC_NODE0")
+
+    local follower_delta=$((follower_height_after - follower_height_before))
+    local gap=$((leader_height_after - follower_height_after))
+    if [ "$follower_delta" -ge 1 ] && [ "$gap" -lt 10 ]; then
+        record_test "TC-P2P-01" "fullnode通过P2P同步块" "PASS" \
+            "Fullnode(node-0) advanced $follower_delta blocks in 10s, gap to leader=$gap"
+    else
+        record_test "TC-P2P-01" "fullnode通过P2P同步块" "FAIL" \
+            "Fullnode delta=$follower_delta, gap=$gap (expected delta>=1, gap<10)"
+    fi
+
+    # TC-P2P-02: broadcastReactor logs confirm sync interval change (5s).
+    # After the optimize, the applyRoutine logs "Checking sync goroutines"
+    # (via checkSyncGap's Debug call). We can't easily measure interval from
+    # Info logs, so verify the applyRoutine is running by presence of
+    # "Starting block apply routine" + recent activity.
+    log_info "--- TC-P2P-02: apply routine running on fullnode ---"
+    local apply_log
+    apply_log=$($COMPOSE_HA logs --tail 2000 node-0 2>&1 | \
+        grep -c "Starting block apply routine" || true)
+    if [ "$apply_log" -ge 1 ]; then
+        record_test "TC-P2P-02" "fullnode启动apply routine" "PASS" \
+            "Found 'Starting block apply routine' log on node-0"
+    else
+        record_test "TC-P2P-02" "fullnode启动apply routine" "FAIL" \
+            "No apply routine startup log found on node-0"
+    fi
+
+    # TC-P2P-03: "Applied block" logs appear on fullnodes (real sync happening).
+    # After 10s, at 3s block cadence with 3s applyInterval, a fullnode should
+    # have applied several blocks from the pending cache.
+    log_info "--- TC-P2P-03: fullnode applies blocks from pending cache ---"
+    local applied_count
+    applied_count=$($COMPOSE_HA logs --tail 5000 node-0 2>&1 | \
+        grep -c "Applied block" || true)
+    if [ "$applied_count" -ge 1 ]; then
+        record_test "TC-P2P-03" "fullnode成功apply块" "PASS" \
+            "Found $applied_count 'Applied block' entries in node-0 logs"
+    else
+        record_test "TC-P2P-03" "fullnode成功apply块" "FAIL" \
+            "No 'Applied block' logs on node-0 (sync path may be broken)"
+    fi
+
+    # TC-P2P-04: No 'Unsolicited sync response' errors in normal operation.
+    # After the optimize, NoBlockResponse no longer consumes slots, and
+    # legitimate responses from selected peers should always match. If many
+    # Unsolicited logs appear, something is wrong with request tracking.
+    log_info "--- TC-P2P-04: no spurious unsolicited-response errors ---"
+    local unsolicited_count
+    unsolicited_count=$($COMPOSE_HA logs --tail 5000 node-0 node-1 node-2 node-3 2>&1 | \
+        grep -c "Unsolicited sync response" || true)
+    # Allow a small number due to race conditions at startup; require < 5.
+    if [ "$unsolicited_count" -lt 5 ]; then
+        record_test "TC-P2P-04" "无误报unsolicited响应" "PASS" \
+            "Unsolicited response count: $unsolicited_count (threshold <5)"
+    else
+        record_test "TC-P2P-04" "无误报unsolicited响应" "FAIL" \
+            "Too many unsolicited response errors: $unsolicited_count"
+    fi
+
+    # TC-P2P-05: No peer bans in normal operation (no malicious traffic).
+    # If banPeer fires without an attacker, we've introduced a regression.
+    log_info "--- TC-P2P-05: no false-positive bans in normal operation ---"
+    local ban_count
+    ban_count=$($COMPOSE_HA logs --tail 5000 node-0 node-1 node-2 node-3 sentry-node-0 2>&1 | \
+        grep -c "Banning peer" || true)
+    if [ "$ban_count" -eq 0 ]; then
+        record_test "TC-P2P-05" "正常运行无误ban" "PASS" \
+            "No 'Banning peer' logs in normal operation"
+    else
+        record_test "TC-P2P-05" "正常运行无误ban" "FAIL" \
+            "Unexpected bans in normal operation: $ban_count entries"
+    fi
+
+    # TC-P2P-06: No rate-limit hits in normal operation.
+    # With rate=50 and normal sync qps well below 40, no legitimate peer
+    # should ever trip the limiter. If this fails, thresholds are too tight.
+    log_info "--- TC-P2P-06: no false-positive rate limiting ---"
+    local rl_count
+    rl_count=$($COMPOSE_HA logs --tail 5000 node-0 node-1 node-2 node-3 sentry-node-0 ha-node-0 ha-node-1 ha-node-2 2>&1 | \
+        grep -c "BlockRequest rate limited" || true)
+    if [ "$rl_count" -eq 0 ]; then
+        record_test "TC-P2P-06" "正常流量无误限流" "PASS" \
+            "No rate-limit hits during normal sync"
+    else
+        record_test "TC-P2P-06" "正常流量无误限流" "FAIL" \
+            "Legitimate peers tripped rate limit: $rl_count entries"
+    fi
+}
+
 print_summary() {
     echo ""
     echo -e "${BOLD}${CYAN}╔══════════════════════════════════════╗${NC}"
@@ -1337,28 +1526,27 @@ run_full_ha_test() {
     log_section "Sequencer HA V2 Integration Test"
     log_info "UPGRADE_HEIGHT=$UPGRADE_HEIGHT  HA_FORM_WAIT=${HA_FORM_WAIT}s"
 
-    # Reset cluster to ensure clean 3-voter state at test start.
-    # This makes the test idempotent — safe to run multiple times.
-    log_info "Resetting HA cluster for clean test state..."
+    # Reset HA cluster (ha-node-0/1/2) for clean state — makes the test idempotent.
+    log_info "Resetting isolated HA cluster for clean test state..."
     cd "$DOCKER_DIR"
-    $COMPOSE_HA stop node-0 node-1 node-2 2>/dev/null || true
-    $COMPOSE_HA rm -f node-0 node-1 node-2 2>/dev/null || true
+    $COMPOSE_HA stop ha-node-0 ha-node-1 ha-node-2 2>/dev/null || true
+    $COMPOSE_HA rm -f ha-node-0 ha-node-1 ha-node-2 2>/dev/null || true
     # Clean Raft persistent state (log/stable stores) so cluster re-bootstraps cleanly.
     # Tendermint + geth data is preserved — nodes sync from where they left off.
-    rm -rf "$DOCKER_DIR/.devnet/node0/raft" \
-           "$DOCKER_DIR/.devnet/node1/raft" \
-           "$DOCKER_DIR/.devnet/node2/raft" 2>/dev/null || true
-    $COMPOSE_HA up -d node-0 node-1 node-2 2>/dev/null
+    rm -rf "$DOCKER_DIR/.devnet/ha-node0/raft" \
+           "$DOCKER_DIR/.devnet/ha-node1/raft" \
+           "$DOCKER_DIR/.devnet/ha-node2/raft" 2>/dev/null || true
+    $COMPOSE_HA up -d ha-node-0 ha-node-1 ha-node-2 2>/dev/null
     log_info "Waiting for fresh 3-voter cluster to form (~60s)..."
     sleep 15  # let nodes start
-    wait_for_rpc "$L2_RPC_NODE0" 30 || true
+    wait_for_rpc "$HA_L2_RPC_0" 30 || true
     wait_for_ha_leader 60 || true
     sleep 10  # let all followers join
 
     # Init report
     mkdir -p "$DOCS_DIR"
     REPORT_LINES=()
-    REPORT_LINES+=("## Environment\n\n- Upgrade Height: $UPGRADE_HEIGHT\n- HA Form Wait: ${HA_FORM_WAIT}s\n- Nodes: node-0 (bootstrap), node-1 (join), node-2 (join)\n- node-3: non-HA V2 follower\n\n---\n")
+    REPORT_LINES+=("## Environment\n\n- Upgrade Height: $UPGRADE_HEIGHT\n- HA Form Wait: ${HA_FORM_WAIT}s\n- PBFT nodes (pre-upgrade validators, post-upgrade V2 fullnodes): node-0/1/2/3\n- Isolated HA cluster (post-upgrade sequencer): ha-node-0 (bootstrap), ha-node-1 (join), ha-node-2 (join)\n- sentry-node-0: non-HA V2 fullnode\n\n---\n")
 
     run_config_tests
     run_cluster_tests
@@ -1366,6 +1554,7 @@ run_full_ha_test() {
     run_failover_tests
     run_api_tests
     run_lifecycle_tests
+    run_p2p_opt_tests
 
     print_summary
     generate_report
@@ -1376,11 +1565,15 @@ run_full_ha_test() {
 }
 
 show_ha_status() {
-    echo "Block Heights:"
+    echo "Block Heights (PBFT nodes):"
     echo "  node-0: $(get_block_number "$L2_RPC_NODE0")"
     echo "  node-1: $(get_block_number "$L2_RPC_NODE1")"
     echo "  node-2: $(get_block_number "$L2_RPC_NODE2")"
     echo "  node-3: $(get_block_number "$L2_RPC_NODE3")"
+    echo "Block Heights (isolated HA cluster):"
+    echo "  ha-node-0: $(get_block_number "$HA_L2_RPC_0")"
+    echo "  ha-node-1: $(get_block_number "$HA_L2_RPC_1")"
+    echo "  ha-node-2: $(get_block_number "$HA_L2_RPC_2")"
     echo ""
     echo "HA Status:"
     for rpc_url in "$HA_RPC_NODE0" "$HA_RPC_NODE1" "$HA_RPC_NODE2"; do
@@ -1388,7 +1581,7 @@ show_ha_status() {
         node=$(rpc_to_container "$rpc_url")
         local leader_flag
         leader_flag=$(ha_call "$rpc_url" "ha_leader" "[]" | grep -o '"result":[^,}]*' | cut -d: -f2 | tr -d ' ')
-        printf "  %-8s HA RPC: %s  leader=%s\n" "$node" "$rpc_url" "${leader_flag:-unreachable}"
+        printf "  %-10s HA RPC: %s  leader=%s\n" "$node" "$rpc_url" "${leader_flag:-unreachable}"
     done
     echo ""
     echo "Cluster Membership (from leader):"
@@ -1429,6 +1622,8 @@ case "${1:-}" in
         remove_ha_override
         rm -rf "$OPS_DIR/l2-genesis/.devnet"
         rm -rf "$DOCKER_DIR/.devnet"
+        # Clean isolated-HA-cluster artifacts (geth nodekeys are kept in DOCKER_DIR).
+        rm -f "$DOCKER_DIR/ha-nodekey0" "$DOCKER_DIR/ha-nodekey1" "$DOCKER_DIR/ha-nodekey2"
         # Clean L1 genesis (stale genesis causes beacon chain to stick at head_slot=0)
         bash "$DOCKER_DIR/layer1/scripts/clean.sh" 2>/dev/null || true
         log_success "Cleaned."
@@ -1475,13 +1670,18 @@ Environment Variables:
   REPORT_OUTPUT    Path for test report markdown file
 
 Node Roles:
-  node-0: HA bootstrap leader (MORPH_NODE_HA_BOOTSTRAP=true)
-  node-1: HA follower (MORPH_NODE_HA_JOIN=node-0:9401)
-  node-2: HA follower (MORPH_NODE_HA_JOIN=node-0:9401)
-  node-3: Non-HA V2 follower (for sync verification)
+  node-0/1/2/3   PBFT validators (pre-upgrade). After UPGRADE_HEIGHT they
+                 become V2 fullnodes (no sequencer key → hasSigner=false).
+  ha-node-0      Isolated HA cluster: bootstrap leader candidate
+                 (MORPH_NODE_HA_BOOTSTRAP=true, SEQUENCER_PRIVATE_KEY set)
+  ha-node-1/2    Isolated HA cluster: followers that join ha-node-0:9401.
+  sentry-node-0  Non-HA V2 fullnode (sync verification).
 
-HA Admin RPC Ports (host):
-  node-0: 9501   node-1: 9601   node-2: 9701
+Host Ports:
+  L2 Geth RPC (PBFT):  8545 / 8645 / 8745 / 8845
+  L2 Geth RPC (HA):    9145 / 9245 / 9345
+  HA Admin RPC:        9501 / 9601 / 9701  (ha-node-0/1/2)
+  TM RPC (HA):        27657 /27757 /27857  (ha-node-0/1/2)
 
 Quick Start:
   ./run-ha-test.sh build
