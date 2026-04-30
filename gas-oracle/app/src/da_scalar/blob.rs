@@ -16,7 +16,8 @@ pub struct Blob(pub [u8; MAX_BLOB_TX_PAYLOAD_SIZE]);
 impl Blob {
     /// Extract the raw payload segment from a blob by removing the BLS12-381 field encoding,
     /// without performing zstd decompression.
-    /// Under the new format, the concatenation of multiple blob segments forms the full zstd payload.
+    /// Under the new format, the concatenation of multiple blob segments forms the full zstd
+    /// payload.
     pub fn get_payload_bytes(&self) -> Result<Vec<u8>, BlobError> {
         // Decode blob and recover BLS12-381 scalars.
         // Each field element is 32 bytes, with 31 bytes of usable payload.
@@ -34,7 +35,10 @@ impl Blob {
         Ok(data)
     }
 
-    pub fn detect_zstd_compressed(decoded_blob: Vec<u8>) -> Result<Vec<u8>, BlobError> {
+    pub fn detect_zstd_compressed(
+        decoded_blob: Vec<u8>,
+        num_blobs: usize,
+    ) -> Result<Vec<u8>, BlobError> {
         // The format of zstd_compression is shown in the following link:
         // https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_header
         let fcs_field_size = match parse_frame_header_descriptor(&decoded_blob) {
@@ -71,13 +75,14 @@ impl Blob {
         // compressed_data = frame_header + frame_content_field_size + zstd_blocks
         let compressed_len = get_blocks_size(&decoded_blob, fcs_field_size)? + 1;
 
-        if compressed_len as usize > MAX_BLOB_TX_PAYLOAD_SIZE - 4096 {
+        let max_payload_size = num_blobs * (MAX_BLOB_TX_PAYLOAD_SIZE - 4096);
+        if compressed_len as usize > max_payload_size {
             return Err(BlobError::Error(anyhow!("oversized batch payload")))
         }
         let compressed_batch = decoded_blob[..compressed_len].to_vec();
 
         // check data
-        Self::check_data(&compressed_batch, &decoded_blob, fcs_field_size)?;
+        Self::check_data(&compressed_batch, &decoded_blob, fcs_field_size, num_blobs)?;
 
         Ok(compressed_batch)
     }
@@ -86,6 +91,7 @@ impl Blob {
         compressed_data: &Vec<u8>,
         decoded_blob: &[u8],
         fcs_field_size: usize,
+        num_blobs: usize,
     ) -> Result<(), BlobError> {
         let origin_batch = decompress_batch(compressed_data)?;
 
@@ -100,9 +106,11 @@ impl Blob {
             )))
         }
 
+        let total_blob_payload = num_blobs as f32 * (MAX_BLOB_TX_PAYLOAD_SIZE - 4096) as f32;
         log::info!(
-            "check_blob_data, blob usage {:.3}, batch_compression_ratio: {:.3}",
-            compressed_data.len() as f32 / MAX_BLOB_TX_PAYLOAD_SIZE as f32,
+            "check_blob_data, num_blobs: {}, blob usage {:.3}, batch_compression_ratio: {:.3}",
+            num_blobs,
+            compressed_data.len() as f32 / total_blob_payload,
             orgin_content_size as f32 / compressed_data.len() as f32
         );
         Ok(())
@@ -137,12 +145,6 @@ fn parse_block_header(
     compressed_data: &[u8],
     fcs_field_size: usize,
 ) -> Result<(bool, u8, u32), Box<dyn Error>> {
-    // Make sure we have enough data to parse
-    if compressed_data.len() < 1 + fcs_field_size + 3 {
-        // 2 (minimum starting point) + 3 (block header size)
-        return Err("Compressed batch is too small to contain a valid block header".into());
-    }
-
     // Make sure we have enough data to parse
     if compressed_data.len() < 1 + fcs_field_size + 3 {
         // 2 (minimum starting point) + 3 (block header size)
@@ -200,7 +202,8 @@ mod tests {
         // Under the new format, a single blob still uses the multi-blob decoding path
         // (get_payload_bytes -> detect_zstd_compressed -> decompress_batch).
         let payload = blob.get_payload_bytes().expect("get_payload_bytes failed");
-        let compressed_batch = Blob::detect_zstd_compressed(payload).expect("detect_zstd_compressed failed");
+        let compressed_batch =
+            Blob::detect_zstd_compressed(payload, 1).expect("detect_zstd_compressed failed");
         assert_eq!(compressed_batch.len(), 60576);
 
         let origin_batch = super::decompress_batch(&compressed_batch).unwrap();
@@ -247,7 +250,8 @@ mod tests {
         // Under the new format, a single blob still uses the multi-blob decoding path
         // (get_payload_bytes -> detect_zstd_compressed -> decompress_batch).
         let payload = blob.get_payload_bytes().expect("get_payload_bytes failed");
-        let compressed_batch = Blob::detect_zstd_compressed(payload).expect("detect_zstd_compressed failed");
+        let compressed_batch =
+            Blob::detect_zstd_compressed(payload, 1).expect("detect_zstd_compressed failed");
         println!("encoded_bytes_len: {:?}", encoded_bytes.len());
         assert_eq!(compressed_batch.len(), encoded_bytes.len());
         assert_eq!(compressed_batch, encoded_bytes);

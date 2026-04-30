@@ -218,7 +218,7 @@ impl ScalarUpdater {
         block_num: U64,
     ) -> Result<(u64, u64), ScalarError> {
         //Step1. get_data_from_blob
-        let (l2_data_len, l2_txn) =
+        let (l2_data_len, num_blobs, l2_txn) =
             self.get_data_from_blob(tx_hash, block_num).await.map_err(|e| {
                 log::error!("get_data_from_blob error: {:#?}", e);
                 e
@@ -249,7 +249,7 @@ impl ScalarUpdater {
         let commit_scalar = (rollup_gas_used.as_u64() + self.finalize_batch_gas_used) * PRECISION /
             l2_txn.max(self.txn_per_batch);
         let blob_scalar = if l2_data_len > 0 {
-            MAX_BLOB_TX_PAYLOAD_SIZE as u64 * PRECISION / l2_data_len
+            num_blobs * MAX_BLOB_TX_PAYLOAD_SIZE as u64 * PRECISION / l2_data_len
         } else {
             MAX_BLOB_SCALAR
         };
@@ -272,7 +272,7 @@ impl ScalarUpdater {
         &self,
         tx_hash: TxHash,
         block_num: U64,
-    ) -> Result<(u64, u64), ScalarError> {
+    ) -> Result<(u64, u64, u64), ScalarError> {
         let blob_tx = self
             .l1_provider
             .get_transaction(tx_hash)
@@ -300,7 +300,7 @@ impl ScalarUpdater {
         let indexed_hashes = data_and_hashes_from_txs(&blob_block.transactions, &blob_tx);
         if indexed_hashes.is_empty() {
             log::info!("no blob in this batch, batch_tx_hash: {:#?}", tx_hash);
-            return Ok((0, 0));
+            return Ok((0, 0, 0));
         }
 
         // Waiting for the next L1 block to be produced.
@@ -373,11 +373,13 @@ impl ScalarUpdater {
         // split into multiple segments across blobs, then reconstructed by concatenating
         // the segments, trimming the valid compressed payload, and decompressing once.
         // This also remains compatible with the single-blob case.
+        let num_blobs = indexed_hashes.len() as u64;
         let origin_batch = extract_tx_payload(indexed_hashes, sidecars)?;
-        let total_size = origin_batch.len() as u64;
-        let total_count = extract_txn_count(&origin_batch, last_block_num).unwrap_or_default();
 
-        Ok((total_size, total_count))
+        let batch_size = origin_batch.len() as u64;
+        let txn_count = extract_txn_count(&origin_batch, last_block_num).unwrap_or_default();
+
+        Ok((batch_size, num_blobs, txn_count))
     }
 }
 

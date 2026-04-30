@@ -22,6 +22,7 @@ pub(super) fn extract_tx_payload(
     indexed_hashes: Vec<IndexedBlobHash>,
     sidecars: &[Value],
 ) -> Result<Vec<u8>, ScalarError> {
+    let num_blobs = indexed_hashes.len();
     let mut combined_payload = Vec::<u8>::new();
     for i_h in indexed_hashes {
         if let Some(sidecar) = sidecars.iter().find(|sidecar| {
@@ -86,7 +87,7 @@ pub(super) fn extract_tx_payload(
 
     // After concatenation, use detect_zstd_compressed to trim the valid compressed payload
     // (excluding trailing zero padding), then decompress the batch as a whole.
-    let compressed_data = Blob::detect_zstd_compressed(combined_payload).map_err(|e| {
+    let compressed_data = Blob::detect_zstd_compressed(combined_payload, num_blobs).map_err(|e| {
         ScalarError::CalculateError(anyhow!(format!(
             "Failed to detect zstd compressed data from combined blob payload: {}",
             e
