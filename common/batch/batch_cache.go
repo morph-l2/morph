@@ -723,7 +723,6 @@ func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64) (ui
 		NumL1Messages:            numL1Messages,
 		Sidecar:                  *sidecar,
 		Signatures:               []eth.RPCBatchSignature{},
-		CollectedL1Fee:           nil,
 	}
 	bc.sealedBatches[batchIndex] = sealedBatch
 	// Store batch header copy

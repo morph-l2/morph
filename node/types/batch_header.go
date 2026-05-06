@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/crypto"
 )
 
@@ -177,71 +176,4 @@ func (b BatchHeaderBytes) LastBlockNumber() (uint64, error) {
 		return 0, errors.New("LastBlockNumber is not available in version 0")
 	}
 	return binary.BigEndian.Uint64(b[249:257]), nil
-}
-
-// structed batch header for version 0
-type BatchHeaderV0 struct {
-	BatchIndex             uint64
-	L1MessagePopped        uint64
-	TotalL1MessagePopped   uint64
-	DataHash               common.Hash
-	BlobVersionedHash      common.Hash
-	PrevStateRoot          common.Hash
-	PostStateRoot          common.Hash
-	WithdrawalRoot         common.Hash
-	SequencerSetVerifyHash common.Hash
-	ParentBatchHash        common.Hash
-
-	//cache
-	EncodedBytes hexutil.Bytes
-}
-
-func (b BatchHeaderV0) Bytes() BatchHeaderBytes {
-	if len(b.EncodedBytes) > 0 {
-		return BatchHeaderBytes(b.EncodedBytes)
-	}
-	batchBytes := make([]byte, expectedLengthV0)
-	batchBytes[0] = BatchHeaderVersion0
-	binary.BigEndian.PutUint64(batchBytes[1:], b.BatchIndex)
-	binary.BigEndian.PutUint64(batchBytes[9:], b.L1MessagePopped)
-	binary.BigEndian.PutUint64(batchBytes[17:], b.TotalL1MessagePopped)
-	copy(batchBytes[25:], b.DataHash[:])
-	copy(batchBytes[57:], b.BlobVersionedHash[:])
-	copy(batchBytes[89:], b.PrevStateRoot[:])
-	copy(batchBytes[121:], b.PostStateRoot[:])
-	copy(batchBytes[153:], b.WithdrawalRoot[:])
-	copy(batchBytes[185:], b.SequencerSetVerifyHash[:])
-	copy(batchBytes[217:], b.ParentBatchHash[:])
-	b.EncodedBytes = batchBytes
-	return batchBytes
-}
-
-type BatchHeaderV1 struct {
-	BatchHeaderV0
-	LastBlockNumber uint64
-
-	//cache
-	EncodedBytes hexutil.Bytes
-}
-
-func (b BatchHeaderV1) Bytes() BatchHeaderBytes {
-	if len(b.EncodedBytes) > 0 {
-		return BatchHeaderBytes(b.EncodedBytes)
-	}
-	batchBytes := make([]byte, expectedLengthV1)
-	batchBytes[0] = BatchHeaderVersion1
-	binary.BigEndian.PutUint64(batchBytes[1:], b.BatchIndex)
-	binary.BigEndian.PutUint64(batchBytes[9:], b.L1MessagePopped)
-	binary.BigEndian.PutUint64(batchBytes[17:], b.TotalL1MessagePopped)
-	copy(batchBytes[25:], b.DataHash[:])
-	copy(batchBytes[57:], b.BlobVersionedHash[:])
-	copy(batchBytes[89:], b.PrevStateRoot[:])
-	copy(batchBytes[121:], b.PostStateRoot[:])
-	copy(batchBytes[153:], b.WithdrawalRoot[:])
-	copy(batchBytes[185:], b.SequencerSetVerifyHash[:])
-	copy(batchBytes[217:], b.ParentBatchHash[:])
-	binary.BigEndian.PutUint64(batchBytes[249:], b.LastBlockNumber)
-
-	b.EncodedBytes = batchBytes
-	return batchBytes
 }
