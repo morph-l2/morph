@@ -172,8 +172,6 @@ func KZGToVersionedHash(commitment kzg4844.Commitment) (out common.Hash) {
 // commitment round-trip gives us the same security property
 // (blob bytes -> commitment -> versioned hash matches the L1-signed
 // hash) without depending on those fields.
-//
-// Mirrors ethereum-optimism/optimism PR #17725 (verifyBlob).
 func verifyBlob(blob *Blob, expectedHash common.Hash) error {
 	commitment, err := kzg4844.BlobToCommitment(blob.KZGBlob())
 	if err != nil {
