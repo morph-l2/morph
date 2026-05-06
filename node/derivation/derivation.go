@@ -393,23 +393,29 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 			// can assemble the local sidecar in the exact order the L1 tx
 			// declared its blobs. Multi-blob batches are decoded by
 			// concatenating blob bodies in tx order; any reordering here
-			// would corrupt the resulting zstd stream.
+			// would corrupt the resulting zstd stream. The map key is
+			// derived from the beacon-supplied commitment; verifyBlob below
+			// re-derives the same hash from the actual blob bytes, so a
+			// malicious beacon cannot forge an entry by lying about the
+			// commitment.
 			byHash := make(map[common.Hash]*BlobSidecar, len(blobSidecars))
 			for _, sidecar := range blobSidecars {
 				var commitment kzg4844.Commitment
 				copy(commitment[:], sidecar.KZGCommitment[:])
-				versionedHash := KZGToVersionedHash(commitment)
-				byHash[versionedHash] = sidecar
+				byHash[KZGToVersionedHash(commitment)] = sidecar
 			}
 
+			// Downstream (ParseBatch) only consumes Sidecar.Blobs and
+			// Sidecar.Commitments; Proofs is intentionally left empty to
+			// avoid an extra ~O(n) KZG op per blob per batch on every
+			// sync. If a future consumer needs Proofs, compute them
+			// lazily there or call kzg4844.ComputeBlobProof here.
 			var blobTxSidecar eth.BlobTxSidecar
 			for i, expectedHash := range blobHashes {
 				sidecar, ok := byHash[expectedHash]
 				if !ok {
 					return nil, fmt.Errorf("blob %d (hash=%s) not found in beacon sidecars", i, expectedHash.Hex())
 				}
-				var commitment kzg4844.Commitment
-				copy(commitment[:], sidecar.KZGCommitment[:])
 
 				b, err := hexutil.Decode(sidecar.Blob)
 				if err != nil {
@@ -421,39 +427,20 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 				//     zero-initialized array stays zero)
 				//   - truncates when len(b) > BlobSize (extra bytes dropped)
 				// Either case would otherwise surface later as a confusing
-				// "commitment mismatch" instead of a clear length error.
+				// blob-hash mismatch instead of a clear length error.
 				if len(b) != BlobSize {
 					return nil, fmt.Errorf("blob %d: unexpected length %d (want %d, hash=%s)", i, len(b), BlobSize, expectedHash.Hex())
 				}
 				var blob Blob
 				copy(blob[:], b)
 
-				// Authenticate blob bytes by re-deriving the commitment locally and
-				// comparing against the beacon-supplied commitment. Combined with the
-				// versioned-hash match performed when building byHash above, this
-				// proves: blob bytes -> commitment -> versioned hash matches the
-				// hash signed on L1.
-				//
-				// We deliberately do NOT call VerifyBlobProof on the beacon-supplied
-				// kzg_proof: after EIP-7594 (PeerDAS / Osaka) submitters may attach
-				// cell proofs (BlobSidecarVersion1) instead of the legacy single-blob
-				// proof, and the /eth/v1/beacon/blob_sidecars/{slot} endpoint's
-				// kzg_proof field is not guaranteed to remain a valid legacy proof
-				// across forks/clients. The commitment round-trip here gives us the
-				// same security property without depending on that field.
-				recomputed, err := kzg4844.BlobToCommitment(blob.KZGBlob())
-				if err != nil {
-					return nil, fmt.Errorf("blob %d: failed to recompute commitment: %w", i, err)
-				}
-				if recomputed != commitment {
-					return nil, fmt.Errorf("blob %d commitment mismatch: blob bytes do not match beacon-supplied commitment (hash=%s)", i, expectedHash.Hex())
+				if err := verifyBlob(&blob, expectedHash); err != nil {
+					return nil, fmt.Errorf("blob %d: %w", i, err)
 				}
 
-				// Downstream (ParseBatch) only consumes Sidecar.Blobs; Proofs is
-				// intentionally left empty to avoid an extra ~O(n) KZG op per
-				// blob per batch on every sync. If a future consumer needs
-				// Proofs, compute them lazily there or re-introduce
-				// kzg4844.ComputeBlobProof here.
+				var commitment kzg4844.Commitment
+				copy(commitment[:], sidecar.KZGCommitment[:])
+
 				d.logger.Info("Matched blob", "txOrder", i, "beaconIndex", sidecar.Index, "hash", expectedHash.Hex())
 				blobTxSidecar.Blobs = append(blobTxSidecar.Blobs, *blob.KZGBlob())
 				blobTxSidecar.Commitments = append(blobTxSidecar.Commitments, commitment)
