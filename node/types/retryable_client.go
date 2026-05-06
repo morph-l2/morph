@@ -85,9 +85,9 @@ func (rc *RetryableClient) ValidateL2Block(ctx context.Context, executableL2Data
 	return
 }
 
-func (rc *RetryableClient) NewL2Block(ctx context.Context, executableL2Data *catalyst.ExecutableL2Data, batchHash *common.Hash) (err error) {
+func (rc *RetryableClient) NewL2Block(ctx context.Context, executableL2Data *catalyst.ExecutableL2Data) (err error) {
 	if retryErr := backoff.Retry(func() error {
-		respErr := rc.authClient.NewL2Block(ctx, executableL2Data, batchHash)
+		respErr := rc.authClient.NewL2Block(ctx, executableL2Data)
 		if respErr != nil {
 			rc.logger.Error("NewL2Block failed",
 				"block_number", executableL2Data.Number,
@@ -118,40 +118,6 @@ func (rc *RetryableClient) NewSafeL2Block(ctx context.Context, safeL2Data *catal
 		return nil
 	}, rc.b); retryErr != nil {
 		return nil, retryErr
-	}
-	return
-}
-
-func (rc *RetryableClient) CommitBatch(ctx context.Context, batch *eth.RollupBatch, signatures []eth.BatchSignature) (err error) {
-	if retryErr := backoff.Retry(func() error {
-		respErr := rc.authClient.CommitBatch(ctx, batch, signatures)
-		if respErr != nil {
-			rc.logger.Info("failed to CommitBatch", "error", respErr)
-			if retryableError(respErr) {
-				return respErr
-			}
-			err = respErr
-		}
-		return nil
-	}, rc.b); retryErr != nil {
-		return retryErr
-	}
-	return
-}
-
-func (rc *RetryableClient) AppendBlsSignature(ctx context.Context, batchHash common.Hash, signature eth.BatchSignature) (err error) {
-	if retryErr := backoff.Retry(func() error {
-		respErr := rc.authClient.AppendBlsSignature(ctx, batchHash, signature)
-		if respErr != nil {
-			rc.logger.Info("failed to call AppendBlsSignature", "error", respErr)
-			if retryableError(respErr) {
-				return respErr
-			}
-			err = respErr
-		}
-		return nil
-	}, rc.b); retryErr != nil {
-		return retryErr
 	}
 	return
 }
