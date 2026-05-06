@@ -34,7 +34,6 @@ const (
 type Config struct {
 	L1                    *types.L1Config `json:"l1"`
 	L2                    *types.L2Config `json:"l2"`
-	L2Next                *types.L2Config `json:"l2_next,omitempty"` // optional, for geth upgrade switch
 	BeaconRpc             string          `json:"beacon_rpc"`
 	RollupContractAddress common.Address  `json:"rollup_contract_address"`
 	StartHeight           uint64          `json:"start_height"`
@@ -56,7 +55,6 @@ func DefaultConfig() *Config {
 		LogProgressInterval: DefaultLogProgressInterval,
 		FetchBlockRange:     DefaultFetchBlockRange,
 		L2:                  new(types.L2Config),
-		L2Next:              nil, // optional, only for upgrade switch
 	}
 }
 
@@ -138,16 +136,6 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	c.L2.EngineAddr = l2EngineAddr
 	c.L2.JwtSecret = secret
 
-	// L2Next is optional - only for upgrade switch (e.g., ZK to MPT)
-	l2NextEthAddr := ctx.GlobalString(flags.L2NextEthAddr.Name)
-	l2NextEngineAddr := ctx.GlobalString(flags.L2NextEngineAddr.Name)
-	if l2NextEthAddr != "" && l2NextEngineAddr != "" {
-		c.L2Next = &types.L2Config{
-			EthAddr:    l2NextEthAddr,
-			EngineAddr: l2NextEngineAddr,
-			JwtSecret:  secret, // same secret
-		}
-	}
 	c.MetricsServerEnable = ctx.GlobalBool(flags.MetricsServerEnable.Name)
 	c.MetricsHostname = ctx.GlobalString(flags.MetricsHostname.Name)
 	c.MetricsPort = ctx.GlobalUint64(flags.MetricsPort.Name)

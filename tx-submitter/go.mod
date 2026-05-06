@@ -2,7 +2,7 @@ module morph-l2/tx-submitter
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.4
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.6
 
 require (
 	github.com/consensys/gnark-crypto v0.16.0
