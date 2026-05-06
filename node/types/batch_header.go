@@ -145,4 +145,3 @@ func (b BatchHeaderBytes) LastBlockNumber() (uint64, error) {
 	}
 	return binary.BigEndian.Uint64(b[249:257]), nil
 }
-

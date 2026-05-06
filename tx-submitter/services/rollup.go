@@ -490,38 +490,6 @@ func (r *Rollup) updateFeeMetrics(tx *ethtypes.Transaction, receipt *ethtypes.Re
 		if err != nil {
 			return fmt.Errorf("failed to update rollup fee sum in leveldb: %w", err)
 		}
-
-		// Calculate and update L1 fee metrics
-		batchIndex := utils.ParseParentBatchIndex(tx.Data()) + 1
-		var rollupBatch *eth.RPCRollupBatch
-		exist := true
-		if r.cfg.SealBatch {
-			rollupBatch, err = r.batchCache.Get(batchIndex)
-		} else {
-			rollupBatch, exist = r.batchCacheLegacy.Get(batchIndex)
-		}
-		if err != nil || !exist || rollupBatch == nil {
-			log.Warn("rollupBatch not found in cache", "batch_index", batchIndex, "error", err)
-		} else {
-			if rollupBatch.CollectedL1Fee == nil {
-				return nil
-			}
-			collectedL1Fee := new(big.Float).Quo(new(big.Float).SetInt(rollupBatch.CollectedL1Fee.ToInt()), new(big.Float).SetInt(big.NewInt(params.Ether)))
-			collectedL1FeeFloat, _ := collectedL1Fee.Float64()
-
-			// Update metrics
-			r.collectedL1FeeSum += collectedL1FeeFloat
-			r.metrics.CollectedL1FeeSum.Add(collectedL1FeeFloat)
-
-			// Update leveldb
-			err = r.ldb.PutFloat(collectedL1FeeSumKey, r.collectedL1FeeSum)
-			if err != nil {
-				log.Error("failed to update collected L1 fee sum in leveldb", "error", err)
-			}
-			log.Info("Updated L1 fee metrics",
-				"batch_index", batchIndex,
-				"l1_fee_eth", collectedL1FeeFloat)
-		}
 	} else if method == constants.MethodFinalizeBatch {
 		r.finalizeFeeSum += txFeeFloat
 		r.metrics.FinalizeCostSum.Add(txFeeFloat)

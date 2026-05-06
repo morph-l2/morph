@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	genesisBatchVersion       = uint8(0)
-	genesisBatchHeaderLength  = 249
+	genesisBatchVersion      = uint8(0)
+	genesisBatchHeaderLength = 249
 )
 
 // emptyBlobVersionedHash is the KZG versioned hash of an empty blob.
