@@ -16,8 +16,8 @@ import (
 // This typically indicates a programming bug or proto incompatibility.
 type FSMDecodeError struct{ Err error }
 
-func (e *FSMDecodeError) Error() string  { return fmt.Sprintf("FSM decode: %v", e.Err) }
-func (e *FSMDecodeError) Unwrap() error  { return e.Err }
+func (e *FSMDecodeError) Error() string { return fmt.Sprintf("FSM decode: %v", e.Err) }
+func (e *FSMDecodeError) Unwrap() error { return e.Err }
 
 // FSMApplyError is returned when the business callback (geth applyBlock / saveSignature) fails.
 type FSMApplyError struct {
@@ -25,8 +25,10 @@ type FSMApplyError struct {
 	Err    error
 }
 
-func (e *FSMApplyError) Error() string  { return fmt.Sprintf("FSM apply height %d: %v", e.Height, e.Err) }
-func (e *FSMApplyError) Unwrap() error  { return e.Err }
+func (e *FSMApplyError) Error() string {
+	return fmt.Sprintf("FSM apply height %d: %v", e.Height, e.Err)
+}
+func (e *FSMApplyError) Unwrap() error { return e.Err }
 
 var _ raft.FSM = (*BlockFSM)(nil)
 
@@ -54,7 +56,7 @@ type BlockFSM struct {
 func NewBlockFSM(logger tmlog.Logger) *BlockFSM {
 	return &BlockFSM{
 		logger:  logger,
-		blockCh: make(chan *types.BlockV2, 200),
+		blockCh: make(chan *types.BlockV2, 1000),
 	}
 }
 
@@ -106,6 +108,9 @@ func (f *BlockFSM) Apply(l *raft.Log) interface{} {
 			return &FSMApplyError{Height: block.Number, Err: err}
 		}
 		onAppliedDur = time.Since(t1)
+	} else {
+		panic(fmt.Sprintf("BlockFSM.Apply: onApplied is nil at height %d, "+
+			"this is a programmer error", block.Number))
 	}
 
 	totalDur := time.Since(t0)
