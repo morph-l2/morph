@@ -403,7 +403,7 @@ services:
        - "7546:8546"
        - "7551:8551"
      healthcheck:
-       test: curl -f http://localhost:8545
+       test: ["CMD-SHELL", "wget -qO- --header='Content-Type: application/json' --post-data='{\"jsonrpc\":\"2.0\",\"method\":\"eth_chainId\",\"params\":[],\"id\":1}' http://localhost:8545 | grep -q '\"result\"'"]
        interval: 30s
        timeout: 5s
        retries: 3
@@ -483,6 +483,7 @@ services:
      - TX_SUBMITTER_FINALIZE=true
      - TX_SUBMITTER_MAX_FINALIZE_NUM=100
      - TX_SUBMITTER_PRIORITY_ROLLUP=false
+     - TX_SUBMITTER_SEAL_BATCH=true
      - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
      - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
      - TX_SUBMITTER_METRICS_PORT=6060
@@ -525,6 +526,7 @@ services:
      - TX_SUBMITTER_FINALIZE=false
      - TX_SUBMITTER_MAX_FINALIZE_NUM=100
      - TX_SUBMITTER_PRIORITY_ROLLUP=false
+     - TX_SUBMITTER_SEAL_BATCH=true
      - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
      - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
      - TX_SUBMITTER_METRICS_PORT=6060
@@ -567,6 +569,7 @@ services:
       - TX_SUBMITTER_FINALIZE=false
       - TX_SUBMITTER_MAX_FINALIZE_NUM=100
       - TX_SUBMITTER_PRIORITY_ROLLUP=false
+      - TX_SUBMITTER_SEAL_BATCH=true
       - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
       - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
       - TX_SUBMITTER_METRICS_PORT=6060
@@ -609,6 +612,7 @@ services:
       - TX_SUBMITTER_FINALIZE=false
       - TX_SUBMITTER_MAX_FINALIZE_NUM=100
       - TX_SUBMITTER_PRIORITY_ROLLUP=false
+      - TX_SUBMITTER_SEAL_BATCH=true
       - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
       - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
       - TX_SUBMITTER_METRICS_PORT=6060
