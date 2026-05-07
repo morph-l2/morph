@@ -21,6 +21,8 @@ pjoin = os.path.join
 parser = argparse.ArgumentParser(description='devnet launcher')
 parser.add_argument('--polyrepo-dir', help='Directory of the polyrepo', default=os.getcwd())
 parser.add_argument('--only-l1', help='Only bootstrap l1 geth', action="store_true")
+parser.add_argument('--execution-client', choices=('geth', 'reth'), default='geth',
+                    help='L2 execution client implementation to run')
 # parser.add_argument('--deploy', help='Whether the contracts should be predeployed or deployed', action="store_true")
 parser.add_argument('--debugccc', help='Whether set the debug log level for ccc', action="store_true")
 
@@ -28,6 +30,13 @@ log = logging.getLogger()
 
 GWEI = 1e9
 ETH = GWEI * GWEI
+
+
+def compose_file_args(execution_client):
+    args = ['-f', 'docker-compose-4nodes.yml']
+    if execution_client == 'reth':
+        args.extend(['-f', 'docker-compose-reth.yml'])
+    return args
 
 
 class Bunch:
@@ -255,12 +264,11 @@ def devnet_deploy(paths, args):
         envfile.truncate()
         envfile.close()
 
-    log.info('Bringing up L2.')
+    log.info(f'Bringing up L2 with {args.execution_client}.')
 
 
 
-    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up',
-                 '--no-recreate','-d'], check=False, cwd=paths.ops_dir,
+    run_command(['docker', 'compose', *compose_file_args(args.execution_client), 'up', '-d'], check=False, cwd=paths.ops_dir,
                 env={
                     'MORPH_PORTAL': addresses['Proxy__L1MessageQueueWithGasPriceOracle'],
                     'MORPH_ROLLUP': addresses['Proxy__Rollup'],

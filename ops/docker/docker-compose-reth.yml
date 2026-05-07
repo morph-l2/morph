@@ -1,0 +1,69 @@
+x-reth-command: &reth-command
+  - node
+  - --chain
+  - /genesis.json
+  - --datadir
+  - /db
+  - --http
+  - --http.addr
+  - 0.0.0.0
+  - --http.port
+  - "8545"
+  - --http.api
+  - web3,debug,eth,txpool,net,trace,admin,reth
+  - --ws
+  - --ws.addr
+  - 0.0.0.0
+  - --ws.port
+  - "8546"
+  - --ws.api
+  - web3,debug,eth,txpool,net,trace,admin,reth
+  - --authrpc.addr
+  - 0.0.0.0
+  - --authrpc.port
+  - "8551"
+  - --authrpc.jwtsecret
+  - /jwt-secret.txt
+  - --disable-nat
+  - --disable-discovery
+  - --engine.persistence-threshold
+  - "256"
+  - --engine.memory-block-buffer-target
+  - "16"
+  - --engine.persistence-backpressure-threshold
+  - "512"
+
+x-reth-service: &reth-service
+  image: morph-reth:latest
+  user: "0:0"
+  entrypoint:
+    - ${MORPH_RETH_ENTRYPOINT:-/app/morph-reth}
+  command: *reth-command
+
+services:
+  morph-el-0:
+    <<: *reth-service
+    build:
+      context: ${MORPH_RETH_DIR:-../../../morph-reth}
+      dockerfile: Dockerfile
+      target: ${MORPH_RETH_DOCKER_TARGET:-builder}
+      args:
+        BUILD_PROFILE: ${MORPH_RETH_BUILD_PROFILE:-release}
+        RUSTFLAGS: ${MORPH_RETH_RUSTFLAGS:-}
+
+  morph-el-1:
+    <<: *reth-service
+
+  morph-el-2:
+    <<: *reth-service
+
+  morph-el-3:
+    <<: *reth-service
+
+  sentry-el-0:
+    <<: *reth-service
+
+  validator-el:
+    <<: *reth-service
+    healthcheck:
+      disable: true
