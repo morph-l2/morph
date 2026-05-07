@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	commonbatch "morph-l2/common/batch"
+	"morph-l2/common/blob"
 	"morph-l2/node/types"
 	"morph-l2/node/zstd"
 )
@@ -40,7 +41,7 @@ func buildV1ParentHeader(parentIndex, nextStartBlock uint64) []byte {
 	return commonbatch.BatchHeaderV1{
 		BatchHeaderV0: commonbatch.BatchHeaderV0{
 			BatchIndex:        parentIndex,
-			BlobVersionedHash: commonbatch.EmptyVersionedHash,
+			BlobVersionedHash: blob.EmptyVersionedHash,
 		},
 		LastBlockNumber: nextStartBlock - 1,
 	}.Bytes()
