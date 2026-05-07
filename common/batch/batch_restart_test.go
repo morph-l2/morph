@@ -7,14 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"morph-l2/bindings/bindings"
-	"morph-l2/tx-submitter/db"
-	"morph-l2/tx-submitter/iface"
-	"morph-l2/tx-submitter/types"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
@@ -37,7 +32,7 @@ var (
 
 	rollupContract *bindings.Rollup
 
-	l2Caller *types.L2Caller
+	l2Gov *L2Gov
 )
 
 func init() {
@@ -46,22 +41,16 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	l2Caller, err = types.NewL2Caller([]iface.L2Client{l2Client})
+	l2Gov, err = NewL2Gov(l2Client)
 	if err != nil {
 		panic(err)
 	}
 }
 
 func Test_GetFinalizeBatchHeader(t *testing.T) {
-	testDir := filepath.Join(t.TempDir(), "testleveldb")
-	os.RemoveAll(testDir)
-	t.Cleanup(func() {
-		os.RemoveAll(testDir)
-	})
-	testDB, err := db.New(testDir)
-	require.NoError(t, err)
+	testDB := openTestKV(t)
 
-	bc := NewBatchCache(nil, nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
+	bc := NewBatchCache(nil, nil, 2, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
 	headerBytes, err := bc.getLastFinalizeBatchHeaderFromRollupByIndex(0)
 	require.NoError(t, err)
 	t.Log("headerBytes", hex.EncodeToString(headerBytes.Bytes()))
@@ -82,20 +71,14 @@ func Test_CommitBatchParse(t *testing.T) {
 }
 
 func TestBatchRestartInit(t *testing.T) {
-	testDir := filepath.Join(t.TempDir(), "testleveldb")
-	os.RemoveAll(testDir)
-	t.Cleanup(func() {
-		os.RemoveAll(testDir)
-	})
-	testDB, err := db.New(testDir)
-	require.NoError(t, err)
+	testDB := openTestKV(t)
 
-	sequencerSetBytes, sequencerSetVerifyHash, err := l2Caller.GetSequencerSetBytes(nil)
+	sequencerSetBytes, sequencerSetVerifyHash, err := l2Gov.GetSequencerSetBytes(nil)
 	require.NoError(t, err)
 	t.Log("sequencer set verify hash", hex.EncodeToString(sequencerSetVerifyHash[:]))
 	ci, fi := getInfosFromContract()
 	t.Log("commit index", ci, " ", "finalize index", fi)
-	bc := NewBatchCache(nil, nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
+	bc := NewBatchCache(nil, nil, 2, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
 	startBlockNum, endBlockNum, err := getFirstUnFinalizeBatchBlockNumRange(fi)
 	require.NoError(t, err)
 	startBlockNum = new(big.Int).Add(startBlockNum, new(big.Int).SetUint64(1))
@@ -127,7 +110,7 @@ func TestBatchRestartInit(t *testing.T) {
 	t.Logf("First unfinalize batch index: %d, block range: %d - %d", firstUnfinalizedIndex, startBlockNum.Uint64(), endBlockNum.Uint64())
 
 	// Fetch blocks from L2 client in this range and assemble batchHeader
-	assembledBatchHeader, err := assembleBatchHeaderFromL2Blocks(bc, startBlockNum.Uint64(), endBlockNum.Uint64(), sequencerSetBytes, l2Client, l2Caller)
+	assembledBatchHeader, err := assembleBatchHeaderFromL2Blocks(bc, startBlockNum.Uint64(), endBlockNum.Uint64(), sequencerSetBytes, l2Client, l2Gov)
 	require.NoError(t, err, "failed to assemble batch header from L2 blocks")
 	t.Log("assembled batch header success", hex.EncodeToString(assembledBatchHeader.Bytes()))
 	// Verify the assembled batchHeader
@@ -458,14 +441,14 @@ func assembleBatchHeaderFromL2Blocks(
 	bc *BatchCache,
 	startBlockNum, endBlockNum uint64,
 	sequencerBytes []byte,
-	l2Client iface.L2Client,
-	l2Caller *types.L2Caller,
+	l2Client *ethclient.Client,
+	l2Gov L2GovCaller,
 ) (*BatchHeaderBytes, error) {
 	ctx := context.Background()
 
 	// Fetch blocks from L2 client in the specified range and accumulate to batch
 	for blockNum := startBlockNum; blockNum <= endBlockNum; blockNum++ {
-		root, err := l2Caller.GetTreeRoot(&bind.CallOpts{
+		root, err := l2Gov.GetTreeRoot(&bind.CallOpts{
 			Context:     ctx,
 			BlockNumber: new(big.Int).SetUint64(blockNum),
 		})

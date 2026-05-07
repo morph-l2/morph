@@ -1,8 +1,12 @@
-package types
+package blob
 
 import (
+	"crypto/sha256"
 	"math/big"
 
+	"github.com/morph-l2/go-ethereum/common"
+	ethtypes "github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	"github.com/morph-l2/go-ethereum/log"
 )
 
@@ -42,7 +46,6 @@ type BlobConfig struct {
 	UpdateFraction uint64
 }
 
-// Time determination methods (referencing go-ethereum logic).
 // IsCancun returns whether time is either equal to the Cancun fork time or greater.
 func (c *BlobFeeConfig) IsCancun(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.CancunTime, time)
@@ -91,19 +94,16 @@ func (c *BlobFeeConfig) IsLondon(num *big.Int) bool {
 // GetBlobFeeDenominator returns the corresponding UpdateFraction based on the time.
 func GetBlobFeeDenominator(blobFeeConfig *BlobFeeConfig, blockTime uint64) *big.Int {
 	if blobFeeConfig == nil {
-		// If not configured, use default value.
 		log.Warn("BlobFeeConfig not set, using default denominator",
 			"default", DefaultOsakaBlobConfig)
 		return new(big.Int).SetUint64(DefaultOsakaBlobConfig.UpdateFraction)
 	}
 
 	cfg := blobFeeConfig
-	londonBlock := cfg.LondonBlock // London block number for fork determination.
+	londonBlock := cfg.LondonBlock
 
-	// Check in priority order from high to low (BPO5 -> BPO4 -> ... -> Cancun).
 	var blobConfig *BlobConfig
 
-	// Check BPO5
 	if cfg.BPO5Time != nil && cfg.IsBPO5(londonBlock, blockTime) && cfg.BPO5 != nil {
 		blobConfig = cfg.BPO5
 	} else if cfg.BPO4Time != nil && cfg.IsBPO4(londonBlock, blockTime) && cfg.BPO4 != nil {
@@ -135,9 +135,6 @@ func GetBlobFeeDenominator(blobFeeConfig *BlobFeeConfig, blockTime uint64) *big.
 	return new(big.Int).SetUint64(blobConfig.UpdateFraction)
 }
 
-// isBlockForked returns whether a fork scheduled at block s is active at the
-// given head block. Whilst this method is the same as isTimestampForked, they
-// are explicitly separate for clearer reading.
 func isBlockForked(s, head *big.Int) bool {
 	if s == nil || head == nil {
 		return false
@@ -145,12 +142,165 @@ func isBlockForked(s, head *big.Int) bool {
 	return s.Cmp(head) <= 0
 }
 
-// isTimestampForked returns whether a fork scheduled at timestamp s is active
-// at the given head timestamp. Whilst this method is the same as isBlockForked,
-// they are explicitly separate for clearer reading.
 func isTimestampForked(s *uint64, head uint64) bool {
 	if s == nil {
 		return false
 	}
 	return *s <= head
+}
+
+func newUint64(val uint64) *uint64 { return &val }
+
+var (
+	DefaultCancunBlobConfig = &BlobConfig{
+		UpdateFraction: 3338477,
+	}
+	DefaultPragueBlobConfig = &BlobConfig{
+		UpdateFraction: 5007716,
+	}
+	DefaultOsakaBlobConfig = &BlobConfig{
+		UpdateFraction: 5007716,
+	}
+	DefaultBPO1BlobConfig = &BlobConfig{
+		UpdateFraction: 8346193,
+	}
+	DefaultBPO2BlobConfig = &BlobConfig{
+		UpdateFraction: 11684671,
+	}
+	DefaultBPO3BlobConfig = &BlobConfig{
+		UpdateFraction: 20609697,
+	}
+	DefaultBPO4BlobConfig = &BlobConfig{
+		UpdateFraction: 13739630,
+	}
+)
+
+var (
+	MainnetChainConfig = &BlobFeeConfig{
+		ChainID:     big.NewInt(1),
+		LondonBlock: big.NewInt(12_965_000),
+		CancunTime:  newUint64(1710338135),
+		PragueTime:  newUint64(1746612311),
+		OsakaTime:   newUint64(1764798551),
+		BPO1Time:    newUint64(1765290071),
+		BPO2Time:    newUint64(1767747671),
+		Cancun:      DefaultCancunBlobConfig,
+		Prague:      DefaultPragueBlobConfig,
+		Osaka:       DefaultOsakaBlobConfig,
+		BPO1:        DefaultBPO1BlobConfig,
+		BPO2:        DefaultBPO2BlobConfig,
+		Default:     DefaultOsakaBlobConfig,
+	}
+
+	HoodiChainConfig = &BlobFeeConfig{
+		ChainID:     big.NewInt(560048),
+		LondonBlock: big.NewInt(0),
+		CancunTime:  newUint64(0),
+		PragueTime:  newUint64(1742999832),
+		OsakaTime:   newUint64(1761677592),
+		BPO1Time:    newUint64(1762365720),
+		BPO2Time:    newUint64(1762955544),
+		Cancun:      DefaultCancunBlobConfig,
+		Prague:      DefaultPragueBlobConfig,
+		Osaka:       DefaultOsakaBlobConfig,
+		BPO1:        DefaultBPO1BlobConfig,
+		BPO2:        DefaultBPO2BlobConfig,
+		Default:     DefaultOsakaBlobConfig,
+	}
+
+	DevnetChainConfig = &BlobFeeConfig{
+		ChainID:     big.NewInt(900),
+		LondonBlock: big.NewInt(0),
+		CancunTime:  newUint64(0),
+		PragueTime:  newUint64(1742999832),
+		OsakaTime:   newUint64(1761677592),
+		BPO1Time:    newUint64(1762365720),
+		BPO2Time:    newUint64(1762955544),
+		Cancun:      DefaultCancunBlobConfig,
+		Prague:      DefaultPragueBlobConfig,
+		Osaka:       DefaultOsakaBlobConfig,
+		BPO1:        DefaultBPO1BlobConfig,
+		BPO2:        DefaultBPO2BlobConfig,
+		Default:     DefaultOsakaBlobConfig,
+	}
+)
+
+// ChainBlobConfigs maps chain ID to blob fee configuration.
+type ChainBlobConfigs map[uint64]*BlobFeeConfig
+
+var (
+	DefaultBlobConfig = HoodiChainConfig
+
+	ChainConfigMap = ChainBlobConfigs{
+		1:      MainnetChainConfig,
+		560048: HoodiChainConfig,
+		900:    DevnetChainConfig,
+	}
+)
+
+// BlobHashes computes the blob hashes of the given blobs.
+func BlobHashes(blobs []kzg4844.Blob, commitments []kzg4844.Commitment) []common.Hash {
+	hasher := sha256.New()
+	h := make([]common.Hash, len(commitments))
+	for i := range blobs {
+		h[i] = kzg4844.CalcBlobHashV1(hasher, &commitments[i])
+	}
+	return h
+}
+
+// MakeBlobProof builds KZG proofs for blob transactions (sidecar v0).
+func MakeBlobProof(blobs []kzg4844.Blob, commitment []kzg4844.Commitment) ([]kzg4844.Proof, error) {
+	proofs := make([]kzg4844.Proof, len(blobs))
+	for i := range blobs {
+		proof, err := kzg4844.ComputeBlobProof(&blobs[i], commitment[i])
+		if err != nil {
+			return nil, err
+		}
+		proofs[i] = proof
+	}
+	return proofs, nil
+}
+
+// MakeCellProof builds cell proofs for blob sidecar v1.
+func MakeCellProof(blobs []kzg4844.Blob) ([]kzg4844.Proof, error) {
+	proofs := make([]kzg4844.Proof, 0, len(blobs)*kzg4844.CellProofsPerBlob)
+	for _, blob := range blobs {
+		cellProofs, err := kzg4844.ComputeCellProofs(&blob)
+		if err != nil {
+			return nil, err
+		}
+		proofs = append(proofs, cellProofs...)
+	}
+	return proofs, nil
+}
+
+// DetermineBlobVersion selects blob sidecar version from header time and chain config.
+func DetermineBlobVersion(head *ethtypes.Header, chainID uint64) byte {
+	if head == nil {
+		return ethtypes.BlobSidecarVersion0
+	}
+	blobConfig, exist := ChainConfigMap[chainID]
+	if !exist {
+		blobConfig = DefaultBlobConfig
+	}
+	if blobConfig.OsakaTime != nil && blobConfig.IsOsaka(head.Number, head.Time) {
+		return ethtypes.BlobSidecarVersion1
+	}
+	return ethtypes.BlobSidecarVersion0
+}
+
+// BlobSidecarVersionToV1 converts the BlobSidecar to version 1, attaching the cell proofs.
+func BlobSidecarVersionToV1(sc *ethtypes.BlobTxSidecar) error {
+	if sc.Version == ethtypes.BlobSidecarVersion1 {
+		return nil
+	}
+	if sc.Version == ethtypes.BlobSidecarVersion0 {
+		proofs, err := MakeCellProof(sc.Blobs)
+		if err != nil {
+			return err
+		}
+		sc.Version = ethtypes.BlobSidecarVersion1
+		sc.Proofs = proofs
+	}
+	return nil
 }

@@ -8,10 +8,9 @@ import (
 	"fmt"
 	"sync"
 
-	"morph-l2/tx-submitter/db"
-
 	"github.com/morph-l2/go-ethereum/eth"
 	"github.com/morph-l2/go-ethereum/log"
+	ldberrors "github.com/syndtr/goleveldb/leveldb/errors"
 )
 
 const (
@@ -23,12 +22,12 @@ const (
 
 // BatchStorage handles persistence of sealed batches using JSON encoding
 type BatchStorage struct {
-	db db.Database
+	db SealedBatchKV
 	mu sync.RWMutex
 }
 
 // NewBatchStorage creates a new BatchStorage instance
-func NewBatchStorage(db db.Database) *BatchStorage {
+func NewBatchStorage(db SealedBatchKV) *BatchStorage {
 	return &BatchStorage{
 		db: db,
 	}
@@ -69,7 +68,7 @@ func (s *BatchStorage) LoadSealedBatch(batchIndex uint64) (*eth.RPCRollupBatch, 
 	key := encodeBatchKey(batchIndex)
 	encoded, err := s.db.GetBytes(key)
 	if err != nil {
-		if errors.Is(err, db.ErrKeyNotFound) {
+		if isKVNotFound(err) {
 			return nil, fmt.Errorf("sealed batch %d not found", batchIndex)
 		}
 		return nil, fmt.Errorf("failed to get sealed batch %d: %w", batchIndex, err)
@@ -92,7 +91,7 @@ func (s *BatchStorage) LoadAllSealedBatches() (map[uint64]*eth.RPCRollupBatch, [
 	indices, err := s.loadBatchIndices()
 	s.mu.RUnlock()
 	if err != nil {
-		if errors.Is(err, db.ErrKeyNotFound) {
+		if isKVNotFound(err) {
 			// No batches stored yet
 			return make(map[uint64]*eth.RPCRollupBatch), nil, nil
 		}
@@ -121,7 +120,7 @@ func (s *BatchStorage) LoadAllSealedBatchesAndHeader() (map[uint64]*eth.RPCRollu
 	indices, err := s.loadBatchIndices()
 	s.mu.RUnlock()
 	if err != nil {
-		if errors.Is(err, db.ErrKeyNotFound) {
+		if isKVNotFound(err) {
 			// No batches stored yet
 			return make(map[uint64]*eth.RPCRollupBatch), make(map[uint64]*BatchHeaderBytes), nil, nil
 		}
@@ -206,7 +205,7 @@ func (s *BatchStorage) DeleteAllSealedBatches() error {
 	indices, err := s.loadBatchIndices()
 	s.mu.RUnlock()
 	if err != nil {
-		if errors.Is(err, db.ErrKeyNotFound) {
+		if isKVNotFound(err) {
 			// No batches stored yet
 			return nil
 		}
@@ -244,7 +243,7 @@ func encodeBatchKey(batchIndex uint64) []byte {
 func (s *BatchStorage) updateBatchIndices(batchIndex uint64, add bool) error {
 	indices, err := s.loadBatchIndices()
 	if err != nil {
-		if errors.Is(err, db.ErrKeyNotFound) {
+		if isKVNotFound(err) {
 			indices = []uint64{}
 		} else {
 			return err
@@ -324,7 +323,7 @@ func (s *BatchStorage) LoadSealedBatchHeader(batchIndex uint64) (*BatchHeaderByt
 	key := encodeBatchHeaderKey(batchIndex)
 	headerBytes, err := s.db.GetBytes(key)
 	if err != nil {
-		if errors.Is(err, db.ErrKeyNotFound) {
+		if isKVNotFound(err) {
 			return nil, fmt.Errorf("sealed batch header %d not found", batchIndex)
 		}
 		return nil, fmt.Errorf("failed to get sealed batch header %d: %w", batchIndex, err)
@@ -342,7 +341,7 @@ func (s *BatchStorage) LoadAllSealedBatchHeaders() (map[uint64]*BatchHeaderBytes
 	indices, err := s.loadBatchIndices()
 	s.mu.RUnlock()
 	if err != nil {
-		if errors.Is(err, db.ErrKeyNotFound) {
+		if isKVNotFound(err) {
 			// No batches stored yet
 			return make(map[uint64]*BatchHeaderBytes), nil
 		}
@@ -383,4 +382,8 @@ func encodeBatchHeaderKey(batchIndex uint64) []byte {
 	copy(key, SealedBatchHeaderKeyPrefix)
 	binary.BigEndian.PutUint64(key[len(SealedBatchHeaderKeyPrefix):], batchIndex)
 	return key
+}
+
+func isKVNotFound(err error) bool {
+	return errors.Is(err, ErrKeyNotFound) || errors.Is(err, ldberrors.ErrNotFound)
 }

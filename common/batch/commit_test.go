@@ -3,18 +3,14 @@ package batch
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"math/big"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"morph-l2/bindings/bindings"
-	"morph-l2/tx-submitter/db"
-	"morph-l2/tx-submitter/iface"
-	"morph-l2/tx-submitter/types"
-	"morph-l2/tx-submitter/utils"
+	"morph-l2/common/blob"
 
 	"github.com/holiman/uint256"
 	"github.com/morph-l2/go-ethereum/common"
@@ -27,19 +23,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var pk = ""
+var (
+	pk                = ""
+	errExceedFeeLimit = errors.New("exceed fee limit")
+)
 
 func TestRollupWithProof(t *testing.T) {
-	testDir := filepath.Join(t.TempDir(), "testleveldb")
-	os.RemoveAll(testDir)
-	t.Cleanup(func() {
-		os.RemoveAll(testDir)
-	})
-	testDB, err := db.New(testDir)
-	require.NoError(t, err)
+	testDB := openTestKV(t)
 
-	cache := NewBatchCache(nil, nil, 2, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
-	err = cache.InitFromRollupByRange()
+	cache := NewBatchCache(nil, nil, 2, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
+	err := cache.InitFromRollupByRange()
 	require.NoError(t, err)
 
 	privateKey, err := crypto.HexToECDSA(pk[2:])
@@ -90,7 +83,6 @@ func TestRollupWithProof(t *testing.T) {
 	require.NoError(t, err)
 	t.Log("receipt status", receipt.Status)
 	t.Log("receipt", receipt)
-
 }
 
 func sign(tx *ethtypes.Transaction, signer ethtypes.Signer, prv *ecdsa.PrivateKey) (*ethtypes.Transaction, error) {
@@ -102,7 +94,7 @@ func sign(tx *ethtypes.Transaction, signer ethtypes.Signer, prv *ecdsa.PrivateKe
 }
 
 func createBlobTx(l1client *ethclient.Client, batch *eth.RPCRollupBatch, nonce, gas uint64, tip, gasFeeCap, blobFee *big.Int, calldata []byte, head *ethtypes.Header) (*ethtypes.Transaction, error) {
-	versionedHashes := types.BlobHashes(batch.Sidecar.Blobs, batch.Sidecar.Commitments)
+	versionedHashes := blob.BlobHashes(batch.Sidecar.Blobs, batch.Sidecar.Commitments)
 	sidecar := &ethtypes.BlobTxSidecar{
 		Blobs:       batch.Sidecar.Blobs,
 		Commitments: batch.Sidecar.Commitments,
@@ -111,17 +103,17 @@ func createBlobTx(l1client *ethclient.Client, batch *eth.RPCRollupBatch, nonce, 
 	if err != nil {
 		return nil, err
 	}
-	switch types.DetermineBlobVersion(head, chainID.Uint64()) {
+	switch blob.DetermineBlobVersion(head, chainID.Uint64()) {
 	case ethtypes.BlobSidecarVersion0:
 		sidecar.Version = ethtypes.BlobSidecarVersion0
-		proof, err := types.MakeBlobProof(sidecar.Blobs, sidecar.Commitments)
+		proof, err := blob.MakeBlobProof(sidecar.Blobs, sidecar.Commitments)
 		if err != nil {
 			return nil, fmt.Errorf("gen blob proof failed %v", err)
 		}
 		sidecar.Proofs = proof
 	case ethtypes.BlobSidecarVersion1:
 		sidecar.Version = ethtypes.BlobSidecarVersion1
-		proof, err := types.MakeCellProof(sidecar.Blobs)
+		proof, err := blob.MakeCellProof(sidecar.Blobs)
 		if err != nil {
 			return nil, fmt.Errorf("gen cell proof failed %v", err)
 		}
@@ -172,7 +164,6 @@ func getGasTipAndCap(l1client *ethclient.Client) (*big.Int, *big.Int, *big.Int, 
 		gasFeeCap = new(big.Int).Set(tip)
 	}
 
-	// calc blob fee cap
 	var blobFee *big.Int
 	if head.ExcessBlobGas != nil {
 		id, err := l1client.ChainID(context.Background())
@@ -180,13 +171,12 @@ func getGasTipAndCap(l1client *ethclient.Client) (*big.Int, *big.Int, *big.Int, 
 			return nil, nil, nil, nil, err
 		}
 		log.Info("market blob fee info", "excess blob gas", *head.ExcessBlobGas)
-		blobConfig, exist := types.ChainConfigMap[id.Uint64()]
+		blobConfig, exist := blob.ChainConfigMap[id.Uint64()]
 		if !exist {
-			blobConfig = types.DefaultBlobConfig
+			blobConfig = blob.DefaultBlobConfig
 		}
-		blobFeeDenominator := types.GetBlobFeeDenominator(blobConfig, head.Time)
+		blobFeeDenominator := blob.GetBlobFeeDenominator(blobConfig, head.Time)
 		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas, blobFeeDenominator.Uint64())
-		// Set to 3x to handle blob market congestion
 		blobFee = new(big.Int).Mul(blobFee, big.NewInt(3))
 	}
 
@@ -202,26 +192,22 @@ func buildSigInput(batch *eth.RPCRollupBatch) (*bindings.IRollupBatchSignatureIn
 	return sigData, nil
 }
 
-// send tx to l1 with business logic check
-func sendTx(client iface.Client, txFeeLimit uint64, tx *ethtypes.Transaction) error {
-	// fee limit
+func sendTx(client *ethclient.Client, txFeeLimit uint64, tx *ethtypes.Transaction) error {
 	if txFeeLimit > 0 {
 		var fee uint64
-		// calc tx gas fee
 		if tx.Type() == ethtypes.BlobTxType {
 			blobFee := new(big.Int).Mul(tx.BlobGasFeeCap(), new(big.Int).SetUint64(tx.BlobGas()))
 			txFee := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas()))
 			totalFee := new(big.Int).Add(blobFee, txFee)
 			if !totalFee.IsUint64() || totalFee.Uint64() > txFeeLimit {
-				return fmt.Errorf("%v:limit=%v,but got=%v", utils.ErrExceedFeeLimit, txFeeLimit, totalFee)
+				return fmt.Errorf("%v:limit=%v,but got=%v", errExceedFeeLimit, txFeeLimit, totalFee)
 			}
 			return client.SendTransaction(context.Background(), tx)
-		} else {
-			fee = tx.GasPrice().Uint64() * tx.Gas()
 		}
+		fee = tx.GasPrice().Uint64() * tx.Gas()
 
 		if fee > txFeeLimit {
-			return fmt.Errorf("%v:limit=%v,but got=%v", utils.ErrExceedFeeLimit, txFeeLimit, fee)
+			return fmt.Errorf("%v:limit=%v,but got=%v", errExceedFeeLimit, txFeeLimit, fee)
 		}
 	}
 

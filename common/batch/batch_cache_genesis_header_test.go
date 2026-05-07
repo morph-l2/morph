@@ -9,10 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"morph-l2/tx-submitter/db"
-	"morph-l2/tx-submitter/iface"
-	"morph-l2/tx-submitter/utils"
-
 	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -59,7 +55,7 @@ func initCacheWithGlobalGenesisHeader(cache *BatchCache) error {
 		return err
 	}
 	if globalGenesisBatchHeader == nil {
-		return db.ErrKeyNotFound
+		return ErrKeyNotFound
 	}
 	// Use global test knobs instead of querying gov config from chain.
 	cache.batchTimeOut = globalBatchTimeoutForTest
@@ -92,9 +88,9 @@ func initCacheWithGlobalGenesisHeader(cache *BatchCache) error {
 }
 
 func TestBatchCacheInitWithGlobalGenesisHeader(t *testing.T) {
-	testDB := setupTestDB(t)
+	testDB := openTestKV(t)
 	a := func(uint64) bool { return true }
-	cache := NewBatchCache(nil, a, 3, l1Client, []iface.L2Client{l2Client}, rollupContract, l2Caller, testDB)
+	cache := NewBatchCache(nil, a, 3, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
 
 	var batchCacheSyncMu sync.Mutex
 	done := make(chan error, 1)
@@ -128,7 +124,7 @@ func TestBatchCacheInitWithGlobalGenesisHeader(t *testing.T) {
 	_, err = cache.l2Clients.BlockNumber(context.Background())
 	require.NoError(t, err)
 
-	go utils.Loop(cache.ctx, 5*time.Second, func() {
+	go testLoop(cache.ctx, 5*time.Second, func() {
 		batchCacheSyncMu.Lock()
 		defer batchCacheSyncMu.Unlock()
 		err := cache.AssembleCurrentBatchHeader()

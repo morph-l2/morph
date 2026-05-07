@@ -10,10 +10,6 @@ import (
 	"math/big"
 	"sync"
 
-	"morph-l2/tx-submitter/db"
-	"morph-l2/tx-submitter/iface"
-	"morph-l2/tx-submitter/types"
-
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
@@ -21,10 +17,12 @@ import (
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/eth"
 	"github.com/morph-l2/go-ethereum/log"
+
+	"morph-l2/common/blob"
 )
 
-// BatchCache is a structure for caching and building batch data
-// Stores all batch information starting from 0, and has the functionality to pack batches
+// BatchCache holds sealed and in-progress rollup batches: it syncs from L1/L2 or local DB,
+// packs consecutive L2 blocks into a chunk, seals with blob sidecars, and exposes query/delete APIs.
 type BatchCache struct {
 	mu       sync.RWMutex
 	ctx      context.Context
@@ -65,10 +63,10 @@ type BatchCache struct {
 	isBatchV2Upgraded func(uint64) bool
 
 	// Clients and contracts
-	l1Client       iface.Client
-	l2Clients      iface.L2Clients
-	rollupContract iface.IRollup
-	l2Caller       *types.L2Caller
+	l1Client       L1HeaderClient
+	l2Clients      L2MultiClient
+	rollupContract RollupBatchReader
+	l2Gov          L2GovCaller
 
 	// config
 	batchTimeOut  uint64
@@ -81,11 +79,11 @@ func NewBatchCache(
 	isBatchUpgraded func(uint64) bool,
 	isBatchV2Upgraded func(uint64) bool,
 	maxBlobCount int,
-	l1Client iface.Client,
-	l2Clients []iface.L2Client,
-	rollupContract iface.IRollup,
-	l2Caller *types.L2Caller,
-	ldb *db.Db,
+	l1Client L1HeaderClient,
+	l2Clients L2MultiClient,
+	rollupContract RollupBatchReader,
+	l2Gov L2GovCaller,
+	ldb SealedBatchKV,
 ) *BatchCache {
 	if isBatchUpgraded == nil {
 		// Default implementation: always returns true (use V1 version)
@@ -99,8 +97,7 @@ func NewBatchCache(
 		maxBlobCount = 2
 	}
 	ctx := context.Background()
-	ifL2Clients := iface.L2Clients{Clients: l2Clients}
-	_, err := ifL2Clients.BlockNumber(ctx)
+	_, err := l2Clients.BlockNumber(ctx)
 	if err != nil {
 		log.Error("Error getting block number", "err", err)
 	}
@@ -127,9 +124,9 @@ func NewBatchCache(
 		isBatchUpgraded:                   isBatchUpgraded,
 		isBatchV2Upgraded:                 isBatchV2Upgraded,
 		l1Client:                          l1Client,
-		l2Clients:                         iface.L2Clients{Clients: l2Clients},
+		l2Clients:                         l2Clients,
 		rollupContract:                    rollupContract,
-		l2Caller:                          l2Caller,
+		l2Gov:                             l2Gov,
 		batchStorage:                      NewBatchStorage(ldb),
 		maxBlobCount:                      maxBlobCount,
 	}
@@ -331,11 +328,11 @@ func (bc *BatchCache) LatestBatchIndex() (uint64, error) {
 }
 
 func (bc *BatchCache) updateBatchConfigFromGov() error {
-	interval, err := bc.l2Caller.BatchBlockInterval(nil)
+	interval, err := bc.l2Gov.BatchBlockInterval(nil)
 	if err != nil {
 		return err
 	}
-	timeout, err := bc.l2Caller.BatchTimeout(nil)
+	timeout, err := bc.l2Gov.BatchTimeout(nil)
 	if err != nil {
 		return err
 	}
@@ -466,7 +463,7 @@ func (bc *BatchCache) GetLatestSealedBatchIndex() uint64 {
 
 // CalculateCapWithProposalBlock calculates batch capacity after including the specified block
 func (bc *BatchCache) CalculateCapWithProposalBlock(blockNumber uint64, withdrawRoot common.Hash) (bool, error) {
-	if len(bc.l2Clients.Clients) == 0 {
+	if bc.l2Clients.Len() == 0 {
 		return false, fmt.Errorf("l2 client is nil")
 	}
 
@@ -532,7 +529,7 @@ func (bc *BatchCache) CalculateCapWithProposalBlock(blockNumber uint64, withdraw
 	log.Debug("batch capacity check",
 		"proposedBlock", blockNumber,
 		"blockTime", header.Time,
-		"compressedLimitBytes", effectiveBlobCount*MaxBlobBytesSize,
+		"compressedLimitBytes", effectiveBlobCount*blob.MaxBlobBytesSize,
 		"effectiveBlobCount", effectiveBlobCount,
 		"configuredMaxBlobCount", bc.maxBlobCount,
 		"v2Upgraded", bc.isBatchV2Upgraded(header.Time),
@@ -650,13 +647,13 @@ func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64) (ui
 	// Expected value: compressed payload size close to or reaches total blob capacity
 	// Use 90% as threshold, i.e., if compressed size >= totalCapacity * 0.9, consider it reached expected
 	effectiveBlobCount := bc.effectiveMaxBlobCount(blockTimestamp)
-	totalBlobCapacity := effectiveBlobCount * MaxBlobBytesSize
+	totalBlobCapacity := effectiveBlobCount * blob.MaxBlobBytesSize
 	threshold := float64(totalBlobCapacity) * 0.9
 	expectedSizeThreshold := uint64(threshold)
 	reachedExpectedSize := uint64(len(compressedPayload)) >= expectedSizeThreshold
 
 	// Generate blob sidecar
-	sidecar, err := MakeBlobTxSidecar(compressedPayload, effectiveBlobCount)
+	sidecar, err := blob.MakeBlobTxSidecar(compressedPayload, effectiveBlobCount)
 	if err != nil {
 		return 0, BatchHeaderBytes{}, false, fmt.Errorf("failed to create blob sidecar: %w", err)
 	}
@@ -666,7 +663,7 @@ func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64) (ui
 		"configuredMaxBlobCount", bc.maxBlobCount,
 		"v2Upgraded", bc.isBatchV2Upgraded(blockTimestamp),
 		"sidecarBlobCount", len(sidecar.Blobs),
-		"sidecarCapacityBytes", effectiveBlobCount*MaxBlobBytesSize,
+		"sidecarCapacityBytes", effectiveBlobCount*blob.MaxBlobBytesSize,
 	)
 
 	// Create batch header
@@ -762,12 +759,12 @@ func (bc *BatchCache) handleBatchSealing(blockTimestamp uint64) ([]byte, common.
 
 	// Check if upgraded version should be used
 	if bc.isBatchUpgraded(blockTimestamp) {
-		compressedPayload, err = CompressBatchBytes(bc.batchData.TxsPayloadV2())
+		compressedPayload, err = blob.CompressBatchBytes(bc.batchData.TxsPayloadV2())
 		if err != nil {
 			return nil, common.Hash{}, fmt.Errorf("failed to compress upgraded payload: %w", err)
 		}
 
-		if len(compressedPayload) <= bc.effectiveMaxBlobCount(blockTimestamp)*MaxBlobBytesSize {
+		if len(compressedPayload) <= bc.effectiveMaxBlobCount(blockTimestamp)*blob.MaxBlobBytesSize {
 			batchDataHash, err = bc.batchData.DataHashV2()
 			if err != nil {
 				return nil, common.Hash{}, fmt.Errorf("failed to calculate upgraded data hash: %w", err)
@@ -777,7 +774,7 @@ func (bc *BatchCache) handleBatchSealing(blockTimestamp uint64) ([]byte, common.
 	}
 
 	// Fall back to the old version
-	compressedPayload, err = CompressBatchBytes(bc.batchData.TxsPayload())
+	compressedPayload, err = blob.CompressBatchBytes(bc.batchData.TxsPayload())
 	if err != nil {
 		return nil, common.Hash{}, fmt.Errorf("failed to compress payload: %w", err)
 	}
@@ -788,7 +785,7 @@ func (bc *BatchCache) handleBatchSealing(blockTimestamp uint64) ([]byte, common.
 
 // createBatchHeader creates BatchHeader
 func (bc *BatchCache) createBatchHeader(dataHash common.Hash, sidecar *ethtypes.BlobTxSidecar, sequencerSetVerifyHash common.Hash, blockTimestamp uint64) BatchHeaderBytes {
-	blobHashes := []common.Hash{EmptyVersionedHash}
+	blobHashes := []common.Hash{blob.EmptyVersionedHash}
 	if sidecar != nil && len(sidecar.Blobs) > 0 {
 		blobHashes = sidecar.BlobHashes()
 	}
@@ -938,7 +935,7 @@ func (bc *BatchCache) assembleBatchHeaderFromL2Blocks(
 	// Fetch blocks from L2 client in the specified range and accumulate to batch
 	for blockNum := startBlockNum; blockNum <= endBlockNum; blockNum++ {
 		callOpts.BlockNumber = new(big.Int).SetUint64(blockNum)
-		root, err := bc.l2Caller.GetTreeRoot(callOpts)
+		root, err := bc.l2Gov.GetTreeRoot(callOpts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get withdraw root at block %d: %w", blockNum, err)
 		}
@@ -955,7 +952,7 @@ func (bc *BatchCache) assembleBatchHeaderFromL2Blocks(
 		}
 	}
 
-	sequencerSet, _, err := bc.l2Caller.GetSequencerSetBytes(callOpts)
+	sequencerSet, _, err := bc.l2Gov.GetSequencerSetBytes(callOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sequencer set verify hash at block %d: %w", callOpts.BlockNumber.Uint64(), err)
 	}
@@ -1000,7 +997,7 @@ func (bc *BatchCache) assembleUnFinalizeBatchHeaderFromL2Blocks() error {
 	// Fetch blocks from L2 client in the specified range and accumulate to batch
 	for blockNum := startBlockNum; blockNum <= endBlockNum; blockNum++ {
 		callOpts.BlockNumber = new(big.Int).SetUint64(blockNum)
-		root, err := bc.l2Caller.GetTreeRoot(callOpts)
+		root, err := bc.l2Gov.GetTreeRoot(callOpts)
 		if err != nil {
 			return fmt.Errorf("failed to get withdraw root at block %d: %w", blockNum, err)
 		}
@@ -1064,7 +1061,7 @@ func (bc *BatchCache) assembleUnFinalizeBatchHeaderFromL2Blocks() error {
 }
 
 func (bc *BatchCache) SealBatchAndCheck(callOpts *bind.CallOpts, ci *big.Int) (common.Hash, bool, uint64, error) {
-	sequencerSetBytes, _, err := bc.l2Caller.GetSequencerSetBytes(callOpts)
+	sequencerSetBytes, _, err := bc.l2Gov.GetSequencerSetBytes(callOpts)
 	if err != nil {
 		return common.Hash{}, false, 0, err
 	}
@@ -1215,7 +1212,7 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 	// Fetch blocks from L2 client in the specified range and accumulate to batch
 	for blockNum := currentBlockNum + 1; blockNum <= endBlockNum; blockNum++ {
 		callOpts.BlockNumber = new(big.Int).SetUint64(blockNum)
-		root, err := bc.l2Caller.GetTreeRoot(callOpts)
+		root, err := bc.l2Gov.GetTreeRoot(callOpts)
 		if err != nil {
 			return fmt.Errorf("failed to get withdraw root at block %d: %w", blockNum, err)
 		}
@@ -1249,7 +1246,7 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 		// check ensures batch is sealed before exceeding the maximum timeout
 		if exceeded || (bc.blockInterval > 0 && (blockNum-startBlockNum+1) == bc.blockInterval) || timeout {
 			log.Info("block exceeds limit", "start", startBlockNum, "to", blockNum, "exceeded", exceeded, "timeout", timeout)
-			sequencerSetBytes, _, err := bc.l2Caller.GetSequencerSetBytes(callOpts)
+			sequencerSetBytes, _, err := bc.l2Gov.GetSequencerSetBytes(callOpts)
 			if err != nil {
 				return fmt.Errorf("failed to get sequencer set verify hash at block %d: %w", callOpts.BlockNumber.Uint64(), err)
 			}

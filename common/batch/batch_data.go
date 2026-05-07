@@ -4,15 +4,10 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"morph-l2/node/zstd"
-	"morph-l2/tx-submitter/types"
-
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/crypto"
-)
 
-var (
-	EmptyVersionedHash = common.HexToHash("0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014")
+	"morph-l2/common/blob"
 )
 
 type BatchData struct {
@@ -95,7 +90,7 @@ func (cks *BatchData) DataHashV2() (common.Hash, error) {
 	lastBlockContext := cks.blockContexts[len(cks.blockContexts)-60:]
 
 	// Parse block height
-	height, err := types.HeightFromBlockContextBytes(lastBlockContext)
+	height, err := HeightFromBlockContextBytes(lastBlockContext)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to parse blockContext: context length=%d, lastBlockContext=%x, err=%w",
 			len(cks.blockContexts), lastBlockContext, err)
@@ -108,8 +103,8 @@ func (cks *BatchData) DataHashV2() (common.Hash, error) {
 func (cks *BatchData) calculateHash(height uint64) common.Hash {
 	// Preallocate memory for efficiency
 	hashData := make([]byte, 8+2+len(cks.l1TxHashes)) // 8 bytes for height, 2 bytes for l1TxNum
-	copy(hashData[:8], types.Uint64ToBigEndianBytes(height))
-	copy(hashData[8:10], types.Uint16ToBigEndianBytes(cks.l1TxNum))
+	copy(hashData[:8], Uint64ToBigEndianBytes(height))
+	copy(hashData[8:10], Uint16ToBigEndianBytes(cks.l1TxNum))
 	copy(hashData[10:], cks.l1TxHashes)
 
 	return crypto.Keccak256Hash(hashData)
@@ -127,12 +122,12 @@ func (cks *BatchData) TxsPayloadV2() []byte {
 func (cks *BatchData) BlockNum() uint16 { return cks.blockNum }
 
 func (cks *BatchData) EstimateCompressedSizeWithNewPayload(txPayload []byte, maxBlobCount int) (bool, error) {
-	limit := maxBlobCount * MaxBlobBytesSize
+	limit := maxBlobCount * blob.MaxBlobBytesSize
 	blobBytes := append(cks.txsPayload, txPayload...)
 	if len(blobBytes) <= limit {
 		return false, nil
 	}
-	compressed, err := zstd.CompressBatchBytes(blobBytes)
+	compressed, err := blob.CompressBatchBytes(blobBytes)
 	if err != nil {
 		return false, err
 	}
@@ -152,13 +147,13 @@ func (cks *BatchData) combinePayloads(newBlockContext, newTxPayload []byte) []by
 // WillExceedCompressedSizeLimit checks if the size of the combined block contexts
 // and transaction payloads (after compression) exceeds the maximum allowed size.
 func (cks *BatchData) WillExceedCompressedSizeLimit(newBlockContext, newTxPayload []byte, maxBlobCount int) (bool, error) {
-	limit := maxBlobCount * MaxBlobBytesSize
+	limit := maxBlobCount * blob.MaxBlobBytesSize
 	// Combine the existing and new block contexts and transaction payloads
 	combinedBytes := cks.combinePayloads(newBlockContext, newTxPayload)
 	if len(combinedBytes) <= limit {
 		return false, nil
 	}
-	compressed, err := zstd.CompressBatchBytes(combinedBytes)
+	compressed, err := blob.CompressBatchBytes(combinedBytes)
 	if err != nil {
 		return false, fmt.Errorf("compression failed: %w", err)
 	}
