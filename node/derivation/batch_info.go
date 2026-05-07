@@ -11,6 +11,7 @@ import (
 	geth "github.com/morph-l2/go-ethereum/eth"
 	"github.com/morph-l2/go-ethereum/eth/catalyst"
 
+	commonbatch "morph-l2/common/batch"
 	"morph-l2/node/types"
 	"morph-l2/node/zstd"
 )
@@ -81,7 +82,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	if len(batch.Sidecar.Blobs) == 0 {
 		return fmt.Errorf("blobs length can not be zero")
 	}
-	parentBatchHeader := types.BatchHeaderBytes(batch.ParentBatchHeader)
+	parentBatchHeader := commonbatch.BatchHeaderBytes(batch.ParentBatchHeader)
 	parentBatchIndex, err := parentBatchHeader.BatchIndex()
 	if err != nil {
 		return fmt.Errorf("decode batch header index error:%v", err)
@@ -103,10 +104,10 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	// must concatenate all blob bodies first and decompress once; per-blob
 	// decompression would fail on the second blob since it is not a
 	// standalone zstd stream.
-	compressed := make([]byte, 0, len(batch.Sidecar.Blobs)*types.MaxBlobBytesSize)
+	compressed := make([]byte, 0, len(batch.Sidecar.Blobs)*commonbatch.MaxBlobBytesSize)
 	for i := range batch.Sidecar.Blobs {
 		blobCopy := batch.Sidecar.Blobs[i]
-		blobData, err := types.RetrieveBlobBytes(&blobCopy)
+		blobData, err := commonbatch.RetrieveBlobBytes(&blobCopy)
 		if err != nil {
 			return err
 		}
@@ -166,7 +167,7 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 		txsData = batchBytes[bcLen:]
 	}
 
-	data, err := types.DecodeTxsFromBytes(txsData)
+	data, err := commonbatch.DecodeTxsFromBytes(txsData)
 	if err != nil {
 		return err
 	}
