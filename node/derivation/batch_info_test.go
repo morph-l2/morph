@@ -11,6 +11,7 @@ import (
 	geth "github.com/morph-l2/go-ethereum/eth"
 	"github.com/stretchr/testify/require"
 
+	commonbatch "morph-l2/common/batch"
 	"morph-l2/node/types"
 	"morph-l2/node/zstd"
 )
@@ -36,10 +37,10 @@ func buildBlockContexts(startBlock uint64, count int) []byte {
 // is one below `nextStartBlock`, so that ParseBatch can derive blockCount via
 // the (batch.LastBlockNumber - parent.LastBlockNumber) path.
 func buildV1ParentHeader(parentIndex, nextStartBlock uint64) []byte {
-	return types.BatchHeaderV1{
-		BatchHeaderV0: types.BatchHeaderV0{
+	return commonbatch.BatchHeaderV1{
+		BatchHeaderV0: commonbatch.BatchHeaderV0{
 			BatchIndex:        parentIndex,
-			BlobVersionedHash: types.EmptyVersionedHash,
+			BlobVersionedHash: commonbatch.EmptyVersionedHash,
 		},
 		LastBlockNumber: nextStartBlock - 1,
 	}.Bytes()
@@ -51,12 +52,12 @@ func buildV1ParentHeader(parentIndex, nextStartBlock uint64) []byte {
 func splitCompressedIntoBlobs(t *testing.T, compressed []byte) []kzg4844.Blob {
 	t.Helper()
 	var blobs []kzg4844.Blob
-	for offset := 0; offset < len(compressed); offset += types.MaxBlobBytesSize {
-		end := offset + types.MaxBlobBytesSize
+	for offset := 0; offset < len(compressed); offset += commonbatch.MaxBlobBytesSize {
+		end := offset + commonbatch.MaxBlobBytesSize
 		if end > len(compressed) {
 			end = len(compressed)
 		}
-		blob, err := types.MakeBlobCanonical(compressed[offset:end])
+		blob, err := commonbatch.MakeBlobCanonical(compressed[offset:end])
 		require.NoError(t, err)
 		blobs = append(blobs, *blob)
 	}
@@ -85,7 +86,7 @@ func TestParseBatchSingleBlob(t *testing.T) {
 
 	compressed, err := zstd.CompressBatchBytes(payload)
 	require.NoError(t, err)
-	require.LessOrEqual(t, len(compressed), types.MaxBlobBytesSize,
+	require.LessOrEqual(t, len(compressed), commonbatch.MaxBlobBytesSize,
 		"single-blob test expects compressed payload to fit in one blob")
 
 	blobs := splitCompressedIntoBlobs(t, compressed)
@@ -133,7 +134,7 @@ func TestParseBatchMultiBlob(t *testing.T) {
 
 	// 1 byte tx terminator + ~1.2x blob capacity of incompressible noise to
 	// guarantee the zstd output straddles a blob boundary.
-	padLen := types.MaxBlobBytesSize + types.MaxBlobBytesSize/5
+	padLen := commonbatch.MaxBlobBytesSize + commonbatch.MaxBlobBytesSize/5
 	pad := make([]byte, padLen)
 	_, err := rand.Read(pad)
 	require.NoError(t, err)
@@ -145,7 +146,7 @@ func TestParseBatchMultiBlob(t *testing.T) {
 
 	compressed, err := zstd.CompressBatchBytes(payload)
 	require.NoError(t, err)
-	require.Greater(t, len(compressed), types.MaxBlobBytesSize,
+	require.Greater(t, len(compressed), commonbatch.MaxBlobBytesSize,
 		"multi-blob test requires compressed payload to overflow a single blob")
 
 	blobs := splitCompressedIntoBlobs(t, compressed)
@@ -187,13 +188,13 @@ func TestParseBatchMultiBlob(t *testing.T) {
 // output. Keeping this explicit protects the invariant even if ParseBatch is
 // later refactored to hide the concatenation step.
 func TestParseBatchMultiBlobConcatDecompressInvariant(t *testing.T) {
-	pad := make([]byte, types.MaxBlobBytesSize+types.MaxBlobBytesSize/5)
+	pad := make([]byte, commonbatch.MaxBlobBytesSize+commonbatch.MaxBlobBytesSize/5)
 	_, err := rand.Read(pad)
 	require.NoError(t, err)
 
 	compressed, err := zstd.CompressBatchBytes(pad)
 	require.NoError(t, err)
-	require.Greater(t, len(compressed), types.MaxBlobBytesSize)
+	require.Greater(t, len(compressed), commonbatch.MaxBlobBytesSize)
 
 	blobs := splitCompressedIntoBlobs(t, compressed)
 	require.GreaterOrEqual(t, len(blobs), 2)
@@ -201,7 +202,7 @@ func TestParseBatchMultiBlobConcatDecompressInvariant(t *testing.T) {
 	// In-order concatenation round-trips.
 	var concat []byte
 	for i := range blobs {
-		body, err := types.RetrieveBlobBytes(&blobs[i])
+		body, err := commonbatch.RetrieveBlobBytes(&blobs[i])
 		require.NoError(t, err)
 		concat = append(concat, body...)
 	}
@@ -213,7 +214,7 @@ func TestParseBatchMultiBlobConcatDecompressInvariant(t *testing.T) {
 	// either error or yield a different payload.
 	var reversed []byte
 	for i := len(blobs) - 1; i >= 0; i-- {
-		body, err := types.RetrieveBlobBytes(&blobs[i])
+		body, err := commonbatch.RetrieveBlobBytes(&blobs[i])
 		require.NoError(t, err)
 		reversed = append(reversed, body...)
 	}
