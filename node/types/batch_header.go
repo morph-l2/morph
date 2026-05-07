@@ -1,5 +1,21 @@
 package types
 
+// DEPRECATED: this file is a duplicate of morph-l2/common/batch's
+// batch_header.go and is kept alive only because tx-submitter/utils/utils.go
+// still imports BatchHeaderBytes from here. node/types cannot be turned into
+// a thin shim re-exporting common/batch because that would close an import
+// cycle: common/batch already depends on tx-submitter/db (via BatchCache),
+// which depends on tx-submitter/utils, which would then depend back on
+// common/batch.
+//
+// Cleanup path (out of scope for this PR; should be done by the tx-submitter
+// owners alongside moving BatchCache out of common/batch):
+//  1. Move common/batch/batch_cache.go, batch_storage.go, batch_query.go
+//     down to tx-submitter/batch/, so common/batch becomes a true leaf
+//     (depends on nothing under tx-submitter/).
+//  2. Switch tx-submitter/utils/utils.go to import morph-l2/common/batch.
+//  3. Delete this file.
+
 import (
 	"encoding/binary"
 	"errors"
