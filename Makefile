@@ -138,11 +138,19 @@ go-ubuntu-builder:
 ################## devnet 4 nodes ####################
 
 EXECUTION_CLIENT ?= geth
+MORPH_RETH_BUILD_FROM_SOURCE ?= false
+ifeq ($(MORPH_RETH_BUILD_FROM_SOURCE),true)
+MORPH_RETH_IMAGE ?= morph-reth:latest
+MORPH_RETH_ENTRYPOINT ?= /app/morph-reth
+else
+MORPH_RETH_IMAGE ?= ghcr.io/morph-l2/morph-reth:latest
+MORPH_RETH_ENTRYPOINT ?= /usr/local/bin/morph-reth
+endif
 MORPH_RETH_DIR ?= ../morph-reth
 MORPH_RETH_BUILD_PROFILE ?= release
 MORPH_RETH_RUSTFLAGS ?=
 MORPH_RETH_DOCKER_TARGET ?= builder
-MORPH_RETH_ENTRYPOINT ?= /app/morph-reth
+export MORPH_RETH_IMAGE
 export MORPH_RETH_DIR
 export MORPH_RETH_BUILD_PROFILE
 export MORPH_RETH_RUSTFLAGS
@@ -153,8 +161,12 @@ DEVNET_COMPOSE_FILES := -f docker-compose-4nodes.yml
 ifeq ($(EXECUTION_CLIENT),geth)
 DEVNET_EXECUTION_DEPS := submodules
 else ifeq ($(EXECUTION_CLIENT),reth)
-DEVNET_EXECUTION_DEPS := reth
 DEVNET_COMPOSE_FILES += -f docker-compose-reth.yml
+ifeq ($(MORPH_RETH_BUILD_FROM_SOURCE),true)
+DEVNET_EXECUTION_DEPS := reth
+else
+DEVNET_EXECUTION_DEPS := reth-image
+endif
 else
 $(error unsupported EXECUTION_CLIENT "$(EXECUTION_CLIENT)", expected "geth" or "reth")
 endif
@@ -185,6 +197,10 @@ devnet-clean-build: devnet-l1-clean
 	rm -rf ops/docker/execution/reth
 .PHONY: devnet-clean-build
 
+devnet-clean-build-reth:
+	$(MAKE) devnet-clean-build EXECUTION_CLIENT=reth
+.PHONY: devnet-clean-build-reth
+
 devnet-clean: devnet-clean-build
 	docker image ls '*morph*' --format='{{.Repository}}' | xargs -r docker rmi
 	docker image ls '*sentry-*' --format='{{.Repository}}' | xargs -r docker rmi
@@ -201,9 +217,13 @@ devnet-logs:
 	@(cd ops/docker && docker compose $(DEVNET_COMPOSE_FILES) logs -f)
 .PHONY: devnet-logs
 
+reth-image:
+	docker pull "$(MORPH_RETH_IMAGE)"
+.PHONY: reth-image
+
 reth:
 	@test -d "$(MORPH_RETH_DIR)" || (echo "morph-reth directory not found: $(MORPH_RETH_DIR)" && exit 1)
-	docker build -t morph-reth:latest --target "$(MORPH_RETH_DOCKER_TARGET)" --build-arg BUILD_PROFILE="$(MORPH_RETH_BUILD_PROFILE)" --build-arg RUSTFLAGS="$(MORPH_RETH_RUSTFLAGS)" "$(MORPH_RETH_DIR)"
+	docker build -t "$(MORPH_RETH_IMAGE)" --target "$(MORPH_RETH_DOCKER_TARGET)" --build-arg BUILD_PROFILE="$(MORPH_RETH_BUILD_PROFILE)" --build-arg RUSTFLAGS="$(MORPH_RETH_RUSTFLAGS)" "$(MORPH_RETH_DIR)"
 .PHONY: reth
 
 # tx-submitter
