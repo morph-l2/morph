@@ -42,7 +42,6 @@ sed -i  "s#unconditional_peer_ids = \"\"#$TO_REPLACED_UNCONDITIONAL_PEER_ID#g" /
 FROM builder as node0
 COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
 COPY --from=initializer /data/node0 /data
-COPY ./ops/docker/node0/bls_key.json /data/config/bls_key.json
 COPY ./ops/docker/node0/priv_validator_key.json /data/config/priv_validator_key.json
 COPY ./ops/docker/node0/node_key.json /data/config/node_key.json
 COPY ./ops/docker/tendermint-devnet-genesis.json /data/config/genesis.json
@@ -51,7 +50,6 @@ CMD ["morphnode", "--home", "/data"]
 FROM builder as node1
 COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
 COPY --from=initializer /data/node1 /data
-COPY ./ops/docker/node1/bls_key.json /data/config/bls_key.json
 COPY ./ops/docker/node1/priv_validator_key.json /data/config/priv_validator_key.json
 COPY ./ops/docker/node1/node_key.json /data/config/node_key.json
 COPY ./ops/docker/tendermint-devnet-genesis.json /data/config/genesis.json
@@ -60,7 +58,6 @@ CMD ["morphnode", "--home", "/data"]
 FROM builder as node2
 COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
 COPY --from=initializer /data/node2 /data
-COPY ./ops/docker/node2/bls_key.json /data/config/bls_key.json
 COPY ./ops/docker/node2/priv_validator_key.json /data/config/priv_validator_key.json
 COPY ./ops/docker/node2/node_key.json /data/config/node_key.json
 COPY ./ops/docker/tendermint-devnet-genesis.json /data/config/genesis.json
@@ -69,7 +66,6 @@ CMD ["morphnode", "--home", "/data"]
 FROM builder as node3
 COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
 COPY --from=initializer /data/node3 /data
-COPY ./ops/docker/node3/bls_key.json /data/config/bls_key.json
 COPY ./ops/docker/node3/priv_validator_key.json /data/config/priv_validator_key.json
 COPY ./ops/docker/node3/node_key.json /data/config/node_key.json
 COPY ./ops/docker/tendermint-devnet-genesis.json /data/config/genesis.json
