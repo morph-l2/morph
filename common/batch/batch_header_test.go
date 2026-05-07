@@ -6,6 +6,8 @@ import (
 
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+
+	"morph-l2/common/blob"
 )
 
 // TestBatchHeaderV2 exercises the V2 header variant: it reuses the V1 wire
@@ -69,7 +71,7 @@ func TestBatchHeaderV2(t *testing.T) {
 func TestBlobHashesHashUnavailableForLegacy(t *testing.T) {
 	v0 := BatchHeaderV0{
 		BatchIndex:        1,
-		BlobVersionedHash: EmptyVersionedHash,
+		BlobVersionedHash: blob.EmptyVersionedHash,
 	}.Bytes()
 	_, err := v0.BlobHashesHash()
 	require.Error(t, err)
@@ -77,7 +79,7 @@ func TestBlobHashesHashUnavailableForLegacy(t *testing.T) {
 	v1 := BatchHeaderV1{
 		BatchHeaderV0: BatchHeaderV0{
 			BatchIndex:        2,
-			BlobVersionedHash: EmptyVersionedHash,
+			BlobVersionedHash: blob.EmptyVersionedHash,
 		},
 		LastBlockNumber: 10,
 	}.Bytes()
