@@ -74,6 +74,12 @@ type BatchCache struct {
 	maxBlobCount  int
 }
 
+type batchPackProgressState struct {
+	lastLoggedOverallPercent uint64
+}
+
+const batchProgressLogStepPercent uint64 = 20
+
 // NewBatchCache creates and initializes a new BatchCache instance
 func NewBatchCache(
 	isBatchUpgraded func(uint64) bool,
@@ -993,6 +999,7 @@ func (bc *BatchCache) assembleUnFinalizeBatchHeaderFromL2Blocks() error {
 		return fmt.Errorf("failed to get start block %d: %w", startBlockNum, err)
 	}
 	startBlockTime := startBlock.Time()
+	progressState := batchPackProgressState{}
 
 	// Fetch blocks from L2 client in the specified range and accumulate to batch
 	for blockNum := startBlockNum; blockNum <= endBlockNum; blockNum++ {
@@ -1014,6 +1021,7 @@ func (bc *BatchCache) assembleUnFinalizeBatchHeaderFromL2Blocks() error {
 			return fmt.Errorf("failed to get block %d: %w", blockNum, err)
 		}
 		nowBlockTime := nowBlock.Time()
+		bc.logBatchPackingProgress(startBlockNum, blockNum, startBlockTime, nowBlockTime, &progressState)
 
 		// Check timeout: if elapsed time >= batchTimeOut, must seal batch immediately
 		// This ensures batch is sealed before exceeding the maximum timeout configured in gov contract
@@ -1045,6 +1053,7 @@ func (bc *BatchCache) assembleUnFinalizeBatchHeaderFromL2Blocks() error {
 				return fmt.Errorf("failed to get start block %d: %w", startBlockNum, err)
 			}
 			startBlockTime = startBlock.Time()
+			progressState = batchPackProgressState{}
 			index, err := bc.parentBatchHeader.BatchIndex()
 			if err != nil {
 				return err
@@ -1208,6 +1217,7 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 		return fmt.Errorf("failed to get start block %d: %w", startBlockNum, err)
 	}
 	startBlockTime := startBlock.Time()
+	progressState := batchPackProgressState{}
 
 	// Fetch blocks from L2 client in the specified range and accumulate to batch
 	for blockNum := currentBlockNum + 1; blockNum <= endBlockNum; blockNum++ {
@@ -1229,6 +1239,7 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 			return fmt.Errorf("failed to get block %d: %w", blockNum, err)
 		}
 		nowBlockTime := nowBlock.Time()
+		bc.logBatchPackingProgress(startBlockNum, blockNum, startBlockTime, nowBlockTime, &progressState)
 
 		// Check timeout: if elapsed time >= batchTimeOut, must seal batch immediately
 		// This ensures batch is sealed before exceeding the maximum timeout configured in gov contract
@@ -1269,6 +1280,7 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 				return fmt.Errorf("failed to get start block %d: %w", startBlockNum, err)
 			}
 			startBlockTime = startBlock.Time()
+			progressState = batchPackProgressState{}
 		}
 
 		// Pack current block (confirm and append to batch)
@@ -1277,6 +1289,97 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 		}
 	}
 	return nil
+}
+
+func (bc *BatchCache) logBatchPackingProgress(startBlockNum, currentBlockNum, startBlockTime, currentBlockTime uint64, state *batchPackProgressState) {
+	if state == nil || currentBlockNum < startBlockNum {
+		return
+	}
+
+	elapsedTime := uint64(0)
+	if currentBlockTime >= startBlockTime {
+		elapsedTime = currentBlockTime - startBlockTime
+	}
+
+	packedBlocks := currentBlockNum - startBlockNum + 1
+	effectiveBlobCount := bc.effectiveMaxBlobCount(currentBlockTime)
+	totalBlobCapacity := uint64(effectiveBlobCount * blob.MaxBlobBytesSize)
+	payloadBytes := uint64(0)
+	if totalBlobCapacity > 0 {
+		payloadBytes = bc.estimatedBatchPayloadBytesWithCurrent(currentBlockTime)
+	}
+
+	timePercent := uint64(0)
+	if bc.batchTimeOut > 0 {
+		timePercent = progressPercent(elapsedTime, bc.batchTimeOut)
+	}
+
+	blockPercent := uint64(0)
+	if bc.blockInterval > 0 {
+		blockPercent = progressPercent(packedBlocks, bc.blockInterval)
+	}
+
+	blobPercent := uint64(0)
+	if totalBlobCapacity > 0 {
+		blobPercent = progressPercent(payloadBytes, totalBlobCapacity)
+	}
+
+	overallPercent := maxUint64(timePercent, blockPercent, blobPercent)
+	// Throttle progress logs to reduce noisy output.
+	overallStep := (overallPercent / batchProgressLogStepPercent) * batchProgressLogStepPercent
+	if overallStep <= state.lastLoggedOverallPercent {
+		return
+	}
+	state.lastLoggedOverallPercent = overallStep
+
+	log.Info("Batch packing progress",
+		"loadedBlockHeight", currentBlockNum,
+		"overallPercent", overallPercent,
+		"timePercent", timePercent,
+		"blockPercent", blockPercent,
+		"blobPercent", blobPercent,
+	)
+}
+
+func (bc *BatchCache) estimatedBatchPayloadBytesWithCurrent(blockTimestamp uint64) uint64 {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+
+	var (
+		existingBlockContextLen int
+		existingTxPayloadLen    int
+	)
+	if bc.batchData != nil {
+		existingBlockContextLen = len(bc.batchData.blockContexts)
+		existingTxPayloadLen = len(bc.batchData.txsPayload)
+	}
+
+	if bc.isBatchUpgraded(blockTimestamp) {
+		return uint64(existingBlockContextLen + len(bc.currentBlockContext) + existingTxPayloadLen + len(bc.currentTxsPayload))
+	}
+
+	return uint64(existingTxPayloadLen + len(bc.currentTxsPayload))
+}
+
+func progressPercent(current, total uint64) uint64 {
+	if total == 0 {
+		return 0
+	}
+	p := current * 100 / total
+	if p > 100 {
+		return 100
+	}
+	return p
+}
+
+func maxUint64(values ...uint64) uint64 {
+	var max uint64
+	for _, v := range values {
+		if v > max {
+			max = v
+		}
+	}
+	return max
 }
 
 func (bc *BatchCache) DeleteBatchStorageAndInitFromRollup() error {
