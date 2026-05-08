@@ -162,6 +162,61 @@ type DerivationL1Block struct {
 	Hash   [32]byte
 }
 
+// DerivationHeadAnchor pairs an L2 head with the L1 origin that justifies its
+// current safety stage. Persisted form of derivation.HeadAnchor (kept in this
+// package to avoid an import cycle between db and derivation).
+type DerivationHeadAnchor struct {
+	L2Number uint64
+	L2Hash   [32]byte
+	L1Number uint64
+	L1Hash   [32]byte
+}
+
+func (s *Store) writeHeadAnchor(key []byte, anchor *DerivationHeadAnchor) {
+	data, err := rlp.EncodeToBytes(anchor)
+	if err != nil {
+		panic(fmt.Sprintf("failed to RLP encode DerivationHeadAnchor, err: %v", err))
+	}
+	if err := s.db.Put(key, data); err != nil {
+		panic(fmt.Sprintf("failed to write DerivationHeadAnchor, err: %v", err))
+	}
+}
+
+func (s *Store) readHeadAnchor(key []byte) *DerivationHeadAnchor {
+	data, err := s.db.Get(key)
+	if err != nil && !isNotFoundErr(err) {
+		panic(fmt.Sprintf("failed to read DerivationHeadAnchor, err: %v", err))
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	var anchor DerivationHeadAnchor
+	if err := rlp.DecodeBytes(data, &anchor); err != nil {
+		panic(fmt.Sprintf("invalid DerivationHeadAnchor RLP, err: %v", err))
+	}
+	return &anchor
+}
+
+// WriteDerivationSafeHead persists the safe-stage L2 head together with its L1 origin.
+func (s *Store) WriteDerivationSafeHead(anchor *DerivationHeadAnchor) {
+	s.writeHeadAnchor(derivationSafeHeadKey, anchor)
+}
+
+// ReadDerivationSafeHead reads the safe-stage L2 head, or nil if unset.
+func (s *Store) ReadDerivationSafeHead() *DerivationHeadAnchor {
+	return s.readHeadAnchor(derivationSafeHeadKey)
+}
+
+// WriteDerivationFinalizedHead persists the finalized-stage L2 head together with its L1 origin.
+func (s *Store) WriteDerivationFinalizedHead(anchor *DerivationHeadAnchor) {
+	s.writeHeadAnchor(derivationFinalizedHeadKey, anchor)
+}
+
+// ReadDerivationFinalizedHead reads the finalized-stage L2 head, or nil if unset.
+func (s *Store) ReadDerivationFinalizedHead() *DerivationHeadAnchor {
+	return s.readHeadAnchor(derivationFinalizedHeadKey)
+}
+
 func (s *Store) WriteDerivationL1Block(block *DerivationL1Block) {
 	data, err := rlp.EncodeToBytes(block)
 	if err != nil {

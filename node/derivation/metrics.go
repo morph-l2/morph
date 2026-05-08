@@ -28,6 +28,18 @@ type Metrics struct {
 	RollbackCount      metrics.Counter
 	BlockMismatchCount metrics.Counter
 	Halted             metrics.Gauge
+
+	// SPEC-005 head stages.
+	SafeHeadL2Number      metrics.Gauge
+	FinalizedHeadL2Number metrics.Gauge
+
+	// SPEC-005 §3.3 path B (degraded) verification trigger counter.
+	PathBTriggeredCount metrics.Counter
+
+	// SPEC-005 §4.2 batch-root mismatch counter (separate from generic rollback
+	// count to distinguish "first attempt failed and re-derive succeeded" from
+	// "second attempt failed and we entered halted").
+	BatchRootMismatchCount metrics.Counter
 }
 
 func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
@@ -96,6 +108,30 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Name:      "halted",
 			Help:      "Set to 1 when derivation is halted due to unrecoverable batch mismatch requiring manual intervention",
 		}, labels).With(labelsAndValues...),
+		SafeHeadL2Number: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "safe_head_l2_number",
+			Help:      "L2 block number of the latest safe-stage head (anchored to L1 safe)",
+		}, labels).With(labelsAndValues...),
+		FinalizedHeadL2Number: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "finalized_head_l2_number",
+			Help:      "L2 block number of the latest finalized-stage head (anchored to L1 finalized; monotonic)",
+		}, labels).With(labelsAndValues...),
+		PathBTriggeredCount: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "path_b_triggered_total",
+			Help:      "Total number of times batch-content verification fell back to local-rebuild path (SPEC-005 §3.3 path B)",
+		}, labels).With(labelsAndValues...),
+		BatchRootMismatchCount: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "batch_root_mismatch_total",
+			Help:      "Total number of state-root or withdrawal-root mismatches against L1 batch calldata",
+		}, labels).With(labelsAndValues...),
 	}
 }
 
@@ -137,6 +173,22 @@ func (m *Metrics) IncBlockMismatchCount() {
 
 func (m *Metrics) SetHalted() {
 	m.Halted.Set(1)
+}
+
+func (m *Metrics) SetSafeHeadL2Number(n uint64) {
+	m.SafeHeadL2Number.Set(float64(n))
+}
+
+func (m *Metrics) SetFinalizedHeadL2Number(n uint64) {
+	m.FinalizedHeadL2Number.Set(float64(n))
+}
+
+func (m *Metrics) IncPathBTriggered() {
+	m.PathBTriggeredCount.Add(1)
+}
+
+func (m *Metrics) IncBatchRootMismatchCount() {
+	m.BatchRootMismatchCount.Add(1)
 }
 
 func (m *Metrics) Serve(hostname string, port uint64) (*http.Server, error) {

@@ -26,6 +26,14 @@ func (d *Derivation) rollbackLocalChain(targetBlockNumber uint64) error {
 }
 
 // verifyBatchRoots verifies that the local state root and withdrawal root match the L1 batch data.
+//
+// SPEC-005 §3.4 / §3.2 invariant: this check is **always executed and never
+// depends on blob data**. Both `batchInfo.root` (postStateRoot) and
+// `batchInfo.withdrawalRoot` are extracted from L1 calldata at parse time
+// (see batch_info.go); they reach this function regardless of whether the
+// beacon-side blob fetch (Path A) or the local rebuild fallback (Path B,
+// SPEC-005 §3.3) has succeeded. Code review must reject any change that
+// makes this verification conditional on blob availability.
 func (d *Derivation) verifyBatchRoots(batchInfo *BatchInfo, lastHeader *eth.Header) error {
 	withdrawalRoot, err := d.L2ToL1MessagePasser.MessageRoot(&bind.CallOpts{
 		BlockNumber: lastHeader.Number,

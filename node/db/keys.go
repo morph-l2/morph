@@ -7,8 +7,12 @@ var (
 	L1MessagePrefix        = []byte("l1")
 	BatchBlockNumberPrefix = []byte("batch")
 
-	derivationL1HeightKey    = []byte("LastDerivationL1Height")
-	derivationL1BlockPrefix  = []byte("derivL1Block")
+	derivationL1HeightKey   = []byte("LastDerivationL1Height")
+	derivationL1BlockPrefix = []byte("derivL1Block")
+
+	// SPEC-005: safe / finalized head anchors. Each value is an RLP-encoded HeadAnchor.
+	derivationSafeHeadKey      = []byte("DerivationSafeHead")
+	derivationFinalizedHeadKey = []byte("DerivationFinalizedHead")
 )
 
 // encodeBlockNumber encodes an L1 enqueue index as big endian uint64
