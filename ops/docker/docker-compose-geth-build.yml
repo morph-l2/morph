@@ -1,0 +1,5 @@
+services:
+  morph-el-0:
+    build:
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.l2-geth

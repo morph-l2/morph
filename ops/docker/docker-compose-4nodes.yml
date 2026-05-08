@@ -122,9 +122,6 @@ services:
       layer1-el:
         condition: service_started
     image: morph-geth:latest
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.l2-geth
     restart: unless-stopped
     ports:
       - "8545:8545"
