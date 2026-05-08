@@ -249,7 +249,7 @@ impl ScalarUpdater {
         let commit_scalar = (rollup_gas_used.as_u64() + self.finalize_batch_gas_used) * PRECISION /
             l2_txn.max(self.txn_per_batch);
         let blob_scalar = if l2_data_len > 0 {
-            num_blobs * MAX_BLOB_TX_PAYLOAD_SIZE as u64 * PRECISION / l2_data_len
+            num_blobs.max(1) * MAX_BLOB_TX_PAYLOAD_SIZE as u64 * PRECISION / l2_data_len
         } else {
             MAX_BLOB_SCALAR
         };
