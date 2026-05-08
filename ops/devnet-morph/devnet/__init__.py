@@ -154,8 +154,8 @@ def devnet_build(paths):
     })
 
 
-# Bring up the devnet where the contracts are deployed to L1
 def devnet_deploy(paths, args):
+    """Bring up the devnet where the contracts are deployed to L1."""
     if not test_port(9545):
         devnet_l1(paths)
     done_file = pjoin(paths.devnet_dir, 'done')
