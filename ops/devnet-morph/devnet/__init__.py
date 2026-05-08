@@ -33,6 +33,7 @@ ETH = GWEI * GWEI
 
 
 def compose_file_args(execution_client):
+    """Return docker-compose -f flags for the chosen L2 execution client."""
     args = ['-f', 'docker-compose-4nodes.yml']
     if execution_client == 'reth':
         args.extend(['-f', 'docker-compose-reth.yml'])
