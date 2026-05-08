@@ -6,7 +6,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MORPH_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BITGET_ROOT="$(cd "$MORPH_ROOT/.." && pwd)"
+POLYREPO_ROOT="$(cd "$MORPH_ROOT/.." && pwd)"
 OPS_DIR="$MORPH_ROOT/ops"
 DOCKER_DIR="$OPS_DIR/docker"
 DEVNET_DIR="$OPS_DIR/devnet-morph"
@@ -87,17 +87,17 @@ set_upgrade_height() {
 }
 
 # Build test images (with -test suffix)
-# Uses bitget/ as build context to access local go-ethereum and tendermint
+# Uses the polyrepo root as build context to access local go-ethereum and tendermint
 build_test_images() {
     log_info "Building test Docker images..."
-    log_info "Using build context: $BITGET_ROOT"
-    
+    log_info "Using build context: $POLYREPO_ROOT"
+
     # Build go-ubuntu-builder if needed
     cd "$MORPH_ROOT"
     make go-ubuntu-builder
-    
-    # Build from bitget/ directory to access all repos
-    cd "$BITGET_ROOT"
+
+    # Build from the polyrepo root to access all repos
+    cd "$POLYREPO_ROOT"
     
     # # Copy go module cache to avoid network downloads
     # if [ -d "$HOME/go/pkg/mod" ]; then
