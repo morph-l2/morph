@@ -168,19 +168,6 @@ var (
 		EnvVar: prefixEnvVar("VALIDATOR"),
 	}
 
-	ChallengeEnable = cli.BoolFlag{
-		Name:   "validator.challengeEnable",
-		Usage:  "Enable the validator challenge",
-		EnvVar: prefixEnvVar("VALIDATOR_CHALLENGE_ENABLE"),
-	}
-
-	// validator
-	ValidatorPrivateKey = cli.StringFlag{
-		Name:   "validator.privateKey",
-		Usage:  "Private Key corresponding to SUBSIDY Owner",
-		EnvVar: prefixEnvVar("VALIDATOR_PRIVATE_KEY"),
-	}
-
 	// derivation
 	RollupContractAddress = cli.StringFlag{
 		Name:   "derivation.rollupAddress",
@@ -358,10 +345,6 @@ var Flags = []cli.Flag{
 	TendermintConfigPath,
 	MockEnabled,
 	ValidatorEnable,
-	ChallengeEnable,
-
-	// validator
-	ValidatorPrivateKey,
 
 	// derivation
 	RollupContractAddress,
