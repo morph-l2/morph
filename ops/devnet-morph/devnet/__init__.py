@@ -41,11 +41,15 @@ def compose_file_args(execution_client):
 
 
 class Bunch:
+    """Lightweight attribute container constructed from keyword arguments."""
+
     def __init__(self, **kwds):
+        """Store all keyword arguments as attributes on the instance."""
         self.__dict__.update(kwds)
 
 
 def main():
+    """Entry point: parse CLI arguments and bring up the L1-only or full devnet."""
     args = parser.parse_args()
 
     polyrepo_dir = os.path.abspath(args.polyrepo_dir)
@@ -82,6 +86,7 @@ def main():
 
 
 def devnet_l1(paths, result=None):
+    """Start the L1 execution/consensus/validator stack and fund sequencer accounts."""
     log.info('Starting L1.')
     
     layer1_dir = pjoin(paths.ops_dir, 'layer1')
@@ -147,6 +152,7 @@ def devnet_l1(paths, result=None):
 
 
 def devnet_build(paths):
+    """Build the docker images declared in docker-compose-4nodes.yml."""
     run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'build'], cwd=paths.ops_dir, env={
         'PWD': paths.ops_dir,
         'DOCKER_BUILDKIT': '1',  # (should be available by default in later versions, but explicitly enable it anyway)
@@ -286,6 +292,7 @@ def devnet_deploy(paths, args):
 
 
 def wait_for_rpc_server(url):
+    """Block until the JSON-RPC server at url answers an eth_chainId call successfully."""
     log.info(f'Waiting for RPC server at {url}')
 
     conn = http.client.HTTPConnection(url)
@@ -306,6 +313,7 @@ def wait_for_rpc_server(url):
 
 
 def run_command(args, check=True, shell=False, cwd=None, env=None, output=None):
+    """Run a subprocess with the parent environment merged with the supplied env dict."""
     env = env if env else {}
     return subprocess.run(
         args,
@@ -323,6 +331,7 @@ def run_command(args, check=True, shell=False, cwd=None, env=None, output=None):
 
 
 def run_command_capture_output(args, check=True, shell=False, cwd=None, env=None):
+    """Run a subprocess and return its CompletedProcess with stdout/stderr captured."""
     env = env if env else {}
     return subprocess.run(
         args,
@@ -339,6 +348,7 @@ def run_command_capture_output(args, check=True, shell=False, cwd=None, env=None
 
 
 def wait_up(port, retries=10, wait_secs=1):
+    """Poll a TCP port on 127.0.0.1 until it accepts a connection or retries are exhausted."""
     for i in range(0, retries):
         log.info(f'Trying 127.0.0.1:{port}')
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -354,6 +364,7 @@ def wait_up(port, retries=10, wait_secs=1):
 
 
 def test_port(port):
+    """Return True if a TCP connection to 127.0.0.1:port succeeds, False otherwise."""
     log.info(f'Testing 127.0.0.1:{port}')
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
@@ -366,16 +377,19 @@ def test_port(port):
 
 
 def write_json(path, data):
+    """Serialize data to path as indented JSON."""
     with open(path, 'w+') as f:
         json.dump(data, f, indent='  ')
 
 
 def read_json(path):
+    """Load and return the JSON document stored at path."""
     with open(path, 'r') as f:
         return json.load(f)
 
 
 def eth_accounts(url):
+    """Call eth_accounts on url and return the raw JSON-RPC response body."""
     log.info(f'Fetch eth_accounts {url}')
     conn = http.client.HTTPConnection(url)
     headers = {'Content-type': 'application/json'}
