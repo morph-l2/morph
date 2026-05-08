@@ -37,8 +37,6 @@ def compose_file_args(execution_client):
     args = ['-f', 'docker-compose-4nodes.yml']
     if execution_client == 'reth':
         args.extend(['-f', 'docker-compose-reth.yml'])
-    elif execution_client == 'geth':
-        args.extend(['-f', 'docker-compose-geth-build.yml'])
     return args
 
 

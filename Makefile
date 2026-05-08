@@ -160,7 +160,6 @@ DEVNET_COMPOSE_FILES := -f docker-compose-4nodes.yml
 
 ifeq ($(EXECUTION_CLIENT),geth)
 DEVNET_EXECUTION_DEPS := submodules
-DEVNET_COMPOSE_FILES += -f docker-compose-geth-build.yml
 else ifeq ($(EXECUTION_CLIENT),reth)
 DEVNET_COMPOSE_FILES += -f docker-compose-reth.yml
 ifeq ($(MORPH_RETH_BUILD_FROM_SOURCE),true)

@@ -26,6 +26,7 @@ x-reth-service: &reth-service
 services:
   morph-el-0:
     <<: *reth-service
+    build: !reset null
 
   morph-el-1:
     <<: *reth-service
@@ -38,6 +39,7 @@ services:
 
   sentry-el-0:
     <<: *reth-service
+    build: !reset null
 
   validator-el:
     <<: *reth-service
