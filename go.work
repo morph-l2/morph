@@ -10,3 +10,8 @@ use (
 	./token-price-oracle
 	./tx-submitter
 )
+
+replace (
+	github.com/morph-l2/go-ethereum => ../go-ethereum
+	github.com/tendermint/tendermint => ../tendermint
+)
