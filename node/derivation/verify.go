@@ -10,19 +10,57 @@ import (
 )
 
 // rollbackLocalChain rolls back the local L2 chain to the specified block number.
-// This is only triggered when batch data comparison fails — i.e. the local L2 block
-// does not match the L1 batch data (block context mismatch or state root mismatch).
-// After rollback, the caller re-derives blocks using L1 batch data as source of truth.
+//
+// SPEC-005 §3.6 / §5: triggered on block-context mismatch or batch-root mismatch.
+// After rollback the caller re-derives the offending batch from L1 calldata.
+//
+// SPEC-005 §4 (safety considerations) requires the rollback to be atomic w.r.t.
+// the sequencer's block-production path: the sequencer must not be able to
+// produce a new unsafe block while the rollback is in flight. The atomic
+// ordering is:
+//
+//   1. Acquire the sequencer ↔ derivation mutex (P3 — sequencer_mutex.go).
+//   2. Pause sequencer block production (mutex blocks RequestBlockData /
+//      DeliverBlock entry points on the L2Node interface; tendermint
+//      consensus layer is not modified — see tech-design §3.2.2).
+//   3. Pause this derivation loop (already serialized; the caller is the loop).
+//   4. Call go-ethereum's hash-matched SetHead (SPEC-005 §8 #4 blocking item).
+//   5. Clear derivation cursor for the rolled-back range.
+//   6. Clear L1 anchor records for the discarded segment.
+//   7. Atomically persist the new safe_head metadata (head_anchor.go).
+//   8. Release the mutex.
+//
+// Boundary: target < finalized_head → halted (SPEC-005 §3.6); enforced before
+// invoking the SetHead call. target < genesis → halted.
 func (d *Derivation) rollbackLocalChain(targetBlockNumber uint64) error {
+	if err := d.checkRollbackBoundary(targetBlockNumber); err != nil {
+		return err
+	}
+
 	d.logger.Error("L2 chain rollback not yet implemented",
 		"targetBlockNumber", targetBlockNumber)
 
-	// TODO: Implement actual rollback via geth SetHead engine API:
-	//  1. Expose SetL2Head(number uint64) in go-ethereum/eth/catalyst/l2_api.go
-	//  2. Add SetHead method to go-ethereum/ethclient/authclient
-	//  3. Add SetHead method to node/types/retryable_client.go
-	//  4. Call d.l2Client.SetHead(d.ctx, targetBlockNumber)
+	// TODO(spec-005-rollback): implement steps 1-8 above. Blocked on:
+	//   - SPEC-005 §8 #2: sequencer mutex granularity (sequencer_mutex.go).
+	//   - SPEC-005 §8 #4: go-ethereum hash-matched SetHead interface (must
+	//     refuse to roll back if the supplied (number, hash) does not match
+	//     the local canonical chain — see tech-design §3.3).
+	//   - node/types/retryable_client.go SetHead wrapper once the upstream
+	//     EL method is finalised.
 	return fmt.Errorf("rollback not implemented yet, target=%d", targetBlockNumber)
+}
+
+// checkRollbackBoundary enforces the SPEC-005 §3.6 boundary: rolling back
+// past finalized_head is fatal, regardless of why the caller wanted to.
+func (d *Derivation) checkRollbackBoundary(targetBlockNumber uint64) error {
+	finalized := d.readFinalizedHead()
+	if finalized != nil && targetBlockNumber < finalized.L2Number {
+		// SPEC-005 §3.6 / §4.3: enter halted; no recovery short of manual
+		// intervention. The caller is expected to set d.halted in response.
+		return fmt.Errorf("rollback target %d below finalized_head %d — halted boundary",
+			targetBlockNumber, finalized.L2Number)
+	}
+	return nil
 }
 
 // verifyBatchRoots verifies that the local state root and withdrawal root match the L1 batch data.
