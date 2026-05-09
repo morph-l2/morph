@@ -187,27 +187,25 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		return
 	}
 
-	// Step 1: SPEC-005 §3.2 — detect L1 reorg on the safe segment.
-	// Reorg detection runs unconditionally now that the main loop drives on
-	// L1 safe by default; finalized-mode operators can still opt in via
-	// `--derivation.confirmations`, in which case detectReorg is a cheap
-	// no-op (finalized never reorgs).
-	reorgAt, err := d.detectReorg(ctx)
-	if err != nil {
-		d.logger.Error("reorg detection failed", "err", err)
-		return
-	}
-	if reorgAt != nil {
-		d.logger.Info("L1 reorg detected, invoking reorg handler", "reorgAtL1Height", *reorgAt)
-		d.metrics.IncReorgCount()
-		if err := d.handleL1Reorg(*reorgAt); err != nil {
-			d.logger.Error("handle L1 reorg failed", "err", err)
+	// Step 1: Check for L1 reorg (only meaningful when not using finalized)
+	if d.confirmations != rpc.FinalizedBlockNumber {
+		reorgAt, err := d.detectReorg(ctx)
+		if err != nil {
+			d.logger.Error("reorg detection failed", "err", err)
+			return
 		}
-		// Always return after reorg detection — don't continue processing in
-		// the same loop. Let the next poll interval re-fetch from the reset
-		// height. This avoids recording potentially unstable L1 block hashes
-		// if the chain is still reorging.
-		return
+		if reorgAt != nil {
+			d.logger.Info("L1 reorg detected, invoking reorg handler", "reorgAtL1Height", *reorgAt)
+			d.metrics.IncReorgCount()
+			if err := d.handleL1Reorg(*reorgAt); err != nil {
+				d.logger.Error("handle L1 reorg failed", "err", err)
+			}
+			// Always return after reorg detection — don't continue processing in
+			// the same loop. Let the next poll interval re-fetch from the reset
+			// height. This avoids recording potentially unstable L1 block hashes
+			// if the chain is still reorging.
+			return
+		}
 	}
 
 	// Step 2: Determine L1 scan range
@@ -318,37 +316,19 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 
 		d.metrics.SetBatchStatus(stateNormal)
 		d.metrics.SetL1SyncHeight(lg.BlockNumber)
-
-		// SPEC-005 §3.1 step 3 — anchor safe_head to (L2 last block, L1 commit
-		// block) after a batch is fully verified. Single-key Put for now; see
-		// writeSafeHead doc for the deferred multi-key atomicity TODO.
-		safeAnchor := HeadAnchor{
-			L2Number: lastHeader.Number.Uint64(),
-			L1Number: lg.BlockNumber,
-		}
-		copy(safeAnchor.L2Hash[:], lastHeader.Hash().Bytes())
-		copy(safeAnchor.L1Hash[:], lg.BlockHash.Bytes())
-		d.writeSafeHead(safeAnchor)
-		d.metrics.SetSafeHeadL2Number(safeAnchor.L2Number)
 	}
 
-	// Step 5: Record L1 block hashes for reorg detection on the safe segment.
-	// SPEC-005 §3.2: anchor window is required on the safe channel; on a
-	// finalized-mode override the recordL1Blocks calls are still cheap and
-	// the records are simply unused.
-	if err := d.recordL1Blocks(ctx, start, end); err != nil {
-		d.logger.Error("recordL1Blocks failed, will retry next loop", "err", err)
-		return
+	// Step 5: Record L1 block hashes for reorg detection (only needed for non-finalized modes)
+	if d.confirmations != rpc.FinalizedBlockNumber {
+		if err := d.recordL1Blocks(ctx, start, end); err != nil {
+			d.logger.Error("recordL1Blocks failed, will retry next loop", "err", err)
+			return
+		}
 	}
 
 	d.db.WriteLatestDerivationL1Height(end)
 	d.metrics.SetL1SyncHeight(end)
 	d.logger.Info("write latest derivation l1 height success", "l1BlockNumber", end)
-
-	// Step 6: SPEC-005 §3.1 step 4 — advance finalized_head from L1 finalized
-	// segment. Best-effort: errors are logged, never block the safe-channel
-	// progress.
-	d.advanceFinalizedHead(ctx)
 }
 
 func (d *Derivation) fetchRollupLog(ctx context.Context, from, to uint64) ([]eth.Log, error) {

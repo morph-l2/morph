@@ -10,20 +10,17 @@ import (
 
 // SPEC-005 §3.2 "L1 双通道驱动":
 //
-// The derivation pipeline consumes two independent L1 cursors:
-//   - "safe"      drives safe_head via the main derivation loop
-//                 (see derivation.go::derivationBlock); it is allowed to roll
-//                 back when L1 reorgs out a batch.
-//   - "finalized" drives finalized_head via the finalized tracker
-//                 (see finalized_tracker.go::advanceFinalizedHead); it is
-//                 monotonic and never rolls back.
+// The derivation pipeline must consume two independent L1 cursors:
+//   - "safe"      drives safe_head and is allowed to roll back when L1 reorgs out a batch.
+//   - "finalized" drives finalized_head; it is monotonic and never rolls back.
 //
-// As of SPEC-005 task #5, the main loop's L1 source is `d.confirmations`,
-// which defaults to rpc.SafeBlockNumber (see config.go). Operators may
-// override it back to rpc.FinalizedBlockNumber via the existing
-// `--derivation.confirmations` flag, in which case the safe channel and
-// finalized channel collapse onto the same cursor and reorg detection
-// becomes a no-op.
+// The current main loop in derivationBlock() still consumes a single
+// `d.confirmations` cursor (rpc.FinalizedBlockNumber by default). The helpers
+// below are intentionally not yet wired into the main loop — switching the
+// main loop is gated on the SPEC-005 §8 blocking decisions (anchor-window
+// depth, sequencer mutex granularity). They are exposed now so that
+// downstream tasks #5 / #6 / #7 can build on them without re-establishing
+// the L1 access pattern from scratch.
 
 // fetchLatestSafeHeight returns the L1 block number of the latest "safe" head.
 //
