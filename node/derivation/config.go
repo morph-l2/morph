@@ -53,7 +53,9 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		L1: &types.L1Config{
-			Confirmations: rpc.FinalizedBlockNumber,
+			// SPEC-005 §3.1 / §3.2: derivation main loop drives on L1 safe.
+			// finalized_head is advanced by a separate tracker (finalized_tracker.go).
+			Confirmations: rpc.SafeBlockNumber,
 		},
 		PollInterval:        DefaultPollInterval,
 		LogProgressInterval: DefaultLogProgressInterval,
