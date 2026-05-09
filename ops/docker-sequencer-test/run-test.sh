@@ -6,7 +6,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MORPH_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BITGET_ROOT="$(cd "$MORPH_ROOT/.." && pwd)"
+POLYREPO_ROOT="$(cd "$MORPH_ROOT/.." && pwd)"
 OPS_DIR="$MORPH_ROOT/ops"
 DOCKER_DIR="$OPS_DIR/docker"
 DEVNET_DIR="$OPS_DIR/devnet-morph"
@@ -87,17 +87,17 @@ set_upgrade_height() {
 }
 
 # Build test images (with -test suffix)
-# Uses bitget/ as build context to access local go-ethereum and tendermint
+# Uses the polyrepo root as build context to access local go-ethereum and tendermint
 build_test_images() {
     log_info "Building test Docker images..."
-    log_info "Using build context: $BITGET_ROOT"
-    
+    log_info "Using build context: $POLYREPO_ROOT"
+
     # Build go-ubuntu-builder if needed
     cd "$MORPH_ROOT"
     make go-ubuntu-builder
-    
-    # Build from bitget/ directory to access all repos
-    cd "$BITGET_ROOT"
+
+    # Build from the polyrepo root to access all repos
+    cd "$POLYREPO_ROOT"
     
     # # Copy go module cache to avoid network downloads
     # if [ -d "$HOME/go/pkg/mod" ]; then
@@ -109,9 +109,9 @@ build_test_images() {
     #     log_warn "Build may fail due to network issues"
     # fi
     
-    # Build test geth image
-    log_info "Building morph-geth-test (using local go-ethereum)..."
-    docker build -t morph-geth-test:latest \
+    # Build test execution image
+    log_info "Building morph-el-test (using local go-ethereum)..."
+    docker build -t morph-el-test:latest \
         -f morph/ops/docker-sequencer-test/Dockerfile.l2-geth-test .
     
     # Build test node image
@@ -275,17 +275,17 @@ start_l2_test() {
     
     # Stop any existing L2 containers
     $COMPOSE_CMD stop \
-        morph-geth-0 morph-geth-1 morph-geth-2 morph-geth-3 \
+        morph-el-0 morph-el-1 morph-el-2 morph-el-3 \
         node-0 node-1 node-2 node-3 2>/dev/null || true
     
     # Note: Test images should already be built by build_test_images()
     # Uncomment below if you need to rebuild during start
     # log_info "Building L2 containers with test images..."
-    # $COMPOSE_CMD build morph-geth-0 node-0
+    # $COMPOSE_CMD build morph-el-0 node-0
     
-    # Start L2 geth nodes
-    log_info "Starting L2 geth nodes..."
-    $COMPOSE_CMD up -d morph-geth-0 morph-geth-1 morph-geth-2 morph-geth-3
+    # Start L2 execution nodes
+    log_info "Starting L2 execution nodes..."
+    $COMPOSE_CMD up -d morph-el-0 morph-el-1 morph-el-2 morph-el-3
     
     sleep 5
     
@@ -364,7 +364,7 @@ test_fullnode_sync() {
     
     # Start sentry node (fullnode)
     log_info "Starting fullnode (sentry-node-0)..."
-    $COMPOSE_CMD up -d sentry-geth-0 sentry-node-0
+    $COMPOSE_CMD up -d sentry-el-0 sentry-node-0
     
     sleep 10
     wait_for_rpc "http://127.0.0.1:8945"
@@ -522,7 +522,7 @@ case "${1:-}" in
         echo "Usage: $0 {build|setup|start|stop|clean|logs|test|tx|status|upgrade-height}"
         echo ""
         echo "Commands:"
-        echo "  build           - Build test Docker images (morph-geth-test, morph-node-test)"
+        echo "  build           - Build test Docker images (morph-el-test, morph-node-test)"
         echo "  setup           - Run full devnet setup (L1 + contracts + L2 genesis)"
         echo "  start           - Start L2 nodes with test images"
         echo "  stop            - Stop all containers"
