@@ -18,7 +18,7 @@ const config = {
     /**
      * ---to---legacy property
      */
-    programVkey: '0x00940d658cf507217304ec5f7ca5558e2e0fd67881485f604b63588c31a8792f',
+    programVkey: '0x0095c7627ee2c952d25db7362f2f55cc28163c61f4866252530178aeb21ab3a7',
     rollupMinDeposit: 0.0001,
     rollupProofWindow: 86400,
     rollupGenesisBlockNumber: 0,
