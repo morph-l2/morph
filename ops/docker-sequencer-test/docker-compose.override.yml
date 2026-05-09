@@ -3,20 +3,20 @@
 version: '3.8'
 
 services:
-  morph-geth-0:
-    image: morph-geth-test:latest
+  morph-el-0:
+    image: morph-el-test:latest
     build:
       context: ../..
       dockerfile: ops/docker-sequencer-test/Dockerfile.l2-geth-test
 
-  morph-geth-1:
-    image: morph-geth-test:latest
+  morph-el-1:
+    image: morph-el-test:latest
 
-  morph-geth-2:
-    image: morph-geth-test:latest
+  morph-el-2:
+    image: morph-el-test:latest
 
-  morph-geth-3:
-    image: morph-geth-test:latest
+  morph-el-3:
+    image: morph-el-test:latest
 
   node-0:
     image: morph-node-test:latest
@@ -55,8 +55,8 @@ services:
       - MORPH_NODE_CONSENSUS_SWITCH_HEIGHT=${CONSENSUS_SWITCH_HEIGHT:-10}
 
 
-  sentry-geth-0:
-    image: morph-geth-test:latest
+  sentry-el-0:
+    image: morph-el-test:latest
 
   sentry-node-0:
     image: morph-node-test:latest

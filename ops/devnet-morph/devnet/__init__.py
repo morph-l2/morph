@@ -21,6 +21,8 @@ pjoin = os.path.join
 parser = argparse.ArgumentParser(description='devnet launcher')
 parser.add_argument('--polyrepo-dir', help='Directory of the polyrepo', default=os.getcwd())
 parser.add_argument('--only-l1', help='Only bootstrap l1 geth', action="store_true")
+parser.add_argument('--execution-client', choices=('geth', 'reth'), default='geth',
+                    help='L2 execution client implementation to run')
 # parser.add_argument('--deploy', help='Whether the contracts should be predeployed or deployed', action="store_true")
 parser.add_argument('--debugccc', help='Whether set the debug log level for ccc', action="store_true")
 
@@ -30,12 +32,24 @@ GWEI = 1e9
 ETH = GWEI * GWEI
 
 
+def compose_file_args(execution_client):
+    """Return docker-compose -f flags for the chosen L2 execution client."""
+    args = ['-f', 'docker-compose-4nodes.yml']
+    if execution_client == 'reth':
+        args.extend(['-f', 'docker-compose-reth.yml'])
+    return args
+
+
 class Bunch:
+    """Lightweight attribute container constructed from keyword arguments."""
+
     def __init__(self, **kwds):
+        """Store all keyword arguments as attributes on the instance."""
         self.__dict__.update(kwds)
 
 
 def main():
+    """Entry point: parse CLI arguments and bring up the L1-only or full devnet."""
     args = parser.parse_args()
 
     polyrepo_dir = os.path.abspath(args.polyrepo_dir)
@@ -72,6 +86,7 @@ def main():
 
 
 def devnet_l1(paths, result=None):
+    """Start the L1 execution/consensus/validator stack and fund sequencer accounts."""
     log.info('Starting L1.')
     
     layer1_dir = pjoin(paths.ops_dir, 'layer1')
@@ -137,6 +152,7 @@ def devnet_l1(paths, result=None):
 
 
 def devnet_build(paths):
+    """Build the docker images declared in docker-compose-4nodes.yml."""
     run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'build'], cwd=paths.ops_dir, env={
         'PWD': paths.ops_dir,
         'DOCKER_BUILDKIT': '1',  # (should be available by default in later versions, but explicitly enable it anyway)
@@ -144,8 +160,8 @@ def devnet_build(paths):
     })
 
 
-# Bring up the devnet where the contracts are deployed to L1
 def devnet_deploy(paths, args):
+    """Bring up the devnet where the contracts are deployed to L1."""
     if not test_port(9545):
         devnet_l1(paths)
     done_file = pjoin(paths.devnet_dir, 'done')
@@ -255,12 +271,11 @@ def devnet_deploy(paths, args):
         envfile.truncate()
         envfile.close()
 
-    log.info('Bringing up L2.')
+    log.info(f'Bringing up L2 with {args.execution_client}.')
 
 
 
-    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up',
-                 '--no-recreate','-d'], check=False, cwd=paths.ops_dir,
+    run_command(['docker', 'compose', *compose_file_args(args.execution_client), 'up', '-d'], check=False, cwd=paths.ops_dir,
                 env={
                     'MORPH_PORTAL': addresses['Proxy__L1MessageQueueWithGasPriceOracle'],
                     'MORPH_ROLLUP': addresses['Proxy__Rollup'],
@@ -277,6 +292,7 @@ def devnet_deploy(paths, args):
 
 
 def wait_for_rpc_server(url):
+    """Block until the JSON-RPC server at url answers an eth_chainId call successfully."""
     log.info(f'Waiting for RPC server at {url}')
 
     conn = http.client.HTTPConnection(url)
@@ -297,6 +313,7 @@ def wait_for_rpc_server(url):
 
 
 def run_command(args, check=True, shell=False, cwd=None, env=None, output=None):
+    """Run a subprocess with the parent environment merged with the supplied env dict."""
     env = env if env else {}
     return subprocess.run(
         args,
@@ -314,6 +331,7 @@ def run_command(args, check=True, shell=False, cwd=None, env=None, output=None):
 
 
 def run_command_capture_output(args, check=True, shell=False, cwd=None, env=None):
+    """Run a subprocess and return its CompletedProcess with stdout/stderr captured."""
     env = env if env else {}
     return subprocess.run(
         args,
@@ -330,6 +348,7 @@ def run_command_capture_output(args, check=True, shell=False, cwd=None, env=None
 
 
 def wait_up(port, retries=10, wait_secs=1):
+    """Poll a TCP port on 127.0.0.1 until it accepts a connection or retries are exhausted."""
     for i in range(0, retries):
         log.info(f'Trying 127.0.0.1:{port}')
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -345,6 +364,7 @@ def wait_up(port, retries=10, wait_secs=1):
 
 
 def test_port(port):
+    """Return True if a TCP connection to 127.0.0.1:port succeeds, False otherwise."""
     log.info(f'Testing 127.0.0.1:{port}')
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
@@ -357,16 +377,19 @@ def test_port(port):
 
 
 def write_json(path, data):
+    """Serialize data to path as indented JSON."""
     with open(path, 'w+') as f:
         json.dump(data, f, indent='  ')
 
 
 def read_json(path):
+    """Load and return the JSON document stored at path."""
     with open(path, 'r') as f:
         return json.load(f)
 
 
 def eth_accounts(url):
+    """Call eth_accounts on url and return the raw JSON-RPC response body."""
     log.info(f'Fetch eth_accounts {url}')
     conn = http.client.HTTPConnection(url)
     headers = {'Content-type': 'application/json'}

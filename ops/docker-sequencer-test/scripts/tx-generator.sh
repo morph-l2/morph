@@ -4,7 +4,7 @@
 
 set -e
 
-L2_RPC="${L2_RPC:-http://morph-geth-0:8545}"
+L2_RPC="${L2_RPC:-http://morph-el-0:8545}"
 INTERVAL="${TX_INTERVAL:-5}"  # seconds between txs
 PRIVATE_KEY="${PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
 
