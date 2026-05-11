@@ -94,17 +94,6 @@ pub fn assemble_block_input(
     ClientBlockInput { current_block: l2_block, parent_state: state, bytecodes: codes }
 }
 
-/// Queries the state root at a given block number.
-pub async fn query_state_root(
-    block_number: u64,
-    provider: &DynProvider,
-) -> Result<DiskRoot, anyhow::Error> {
-    provider
-        .raw_request::<_, DiskRoot>("morph_diskRoot".into(), [format!("{block_number:#x}")])
-        .await
-        .context("morph_diskRoot error")
-}
-
 /// Queries the block at a given block number.
 pub async fn query_block(
     block_number: u64,
@@ -114,20 +103,6 @@ pub async fn query_block(
         .raw_request::<_, ProverBlock>(
             "eth_getBlockByNumber".into(),
             (format!("{block_number:#x}"), true),
-        )
-        .await
-        .context("eth_getBlockByNumber error")
-}
-
-/// Queries the block at a given block number without transactions.
-pub async fn query_chain_d(
-    block_number: u64,
-    provider: &DynProvider,
-) -> Result<ProverBlock, anyhow::Error> {
-    provider
-        .raw_request::<_, ProverBlock>(
-            "eth_getBlockByNumber".into(),
-            [format!("{block_number:#x}")],
         )
         .await
         .context("eth_getBlockByNumber error")
