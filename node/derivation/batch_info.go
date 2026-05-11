@@ -149,7 +149,11 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 	var txsData []byte
 	if batch.BlockContexts != nil {
 		// Block contexts come from calldata; the entire decompressed stream
-		// is tx payload data.
+		// is tx payload data. ABI-decoded `bytes` can be a non-nil zero/short
+		// slice, so guard the 2-byte block-count prefix read explicitly.
+		if len(batch.BlockContexts) < 2 {
+			return fmt.Errorf("calldata block contexts too short for block count prefix: have %d, need 2", len(batch.BlockContexts))
+		}
 		blockCount = uint64(binary.BigEndian.Uint16(batch.BlockContexts[:2]))
 		if uint64(len(batch.BlockContexts)) < 2+60*blockCount {
 			return fmt.Errorf("calldata block contexts too short: have %d, need %d", len(batch.BlockContexts), 2+60*blockCount)
