@@ -24,8 +24,12 @@ pub struct ProveRequest {
     pub end_block: u64,
     pub rpc: String,
     pub shadow: Option<bool>,
-    #[serde(default)]
+    #[serde(default = "default_batch_version")]
     pub batch_version: u8,
+}
+
+fn default_batch_version() -> u8 {
+    2
 }
 
 /// The prover that processes prove requests from a queue.

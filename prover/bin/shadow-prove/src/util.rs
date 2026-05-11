@@ -61,6 +61,7 @@ async fn test_call_prover() {
         end_block: 107,
         rpc: "http://localhost:3030".to_string(),
         shadow: true,
+        batch_version: 0,
     };
 
     let rt = tokio::task::spawn_blocking(move || {

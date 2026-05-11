@@ -20,6 +20,8 @@ pub struct ProveRequest {
     pub end_block: u64,
     pub rpc: String,
     pub shadow: bool,
+    #[serde(default)]
+    pub batch_version: u8,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -122,6 +124,7 @@ where
                     break;
                 }
             }
+            let batch_version = prove_info.batch_header.first().copied().unwrap_or(0);
 
             // Request the proverServer to prove.
             let request = ProveRequest {
@@ -130,6 +133,7 @@ where
                 end_block: prove_info.batch_info.end_block,
                 rpc: l2_rpc.to_owned(),
                 shadow: false,
+                batch_version,
             };
             let rt = tokio::task::spawn_blocking(move || {
                 util::call_prover(serde_json::to_string(&request).unwrap(), "/prove_batch")
