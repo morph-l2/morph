@@ -237,25 +237,9 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		if lastHeader.Number.Uint64() <= d.baseHeight {
 			continue
 		}
-		withdrawalRoot, err := d.L2ToL1MessagePasser.MessageRoot(&bind.CallOpts{
-			BlockNumber: lastHeader.Number,
-		})
-		if err != nil {
-			d.logger.Error("get withdrawal root failed", "error", err)
-			return
-		}
-
-		rootMismatch := !bytes.Equal(lastHeader.Root.Bytes(), batchInfo.root.Bytes())
-		withdrawalMismatch := !bytes.Equal(withdrawalRoot[:], batchInfo.withdrawalRoot.Bytes())
-
-		if rootMismatch || withdrawalMismatch {
+		if err := d.verifyBatchRoots(batchInfo, lastHeader); err != nil {
 			d.metrics.SetBatchStatus(stateException)
-			d.logger.Error("root hash or withdrawal hash is not equal",
-				"originStateRootHash", batchInfo.root,
-				"deriveStateRootHash", lastHeader.Root.Hex(),
-				"batchWithdrawalRoot", batchInfo.withdrawalRoot.Hex(),
-				"deriveWithdrawalRoot", common.BytesToHash(withdrawalRoot[:]).Hex(),
-			)
+			d.logger.Error("batch roots verification failed", "batchIndex", batchInfo.batchIndex, "error", err)
 			return
 		}
 		d.metrics.SetBatchStatus(stateNormal)
