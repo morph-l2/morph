@@ -29,6 +29,14 @@ const (
 
 	// DefaultLogProgressInterval is the frequency at which we log progress.
 	DefaultLogProgressInterval = time.Second * 10
+
+	// VerifyMode values (SPEC-005 §4.2). Selected at startup; not switchable
+	// at runtime. Default is VerifyModePathA which preserves current behaviour.
+	VerifyModePathA = "pathA"
+	VerifyModePathB = "pathB"
+
+	// DefaultVerifyMode is Path A (pull beacon blob, decode, derive, verify).
+	DefaultVerifyMode = VerifyModePathA
 )
 
 type Config struct {
@@ -41,6 +49,7 @@ type Config struct {
 	PollInterval          time.Duration   `json:"poll_interval"`
 	LogProgressInterval   time.Duration   `json:"log_progress_interval"`
 	FetchBlockRange       uint64          `json:"fetch_block_range"`
+	VerifyMode            string          `json:"verify_mode"`
 	MetricsPort           uint64          `json:"metrics_port"`
 	MetricsHostname       string          `json:"metrics_hostname"`
 	MetricsServerEnable   bool            `json:"metrics_server_enable"`
@@ -54,6 +63,7 @@ func DefaultConfig() *Config {
 		PollInterval:        DefaultPollInterval,
 		LogProgressInterval: DefaultLogProgressInterval,
 		FetchBlockRange:     DefaultFetchBlockRange,
+		VerifyMode:          DefaultVerifyMode,
 		L2:                  new(types.L2Config),
 	}
 }
@@ -108,6 +118,19 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		if c.FetchBlockRange == 0 {
 			return errors.New("invalid fetchBlockRange")
 		}
+	}
+
+	if ctx.GlobalIsSet(flags.DerivationVerifyMode.Name) {
+		c.VerifyMode = ctx.GlobalString(flags.DerivationVerifyMode.Name)
+	}
+	switch c.VerifyMode {
+	case VerifyModePathA, VerifyModePathB:
+		// ok
+	case "":
+		c.VerifyMode = DefaultVerifyMode
+	default:
+		return fmt.Errorf("invalid derivation.verify-mode %q (must be %q or %q)",
+			c.VerifyMode, VerifyModePathA, VerifyModePathB)
 	}
 
 	l2EthAddr := ctx.GlobalString(flags.L2EthAddr.Name)

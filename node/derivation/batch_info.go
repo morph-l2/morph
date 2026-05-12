@@ -59,6 +59,11 @@ type BatchInfo struct {
 	root                       common.Hash
 	withdrawalRoot             common.Hash
 	parentTotalL1MessagePopped uint64
+
+	// blobHashes is the ordered list of EIP-4844 blob versioned hashes
+	// declared by the L1 commitBatch tx. Path B uses this to compare
+	// against locally-rebuilt versioned hashes (SPEC-005 §4).
+	blobHashes []common.Hash
 }
 
 func (bi *BatchInfo) FirstBlockNumber() uint64 {
@@ -75,6 +80,59 @@ func (bi *BatchInfo) BlockNum() uint64 {
 
 func (bi *BatchInfo) TxNum() uint64 {
 	return bi.txNum
+}
+
+// ParseBatchMetadataOnly populates BatchInfo using only L1 calldata —
+// it does NOT touch the blob sidecar and does NOT decode any transactions.
+//
+// Used by Path B (SPEC-005), which verifies the batch by rebuilding the
+// blob locally rather than downloading and decoding it. Fields populated:
+// batchIndex, version, root, withdrawalRoot, parentTotalL1MessagePopped,
+// firstBlockNumber, lastBlockNumber. blockContexts / SafeL2Data / blobs
+// are intentionally left empty; callers in Path B must not call derive().
+//
+// blobHashes is populated separately by the caller from tx.BlobHashes().
+func (bi *BatchInfo) ParseBatchMetadataOnly(batch geth.RPCRollupBatch) error {
+	parentBatchHeader := commonbatch.BatchHeaderBytes(batch.ParentBatchHeader)
+	parentBatchIndex, err := parentBatchHeader.BatchIndex()
+	if err != nil {
+		return fmt.Errorf("decode batch header index error:%v", err)
+	}
+	totalL1MessagePopped, err := parentBatchHeader.TotalL1MessagePopped()
+	if err != nil {
+		return fmt.Errorf("decode batch header totalL1MessagePopped error:%v", err)
+	}
+	bi.parentTotalL1MessagePopped = totalL1MessagePopped
+	bi.root = batch.PostStateRoot
+	bi.batchIndex = parentBatchIndex + 1
+	bi.withdrawalRoot = batch.WithdrawRoot
+	bi.version = uint64(batch.Version)
+	bi.lastBlockNumber = batch.LastBlockNumber
+
+	// Derive firstBlockNumber from parent batch's LastBlockNumber + 1.
+	// V0 -> V1 transition leaves parent LastBlockNumber unset; in that
+	// case fall back to decoding the first BlockContext from calldata.
+	parentVersion, err := parentBatchHeader.Version()
+	if err != nil {
+		return fmt.Errorf("decode parent batch header version error:%v", err)
+	}
+	if parentVersion == 0 {
+		if len(batch.BlockContexts) < 2+60 {
+			return fmt.Errorf("calldata block contexts too short for first block context: have %d, need %d", len(batch.BlockContexts), 2+60)
+		}
+		var firstBlock BlockContext
+		if err := firstBlock.Decode(batch.BlockContexts[2 : 2+60]); err != nil {
+			return fmt.Errorf("decode first block context error:%v", err)
+		}
+		bi.firstBlockNumber = firstBlock.Number
+	} else {
+		parentLast, err := parentBatchHeader.LastBlockNumber()
+		if err != nil {
+			return fmt.Errorf("decode parent batch header lastBlockNumber error:%v", err)
+		}
+		bi.firstBlockNumber = parentLast + 1
+	}
+	return nil
 }
 
 // ParseBatch This method is externally referenced for parsing Batch

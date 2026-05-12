@@ -60,6 +60,7 @@ type Derivation struct {
 	fetchBlockRange     uint64
 	pollInterval        time.Duration
 	logProgressInterval time.Duration
+	verifyMode          string // SPEC-005 §4.2: "pathA" (default) or "pathB"; bound at startup, never switches.
 	stop                chan struct{}
 }
 
@@ -135,6 +136,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		fetchBlockRange:       cfg.FetchBlockRange,
 		pollInterval:          cfg.PollInterval,
 		logProgressInterval:   cfg.LogProgressInterval,
+		verifyMode:            cfg.VerifyMode,
 		metrics:               metrics,
 		l1BeaconClient:        l1BeaconClient,
 		L2ToL1MessagePasser:   msgPasser,
@@ -213,27 +215,55 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 	d.logger.Info("fetched rollup tx", "txNum", len(logs), "latestBatchIndex", latestBatchIndex)
 
 	for _, lg := range logs {
-		batchInfo, err := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
-		if err != nil {
-			if errors.Is(err, types.ErrNotCommitBatchTx) {
-				continue
+		var (
+			batchInfo  *BatchInfo
+			lastHeader *eth.Header
+		)
+		switch d.verifyMode {
+		case VerifyModePathB:
+			batchInfo, err = d.fetchBatchInfoPathB(ctx, lg.TxHash, lg.BlockNumber)
+			if err != nil {
+				if errors.Is(err, types.ErrNotCommitBatchTx) {
+					continue
+				}
+				d.logger.Error("path B fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
+				return
 			}
-			d.logger.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
-			return
+			d.logger.Info("path B fetched batch metadata", "txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
+				"l1BlockNumber", batchInfo.l1BlockNumber, "firstL2BlockNumber", batchInfo.firstBlockNumber, "lastL2BlockNumber", batchInfo.lastBlockNumber)
+			if err := d.verifyBatchContentPathB(ctx, batchInfo); err != nil {
+				d.metrics.SetBatchStatus(stateException)
+				d.logger.Error("path B content verification failed", "batchIndex", batchInfo.batchIndex, "error", err)
+				return
+			}
+			lastHeader, err = d.fetchLocalLastHeader(ctx, batchInfo)
+			if err != nil {
+				d.logger.Error("path B local last-header fetch failed", "batchIndex", batchInfo.batchIndex, "error", err)
+				return
+			}
+			d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
+			d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
+		default: // VerifyModePathA
+			batchInfo, err = d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
+			if err != nil {
+				if errors.Is(err, types.ErrNotCommitBatchTx) {
+					continue
+				}
+				d.logger.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
+				return
+			}
+			d.logger.Info("fetch rollup transaction success", "txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
+				"l1BlockNumber", batchInfo.l1BlockNumber, "firstL2BlockNumber", batchInfo.firstBlockNumber, "lastL2BlockNumber", batchInfo.lastBlockNumber)
+			lastHeader, err = d.derive(batchInfo)
+			if err != nil {
+				d.logger.Error("derive blocks interrupt", "error", err)
+				return
+			}
+			d.logger.Info("batch derivation complete", "batch_index", batchInfo.batchIndex, "currentBatchEndBlock", lastHeader.Number.Uint64())
+			d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
+			d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
 		}
-		d.logger.Info("fetch rollup transaction success", "txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
-			"l1BlockNumber", batchInfo.l1BlockNumber, "firstL2BlockNumber", batchInfo.firstBlockNumber, "lastL2BlockNumber", batchInfo.lastBlockNumber)
 
-		// derivation
-		lastHeader, err := d.derive(batchInfo)
-		if err != nil {
-			d.logger.Error("derive blocks interrupt", "error", err)
-			return
-		}
-		// only last block of batch
-		d.logger.Info("batch derivation complete", "batch_index", batchInfo.batchIndex, "currentBatchEndBlock", lastHeader.Number.Uint64())
-		d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
-		d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
 		if lastHeader.Number.Uint64() <= d.baseHeight {
 			continue
 		}
@@ -390,6 +420,7 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	rollupData.l1BlockNumber = blockNumber
 	rollupData.txHash = txHash
 	rollupData.nonce = tx.Nonce()
+	rollupData.blobHashes = tx.BlobHashes()
 	return rollupData, nil
 }
 

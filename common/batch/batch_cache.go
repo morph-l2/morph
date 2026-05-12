@@ -509,7 +509,7 @@ func (bc *BatchCache) CalculateCapWithProposalBlock(blockNumber uint64, withdraw
 	}
 
 	// Parse transactions, distinguish L1 and L2 transactions
-	txsPayload, l1TxHashes, newTotalL1MessagePopped, l2TxNum, err := parsingTxs(block.Transactions(), bc.totalL1MessagePopped)
+	txsPayload, l1TxHashes, newTotalL1MessagePopped, l2TxNum, err := ParsingTxs(block.Transactions(), bc.totalL1MessagePopped)
 	if err != nil {
 		return false, fmt.Errorf("failed to parse transactions: %w", err)
 	}
@@ -518,7 +518,7 @@ func (bc *BatchCache) CalculateCapWithProposalBlock(blockNumber uint64, withdraw
 	txsNum := l2TxNum + l1TxNum
 
 	// Build BlockContext (60 bytes)
-	blockContext := buildBlockContext(header, txsNum, l1TxNum)
+	blockContext := BuildBlockContext(header, txsNum, l1TxNum)
 
 	// Store to current, do not immediately append to batch
 	bc.currentBlockContext = blockContext
@@ -840,8 +840,14 @@ func (bc *BatchCache) createBatchHeader(dataHash common.Hash, sidecar *ethtypes.
 	return batchHeaderV0.Bytes()
 }
 
-// parsingTxs parses transactions, distinguishes L1 and L2 transactions
-func parsingTxs(transactions []*ethtypes.Transaction, totalL1MessagePoppedBefore uint64) (
+// ParsingTxs encodes a block's transactions into the on-chain payload format
+// used by the batch builder: L2 transactions are RLP-marshalled and concatenated
+// in order; L1 message transactions are excluded from the payload but their
+// hashes and queue indices are tracked separately.
+//
+// Exported for derivation Path B (SPEC-005), which must rebuild blob bytes from
+// local L2 blocks using the same encoding the sequencer applied at seal time.
+func ParsingTxs(transactions []*ethtypes.Transaction, totalL1MessagePoppedBefore uint64) (
 	txsPayload []byte,
 	l1TxHashes []common.Hash,
 	totalL1MessagePopped uint64,
@@ -901,9 +907,12 @@ func (bc *BatchCache) effectiveMaxBlobCount(blockTimestamp uint64) int {
 	return 1
 }
 
-// buildBlockContext builds BlockContext from block header (60 bytes)
+// BuildBlockContext serialises a block header + tx counts into the 60-byte
+// BlockContext blob the batch builder writes for each block.
 // Format: Number(8) || Timestamp(8) || BaseFee(32) || GasLimit(8) || numTxs(2) || numL1Messages(2)
-func buildBlockContext(header *ethtypes.Header, txsNum, l1MsgNum int) []byte {
+//
+// Exported for derivation Path B (SPEC-005); see ParsingTxs.
+func BuildBlockContext(header *ethtypes.Header, txsNum, l1MsgNum int) []byte {
 	blsBytes := make([]byte, 60)
 
 	// Number (8 bytes)

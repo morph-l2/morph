@@ -24,6 +24,12 @@ type Metrics struct {
 	BatchStatus      metrics.Gauge
 	LatestBatchIndex metrics.Gauge
 	SyncedBatchIndex metrics.Gauge
+
+	// SPEC-005 §4.6 Path B counters. PathBTriggered increments once per batch
+	// processed under VerifyModePathB; PathBFailed increments on local-block
+	// missing / encoding error / versioned hash mismatch.
+	PathBTriggered metrics.Counter
+	PathBFailed    metrics.Counter
 }
 
 func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
@@ -68,6 +74,18 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Name:      "synced_batch_index",
 			Help:      "",
 		}, labels).With(labelsAndValues...),
+		PathBTriggered: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "path_b_triggered_total",
+			Help:      "Number of batches verified via SPEC-005 Path B (local-rebuild).",
+		}, labels).With(labelsAndValues...),
+		PathBFailed: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "path_b_failed_total",
+			Help:      "Path B failures: local block missing, encoding error, or versioned hash mismatch.",
+		}, labels).With(labelsAndValues...),
 	}
 }
 
@@ -93,6 +111,14 @@ func (m *Metrics) SetLatestBatchIndex(batchIndex uint64) {
 
 func (m *Metrics) SetSyncedBatchIndex(batchIndex uint64) {
 	m.SyncedBatchIndex.Set(float64(batchIndex))
+}
+
+func (m *Metrics) IncPathBTriggered() {
+	m.PathBTriggered.Add(1)
+}
+
+func (m *Metrics) IncPathBFailed() {
+	m.PathBFailed.Add(1)
 }
 
 func (m *Metrics) Serve(hostname string, port uint64) (*http.Server, error) {

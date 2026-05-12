@@ -252,6 +252,13 @@ var (
 		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
 		EnvVar: prefixEnvVar("DERIVATION_CONFIRMATIONS"),
 	}
+
+	DerivationVerifyMode = cli.StringFlag{
+		Name:   "derivation.verify-mode",
+		Usage:  `Batch verification mode (SPEC-005): "pathA" pulls beacon blob and decodes (default); "pathB" rebuilds blob from local L2 blocks and compares versioned hashes. Mutually exclusive; not switchable at runtime.`,
+		EnvVar: prefixEnvVar("DERIVATION_VERIFY_MODE"),
+		Value:  "pathA",
+	}
 	// Logger
 	LogLevel = &cli.StringFlag{
 		Name:   "log.level",
@@ -347,6 +354,7 @@ var Flags = []cli.Flag{
 	DerivationLogProgressInterval,
 	DerivationFetchBlockRange,
 	DerivationConfirmations,
+	DerivationVerifyMode,
 	L1BeaconAddr,
 
 	// blocktag options
