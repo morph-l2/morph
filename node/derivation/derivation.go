@@ -27,7 +27,6 @@ import (
 	nodecommon "morph-l2/node/common"
 	"morph-l2/node/sync"
 	"morph-l2/node/types"
-	"morph-l2/node/validator"
 )
 
 var (
@@ -42,7 +41,6 @@ type Derivation struct {
 	RollupContractAddress common.Address
 	confirmations         rpc.BlockNumber
 	l2Client              *types.RetryableClient
-	validator             *validator.Validator
 	logger                tmlog.Logger
 	rollup                *bindings.Rollup
 	metrics               *Metrics
@@ -72,7 +70,7 @@ type DeployContractBackend interface {
 	ethereum.TransactionReader
 }
 
-func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, db Database, validator *validator.Validator, rollup *bindings.Rollup, logger tmlog.Logger) (*Derivation, error) {
+func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, db Database, rollup *bindings.Rollup, logger tmlog.Logger) (*Derivation, error) {
 	l1Client, err := ethclient.Dial(cfg.L1.Addr)
 	if err != nil {
 		return nil, err
@@ -122,7 +120,6 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		db:                    db,
 		l1Client:              l1Client,
 		syncer:                syncer,
-		validator:             validator,
 		rollup:                rollup,
 		rollupABI:             rollupAbi,
 		legacyRollupABI:       legacyRollupAbi,
@@ -253,13 +250,6 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 
 		if rootMismatch || withdrawalMismatch {
 			d.metrics.SetBatchStatus(stateException)
-			// TODO The challenge switch is currently on and will be turned on in the future
-			if d.validator != nil && d.validator.ChallengeEnable() {
-				if err := d.validator.ChallengeState(batchInfo.batchIndex); err != nil {
-					d.logger.Error("challenge state failed", "batchIndex", batchInfo.batchIndex, "error", err)
-					return
-				}
-			}
 			d.logger.Error("root hash or withdrawal hash is not equal",
 				"originStateRootHash", batchInfo.root,
 				"deriveStateRootHash", lastHeader.Root.Hex(),
