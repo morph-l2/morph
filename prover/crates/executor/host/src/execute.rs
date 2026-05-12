@@ -1,4 +1,4 @@
-use crate::utils::{beneficiary_by_chain_id, query_block, query_state_root, HostExecutorOutput};
+use crate::utils::{beneficiary_by_chain_id, query_block, HostExecutorOutput};
 use alloy_provider::{DynProvider, Provider};
 use anyhow::{bail, Context};
 use prover_executor_core::MorphExecutor;
@@ -29,6 +29,7 @@ impl HostExecutor {
         let block = query_block(block_number, provider)
             .await
             .with_context(|| format!("query_block failed for block {block_number}"))?;
+        let post_state_root = block.header.state_root;
 
         // layer2 chain id
         let chain_id =
@@ -40,30 +41,22 @@ impl HostExecutor {
         // We use a per-chain hardcoded address as the sequencer/beneficiary.
         let beneficiary = beneficiary_by_chain_id(chain_id);
 
-        // mpt root at this block
-        let disk_root = query_state_root(block_number, provider)
-            .await
-            .with_context(|| format!("query_state_root failed for block {block_number}"))?;
-
         // We need a previous block root to initialize the RPC-backed DB.
         let prev_block_number = block_number
             .checked_sub(1)
             .context("HostExecutor::execute_block requires block_number > 0 (needs prev state)")?;
-        let prev_disk_root =
-            query_state_root(prev_block_number, provider).await.with_context(|| {
-                format!("query_state_root failed for prev block {prev_block_number}")
-            })?;
+
+        let prev_block = query_block(prev_block_number, provider)
+            .await
+            .with_context(|| format!("query_block failed for prev block {prev_block_number}"))?;
+        let prev_state_root = prev_block.header.state_root;
 
         let tx_count = block.transactions.len();
         let block_num = block.header.number.to::<u64>();
 
         // Init DB (RPC-backed, rooted at previous block).
-        let rpc_db = BasicRpcDb::new(
-            provider.clone(),
-            chain_id,
-            prev_block_number,
-            prev_disk_root.disk_root,
-        );
+        let rpc_db =
+            BasicRpcDb::new(provider.clone(), chain_id, prev_block_number, prev_state_root);
 
         // Warm up predeployed contract info.
         load_predeployed_contracts(&rpc_db).await?;
@@ -108,7 +101,7 @@ impl HostExecutor {
             ));
             state_for_verification.state_root()
         };
-        let expected_state_root = disk_root.disk_root;
+        let expected_state_root = block.header.state_root;
         if computed_state_root != expected_state_root {
             bail!(
                 "Mismatched state root after executing block {block_number}: expected {expected_state_root:?}, got {computed_state_root:?}"
@@ -122,8 +115,8 @@ impl HostExecutor {
             block,
             state,
             codes: rpc_db.bytecodes(),
-            prev_state_root: prev_disk_root.disk_root,
-            post_state_root: disk_root.disk_root,
+            prev_state_root,
+            post_state_root,
         })
     }
 }

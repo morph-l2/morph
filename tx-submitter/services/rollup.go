@@ -26,7 +26,8 @@ import (
 	"github.com/morph-l2/go-ethereum/rpc"
 
 	"morph-l2/bindings/bindings"
-	"morph-l2/tx-submitter/batch"
+	"morph-l2/common/batch"
+	"morph-l2/common/blob"
 	"morph-l2/tx-submitter/constants"
 	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/event"
@@ -83,7 +84,7 @@ type Rollup struct {
 	eventInfoStorage *event.EventInfoStorage
 	reorgDetector    iface.IReorgDetector
 
-	ChainConfigMap types.ChainBlobConfigs
+	ChainConfigMap blob.ChainBlobConfigs
 }
 
 func NewRollup(
@@ -108,27 +109,38 @@ func NewRollup(
 ) *Rollup {
 	reorgDetector := NewReorgDetector(l1, metrics)
 	r := &Rollup{
-		ctx:              ctx,
-		metrics:          metrics,
-		l1RpcClient:      l1RpcClient,
-		L1Client:         l1,
-		Rollup:           rollup,
-		Staking:          staking,
-		L2Clients:        l2Clients,
-		privKey:          priKey,
-		chainId:          chainId,
-		rollupAddr:       rollupAddr,
-		abi:              abi,
-		rotator:          rotator,
-		cfg:              cfg,
-		signer:           ethtypes.LatestSignerForChainID(chainId),
-		externalRsaPriv:  rsaPriv,
-		batchCache:       batch.NewBatchCache(nil, l1, l2Clients, rollup, l2Caller, ldb),
+		ctx:             ctx,
+		metrics:         metrics,
+		l1RpcClient:     l1RpcClient,
+		L1Client:        l1,
+		Rollup:          rollup,
+		Staking:         staking,
+		L2Clients:       l2Clients,
+		privKey:         priKey,
+		chainId:         chainId,
+		rollupAddr:      rollupAddr,
+		abi:             abi,
+		rotator:         rotator,
+		cfg:             cfg,
+		signer:          ethtypes.LatestSignerForChainID(chainId),
+		externalRsaPriv: rsaPriv,
+		batchCache: batch.NewBatchCache(
+			nil,
+			func(blockTimestamp uint64) bool {
+				return cfg.BatchV2UpgradeTime > 0 && blockTimestamp >= cfg.BatchV2UpgradeTime
+			},
+			cfg.MaxBlobCount,
+			l1,
+			&iface.L2Clients{Clients: l2Clients},
+			rollup,
+			l2Caller,
+			ldb,
+		),
 		ldb:              ldb,
 		bm:               bm,
 		eventInfoStorage: eventInfoStorage,
 		reorgDetector:    reorgDetector,
-		ChainConfigMap:   types.ChainConfigMap,
+		ChainConfigMap:   blob.ChainConfigMap,
 	}
 	if !cfg.SealBatch {
 		fetcher := NewBatchFetcher(l2Clients)
@@ -904,7 +916,7 @@ func (r *Rollup) finalize() error {
 		return fmt.Errorf("get gas tip and cap error:%v", err)
 	}
 
-	gas, err := r.EstimateGas(r.WalletAddr(), r.rollupAddr, calldata, feecap, tip)
+	gas, err := r.EstimateGas(r.WalletAddr(), r.rollupAddr, calldata, feecap, tip, nil, nil)
 	if err != nil {
 		log.Warn("estimate finalize tx gas error",
 			"error", err,
@@ -1134,8 +1146,16 @@ func (r *Rollup) rollup() error {
 	if err != nil {
 		return fmt.Errorf("pack calldata error:%v", err)
 	}
-	// Estimate gas for transaction
-	gas, err := r.EstimateGas(r.WalletAddr(), r.rollupAddr, calldata, gasFeeCap, tip)
+	// Estimate gas for transaction.
+	// For blob batches (e.g. V2), include BlobHashes/BlobGasFeeCap so `blobhash(i)`
+	// is available during eth_estimateGas simulation.
+	var estimateBlobHashes []common.Hash
+	var estimateBlobFeeCap *big.Int
+	if len(rpcRollupBatch.Sidecar.Blobs) > 0 {
+		estimateBlobHashes = blob.BlobHashes(rpcRollupBatch.Sidecar.Blobs, rpcRollupBatch.Sidecar.Commitments)
+		estimateBlobFeeCap = blobFee
+	}
+	gas, err := r.EstimateGas(r.WalletAddr(), r.rollupAddr, calldata, gasFeeCap, tip, estimateBlobHashes, estimateBlobFeeCap)
 	if err != nil {
 		log.Warn("Estimate gas failed", "batch_index", batchIndex, "error", err)
 		// Use estimation based on L1 message count
@@ -1209,23 +1229,23 @@ func (r *Rollup) createRollupTx(batch *eth.RPCRollupBatch, nonce, gas uint64, ti
 	return r.createDynamicFeeTx(nonce, gas, tip, gasFeeCap, calldata)
 }
 
-func (r *Rollup) createBlobTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip, gasFeeCap, blobFee *big.Int, calldata []byte, head *ethtypes.Header) (*ethtypes.Transaction, error) {
-	versionedHashes := types.BlobHashes(batch.Sidecar.Blobs, batch.Sidecar.Commitments)
+func (r *Rollup) createBlobTx(rpcBatch *eth.RPCRollupBatch, nonce, gas uint64, tip, gasFeeCap, blobFee *big.Int, calldata []byte, head *ethtypes.Header) (*ethtypes.Transaction, error) {
+	versionedHashes := blob.BlobHashes(rpcBatch.Sidecar.Blobs, rpcBatch.Sidecar.Commitments)
 	sidecar := &ethtypes.BlobTxSidecar{
-		Blobs:       batch.Sidecar.Blobs,
-		Commitments: batch.Sidecar.Commitments,
+		Blobs:       rpcBatch.Sidecar.Blobs,
+		Commitments: rpcBatch.Sidecar.Commitments,
 	}
-	switch types.DetermineBlobVersion(head, r.chainId.Uint64()) {
+	switch blob.DetermineBlobVersion(head, r.chainId.Uint64()) {
 	case ethtypes.BlobSidecarVersion0:
 		sidecar.Version = ethtypes.BlobSidecarVersion0
-		proof, err := types.MakeBlobProof(sidecar.Blobs, sidecar.Commitments)
+		proof, err := blob.MakeBlobProof(sidecar.Blobs, sidecar.Commitments)
 		if err != nil {
 			return nil, fmt.Errorf("gen blob proof failed %v", err)
 		}
 		sidecar.Proofs = proof
 	case ethtypes.BlobSidecarVersion1:
 		sidecar.Version = ethtypes.BlobSidecarVersion1
-		proof, err := types.MakeCellProof(sidecar.Blobs)
+		proof, err := blob.MakeCellProof(sidecar.Blobs)
 		if err != nil {
 			return nil, fmt.Errorf("gen cell proof failed %v", err)
 		}
@@ -1325,11 +1345,11 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, *ethtypes.Head
 	var blobFee *big.Int
 	if head.ExcessBlobGas != nil {
 		log.Info("market blob fee info", "excess blob gas", *head.ExcessBlobGas)
-		blobConfig, exist := types.ChainConfigMap[r.chainId.Uint64()]
+		blobConfig, exist := blob.ChainConfigMap[r.chainId.Uint64()]
 		if !exist {
-			blobConfig = types.DefaultBlobConfig
+			blobConfig = blob.DefaultBlobConfig
 		}
-		blobFeeDenominator := types.GetBlobFeeDenominator(blobConfig, head.Time)
+		blobFeeDenominator := blob.GetBlobFeeDenominator(blobConfig, head.Time)
 		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas, blobFeeDenominator.Uint64())
 		// Set to 3x to handle blob market congestion
 		blobFee = new(big.Int).Mul(blobFee, big.NewInt(3))
@@ -1678,10 +1698,10 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 		})
 	case ethtypes.BlobTxType:
 		sidecar := tx.BlobTxSidecar()
-		version := types.DetermineBlobVersion(head, r.chainId.Uint64())
+		version := blob.DetermineBlobVersion(head, r.chainId.Uint64())
 		if sidecar != nil {
 			if sidecar.Version == ethtypes.BlobSidecarVersion0 && version == ethtypes.BlobSidecarVersion1 {
-				err = types.BlobSidecarVersionToV1(sidecar)
+				err = blob.BlobSidecarVersionToV1(sidecar)
 				if err != nil {
 					return nil, err
 				}
@@ -1748,14 +1768,23 @@ func (r *Rollup) IsStaker() (bool, error) {
 	return isStaker, nil
 }
 
-func (r *Rollup) EstimateGas(from, to common.Address, data []byte, feecap *big.Int, tip *big.Int) (uint64, error) {
+func (r *Rollup) EstimateGas(
+	from, to common.Address,
+	data []byte,
+	feecap *big.Int,
+	tip *big.Int,
+	blobHashes []common.Hash,
+	blobGasFeeCap *big.Int,
+) (uint64, error) {
 
 	gas, err := r.L1Client.EstimateGas(context.Background(), ethereum.CallMsg{
-		From:      from,
-		To:        &to,
-		GasFeeCap: feecap,
-		GasTipCap: tip,
-		Data:      data,
+		From:          from,
+		To:            &to,
+		GasFeeCap:     feecap,
+		GasTipCap:     tip,
+		Data:          data,
+		BlobHashes:    blobHashes,
+		BlobGasFeeCap: blobGasFeeCap,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("call estimate gas error:%v", err)

@@ -5,6 +5,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import {BatchHeaderCodecV0} from "../../libraries/codec/BatchHeaderCodecV0.sol";
 import {BatchHeaderCodecV1} from "../../libraries/codec/BatchHeaderCodecV1.sol";
+
 import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IRollup} from "./IRollup.sol";
@@ -247,7 +248,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             require(batchDataInput.numL1Messages > 0, "l1msg delay");
         }
         uint256 submitterBitmap = IL1Staking(l1StakingContract).getStakerBitmap(_msgSender());
-        bytes32 _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
+        bytes32 _blobVersionedHash = _computeBlobVersionedHash(batchDataInput.version);
         _commitBatchWithBatchData(batchDataInput, batchSignatureInput, submitterBitmap, _blobVersionedHash);
     }
 
@@ -281,7 +282,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         uint256 submitterBitmap,
         bytes32 blobVersionedHash
     ) internal {
-        require(batchDataInput.version == 0 || batchDataInput.version == 1, "invalid version");
+        require(batchDataInput.version <= 2, "invalid version");
         require(batchDataInput.prevStateRoot != bytes32(0), "previous state root is zero");
         require(batchDataInput.postStateRoot != bytes32(0), "new state root is zero");
 
@@ -318,11 +319,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         assembly {
             _batchIndex := add(_batchIndex, 1) // increase batch index
         }
-        bytes32 _blobVersionedHash = blobVersionedHash;
-
         {
+            // Determine header length: V0 = 249, V1/V2 = 257
             uint256 _headerLength = BatchHeaderCodecV0.BATCH_HEADER_LENGTH;
-            if (batchDataInput.version == 1) {
+            if (batchDataInput.version >= 1) {
                 _headerLength = BatchHeaderCodecV1.BATCH_HEADER_LENGTH;
             }
             assembly {
@@ -330,25 +330,28 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 mstore(0x40, add(_batchPtr, _headerLength))
             }
 
-            // store entries, the order matters
+            // Store header fields (identical layout for all versions)
             BatchHeaderCodecV0.storeVersion(_batchPtr, batchDataInput.version);
             BatchHeaderCodecV0.storeBatchIndex(_batchPtr, _batchIndex);
             BatchHeaderCodecV0.storeL1MessagePopped(_batchPtr, batchDataInput.numL1Messages);
             BatchHeaderCodecV0.storeTotalL1MessagePopped(_batchPtr, _totalL1MessagesPoppedOverall);
             BatchHeaderCodecV0.storeDataHash(_batchPtr, dataHash);
-            BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, _blobVersionedHash);
+            BatchHeaderCodecV0.storeBlobVersionedHash(_batchPtr, blobVersionedHash);
             BatchHeaderCodecV0.storePrevStateHash(_batchPtr, batchDataInput.prevStateRoot);
             BatchHeaderCodecV0.storePostStateHash(_batchPtr, batchDataInput.postStateRoot);
             BatchHeaderCodecV0.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
-            BatchHeaderCodecV0.storeSequencerSetVerifyHash(_batchPtr, keccak256(batchSignatureInput.sequencerSets));
+            BatchHeaderCodecV0.storeSequencerSetVerifyHash(
+                _batchPtr,
+                keccak256(batchSignatureInput.sequencerSets)
+            );
             BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
-            // store last block number if version >= 1
             if (batchDataInput.version >= 1) {
                 BatchHeaderCodecV1.storeLastBlockNumber(_batchPtr, batchDataInput.lastBlockNumber);
             }
+
             committedBatches[_batchIndex] = BatchHeaderCodecV0.computeBatchHash(_batchPtr, _headerLength);
             committedStateRoots[_batchIndex] = batchDataInput.postStateRoot;
-            batchBlobVersionedHashes[_batchIndex] = _blobVersionedHash;
+            batchBlobVersionedHashes[_batchIndex] = blobVersionedHash;
             uint256 proveRemainingTime = 0;
             if (inChallenge) {
                 // Make the batch finalize time longer than the time required for the current challenge
@@ -406,12 +409,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // check if the next batch has a stored blob hash
         (uint256 _batchPtr, ) = _loadBatchHeader(batchDataInput.parentBatchHeader);
         uint256 _nextBatchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr) + 1;
-        bytes32 _blobVersionedHash = bytes32(0);
+        bytes32 _blobVersionedHash;
         if (batchBlobVersionedHashes[_nextBatchIndex] != bytes32(0)) {
             require(blobhash(0) == bytes32(0), "must not carry blob when using stored blob hash");
             _blobVersionedHash = batchBlobVersionedHashes[_nextBatchIndex];
         } else {
-           _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
+            _blobVersionedHash = _computeBlobVersionedHash(batchDataInput.version);
         }
         _commitBatchWithBatchData(batchDataInput, batchSignatureInput, 0, _blobVersionedHash);
 
@@ -755,7 +758,11 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(_batchProof.length > 0, "Invalid batch proof");
 
         uint256 _batchIndex = BatchHeaderCodecV0.getBatchIndex(memPtr);
-        bytes32 _blobVersionedHash = BatchHeaderCodecV0.getBlobVersionedHash(memPtr);
+
+        // All versions (V0, V1, V2) store the blob hash input at offset 57.
+        // For V2, this is the aggregated blob hash (keccak256 of all blob hashes concatenated),
+        // stored at commit time. For V0/V1, it is the single blob versioned hash.
+        bytes32 _blobHashInput = BatchHeaderCodecV0.getBlobVersionedHash(memPtr);
 
         bytes32 _publicInputHash = keccak256(
             abi.encodePacked(
@@ -765,7 +772,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 BatchHeaderCodecV0.getWithdrawRootHash(memPtr),
                 BatchHeaderCodecV0.getSequencerSetVerifyHash(memPtr),
                 BatchHeaderCodecV0.getDataHash(memPtr),
-                _blobVersionedHash
+                _blobHashInput
             )
         );
 
@@ -861,7 +868,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         uint256 _length;
         if (_version == 0) {
             (_memPtr, _length) = BatchHeaderCodecV0.loadAndValidate(_batchHeader);
-        } else if (_version == 1) {
+        } else if (_version == 1 || _version == 2) {
+            // V2 uses same 257-byte format as V1 (aggregated blob hash at offset 57)
             (_memPtr, _length) = BatchHeaderCodecV1.loadAndValidate(_batchHeader);
         } else {
             revert("Unsupported batch version");
@@ -904,6 +912,33 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // compute data hash and store to memory
         assembly {
             _dataHash := keccak256(startDataPtr, sub(dataPtr, startDataPtr))
+        }
+    }
+
+    /// @dev Compute the blob versioned hash for the current transaction.
+    ///      V0/V1: blobhash(0), or ZERO_VERSIONED_HASH if no blob is attached.
+    ///      V2: keccak256(blobhash(0) || ... || blobhash(N-1)), requires at least 1 blob.
+    function _computeBlobVersionedHash(uint256 _version) internal view returns (bytes32 _blobVersionedHash) {
+        if (_version == 2) {
+            uint256 _blobCount;
+            assembly {
+                let scratchPtr := mload(0x40)
+                let i := 0
+                for {} 1 {} {
+                    let h := blobhash(i)
+                    if iszero(h) { break }
+                    mstore(add(scratchPtr, mul(i, 32)), h)
+                    i := add(i, 1)
+                }
+                _blobCount := i
+            }
+            require(_blobCount > 0, "V2 requires at least 1 blob");
+            assembly {
+                let scratchPtr := mload(0x40)
+                _blobVersionedHash := keccak256(scratchPtr, mul(_blobCount, 32))
+            }
+        } else {
+            _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
         }
     }
 

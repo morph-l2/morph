@@ -36,20 +36,41 @@ start-bk-test-morph-test-qanet-to-morph-gas-price-oracle-qanet:
 # mainnet
 build-bk-prod-morph-prod-mainnet-to-morph-prover:
 	if [ ! -d dist ]; then mkdir -p dist; fi
-	cd $(PWD)/prover/bin/server && RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo build --release
+	cd $(PWD)/prover/bin/server && CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --release
 	cp prover/target/release/prover-server dist/
-	cp -r prover/configs dist/
 	aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/secret-manager-wrapper.tar.gz ./
 	tar -xvzf secret-manager-wrapper.tar.gz
 
 start-bk-prod-morph-prod-mainnet-to-morph-prover:
 	/data/secret-manager-wrapper ./prover-server
 
+# testnet
+build-bk-prod-morph-prod-testnet-to-morph-prover-hoodi:
+	if [ ! -d dist ]; then mkdir -p dist; fi
+	cd $(PWD)/prover/bin/server && CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --release
+	cp prover/target/release/prover-server dist/
+	aws s3 cp s3://morph-0582-morph-technical-department-testnet-data/testnet/hoodi/morph-setup/secret-manager-wrapper.tar.gz ./
+	tar -xvzf secret-manager-wrapper.tar.gz
+
+start-bk-prod-morph-prod-testnet-to-morph-prover-hoodi:
+	/data/secret-manager-wrapper ./prover-server
+
+# qanet
+build-bk-test-morph-test-qanet-to-morph-prover:
+	if [ ! -d dist ]; then mkdir -p dist; fi
+	cd $(PWD)/prover/bin/server && CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --release
+	cp prover/target/release/prover-server dist/
+	aws s3 cp s3://morph-7637-morph-technical-department-qanet-data/morph-setup/secret-manager-wrapper.tar.gz ./
+	tar -xvzf secret-manager-wrapper.tar.gz
+
+start-bk-test-morph-test-qanet-to-morph-prover:
+	/data/secret-manager-wrapper ./prover-server
+
 # challenge-handler
 # mainnet
 build-bk-prod-morph-prod-mainnet-to-morph-challenge-handler:
 	if [ ! -d dist ]; then mkdir -p dist; fi
-	cd $(PWD)/prover/bin/challenge && cargo build --release
+	cd $(PWD)/prover/bin/challenge && CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --release
 	cp prover/bin/challenge/target/release/challenge-handler dist/
 	aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/secret-manager-wrapper.tar.gz ./
 	tar -xvzf secret-manager-wrapper.tar.gz
@@ -58,17 +79,62 @@ build-bk-prod-morph-prod-mainnet-to-morph-challenge-handler:
 start-bk-prod-morph-prod-mainnet-to-morph-challenge-handler:
 	/data/secret-manager-wrapper ./challenge-handler
 
+# testnet
+build-bk-prod-morph-prod-testnet-to-morph-challenge-handler-hoodi:
+	if [ ! -d dist ]; then mkdir -p dist; fi
+	cd $(PWD)/prover/bin/challenge && CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --release
+	cp prover/bin/challenge/target/release/challenge-handler dist/
+	aws s3 cp s3://morph-0582-morph-technical-department-testnet-data/testnet/hoodi/morph-setup/secret-manager-wrapper.tar.gz ./
+	tar -xvzf secret-manager-wrapper.tar.gz
+
+start-bk-prod-morph-prod-testnet-to-morph-challenge-handler-hoodi:
+	/data/secret-manager-wrapper ./challenge-handler
+
+# qanet
+build-bk-test-morph-test-qanet-to-morph-challenge-handler:
+	if [ ! -d dist ]; then mkdir -p dist; fi
+	cd $(PWD)/prover/bin/challenge && CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --release
+	cp prover/bin/challenge/target/release/challenge-handler dist/
+	aws s3 cp s3://morph-7637-morph-technical-department-qanet-data/morph-setup/secret-manager-wrapper.tar.gz ./
+	tar -xvzf secret-manager-wrapper.tar.gz
+
+start-bk-test-morph-test-qanet-to-morph-challenge-handler:
+	/data/secret-manager-wrapper ./challenge-handler
+
 # shadow-proving
 # mainnet
 build-bk-prod-morph-prod-mainnet-to-morph-shadow-proving:
 	if [ ! -d dist ]; then mkdir -p dist; fi
-	cd $(PWD)/prover/bin/shadow-prove && cargo build --release
-	cp prover/bin/shadow-prove/target/release/shadow-proving dist/
+	cd $(PWD)/prover/bin/shadow-prove && CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --release
+	cp prover/target/release/shadow-proving dist/
 	aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/secret-manager-wrapper.tar.gz ./
 	tar -xvzf secret-manager-wrapper.tar.gz
 
 start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving:
 	/data/secret-manager-wrapper  ./shadow-proving
+
+# testnet
+build-bk-prod-morph-prod-testnet-to-morph-shadow-proving:
+	if [ ! -d dist ]; then mkdir -p dist; fi
+	cd $(PWD)/prover/bin/shadow-prove && CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --release
+	cp prover/target/release/shadow-proving dist/
+	aws s3 cp s3://morph-0582-morph-technical-department-testnet-data/testnet/hoodi/morph-setup/secret-manager-wrapper.tar.gz ./
+	tar -xvzf secret-manager-wrapper.tar.gz
+
+start-bk-prod-morph-prod-testnet-to-morph-shadow-proving:
+	/data/secret-manager-wrapper ./shadow-proving
+
+# qanet
+build-bk-test-morph-test-qanet-to-morph-shadow-proving:
+	if [ ! -d dist ]; then mkdir -p dist; fi
+	cd $(PWD)/prover/bin/shadow-prove && CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --release
+	cp prover/target/release/shadow-proving dist/
+	aws s3 cp s3://morph-7637-morph-technical-department-qanet-data/morph-setup/secret-manager-wrapper.tar.gz ./
+	tar -xvzf secret-manager-wrapper.tar.gz
+
+start-bk-test-morph-test-qanet-to-morph-shadow-proving:
+	/data/secret-manager-wrapper ./shadow-proving
+
 
 # staking-oracle
 # mainnet
@@ -130,19 +196,6 @@ start-bk-prod-morph-prod-mainnet-to-morph-token-price-oracle:
 
 
 # gas-oracle
-# testnet
-build-bk-prod-morph-prod-testnet-to-morph-gas-price-oracle-holesky:
-	if [ ! -d dist ]; then mkdir -p dist; fi
-	cd $(PWD)/gas-oracle/app && cargo build --release
-	cp gas-oracle/app/target/release/app dist/
-	aws s3 cp s3://morph-0582-morph-technical-department-testnet-data/testnet/holesky/morph-setup/secret-manager-wrapper.tar.gz ./
-	tar -xvzf secret-manager-wrapper.tar.gz
-
-
-start-bk-prod-morph-prod-testnet-to-morph-gas-price-oracle-holesky:
-	/data/secret-manager-wrapper ./app
-
-# gas-oracle
 # hoodi
 build-bk-prod-morph-prod-testnet-to-morph-gas-price-oracle-hoodi:
 	if [ ! -d dist ]; then mkdir -p dist; fi
@@ -155,44 +208,6 @@ build-bk-prod-morph-prod-testnet-to-morph-gas-price-oracle-hoodi:
 start-bk-prod-morph-prod-testnet-to-morph-gas-price-oracle-hoodi:
 	/data/secret-manager-wrapper ./app
 
-
-# prover
-# testnet
-build-bk-prod-morph-prod-testnet-to-morph-prover-holesky:
-	if [ ! -d dist ]; then mkdir -p dist; fi
-	cd $(PWD)/prover/bin/server && RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo build --release
-	cp prover/target/release/prover-server dist/
-	cp -r prover/configs dist/
-	aws s3 cp s3://morph-0582-morph-technical-department-testnet-data/testnet/holesky/morph-setup/secret-manager-wrapper.tar.gz ./
-	tar -xvzf secret-manager-wrapper.tar.gz
-
-start-bk-prod-morph-prod-testnet-to-morph-prover-holesky:
-	/data/secret-manager-wrapper ./prover-server
-
-# challenge-handler
-# testnet
-build-bk-prod-morph-prod-testnet-to-morph-challenge-handler-holesky:
-	if [ ! -d dist ]; then mkdir -p dist; fi
-	cd $(PWD)/prover/bin/challenge && cargo build --release
-	cp prover/bin/challenge/target/release/challenge-handler dist/
-	aws s3 cp s3://morph-0582-morph-technical-department-testnet-data/testnet/holesky/morph-setup/secret-manager-wrapper.tar.gz ./
-	tar -xvzf secret-manager-wrapper.tar.gz
-
-
-start-bk-prod-morph-prod-testnet-to-morph-challenge-handler-holesky:
-	/data/secret-manager-wrapper ./challenge-handler
-
-# shadow-proving
-# testnet
-build-bk-prod-morph-prod-testnet-to-morph-shadow-proving-holesky:
-	if [ ! -d dist ]; then mkdir -p dist; fi
-	cd $(PWD)/prover/bin/shadow-prove && cargo build --release
-	cp prover/bin/shadow-prove/target/release/shadow-proving dist/
-	aws s3 cp s3://morph-0582-morph-technical-department-testnet-data/testnet/holesky/morph-setup/secret-manager-wrapper.tar.gz ./
-	tar -xvzf secret-manager-wrapper.tar.gz
-
-start-bk-prod-morph-prod-testnet-to-morph-shadow-proving-holesky:
-	/data/secret-manager-wrapper  ./shadow-proving
 
 # staking-oracle
 # testnet
