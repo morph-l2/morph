@@ -57,20 +57,34 @@ func (d *Derivation) fetchBatchInfoPathB(ctx context.Context, txHash common.Hash
 	return bi, nil
 }
 
+// pathBBlockReader is the minimal L2 client surface verifyPathBContent
+// needs. Narrowed from types.RetryableClient so unit tests can exercise
+// the full Path B encoding pipeline without an authclient stack.
+type pathBBlockReader interface {
+	BlockByNumber(ctx context.Context, number *big.Int) (*eth.Block, error)
+}
+
 // verifyBatchContentPathB rebuilds blob versioned hashes from local L2
 // blocks in the [batchInfo.firstBlockNumber, batchInfo.lastBlockNumber]
 // range and compares them against batchInfo.blobHashes (taken from the
 // L1 commitBatch tx). Returns nil on match.
 func (d *Derivation) verifyBatchContentPathB(ctx context.Context, batchInfo *BatchInfo) error {
-	d.metrics.IncPathBTriggered()
+	return verifyPathBContent(ctx, d.l2Client, d.metrics, batchInfo)
+}
+
+// verifyPathBContent is the testable core of Path B verification. It is
+// extracted from the Derivation method above so tests can supply a fake
+// pathBBlockReader. Behaviour and error messages are unchanged.
+func verifyPathBContent(ctx context.Context, reader pathBBlockReader, metrics *Metrics, batchInfo *BatchInfo) error {
+	metrics.IncPathBTriggered()
 
 	if batchInfo.firstBlockNumber == 0 || batchInfo.lastBlockNumber < batchInfo.firstBlockNumber {
-		d.metrics.IncPathBFailed()
+		metrics.IncPathBFailed()
 		return fmt.Errorf("path B: invalid block range [%d, %d]",
 			batchInfo.firstBlockNumber, batchInfo.lastBlockNumber)
 	}
 	if len(batchInfo.blobHashes) == 0 {
-		d.metrics.IncPathBFailed()
+		metrics.IncPathBFailed()
 		return fmt.Errorf("path B: no blob hashes recorded for batch %d", batchInfo.batchIndex)
 	}
 
@@ -78,19 +92,19 @@ func (d *Derivation) verifyBatchContentPathB(ctx context.Context, batchInfo *Bat
 	totalL1MessagePopped := batchInfo.parentTotalL1MessagePopped
 
 	for n := batchInfo.firstBlockNumber; n <= batchInfo.lastBlockNumber; n++ {
-		block, err := d.l2Client.BlockByNumber(ctx, big.NewInt(int64(n)))
+		block, err := reader.BlockByNumber(ctx, big.NewInt(int64(n)))
 		if err != nil {
-			d.metrics.IncPathBFailed()
+			metrics.IncPathBFailed()
 			return fmt.Errorf("path B: read local block %d failed: %w", n, err)
 		}
 		if block == nil {
-			d.metrics.IncPathBFailed()
+			metrics.IncPathBFailed()
 			return fmt.Errorf("path B: local block %d missing", n)
 		}
 
 		txsPayload, l1TxHashes, newTotal, l2TxNum, err := commonbatch.ParsingTxs(block.Transactions(), totalL1MessagePopped)
 		if err != nil {
-			d.metrics.IncPathBFailed()
+			metrics.IncPathBFailed()
 			return fmt.Errorf("path B: parsingTxs failed at block %d: %w", n, err)
 		}
 		l1MsgNum := int(newTotal - totalL1MessagePopped)
@@ -110,7 +124,7 @@ func (d *Derivation) verifyBatchContentPathB(ctx context.Context, batchInfo *Bat
 
 	compressed, err := commonblob.CompressBatchBytes(payload)
 	if err != nil {
-		d.metrics.IncPathBFailed()
+		metrics.IncPathBFailed()
 		return fmt.Errorf("path B: compress failed: %w", err)
 	}
 
@@ -121,19 +135,19 @@ func (d *Derivation) verifyBatchContentPathB(ctx context.Context, batchInfo *Bat
 	// with the wrong blob count and a confusing hash mismatch later.
 	sidecar, err := commonblob.MakeBlobTxSidecar(compressed, len(batchInfo.blobHashes))
 	if err != nil {
-		d.metrics.IncPathBFailed()
+		metrics.IncPathBFailed()
 		return fmt.Errorf("path B: build sidecar failed: %w", err)
 	}
 
 	rebuilt := sidecar.BlobHashes()
 	if len(rebuilt) != len(batchInfo.blobHashes) {
-		d.metrics.IncPathBFailed()
+		metrics.IncPathBFailed()
 		return fmt.Errorf("path B: blob count mismatch (rebuilt=%d, l1=%d)",
 			len(rebuilt), len(batchInfo.blobHashes))
 	}
 	for i := range rebuilt {
 		if rebuilt[i] != batchInfo.blobHashes[i] {
-			d.metrics.IncPathBFailed()
+			metrics.IncPathBFailed()
 			return fmt.Errorf("path B: versioned hash mismatch at index %d (rebuilt=%s, l1=%s)",
 				i, rebuilt[i].Hex(), batchInfo.blobHashes[i].Hex())
 		}

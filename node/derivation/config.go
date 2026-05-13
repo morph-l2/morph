@@ -44,6 +44,21 @@ const (
 	DefaultFinalizerInterval = 30 * time.Second
 )
 
+// validateAndDefaultVerifyMode normalises an empty VerifyMode to the default
+// and rejects unknown values. Extracted from SetCliContext so the validation
+// can be unit-tested without building a cli.Context.
+func validateAndDefaultVerifyMode(s string) (string, error) {
+	switch s {
+	case VerifyModePathA, VerifyModePathB:
+		return s, nil
+	case "":
+		return DefaultVerifyMode, nil
+	default:
+		return "", fmt.Errorf("invalid derivation.verify-mode %q (must be %q or %q)",
+			s, VerifyModePathA, VerifyModePathB)
+	}
+}
+
 type Config struct {
 	L1                    *types.L1Config `json:"l1"`
 	L2                    *types.L2Config `json:"l2"`
@@ -130,15 +145,11 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	if ctx.GlobalIsSet(flags.DerivationVerifyMode.Name) {
 		c.VerifyMode = ctx.GlobalString(flags.DerivationVerifyMode.Name)
 	}
-	switch c.VerifyMode {
-	case VerifyModePathA, VerifyModePathB:
-		// ok
-	case "":
-		c.VerifyMode = DefaultVerifyMode
-	default:
-		return fmt.Errorf("invalid derivation.verify-mode %q (must be %q or %q)",
-			c.VerifyMode, VerifyModePathA, VerifyModePathB)
+	normalized, err := validateAndDefaultVerifyMode(c.VerifyMode)
+	if err != nil {
+		return err
 	}
+	c.VerifyMode = normalized
 
 	if ctx.GlobalIsSet(flags.DerivationFinalizerInterval.Name) {
 		c.FinalizerInterval = ctx.GlobalDuration(flags.DerivationFinalizerInterval.Name)
