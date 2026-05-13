@@ -45,7 +45,7 @@ build-bk-test-morph-test-qanet-to-morph-sequencer-sign:
 
 
 start-bk-test-morph-test-qanet-to-morph-sequencer-sign:
-
+	./app
 
   
  # build for hoodi
