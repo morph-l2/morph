@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
+	"sync/atomic"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
@@ -72,6 +73,9 @@ type BatchCache struct {
 	batchTimeOut  uint64
 	blockInterval uint64
 	maxBlobCount  int
+
+	// replayL1CommittedBatches is true while InitAndSyncFromRollup is rebuilding committed batches from L2.
+	replayL1CommittedBatches atomic.Bool
 }
 
 type batchPackProgressState struct {
@@ -79,6 +83,10 @@ type batchPackProgressState struct {
 }
 
 const batchProgressLogStepPercent uint64 = 20
+
+// replayProtocolMaxBlobs is the EIP-4844 per-transaction blob ceiling used when re-sealing
+// batches already committed on L1 (independent of max_blob_count flag).
+const replayProtocolMaxBlobs = 6
 
 // NewBatchCache creates and initializes a new BatchCache instance
 func NewBatchCache(
@@ -286,6 +294,9 @@ func (bc *BatchCache) InitAndSyncFromRollup() error {
 	if bc.initDone {
 		return nil
 	}
+	bc.replayL1CommittedBatches.Store(true)
+	defer bc.replayL1CommittedBatches.Store(false)
+
 	err := bc.Init()
 	if err != nil {
 		return err
@@ -307,7 +318,8 @@ func (bc *BatchCache) InitAndSyncFromRollup() error {
 			return fmt.Errorf("get batch block range err: %w,start %v, end %v", err, startNum, endNum)
 		}
 		log.Info("assemble batch block range", "startNum", startNum, "endNum", endNum)
-		batchHeaderBytes, err := bc.assembleBatchHeaderFromL2Blocks(startNum, endNum)
+		replayIdx := i
+		batchHeaderBytes, err := bc.assembleBatchHeaderFromL2Blocks(startNum, endNum, &replayIdx)
 		if err != nil {
 			return err
 		}
@@ -634,7 +646,11 @@ func (bc *BatchCache) FetchAndCacheHeader(blockNumber uint64, withdrawRoot commo
 //   - error: returns error if sealing fails
 //
 // Note: Sealed batch will be stored in BatchCache's sealedBatches, not sent anywhere
-func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64) (uint64, BatchHeaderBytes, bool, error) {
+//
+// replayCommittedBatchIndex, when non-nil, is the rollup batch index being re-sealed while syncing
+// from L1 (InitAndSyncFromRollup). After V2 multi-blob, blob capacity is capped at replayProtocolMaxBlobs
+// (6), not max_blob_count, without querying L1 CommitBatch logs.
+func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64, replayCommittedBatchIndex *uint64) (uint64, BatchHeaderBytes, bool, error) {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 
@@ -643,8 +659,10 @@ func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64) (ui
 		return 0, BatchHeaderBytes{}, false, errors.New("failed to seal batch: batch cache is empty")
 	}
 
+	sealBlobCap := bc.sealEffectiveBlobCount(blockTimestamp, replayCommittedBatchIndex)
+
 	// Compress data and calculate dataHash
-	compressedPayload, batchDataHash, err := bc.handleBatchSealing(blockTimestamp)
+	compressedPayload, batchDataHash, sealBlobCap, err := bc.handleBatchSealing(blockTimestamp, sealBlobCap, replayCommittedBatchIndex)
 	if err != nil {
 		return 0, BatchHeaderBytes{}, false, fmt.Errorf("failed to handle batch sealing: %w", err)
 	}
@@ -652,7 +670,7 @@ func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64) (ui
 	// Check if sealed data size reaches expected value
 	// Expected value: compressed payload size close to or reaches total blob capacity
 	// Use 90% as threshold, i.e., if compressed size >= totalCapacity * 0.9, consider it reached expected
-	effectiveBlobCount := bc.effectiveMaxBlobCount(blockTimestamp)
+	effectiveBlobCount := sealBlobCap
 	totalBlobCapacity := effectiveBlobCount * blob.MaxBlobBytesSize
 	threshold := float64(totalBlobCapacity) * 0.9
 	expectedSizeThreshold := uint64(threshold)
@@ -667,6 +685,7 @@ func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64) (ui
 		"compressedPayloadBytes", len(compressedPayload),
 		"effectiveBlobCount", effectiveBlobCount,
 		"configuredMaxBlobCount", bc.maxBlobCount,
+		"replayCommittedBatchIndex", replayCommittedBatchIndex,
 		"v2Upgraded", bc.isBatchV2Upgraded(blockTimestamp),
 		"sidecarBlobCount", len(sidecar.Blobs),
 		"sidecarCapacityBytes", effectiveBlobCount*blob.MaxBlobBytesSize,
@@ -755,8 +774,9 @@ func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64) (ui
 	return batchIndex, batchHeader, reachedExpectedSize, nil
 }
 
-// handleBatchSealing determines which version to use for compression and calculates data hash
-func (bc *BatchCache) handleBatchSealing(blockTimestamp uint64) ([]byte, common.Hash, error) {
+// handleBatchSealing determines which version to use for compression and calculates data hash.
+// The returned sealBlobCap may be raised during L1 batch replay so the compressed payload fits.
+func (bc *BatchCache) handleBatchSealing(blockTimestamp uint64, sealBlobCap int, replayCommittedBatchIndex *uint64) ([]byte, common.Hash, int, error) {
 	var (
 		compressedPayload []byte
 		batchDataHash     common.Hash
@@ -767,26 +787,100 @@ func (bc *BatchCache) handleBatchSealing(blockTimestamp uint64) ([]byte, common.
 	if bc.isBatchUpgraded(blockTimestamp) {
 		compressedPayload, err = blob.CompressBatchBytes(bc.batchData.TxsPayloadV2())
 		if err != nil {
-			return nil, common.Hash{}, fmt.Errorf("failed to compress upgraded payload: %w", err)
+			return nil, common.Hash{}, sealBlobCap, fmt.Errorf("failed to compress upgraded payload: %w", err)
 		}
 
-		if len(compressedPayload) <= bc.effectiveMaxBlobCount(blockTimestamp)*blob.MaxBlobBytesSize {
+		replayRaise := replayCommittedBatchIndex != nil || bc.replayL1CommittedBatches.Load()
+
+		if replayRaise {
+			needed := (len(compressedPayload) + blob.MaxBlobBytesSize - 1) / blob.MaxBlobBytesSize
+			if needed > replayProtocolMaxBlobs {
+				if replayCommittedBatchIndex != nil {
+					return nil, common.Hash{}, sealBlobCap, fmt.Errorf(
+						"replay batch %d: compressed payload needs %d blobs (protocol max %d)",
+						*replayCommittedBatchIndex, needed, replayProtocolMaxBlobs,
+					)
+				}
+				return nil, common.Hash{}, sealBlobCap, fmt.Errorf(
+					"replay (L1 sync): compressed payload needs %d blobs (protocol max %d)", needed, replayProtocolMaxBlobs,
+				)
+			}
+			if needed > sealBlobCap {
+				if replayCommittedBatchIndex != nil {
+					log.Info("replay: raising seal blob cap to fit compressed V2 payload",
+						"batchIndex", *replayCommittedBatchIndex,
+						"fromBlobs", sealBlobCap, "toBlobs", needed,
+						"compressedBytes", len(compressedPayload))
+				} else {
+					log.Info("replay: raising seal blob cap to fit compressed V2 payload",
+						"fromBlobs", sealBlobCap, "toBlobs", needed,
+						"compressedBytes", len(compressedPayload))
+				}
+				sealBlobCap = needed
+			}
+		}
+
+		if len(compressedPayload) <= sealBlobCap*blob.MaxBlobBytesSize {
 			batchDataHash, err = bc.batchData.DataHashV2()
 			if err != nil {
-				return nil, common.Hash{}, fmt.Errorf("failed to calculate upgraded data hash: %w", err)
+				return nil, common.Hash{}, sealBlobCap, fmt.Errorf("failed to calculate upgraded data hash: %w", err)
 			}
-			return compressedPayload, batchDataHash, nil
+			return compressedPayload, batchDataHash, sealBlobCap, nil
+		}
+		if bc.isBatchV2Upgraded(blockTimestamp) {
+			return nil, common.Hash{}, sealBlobCap, fmt.Errorf(
+				"compressed V2 batch size %d exceeds capacity for %d blobs (%d bytes)",
+				len(compressedPayload), sealBlobCap, sealBlobCap*blob.MaxBlobBytesSize,
+			)
 		}
 	}
 
 	// Fall back to the old version
 	compressedPayload, err = blob.CompressBatchBytes(bc.batchData.TxsPayload())
 	if err != nil {
-		return nil, common.Hash{}, fmt.Errorf("failed to compress payload: %w", err)
+		return nil, common.Hash{}, sealBlobCap, fmt.Errorf("failed to compress payload: %w", err)
 	}
+
+	replayRaise := replayCommittedBatchIndex != nil || bc.replayL1CommittedBatches.Load()
+
+	if replayRaise {
+		needed := (len(compressedPayload) + blob.MaxBlobBytesSize - 1) / blob.MaxBlobBytesSize
+		if needed > replayProtocolMaxBlobs {
+			if replayCommittedBatchIndex != nil {
+				return nil, common.Hash{}, sealBlobCap, fmt.Errorf(
+					"replay batch %d: legacy compressed payload needs %d blobs (protocol max %d)",
+					*replayCommittedBatchIndex, needed, replayProtocolMaxBlobs,
+				)
+			}
+			return nil, common.Hash{}, sealBlobCap, fmt.Errorf(
+				"replay (L1 sync): legacy compressed payload needs %d blobs (protocol max %d)", needed, replayProtocolMaxBlobs,
+			)
+		}
+		if needed > sealBlobCap {
+			if replayCommittedBatchIndex != nil {
+				log.Info("replay: raising seal blob cap to fit legacy compressed payload",
+					"batchIndex", *replayCommittedBatchIndex,
+					"fromBlobs", sealBlobCap, "toBlobs", needed,
+					"compressedBytes", len(compressedPayload))
+			} else {
+				log.Info("replay: raising seal blob cap to fit legacy compressed payload",
+					"fromBlobs", sealBlobCap, "toBlobs", needed,
+					"compressedBytes", len(compressedPayload))
+			}
+			sealBlobCap = needed
+		}
+	}
+
+	if len(compressedPayload) > sealBlobCap*blob.MaxBlobBytesSize {
+		return nil, common.Hash{}, sealBlobCap, fmt.Errorf(
+			"compressed batch size %d exceeds capacity for %d blobs (%d bytes)",
+			len(compressedPayload), sealBlobCap, sealBlobCap*blob.MaxBlobBytesSize,
+		)
+	}
+
 	batchDataHash = bc.batchData.DataHash()
 
-	return compressedPayload, batchDataHash, nil
+	return compressedPayload, batchDataHash, sealBlobCap, nil
 }
 
 // createBatchHeader creates BatchHeader
@@ -907,6 +1001,21 @@ func (bc *BatchCache) effectiveMaxBlobCount(blockTimestamp uint64) int {
 	return 1
 }
 
+// sealEffectiveBlobCount is the blob count used for sealing.
+// Live packing uses effectiveMaxBlobCount (max_blob_count flag).
+// Replaying an L1-committed batch after V2 multi-blob uses replayProtocolMaxBlobs (6), independent of
+// max_blob_count and without L1 log queries; handleBatchSealing tightens from compressed size (still ≤6).
+func (bc *BatchCache) sealEffectiveBlobCount(blockTimestamp uint64, replayCommittedBatchIndex *uint64) int {
+	base := bc.effectiveMaxBlobCount(blockTimestamp)
+	if replayCommittedBatchIndex == nil {
+		return base
+	}
+	if !bc.isBatchV2Upgraded(blockTimestamp) {
+		return base
+	}
+	return replayProtocolMaxBlobs
+}
+
 // BuildBlockContext serialises a block header + tx counts into the 60-byte
 // BlockContext blob the batch builder writes for each block.
 // Format: Number(8) || Timestamp(8) || BaseFee(32) || GasLimit(8) || numTxs(2) || numL1Messages(2)
@@ -942,7 +1051,14 @@ func BuildBlockContext(header *ethtypes.Header, txsNum, l1MsgNum int) []byte {
 
 func (bc *BatchCache) assembleBatchHeaderFromL2Blocks(
 	startBlockNum, endBlockNum uint64,
+	replayCommittedBatchIndex *uint64,
 ) (*BatchHeaderBytes, error) {
+	// Fresh accumulation for this chain batch; a failed prior SealBatch must not double-pack blocks.
+	bc.mu.Lock()
+	bc.batchData = NewBatchData()
+	bc.ClearCurrent()
+	bc.mu.Unlock()
+
 	ctx := context.Background()
 	callOpts := &bind.CallOpts{
 		Context: ctx,
@@ -979,7 +1095,7 @@ func (bc *BatchCache) assembleBatchHeaderFromL2Blocks(
 	blockTimestamp := lastBlock.Time()
 
 	// Seal batch and generate batchHeader
-	batchIndex, batchHeader, reachedExpectedSize, err := bc.SealBatch(sequencerSet, blockTimestamp)
+	batchIndex, batchHeader, reachedExpectedSize, err := bc.SealBatch(sequencerSet, blockTimestamp, replayCommittedBatchIndex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to seal batch: %w", err)
 	}
@@ -1089,7 +1205,7 @@ func (bc *BatchCache) SealBatchAndCheck(callOpts *bind.CallOpts, ci *big.Int) (c
 	}
 	blockTimestamp := lastBlock.Time()
 	// Seal batch and generate batchHeader
-	batchIndex, batchHeaderBytes, reachedExpectedSize, err := bc.SealBatch(sequencerSetBytes, blockTimestamp)
+	batchIndex, batchHeaderBytes, reachedExpectedSize, err := bc.SealBatch(sequencerSetBytes, blockTimestamp, nil)
 	if err != nil {
 		return common.Hash{}, false, 0, fmt.Errorf("failed to seal batch: %w", err)
 	}
@@ -1275,7 +1391,7 @@ func (bc *BatchCache) AssembleCurrentBatchHeader() error {
 				return fmt.Errorf("failed to get last block %d: %w", bc.lastPackedBlockHeight, err)
 			}
 			blockTimestamp := lastBlock.Time()
-			batchIndex, _, _, err := bc.SealBatch(sequencerSetBytes, blockTimestamp)
+			batchIndex, _, _, err := bc.SealBatch(sequencerSetBytes, blockTimestamp, nil)
 			if err != nil {
 				return fmt.Errorf("failed to seal batch: %w", err)
 			}

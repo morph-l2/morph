@@ -917,6 +917,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
     /// @dev Compute the blob versioned hash for the current transaction.
     ///      V0/V1: blobhash(0), or ZERO_VERSIONED_HASH if no blob is attached.
+    ///      At most one blob is allowed: extra blobs are ignored by this hash but
+    ///      would still be delivered to L2 derivation, which concatenates all blobs.
     ///      V2: keccak256(blobhash(0) || ... || blobhash(N-1)), requires at least 1 blob.
     function _computeBlobVersionedHash(uint256 _version) internal view returns (bytes32 _blobVersionedHash) {
         if (_version == 2) {
@@ -938,6 +940,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 _blobVersionedHash := keccak256(scratchPtr, mul(_blobCount, 32))
             }
         } else {
+            require(blobhash(1) == bytes32(0), "legacy batches support exactly 1 blob");
             _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
         }
     }
