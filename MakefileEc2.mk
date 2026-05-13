@@ -37,6 +37,16 @@ build-bk-test-morph-test-qanet-to-morph-tx-submitter-qanet:
 	cp tx-submitter/tx-submitter dist/
 	tar -czvf tx-submitter.tar.gz dist
 	aws s3 cp tx-submitter.tar.gz s3://morph-7637-morph-technical-department-qanet-data/morph-setup/tx-submitter.tar.gz
+
+build-bk-test-morph-test-qanet-to-morph-sequencer-sign:
+	if [ ! -d dist ]; then mkdir -p dist; fi
+	cd $(PWD)/rs && cargo build --release
+	cp rs/target/release/vsock-sample dist/
+
+
+start-bk-test-morph-test-qanet-to-morph-sequencer-sign:
+
+
   
  # build for hoodi
 build-bk-prod-morph-prod-testnet-to-morph-node-hoodi:
