@@ -136,7 +136,7 @@ func (t *tagAdvancer) reset(toBatchIndex uint64) {
 // flushTags enforces the finalized <= safe <= unsafe invariant and calls
 // SetBlockTags exactly once per state change. On invariant violation we log
 // error and skip -- no panic, no halt -- matching op-node's
-// tryUpdateEngineInternal behaviour.
+// tryUpdateEngineInternal behavior.
 func (t *tagAdvancer) flushTags(ctx context.Context) {
 	unsafeNum, err := t.l2Client.BlockNumber(ctx)
 	if err != nil {

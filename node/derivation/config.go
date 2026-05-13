@@ -31,7 +31,7 @@ const (
 	DefaultLogProgressInterval = time.Second * 10
 
 	// VerifyMode values (SPEC-005 section 4.2). Selected at startup; not switchable
-	// at runtime. Default is VerifyModePathA which preserves current behaviour.
+	// at runtime. Default is VerifyModePathA which preserves current behavior.
 	VerifyModePathA = "pathA"
 	VerifyModePathB = "pathB"
 

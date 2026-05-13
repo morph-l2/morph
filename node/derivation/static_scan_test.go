@@ -61,14 +61,14 @@ func TestNoValidatorReferences(t *testing.T) {
 	// patterns are narrow on purpose so legitimate uses (e.g., Tendermint
 	// consensus validator pubkeys) don't false-positive.
 	banned := []string{
-		"node/validator",                            // import path
-		"validator.NewValidator",                    // factory call
-		"validator.NewConfig",                       // config call
-		"flags.ValidatorEnable",                     // role flag
-		"validator.challengeEnable",                 // legacy flag string
-		"validator.privateKey",                      // legacy flag string
-		"VALIDATOR_PRIVATE_KEY",                     // legacy envvar
-		"VALIDATOR_CHALLENGE_ENABLE",                // legacy envvar
+		"node/validator",             // import path
+		"validator.NewValidator",     // factory call
+		"validator.NewConfig",        // config call
+		"flags.ValidatorEnable",      // role flag
+		"validator.challengeEnable",  // legacy flag string
+		"validator.privateKey",       // legacy flag string
+		"VALIDATOR_PRIVATE_KEY",      // legacy envvar
+		"VALIDATOR_CHALLENGE_ENABLE", // legacy envvar
 		// We deliberately do NOT ban "ChallengeEnable" / "ChallengeState"
 		// in source -- they appear in the Rollup contract ABI string in
 		// node/types/batch.go and are immutable on-chain identifiers we
@@ -95,13 +95,13 @@ func TestNoBlocktagReferences(t *testing.T) {
 	_, files := walkNodeRepoSourceFiles(t)
 
 	banned := []string{
-		"node/blocktag",                  // import path
-		"BlockTagService",                // service type
-		"NewBlockTagService",             // factory
-		"BlockTagSafeConfirmations",      // flag symbol
-		"BLOCKTAG_SAFE_CONFIRMATIONS",    // envvar
-		"blocktag.safeConfirmations",     // flag name string
-		"blocktag.DefaultConfig",         // config factory
+		"node/blocktag",               // import path
+		"BlockTagService",             // service type
+		"NewBlockTagService",          // factory
+		"BlockTagSafeConfirmations",   // flag symbol
+		"BLOCKTAG_SAFE_CONFIRMATIONS", // envvar
+		"blocktag.safeConfirmations",  // flag name string
+		"blocktag.DefaultConfig",      // config factory
 	}
 
 	for _, f := range files {

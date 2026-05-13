@@ -65,7 +65,7 @@ func (f *finalizer) run() {
 	defer t.Stop()
 
 	// Run once immediately so the first tag flush doesn't wait a full
-	// interval after startup; matches blocktag's `initialize()` behaviour.
+	// interval after startup; matches blocktag's `initialize()` behavior.
 	f.tick()
 
 	for {

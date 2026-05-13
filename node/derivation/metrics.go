@@ -33,12 +33,12 @@ type Metrics struct {
 
 	// SPEC-005 section 4.7 Tag management metrics. Replace the (previously absent)
 	// blocktag instrumentation; on-call alerts should now key off these.
-	SafeAdvanceTotal             metrics.Counter
-	FinalizedAdvanceTotal        metrics.Counter
-	SafeL2BlockNumber            metrics.Gauge
-	FinalizedL2BlockNumber       metrics.Gauge
-	L1ReorgResetTotal            metrics.Counter
-	TagInvariantViolationTotal   metrics.Counter
+	SafeAdvanceTotal           metrics.Counter
+	FinalizedAdvanceTotal      metrics.Counter
+	SafeL2BlockNumber          metrics.Gauge
+	FinalizedL2BlockNumber     metrics.Gauge
+	L1ReorgResetTotal          metrics.Counter
+	TagInvariantViolationTotal metrics.Counter
 }
 
 func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {

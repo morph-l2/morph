@@ -16,10 +16,10 @@ import (
 // SetBlockTags call so tests can assert on call count and arguments, and
 // lets the test set the unsafe upper bound returned by BlockNumber.
 type fakeTagL2Client struct {
-	unsafe  uint64
+	unsafe         uint64
 	blockNumberErr error
-	calls   []setBlockTagsCall
-	setErr  error
+	calls          []setBlockTagsCall
+	setErr         error
 }
 
 type setBlockTagsCall struct {
@@ -111,7 +111,7 @@ func TestTagAdvance_DedupSetBlockTags(t *testing.T) {
 
 func TestTagAdvance_InvariantSafeGtUnsafe_Skips(t *testing.T) {
 	tagAdv, fake, _ := newTestTagAdvancer(t, 30) // unsafe = 30
-	h := headerAt(50, 'a')                         // safe wants 50 -- invalid
+	h := headerAt(50, 'a')                       // safe wants 50 -- invalid
 
 	tagAdv.advanceSafe(context.Background(), 7, h)
 

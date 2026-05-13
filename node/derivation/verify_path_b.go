@@ -74,7 +74,7 @@ func (d *Derivation) verifyBatchContentPathB(ctx context.Context, batchInfo *Bat
 
 // verifyPathBContent is the testable core of Path B verification. It is
 // extracted from the Derivation method above so tests can supply a fake
-// pathBBlockReader. Behaviour and error messages are unchanged.
+// pathBBlockReader. Behavior and error messages are unchanged.
 func verifyPathBContent(ctx context.Context, reader pathBBlockReader, metrics *Metrics, batchInfo *BatchInfo) error {
 	metrics.IncPathBTriggered()
 
@@ -167,4 +167,3 @@ func (d *Derivation) fetchLocalLastHeader(ctx context.Context, batchInfo *BatchI
 	}
 	return header, nil
 }
-
