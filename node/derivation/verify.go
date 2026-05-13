@@ -12,7 +12,7 @@ import (
 // verifyBatchRoots verifies the local state root and withdrawal root against the
 // values recorded in the L1 commit batch tx calldata.
 //
-// SPEC-005 §3.4 invariant: this check is independent of blob data — both
+// SPEC-005 section 3.4 invariant: this check is independent of blob data -- both
 // batchInfo.root (postStateRoot) and batchInfo.withdrawalRoot are extracted
 // from L1 calldata at parse time, so this function runs identically under
 // Path A (online beacon blob) and Path B (local-rebuild) verification modes.

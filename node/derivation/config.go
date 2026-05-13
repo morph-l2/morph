@@ -30,13 +30,18 @@ const (
 	// DefaultLogProgressInterval is the frequency at which we log progress.
 	DefaultLogProgressInterval = time.Second * 10
 
-	// VerifyMode values (SPEC-005 §4.2). Selected at startup; not switchable
+	// VerifyMode values (SPEC-005 section 4.2). Selected at startup; not switchable
 	// at runtime. Default is VerifyModePathA which preserves current behaviour.
 	VerifyModePathA = "pathA"
 	VerifyModePathB = "pathB"
 
 	// DefaultVerifyMode is Path A (pull beacon blob, decode, derive, verify).
 	DefaultVerifyMode = VerifyModePathA
+
+	// DefaultFinalizerInterval is the polling cadence for the SPEC-005 section 4.7.4
+	// finalizer subcomponent that walks L1 finalized -> Rollup.LastCommittedBatchIndex.
+	// 30s is roughly an L1 epoch; cheap relative to derivation's main poll loop.
+	DefaultFinalizerInterval = 30 * time.Second
 )
 
 type Config struct {
@@ -50,6 +55,7 @@ type Config struct {
 	LogProgressInterval   time.Duration   `json:"log_progress_interval"`
 	FetchBlockRange       uint64          `json:"fetch_block_range"`
 	VerifyMode            string          `json:"verify_mode"`
+	FinalizerInterval     time.Duration   `json:"finalizer_interval"`
 	MetricsPort           uint64          `json:"metrics_port"`
 	MetricsHostname       string          `json:"metrics_hostname"`
 	MetricsServerEnable   bool            `json:"metrics_server_enable"`
@@ -64,6 +70,7 @@ func DefaultConfig() *Config {
 		LogProgressInterval: DefaultLogProgressInterval,
 		FetchBlockRange:     DefaultFetchBlockRange,
 		VerifyMode:          DefaultVerifyMode,
+		FinalizerInterval:   DefaultFinalizerInterval,
 		L2:                  new(types.L2Config),
 	}
 }
@@ -131,6 +138,16 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	default:
 		return fmt.Errorf("invalid derivation.verify-mode %q (must be %q or %q)",
 			c.VerifyMode, VerifyModePathA, VerifyModePathB)
+	}
+
+	if ctx.GlobalIsSet(flags.DerivationFinalizerInterval.Name) {
+		c.FinalizerInterval = ctx.GlobalDuration(flags.DerivationFinalizerInterval.Name)
+		if c.FinalizerInterval <= 0 {
+			return errors.New("invalid finalizerInterval")
+		}
+	}
+	if c.FinalizerInterval == 0 {
+		c.FinalizerInterval = DefaultFinalizerInterval
 	}
 
 	l2EthAddr := ctx.GlobalString(flags.L2EthAddr.Name)

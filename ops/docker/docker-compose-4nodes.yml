@@ -14,8 +14,6 @@ volumes:
   node_data_2:
   node_data_3:
   sentry_node_data:
-  validator_el_data:
-  validator_node_data:
   layer1-el-data:
   layer1-cl-data:
   layer1-vc-data:
@@ -390,66 +388,6 @@ services:
     command: >
       morphnode
       --home $NODE_DATA_DIR
-    
-
-  validator-el:
-     container_name: validator-el
-     image: morph-geth:latest
-     depends_on:
-       tx-submitter-0:
-         condition: service_started
-     ports:
-       - "7545:8545"
-       - "7546:8546"
-       - "7551:8551"
-     healthcheck:
-       test: ["CMD-SHELL", "wget -qO- --header='Content-Type: application/json' --post-data='{\"jsonrpc\":\"2.0\",\"method\":\"eth_chainId\",\"params\":[],\"id\":1}' http://localhost:8545 | grep -q '\"result\"'"]
-       interval: 30s
-       timeout: 5s
-       retries: 3
-     volumes:
-       - "validator_el_data:${GETH_DATA_DIR}"
-       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
-       - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
-     entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
-       - "/bin/bash"
-       - "/entrypoint.sh"
-
-  validator_node:
-     container_name: validator_node
-     depends_on:
-       validator-el:
-           condition: service_started
-       node-0:
-         condition: service_started
-     image: morph-node:latest
-     ports:
-       - "26660"
-     environment:
-       - MORPH_NODE_L2_ETH_RPC=http://validator-el:8545
-       - MORPH_NODE_L2_ENGINE_RPC=http://validator-el:8551
-       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
-       ## todo need to replace it to a public network
-       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
-       - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
-       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
-       - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-       - MORPH_NODE_DERIVATION_START_HEIGHT=1
-       - MORPH_NODE_SYNC_START_HEIGHT=1
-       - MORPH_NODE_DERIVATION_FETCH_BLOCK_RANGE=5000
-       - MORPH_NODE_L1_CHAIN_ID=900
-       - MORPH_NODE_VALIDATOR=true
-       - MORPH_NODE_MOCK_SEQUENCER=false
-       - MORPH_NODE_L1_CONFIRMATIONS=1
-       - MORPH_NODE_METRICS_SERVER_ENABLE=true
-       - MORPH_NODE_METRICS_PORT=26660
-     volumes:
-       - "validator_node_data:${NODE_DATA_DIR}"
-       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
-     command: >
-       morphnode
-       --validator
-       --home $NODE_DATA_DIR
 
   tx-submitter-0:
    container_name:   tx-submitter-0

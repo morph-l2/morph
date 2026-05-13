@@ -62,7 +62,7 @@ type BatchInfo struct {
 
 	// blobHashes is the ordered list of EIP-4844 blob versioned hashes
 	// declared by the L1 commitBatch tx. Path B uses this to compare
-	// against locally-rebuilt versioned hashes (SPEC-005 §4).
+	// against locally-rebuilt versioned hashes (SPEC-005 section 4).
 	blobHashes []common.Hash
 }
 
@@ -82,7 +82,7 @@ func (bi *BatchInfo) TxNum() uint64 {
 	return bi.txNum
 }
 
-// ParseBatchMetadataOnly populates BatchInfo using only L1 calldata —
+// ParseBatchMetadataOnly populates BatchInfo using only L1 calldata --
 // it does NOT touch the blob sidecar and does NOT decode any transactions.
 //
 // Used by Path B (SPEC-005), which verifies the batch by rebuilding the

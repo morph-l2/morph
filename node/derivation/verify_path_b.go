@@ -13,7 +13,7 @@ import (
 	commonblob "morph-l2/common/blob"
 )
 
-// SPEC-005 §4 Path B: blob-independent batch content verification.
+// SPEC-005 section 4 Path B: blob-independent batch content verification.
 //
 // In VerifyModePathB the node does not pull blobs from the beacon chain.
 // Instead it reads the L2 blocks in the batch range from local storage,
@@ -30,7 +30,7 @@ import (
 // must restart with the alternate mode.
 
 // fetchBatchInfoPathB pulls the L1 commitBatch tx, decodes its calldata, and
-// populates a BatchInfo using only the calldata + tx blob hashes — no beacon
+// populates a BatchInfo using only the calldata + tx blob hashes -- no beacon
 // blob fetch. Returned BatchInfo is sufficient for verifyBatchContentPathB
 // and verifyBatchRoots.
 func (d *Derivation) fetchBatchInfoPathB(ctx context.Context, txHash common.Hash, blockNumber uint64) (*BatchInfo, error) {

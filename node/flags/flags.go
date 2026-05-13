@@ -162,12 +162,6 @@ var (
 		EnvVar: prefixEnvVar("MOCK_SEQUENCER"),
 	}
 
-	ValidatorEnable = cli.BoolFlag{
-		Name:   "validator",
-		Usage:  "Enable the validator mode",
-		EnvVar: prefixEnvVar("VALIDATOR"),
-	}
-
 	// derivation
 	RollupContractAddress = cli.StringFlag{
 		Name:   "derivation.rollupAddress",
@@ -203,14 +197,6 @@ var (
 		Name:   "derivation.fetchBlockRange",
 		Usage:  "Number of blocks that we collect in a single eth_getLogs query",
 		EnvVar: prefixEnvVar("DERIVATION_FETCH_BLOCK_RANGE"),
-	}
-
-	// BlockTag options
-	BlockTagSafeConfirmations = cli.Uint64Flag{
-		Name:   "blocktag.safeConfirmations",
-		Usage:  "Number of L1 blocks to wait before considering a batch as safe",
-		EnvVar: prefixEnvVar("BLOCKTAG_SAFE_CONFIRMATIONS"),
-		Value:  10,
 	}
 
 	// L1 Sequencer options
@@ -258,6 +244,13 @@ var (
 		Usage:  `Batch verification mode (SPEC-005): "pathA" pulls beacon blob and decodes (default); "pathB" rebuilds blob from local L2 blocks and compares versioned hashes. Mutually exclusive; not switchable at runtime.`,
 		EnvVar: prefixEnvVar("DERIVATION_VERIFY_MODE"),
 		Value:  "pathA",
+	}
+
+	DerivationFinalizerInterval = cli.DurationFlag{
+		Name:   "derivation.finalizer-interval",
+		Usage:  "Polling cadence for the SPEC-005 finalizer subcomponent (queries L1 finalized -> Rollup.LastCommittedBatchIndex). Default 30s.",
+		EnvVar: prefixEnvVar("DERIVATION_FINALIZER_INTERVAL"),
+		Value:  30 * time.Second,
 	}
 	// Logger
 	LogLevel = &cli.StringFlag{
@@ -344,7 +337,6 @@ var Flags = []cli.Flag{
 	DevSequencer,
 	TendermintConfigPath,
 	MockEnabled,
-	ValidatorEnable,
 
 	// derivation
 	RollupContractAddress,
@@ -355,10 +347,8 @@ var Flags = []cli.Flag{
 	DerivationFetchBlockRange,
 	DerivationConfirmations,
 	DerivationVerifyMode,
+	DerivationFinalizerInterval,
 	L1BeaconAddr,
-
-	// blocktag options
-	BlockTagSafeConfirmations,
 
 	// L1 Sequencer options
 	L1SequencerContractAddr,

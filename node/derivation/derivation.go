@@ -60,8 +60,13 @@ type Derivation struct {
 	fetchBlockRange     uint64
 	pollInterval        time.Duration
 	logProgressInterval time.Duration
-	verifyMode          string // SPEC-005 §4.2: "pathA" (default) or "pathB"; bound at startup, never switches.
-	stop                chan struct{}
+	verifyMode          string // SPEC-005 section 4.2: "pathA" (default) or "pathB"; bound at startup, never switches.
+	finalizerInterval   time.Duration
+
+	tagAdvancer *tagAdvancer
+	finalizer   *finalizer
+
+	stop chan struct{}
 }
 
 type DeployContractBackend interface {
@@ -116,6 +121,10 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	baseHttp := NewBasicHTTPClient(cfg.BeaconRpc, logger)
 	l1BeaconClient := NewL1BeaconClient(baseHttp)
 
+	l2Client := types.NewRetryableClient(aClient, eClient, logger)
+	tagAdv := newTagAdvancer(l2Client, metrics, logger)
+	fin := newFinalizer(ctx, cfg.FinalizerInterval, l1Client, l2Client, rollup, tagAdv, logger)
+
 	return &Derivation{
 		ctx:                   ctx,
 		db:                    db,
@@ -128,7 +137,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		logger:                logger,
 		RollupContractAddress: cfg.RollupContractAddress,
 		confirmations:         cfg.L1.Confirmations,
-		l2Client:              types.NewRetryableClient(aClient, eClient, logger),
+		l2Client:              l2Client,
 		cancel:                cancel,
 		stop:                  make(chan struct{}),
 		startHeight:           cfg.StartHeight,
@@ -137,6 +146,9 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		pollInterval:          cfg.PollInterval,
 		logProgressInterval:   cfg.LogProgressInterval,
 		verifyMode:            cfg.VerifyMode,
+		finalizerInterval:     cfg.FinalizerInterval,
+		tagAdvancer:           tagAdv,
+		finalizer:             fin,
 		metrics:               metrics,
 		l1BeaconClient:        l1BeaconClient,
 		L2ToL1MessagePasser:   msgPasser,
@@ -144,6 +156,11 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 }
 
 func (d *Derivation) Start() {
+	// finalizer subcomponent -- SPEC-005 section 4.7.4. Runs in its own goroutine so
+	// L1-finalized polling does not block the derivation main loop's batch
+	// verification cadence.
+	go d.finalizer.run()
+
 	// block node startup during initial sync and print some helpful logs
 	go func() {
 		d.syncer.Start()
@@ -177,6 +194,9 @@ func (d *Derivation) Stop() {
 		d.cancel()
 	}
 	<-d.stop
+	if d.finalizer != nil {
+		<-d.finalizer.stopped // join finalizer per SPEC-005 section 4.7.4 lifecycle contract
+	}
 	d.logger.Info("derivation service is stopped")
 }
 
@@ -274,6 +294,9 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		}
 		d.metrics.SetBatchStatus(stateNormal)
 		d.metrics.SetL1SyncHeight(lg.BlockNumber)
+
+		// SPEC-005 section 4.7.3: a verified batch (Path A or Path B) advances safe.
+		d.tagAdvancer.advanceSafe(d.ctx, batchInfo.batchIndex, lastHeader)
 	}
 
 	d.db.WriteLatestDerivationL1Height(end)
