@@ -478,7 +478,7 @@ func assembleBatchHeaderFromL2Blocks(
 	blockTimestamp := lastBlock.Time()
 
 	// Seal batch and generate batchHeader
-	batchIndex, batchHeaderBytes, _, err := bc.SealBatch(sequencerBytes, blockTimestamp)
+	batchIndex, batchHeaderBytes, _, err := bc.SealBatch(sequencerBytes, blockTimestamp, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to seal batch: %w", err)
 	}

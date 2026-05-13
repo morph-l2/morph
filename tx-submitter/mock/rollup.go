@@ -1,6 +1,7 @@
 package mock
 
 import (
+	"errors"
 	"math/big"
 
 	"github.com/morph-l2/go-ethereum/core/types"
@@ -87,7 +88,7 @@ func (m *MockRollup) BatchDataStore(opts *bind.CallOpts, batchIndex *big.Int) (s
 
 // FilterCommitBatch implements IRollup
 func (m *MockRollup) FilterCommitBatch(opts *bind.FilterOpts, batchIndex []*big.Int, batchHash [][32]byte) (*bindings.RollupCommitBatchIterator, error) {
-	return nil, nil
+	return nil, errors.New("FilterCommitBatch not implemented in mock")
 }
 
 // FilterFinalizeBatch implements IRollup
