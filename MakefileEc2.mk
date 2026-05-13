@@ -40,8 +40,8 @@ build-bk-test-morph-test-qanet-to-morph-tx-submitter-qanet:
 
 build-bk-test-morph-test-qanet-to-morph-sequencer-sign:
 	if [ ! -d dist ]; then mkdir -p dist; fi
-	cd $(PWD)/rs && cargo build --release
-	cp rs/target/release/vsock-sample dist/
+	cd $(PWD)/gas-oracle/app && cargo build --release
+	cp gas-oracle/app/target/release/app dist/
 
 
 start-bk-test-morph-test-qanet-to-morph-sequencer-sign:

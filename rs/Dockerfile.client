@@ -1,7 +1,0 @@
-# Copyright 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2.0
-
-FROM alpine:latest
-COPY vsock-sample .
-CMD ["./vsock-sample", "client", "--cid", "3",  "--port", "5005"]
-
