@@ -10,7 +10,9 @@ use prover_utils::read_env_var;
 use sp1_sdk::CpuProver;
 #[cfg(all(feature = "network", not(feature = "local")))]
 use sp1_sdk::{network::NetworkMode, NetworkProver};
-use sp1_sdk::{Elf, HashableKey, ProveRequest, Prover, ProverClient, ProvingKey, SP1ProvingKey, SP1Stdin};
+use sp1_sdk::{
+    Elf, HashableKey, ProveRequest, Prover, ProverClient, ProvingKey, SP1ProvingKey, SP1Stdin,
+};
 use sp1_verifier::PlonkVerifier;
 use std::time::Instant;
 
@@ -38,7 +40,7 @@ compile_error!("One of `local` or `network` features must be enabled for morph-p
 
 impl BatchProver<DefaultClient> {
     /// Creates a new BatchProver with the default proving client based on the feature flag.
-    pub async fn new() -> Self {
+    pub async fn new() -> Result<Self, anyhow::Error> {
         let prover_client = {
             #[cfg(all(feature = "network", not(feature = "local")))]
             {
@@ -56,9 +58,9 @@ impl BatchProver<DefaultClient> {
         let pk = prover_client
             .setup(Elf::Static(BATCH_VERIFIER_ELF))
             .await
-            .expect("failed to setup prover");
+            .context("failed to setup prover")?;
         log::info!("Batch ELF Verification Key: {:?}", pk.verifying_key().bytes32());
-        Self { prover_client, pk }
+        Ok(Self { prover_client, pk })
     }
 }
 
@@ -123,12 +125,8 @@ impl BatchProver<DefaultClient> {
         // Generate the proof
         log::info!("Start proving...");
         let start = Instant::now();
-        let mut proof = self
-            .prover_client
-            .prove(&self.pk, stdin)
-            .plonk()
-            .await
-            .context("proving failed")?;
+        let mut proof =
+            self.prover_client.prove(&self.pk, stdin).plonk().await.context("proving failed")?;
         let duration_mins = start.elapsed().as_secs() / 60;
         log::info!("Successfully generated proof!, time use: {} minutes", duration_mins);
 
@@ -164,7 +162,7 @@ impl BatchProver<DefaultClient> {
 mod tests {
     use prover_primitives::B256;
 
-    use sp1_sdk::{Elf, HashableKey, ProverClient, ProvingKey, SP1ProofWithPublicValues};
+    use sp1_sdk::{Elf, HashableKey, Prover, ProverClient, ProvingKey, SP1ProofWithPublicValues};
     use sp1_verifier::PlonkVerifier;
 
     use crate::{

@@ -38,7 +38,7 @@ impl Prover {
     pub async fn new(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) -> Result<Self, anyhow::Error> {
         let rpc_url = PROVER_L2_RPC.parse()?;
         let provider = ProviderBuilder::new().connect_http(rpc_url).erased();
-        let batch_prover = BatchProver::new().await;
+        let batch_prover = BatchProver::new().await?;
 
         Ok(Self { prove_queue, batch_prover, provider })
     }

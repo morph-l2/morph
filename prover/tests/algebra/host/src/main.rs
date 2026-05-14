@@ -91,6 +91,8 @@ async fn test_verify_plonk() {
     let reader = BufReader::new(file);
     let proof: SP1ProofWithPublicValues = serde_json::from_reader(reader).unwrap();
 
+    client.verify(&proof, vk, None).expect("failed to verify plonk proof");
+
     let pi_bytes = proof.public_values.as_slice();
 
     let fixture = AlgebraProofFixture {
