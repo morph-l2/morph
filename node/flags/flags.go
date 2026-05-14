@@ -220,6 +220,16 @@ var (
 		EnvVar: prefixEnvVar("SEQUENCER_PRIVATE_KEY"),
 	}
 
+	// Vsock address of the Nitro Enclave signer (CID:port). Mutually
+	// exclusive with sequencer.privateKey — with this set, the node
+	// never sees the plaintext key, signing happens via the enclave.
+	// The signer's EVM address is fetched at startup via GetPubkey.
+	SequencerEnclaveSignerAddr = cli.StringFlag{
+		Name:   "sequencer.enclaveSignerAddr",
+		Usage:  "Vsock address of the enclave signer (CID:port). Mutually exclusive with sequencer.privateKey.",
+		EnvVar: prefixEnvVar("SEQUENCER_ENCLAVE_SIGNER_ADDR"),
+	}
+
 	// Sequencer HA flags (all prefixed with ha.)
 	SequencerHAEnabled = cli.BoolFlag{
 		Name:   "ha.enabled",
@@ -383,6 +393,7 @@ var Flags = []cli.Flag{
 	L1SequencerContractAddr,
 	L1SyncLagThreshold,
 	SequencerPrivateKey,
+	SequencerEnclaveSignerAddr,
 	SequencerHAEnabled,
 	SequencerHAConfig,
 	SequencerHABootstrap,
