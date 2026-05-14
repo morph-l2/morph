@@ -42,10 +42,20 @@ build-bk-test-morph-test-qanet-to-morph-sequencer-sign:
 	if [ ! -d dist ]; then mkdir -p dist; fi
 	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o token-price-oracle/token-price-oracle ./token-price-oracle/cmd
 	cp token-price-oracle/token-price-oracle dist/
+	@printf '%s\n' \
+        'FROM bg-inner-test-dev-jfrog-8081.bx-internal.com/dev-docker-virtual/alpine:latest' \
+        'COPY token-price-oracle /token-price-oracle' \
+        'CMD ["/token-price-oracle"]' \
+        > dist/Dockerfile
+
 
 
 start-bk-test-morph-test-qanet-to-morph-sequencer-sign:
-	./token-price-oracle
+	docker build . -t morph-sequencer-sign
+	nitro-cli build-enclave --docker-uri morph-sequencer-sign:latest --output-file morph-sequencer-sign.eif
+	nitro-cli run-enclave --cpu-count 2 --memory 512 --enclave-cid 16 --eif-path morph-sequencer-sign.eif --debug-mode
+	nitro-cli describe-enclaves
+
 
   
  # build for hoodi
