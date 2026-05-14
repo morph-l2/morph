@@ -282,6 +282,7 @@ func initL1SequencerComponents(
 	}
 	contractAddr := common.HexToAddress(ctx.GlobalString(flags.L1SequencerContractAddr.Name))
 	seqPrivKeyHex := ctx.GlobalString(flags.SequencerPrivateKey.Name)
+	enclaveSignerAddr := ctx.GlobalString(flags.SequencerEnclaveSignerAddr.Name)
 
 	// Initialize L1 Tracker
 	tracker := l1sequencer.NewL1Tracker(context.Background(), l1Client, lagThreshold, logger)
@@ -303,9 +304,17 @@ func initL1SequencerComponents(
 		return nil, nil, nil, fmt.Errorf("L1 Sequencer contract address is required, check l1.sequencerContract configuration")
 	}
 
-	// Initialize Signer (optional)
+	// Initialize Signer (optional). Three mutually exclusive modes:
+	//   1) sequencer.privateKey set        → LocalSigner (plaintext key in node memory)
+	//   2) sequencer.enclaveSignerAddr     → EnclaveSigner (vsock to Nitro Enclave; key never in node)
+	//   3) neither                         → no signer, sequencer can't produce blocks
+	// Both at once is rejected so config mistakes surface at boot, not at first block.
 	var signer l1sequencer.Signer
-	if seqPrivKeyHex != "" {
+	switch {
+	case seqPrivKeyHex != "" && enclaveSignerAddr != "":
+		return nil, nil, nil, fmt.Errorf(
+			"sequencer.privateKey and sequencer.enclaveSignerAddr are mutually exclusive; pick one")
+	case seqPrivKeyHex != "":
 		seqPrivKeyHex = strings.TrimPrefix(seqPrivKeyHex, "0x")
 		privKey, err := crypto.HexToECDSA(seqPrivKeyHex)
 		if err != nil {
@@ -315,9 +324,17 @@ func initL1SequencerComponents(
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		logger.Info("Sequencer signer initialized", "address", signer.Address().Hex())
-	} else {
-		logger.Info("Sequencer private key not configured, signer disabled")
+		logger.Info("Sequencer signer initialized (local)", "address", signer.Address().Hex())
+	case enclaveSignerAddr != "":
+		var err error
+		signer, err = l1sequencer.NewEnclaveSigner(enclaveSignerAddr, logger)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("init enclave signer: %w", err)
+		}
+		logger.Info("Sequencer signer initialized (enclave)",
+			"addr", enclaveSignerAddr, "address", signer.Address().Hex())
+	default:
+		logger.Info("Sequencer signer not configured (no privateKey, no enclaveSignerAddr)")
 	}
 
 	return tracker, verifier, signer, nil
