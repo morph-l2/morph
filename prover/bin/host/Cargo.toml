@@ -40,4 +40,4 @@ tokio = { workspace = true, features = ["macros"] }
 [features]
 default = ["network"]
 local = ["sp1-sdk/native-gnark"]
-network = []
+network = ["sp1-sdk/network"]
