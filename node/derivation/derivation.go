@@ -249,7 +249,12 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				d.logger.Error("path B fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
 				return
 			}
-			d.logger.Info("path B fetched batch metadata", "txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
+			d.logger.Info("path B fetched batch metadata",
+				"batchIndex", batchInfo.batchIndex,
+				"version", batchInfo.version,
+				"parentTotalL1Popped", batchInfo.parentTotalL1MessagePopped,
+				"expectedBlobs", len(batchInfo.blobHashes),
+				"txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
 				"l1BlockNumber", batchInfo.l1BlockNumber, "firstL2BlockNumber", batchInfo.firstBlockNumber, "lastL2BlockNumber", batchInfo.lastBlockNumber)
 			if err := d.verifyBatchContentPathB(ctx, batchInfo); err != nil {
 				d.metrics.SetBatchStatus(stateException)

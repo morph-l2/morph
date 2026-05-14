@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/morph-l2/go-ethereum/common"
 	eth "github.com/morph-l2/go-ethereum/core/types"
+	tmlog "github.com/tendermint/tendermint/libs/log"
 
 	commonbatch "morph-l2/common/batch"
 	commonblob "morph-l2/common/blob"
@@ -69,23 +71,27 @@ type pathBBlockReader interface {
 // range and compares them against batchInfo.blobHashes (taken from the
 // L1 commitBatch tx). Returns nil on match.
 func (d *Derivation) verifyBatchContentPathB(ctx context.Context, batchInfo *BatchInfo) error {
-	return verifyPathBContent(ctx, d.l2Client, d.metrics, batchInfo)
+	return verifyPathBContent(ctx, d.l2Client, d.metrics, d.logger, batchInfo)
 }
 
 // verifyPathBContent is the testable core of Path B verification. It is
 // extracted from the Derivation method above so tests can supply a fake
-// pathBBlockReader. Behavior and error messages are unchanged.
-func verifyPathBContent(ctx context.Context, reader pathBBlockReader, metrics *Metrics, batchInfo *BatchInfo) error {
+// pathBBlockReader. Behavior and error messages are unchanged; on every
+// failure path it emits a single structured Error log carrying the
+// fields an operator needs to diagnose the mismatch (kind, batchIndex,
+// version, block range, parent total L1 messages popped, chosen
+// encoding when reached, payload / compressed lengths, rebuilt vs
+// expected blob hashes) and increments the per-kind PathBFailed metric.
+func verifyPathBContent(ctx context.Context, reader pathBBlockReader, metrics *Metrics, logger tmlog.Logger, batchInfo *BatchInfo) error {
 	metrics.IncPathBTriggered()
 
 	if batchInfo.firstBlockNumber == 0 || batchInfo.lastBlockNumber < batchInfo.firstBlockNumber {
-		metrics.IncPathBFailed()
-		return fmt.Errorf("path B: invalid block range [%d, %d]",
-			batchInfo.firstBlockNumber, batchInfo.lastBlockNumber)
+		return pathBFail(logger, metrics, batchInfo, "invalid_block_range", nil,
+			fmt.Sprintf("invalid block range [%d, %d]", batchInfo.firstBlockNumber, batchInfo.lastBlockNumber))
 	}
 	if len(batchInfo.blobHashes) == 0 {
-		metrics.IncPathBFailed()
-		return fmt.Errorf("path B: no blob hashes recorded for batch %d", batchInfo.batchIndex)
+		return pathBFail(logger, metrics, batchInfo, "empty_blob_hashes", nil,
+			fmt.Sprintf("no blob hashes recorded for batch %d", batchInfo.batchIndex))
 	}
 
 	bd := commonbatch.NewBatchData()
@@ -94,18 +100,18 @@ func verifyPathBContent(ctx context.Context, reader pathBBlockReader, metrics *M
 	for n := batchInfo.firstBlockNumber; n <= batchInfo.lastBlockNumber; n++ {
 		block, err := reader.BlockByNumber(ctx, big.NewInt(int64(n)))
 		if err != nil {
-			metrics.IncPathBFailed()
-			return fmt.Errorf("path B: read local block %d failed: %w", n, err)
+			return pathBFail(logger, metrics, batchInfo, "local_block_read_error", err,
+				fmt.Sprintf("read local block %d failed", n), "blockNumber", n)
 		}
 		if block == nil {
-			metrics.IncPathBFailed()
-			return fmt.Errorf("path B: local block %d missing", n)
+			return pathBFail(logger, metrics, batchInfo, "local_block_missing", nil,
+				fmt.Sprintf("local block %d missing", n), "blockNumber", n)
 		}
 
 		txsPayload, l1TxHashes, newTotal, l2TxNum, err := commonbatch.ParsingTxs(block.Transactions(), totalL1MessagePopped)
 		if err != nil {
-			metrics.IncPathBFailed()
-			return fmt.Errorf("path B: parsingTxs failed at block %d: %w", n, err)
+			return pathBFail(logger, metrics, batchInfo, "parsing_txs_error", err,
+				fmt.Sprintf("parsingTxs failed at block %d", n), "blockNumber", n)
 		}
 		l1MsgNum := int(newTotal - totalL1MessagePopped)
 		blockCtx := commonbatch.BuildBlockContext(block.Header(), l2TxNum+l1MsgNum, l1MsgNum)
@@ -115,17 +121,25 @@ func verifyPathBContent(ctx context.Context, reader pathBBlockReader, metrics *M
 
 	// Pick V1 or V2 payload format based on batch version. V2 prepends the
 	// concatenated block contexts to the tx payload; V1 carries only txs.
-	var payload []byte
+	// The chosen value is captured for diagnostics so a hash-mismatch log
+	// shows whether Path B took the V1 or V2 branch.
+	var (
+		payload        []byte
+		chosenEncoding string
+	)
 	if batchInfo.version >= 2 {
 		payload = bd.TxsPayloadV2()
+		chosenEncoding = "V2"
 	} else {
 		payload = bd.TxsPayload()
+		chosenEncoding = "V1"
 	}
 
 	compressed, err := commonblob.CompressBatchBytes(payload)
 	if err != nil {
-		metrics.IncPathBFailed()
-		return fmt.Errorf("path B: compress failed: %w", err)
+		return pathBFail(logger, metrics, batchInfo, "compress_error", err,
+			"compress failed",
+			"encoding", chosenEncoding, "payloadLen", len(payload))
 	}
 
 	// maxBlobs is only an upper bound for sidecar capacity; the actual
@@ -135,24 +149,74 @@ func verifyPathBContent(ctx context.Context, reader pathBBlockReader, metrics *M
 	// with the wrong blob count and a confusing hash mismatch later.
 	sidecar, err := commonblob.MakeBlobTxSidecar(compressed, len(batchInfo.blobHashes))
 	if err != nil {
-		metrics.IncPathBFailed()
-		return fmt.Errorf("path B: build sidecar failed: %w", err)
+		return pathBFail(logger, metrics, batchInfo, "sidecar_build_error", err,
+			"build sidecar failed",
+			"encoding", chosenEncoding, "payloadLen", len(payload), "compressedLen", len(compressed))
 	}
 
 	rebuilt := sidecar.BlobHashes()
 	if len(rebuilt) != len(batchInfo.blobHashes) {
-		metrics.IncPathBFailed()
-		return fmt.Errorf("path B: blob count mismatch (rebuilt=%d, l1=%d)",
-			len(rebuilt), len(batchInfo.blobHashes))
+		return pathBFail(logger, metrics, batchInfo, "blob_count_mismatch", nil,
+			fmt.Sprintf("blob count mismatch (rebuilt=%d, l1=%d)", len(rebuilt), len(batchInfo.blobHashes)),
+			"encoding", chosenEncoding, "payloadLen", len(payload), "compressedLen", len(compressed),
+			"rebuiltBlobs", len(rebuilt),
+			"rebuiltHashes", hashesHexCSV(rebuilt),
+			"expectedHashes", hashesHexCSV(batchInfo.blobHashes))
 	}
 	for i := range rebuilt {
 		if rebuilt[i] != batchInfo.blobHashes[i] {
-			metrics.IncPathBFailed()
-			return fmt.Errorf("path B: versioned hash mismatch at index %d (rebuilt=%s, l1=%s)",
-				i, rebuilt[i].Hex(), batchInfo.blobHashes[i].Hex())
+			return pathBFail(logger, metrics, batchInfo, "versioned_hash_mismatch", nil,
+				fmt.Sprintf("versioned hash mismatch at index %d (rebuilt=%s, l1=%s)",
+					i, rebuilt[i].Hex(), batchInfo.blobHashes[i].Hex()),
+				"encoding", chosenEncoding, "payloadLen", len(payload), "compressedLen", len(compressed),
+				"rebuiltBlobs", len(rebuilt),
+				"mismatchIndex", i,
+				"rebuiltHashes", hashesHexCSV(rebuilt),
+				"expectedHashes", hashesHexCSV(batchInfo.blobHashes))
 		}
 	}
 	return nil
+}
+
+// pathBFail is the single failure exit for verifyPathBContent. It emits one
+// structured Error log carrying the always-present diagnostic fields plus any
+// per-site context kvs the caller supplies, increments the per-kind
+// PathBFailed metric, and returns a wrapped error so the upstream
+// derivationBlock log retains the same surface as before. cause may be nil
+// for sanity-check failures (no underlying error to wrap).
+func pathBFail(logger tmlog.Logger, metrics *Metrics, batchInfo *BatchInfo, kind string, cause error, msg string, kvs ...interface{}) error {
+	metrics.IncPathBFailedKind(kind)
+
+	args := []interface{}{
+		"kind", kind,
+		"batchIndex", batchInfo.batchIndex,
+		"version", batchInfo.version,
+		"firstBlock", batchInfo.firstBlockNumber,
+		"lastBlock", batchInfo.lastBlockNumber,
+		"parentTotalL1Popped", batchInfo.parentTotalL1MessagePopped,
+		"expectedBlobs", len(batchInfo.blobHashes),
+	}
+	args = append(args, kvs...)
+	if cause != nil {
+		args = append(args, "cause", cause)
+	}
+	logger.Error("path B verification failed: "+msg, args...)
+
+	if cause != nil {
+		return fmt.Errorf("path B [%s]: %s: %w", kind, msg, cause)
+	}
+	return fmt.Errorf("path B [%s]: %s", kind, msg)
+}
+
+// hashesHexCSV renders a small slice of hashes as a comma-separated hex list,
+// suitable for a one-line log field. Used in failure diagnostics where the
+// per-index hex helps an operator spot which blob diverged.
+func hashesHexCSV(hs []common.Hash) string {
+	parts := make([]string, len(hs))
+	for i, h := range hs {
+		parts[i] = h.Hex()
+	}
+	return strings.Join(parts, ",")
 }
 
 // fetchLocalLastHeader returns the local L2 header at batchInfo.lastBlockNumber.

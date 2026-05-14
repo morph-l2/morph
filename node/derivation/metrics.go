@@ -26,10 +26,14 @@ type Metrics struct {
 	SyncedBatchIndex metrics.Gauge
 
 	// SPEC-005 section 4.6 Path B counters. PathBTriggered increments once per batch
-	// processed under VerifyModePathB; PathBFailed increments on local-block
-	// missing / encoding error / versioned hash mismatch.
-	PathBTriggered metrics.Counter
-	PathBFailed    metrics.Counter
+	// processed under VerifyModePathB; PathBFailed is the unlabelled total.
+	// PathBFailedByKind carries a "kind" label so dashboards / alerts can split
+	// failures by category (versioned hash mismatch vs local block missing vs
+	// encoding error vs ...). Increment both via IncPathBFailedKind so the
+	// total stays in sync with the sum across kinds.
+	PathBTriggered    metrics.Counter
+	PathBFailed       metrics.Counter
+	PathBFailedByKind metrics.Counter
 
 	// SPEC-005 section 4.7 Tag management metrics. Replace the (previously absent)
 	// blocktag instrumentation; on-call alerts should now key off these.
@@ -95,6 +99,12 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Name:      "path_b_failed_total",
 			Help:      "Path B failures: local block missing, encoding error, or versioned hash mismatch.",
 		}, labels).With(labelsAndValues...),
+		PathBFailedByKind: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "path_b_failed_by_kind_total",
+			Help:      "Path B failures broken down by kind label (versioned_hash_mismatch, local_block_missing, ...).",
+		}, append(append([]string(nil), labels...), "kind")).With(labelsAndValues...),
 		SafeAdvanceTotal: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: metricsSubsystem,
@@ -164,6 +174,14 @@ func (m *Metrics) IncPathBTriggered() {
 
 func (m *Metrics) IncPathBFailed() {
 	m.PathBFailed.Add(1)
+}
+
+// IncPathBFailedKind increments both the unlabelled PathBFailed total and the
+// PathBFailedByKind counter scoped to the given kind. Call sites in
+// verify_path_b.go use this so the kind label and the total stay aligned.
+func (m *Metrics) IncPathBFailedKind(kind string) {
+	m.PathBFailed.Add(1)
+	m.PathBFailedByKind.With("kind", kind).Add(1)
 }
 
 func (m *Metrics) IncSafeAdvance() {

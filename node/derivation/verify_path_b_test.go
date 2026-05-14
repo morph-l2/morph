@@ -9,6 +9,7 @@ import (
 
 	"github.com/morph-l2/go-ethereum/common"
 	eth "github.com/morph-l2/go-ethereum/core/types"
+	tmlog "github.com/tendermint/tendermint/libs/log"
 
 	commonbatch "morph-l2/common/batch"
 	commonblob "morph-l2/common/blob"
@@ -105,7 +106,7 @@ func TestPathB_RoundTripOK_V1(t *testing.T) {
 		blobHashes:                 hashes,
 	}
 
-	if err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), bi); err != nil {
+	if err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), bi); err != nil {
 		t.Fatalf("V1 round-trip failed: %v", err)
 	}
 }
@@ -126,7 +127,7 @@ func TestPathB_RoundTripOK_V2(t *testing.T) {
 		blobHashes:                 hashes,
 	}
 
-	if err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), bi); err != nil {
+	if err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), bi); err != nil {
 		t.Fatalf("V2 round-trip failed: %v", err)
 	}
 }
@@ -149,7 +150,7 @@ func TestPathB_VersionedHashMismatch(t *testing.T) {
 		blobHashes:                 tampered,
 	}
 
-	err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), bi)
+	err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), bi)
 	if err == nil {
 		t.Fatal("expected versioned hash mismatch error, got nil")
 	}
@@ -174,7 +175,7 @@ func TestPathB_LocalBlockMissing(t *testing.T) {
 		blobHashes:                 hashes,
 	}
 
-	err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), bi)
+	err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), bi)
 	if err == nil {
 		t.Fatal("expected local block missing error, got nil")
 	}
@@ -199,7 +200,7 @@ func TestPathB_LocalBlockReadError(t *testing.T) {
 		blobHashes:       hashes,
 	}
 
-	err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), bi)
+	err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), bi)
 	if err == nil {
 		t.Fatal("expected wrapped read error, got nil")
 	}
@@ -234,7 +235,7 @@ func TestPathB_RejectsInvalidInputs(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			reader := &fakePathBBlockReader{}
-			err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tc.bi)
+			err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), tc.bi)
 			if err == nil {
 				t.Fatal("expected validation error, got nil")
 			}

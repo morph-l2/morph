@@ -55,6 +55,7 @@ func newDiscardMetrics() *Metrics {
 		SyncedBatchIndex:           discard.NewGauge(),
 		PathBTriggered:             discard.NewCounter(),
 		PathBFailed:                discard.NewCounter(),
+		PathBFailedByKind:          discard.NewCounter(),
 		SafeAdvanceTotal:           discard.NewCounter(),
 		FinalizedAdvanceTotal:      discard.NewCounter(),
 		SafeL2BlockNumber:          discard.NewGauge(),
