@@ -35,10 +35,10 @@ pub struct Prover {
 /// Implementation of the Prover.
 impl Prover {
     // Create a new Prover instance.
-    pub fn new(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) -> Result<Self, anyhow::Error> {
+    pub async fn new(prove_queue: Arc<Mutex<Vec<ProveRequest>>>) -> Result<Self, anyhow::Error> {
         let rpc_url = PROVER_L2_RPC.parse()?;
         let provider = ProviderBuilder::new().connect_http(rpc_url).erased();
-        let batch_prover = BatchProver::default();
+        let batch_prover = BatchProver::new().await;
 
         Ok(Self { prove_queue, batch_prover, provider })
     }
@@ -95,7 +95,7 @@ impl Prover {
             // Step3. Generate evm proof
             log::info!("Generate evm proof");
             let start = Instant::now();
-            let prove_rt = self.batch_prover.prove(&mut input, !shadow);
+            let prove_rt = self.batch_prover.prove(&mut input, !shadow).await;
 
             match prove_rt {
                 Ok(Some(proof)) => {

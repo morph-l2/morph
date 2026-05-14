@@ -87,7 +87,7 @@ async fn metric_mng() {
 }
 
 async fn start_prover() {
-    let mut prover = Prover::new(Arc::clone(&PROVE_QUEUE)).unwrap();
+    let mut prover = Prover::new(Arc::clone(&PROVE_QUEUE)).await.unwrap();
     prover.prove_for_queue().await;
 }
 
