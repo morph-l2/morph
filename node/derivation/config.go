@@ -86,7 +86,16 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		L1: &types.L1Config{
-			Confirmations: rpc.FinalizedBlockNumber,
+			// Default to L1 safe (~1 epoch / ~6 min lag) rather than finalized
+			// (~2 epochs / ~13 min lag). L1 safe blocks can theoretically be
+			// reorg'd if a Casper FFG slashing condition fires, so this default
+			// is paired with always-on L1 reorg detection (SPEC-005 §4.7.6 in
+			// reorg.go) which rewinds the derivation cursor and resets the tag
+			// advancer when an L1 hash mismatch is observed. Operators wanting
+			// strict no-reorg-possible reads can still set
+			// --derivation.confirmations=-3 (rpc.FinalizedBlockNumber) or
+			// --l1.confirmations=-3 to revert to the previous behaviour.
+			Confirmations: rpc.SafeBlockNumber,
 		},
 		PollInterval:        DefaultPollInterval,
 		LogProgressInterval: DefaultLogProgressInterval,
