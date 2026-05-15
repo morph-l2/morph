@@ -60,9 +60,8 @@ prometheus-client = "0.22"
 
 # Compression
 ruzstd = { git = "https://github.com/KillingSpark/zstd-rs.git", branch = "master" }
-zstd = { git = "https://github.com/scroll-tech/zstd-rs", branch = "hack/mul-block", features = [
-    "experimental",
-] }
+zstd = { version = "0.13", features = ["experimental"] }
+
 
 # Crypto
 c-kzg = "2.1.5"

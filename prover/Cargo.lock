@@ -5787,7 +5787,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "zstd 0.13.0",
+ "zstd",
 ]
 
 [[package]]
@@ -6558,7 +6558,7 @@ name = "reth-zstd-compressors"
 version = "1.10.0"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.0#b25f32a977b489f9b84254c7811a2a5a25a81369"
 dependencies = [
- "zstd 0.13.3",
+ "zstd",
 ]
 
 [[package]]
@@ -8643,7 +8643,7 @@ dependencies = [
  "tonic",
  "tracing",
  "twirp-rs",
- "zstd 0.13.3",
+ "zstd",
 ]
 
 [[package]]
@@ -10292,27 +10292,11 @@ dependencies = [
 
 [[package]]
 name = "zstd"
-version = "0.13.0"
-source = "git+https://github.com/scroll-tech/zstd-rs?branch=hack/mul-block#5c0892b6567dab31394d701477183ce9d6a32aca"
-dependencies = [
- "zstd-safe 7.0.0",
-]
-
-[[package]]
-name = "zstd"
 version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a"
 dependencies = [
- "zstd-safe 7.2.4",
-]
-
-[[package]]
-name = "zstd-safe"
-version = "7.0.0"
-source = "git+https://github.com/scroll-tech/zstd-rs?branch=hack/mul-block#5c0892b6567dab31394d701477183ce9d6a32aca"
-dependencies = [
- "zstd-sys 2.0.9+zstd.1.5.5",
+ "zstd-safe",
 ]
 
 [[package]]
@@ -10321,16 +10305,7 @@ version = "7.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f49c4d5f0abb602a93fb8736af2a4f4dd9512e36f7f570d66e65ff867ed3b9d"
 dependencies = [
- "zstd-sys 2.0.16+zstd.1.5.7",
-]
-
-[[package]]
-name = "zstd-sys"
-version = "2.0.9+zstd.1.5.5"
-source = "git+https://github.com/scroll-tech/zstd-rs?branch=hack/mul-block#5c0892b6567dab31394d701477183ce9d6a32aca"
-dependencies = [
- "cc",
- "pkg-config",
+ "zstd-sys",
 ]
 
 [[package]]
