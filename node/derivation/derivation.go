@@ -123,7 +123,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 
 	l2Client := types.NewRetryableClient(aClient, eClient, logger)
 	tagAdv := newTagAdvancer(l2Client, metrics, logger)
-	fin := newFinalizer(ctx, cfg.FinalizerInterval, l1Client, l2Client, rollup, tagAdv, logger)
+	fin := newFinalizer(ctx, cfg.FinalizerInterval, l1Client, rollup, tagAdv, logger)
 
 	return &Derivation{
 		ctx:                   ctx,

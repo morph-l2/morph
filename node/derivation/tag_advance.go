@@ -44,6 +44,20 @@ type tagAdvancer struct {
 	finalizedL2Hash   common.Hash
 	finalizedL2Number uint64
 
+	// verifiedBatches maps batchIndex -> lastL2 block header for batches
+	// the derivation main loop has fully verified in this process. The
+	// finalizer needs to translate "min(LastCommittedBatchIndex@L1Finalized,
+	// safeMaxBatchIndex)" into an L2 header; the Rollup contract's
+	// BatchDataStore is NOT a reliable source for that translation because
+	// the contract clears storage of older batches as part of its on-chain
+	// GC, so any candidate older than the very latest committed batch
+	// returns zero (observed on hoodi: BatchDataStore(17389) and (17796)
+	// returned all zeros while (17797) was populated). Holding the
+	// mapping in memory makes the lookup independent of contract state
+	// retention. Eviction happens in advanceFinalized: once a batch is
+	// finalized, all entries <= that index are dropped.
+	verifiedBatches map[uint64]*eth.Header
+
 	// Suppress redundant SetBlockTags RPCs (mirrors blocktag's
 	// lastNotifiedSafeHash / lastNotifiedFinalizedHash semantics).
 	lastNotifiedSafe      common.Hash
@@ -52,9 +66,10 @@ type tagAdvancer struct {
 
 func newTagAdvancer(l2Client tagL2Client, metrics *Metrics, logger tmlog.Logger) *tagAdvancer {
 	return &tagAdvancer{
-		l2Client: l2Client,
-		metrics:  metrics,
-		logger:   logger.With("component", "tag-advancer"),
+		l2Client:        l2Client,
+		metrics:         metrics,
+		logger:          logger.With("component", "tag-advancer"),
+		verifiedBatches: make(map[uint64]*eth.Header),
 	}
 }
 
@@ -71,11 +86,25 @@ func (t *tagAdvancer) advanceSafe(ctx context.Context, batchIndex uint64, lastHe
 	if batchIndex > t.safeMaxBatchIndex {
 		t.safeMaxBatchIndex = batchIndex
 	}
+	// Record the verified batch -> header mapping for the finalizer to look
+	// up later, replacing the no-longer-reliable Rollup.BatchDataStore query.
+	t.verifiedBatches[batchIndex] = lastHeader
 	t.metrics.IncSafeAdvance()
 	t.metrics.SetSafeL2BlockNumber(t.safeL2Number)
 	t.mu.Unlock()
 
 	t.flushTags(ctx)
+}
+
+// LookupVerifiedBatchHeader returns the L2 header recorded by advanceSafe for
+// the given batch index, if still cached. The finalizer uses this in place of
+// querying Rollup.BatchDataStore on L1, which the contract clears for older
+// batches as part of its storage GC.
+func (t *tagAdvancer) LookupVerifiedBatchHeader(batchIndex uint64) (*eth.Header, bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	h, ok := t.verifiedBatches[batchIndex]
+	return h, ok
 }
 
 // advanceFinalized is called by the finalizer subcomponent each tick if the
@@ -100,11 +129,19 @@ func (t *tagAdvancer) advanceFinalized(ctx context.Context, batchIndex uint64, l
 	}
 	t.finalizedL2Hash = lastHeader.Hash()
 	t.finalizedL2Number = newNumber
+	// Evict verified-batch entries at or below the new finalized index.
+	// They can no longer be the target of a finalizer lookup (finalized
+	// is monotonic), and dropping them keeps the map bounded by the
+	// safe-vs-finalized lag in steady state.
+	for k := range t.verifiedBatches {
+		if k <= batchIndex {
+			delete(t.verifiedBatches, k)
+		}
+	}
 	t.metrics.IncFinalizedAdvance()
 	t.metrics.SetFinalizedL2BlockNumber(t.finalizedL2Number)
 	t.mu.Unlock()
 
-	_ = batchIndex // currently logged by the finalizer; reserved for future telemetry
 	t.flushTags(ctx)
 }
 
@@ -127,6 +164,10 @@ func (t *tagAdvancer) reset(toBatchIndex uint64) {
 	t.safeL2Hash = common.Hash{}
 	t.safeL2Number = 0
 	t.safeMaxBatchIndex = toBatchIndex
+	// Verified batches recorded before the L1 reorg are no longer
+	// authoritative against the new L1 view; clear and let derivation
+	// re-fill as it walks the cursor.
+	t.verifiedBatches = make(map[uint64]*eth.Header)
 	t.lastNotifiedSafe = common.Hash{}
 	t.metrics.IncL1ReorgReset()
 	t.metrics.SetSafeL2BlockNumber(0)

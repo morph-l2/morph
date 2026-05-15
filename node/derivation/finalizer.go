@@ -2,7 +2,6 @@ package derivation
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"time"
 
@@ -12,15 +11,22 @@ import (
 	tmlog "github.com/tendermint/tendermint/libs/log"
 
 	"morph-l2/bindings/bindings"
-	"morph-l2/node/types"
 )
 
 // finalizer is the SPEC-005 section 4.7.4 finalized-head subcomponent. It runs as an
 // in-process goroutine inside Derivation (not a standalone service): each
 // tick it reads L1 finalized -> Rollup.LastCommittedBatchIndex(@finalized),
 // takes min with the highest verified batch index recorded by tagAdvancer,
-// resolves the corresponding L2 last-block, and forwards to
-// tagAdvancer.advanceFinalized.
+// resolves the corresponding L2 header from tagAdvancer's local
+// verified-batch map, and forwards to tagAdvancer.advanceFinalized.
+//
+// The local map replaces what used to be a Rollup.BatchDataStore lookup. The
+// contract clears storage of older batches as part of its on-chain GC, so any
+// candidate older than the very latest committed batch returned zero on hoodi
+// (BatchDataStore(17389) and (17796) zero, only (17797) populated). With the
+// in-memory mapping the lookup is independent of contract retention; if a
+// candidate is missing from the map (e.g. derivation hasn't re-verified it
+// since restart) we log info and retry next tick.
 //
 // Cheap relative to derivation main loop: one L1 header + one contract call
 // per tick (default 30s).
@@ -30,7 +36,6 @@ type finalizer struct {
 	logger   tmlog.Logger
 
 	l1Client    *ethclient.Client
-	l2Client    *types.RetryableClient
 	rollup      *bindings.Rollup
 	tagAdvancer *tagAdvancer
 
@@ -41,7 +46,6 @@ func newFinalizer(
 	ctx context.Context,
 	interval time.Duration,
 	l1Client *ethclient.Client,
-	l2Client *types.RetryableClient,
 	rollup *bindings.Rollup,
 	tagAdv *tagAdvancer,
 	logger tmlog.Logger,
@@ -50,7 +54,6 @@ func newFinalizer(
 		ctx:         ctx,
 		interval:    interval,
 		l1Client:    l1Client,
-		l2Client:    l2Client,
 		rollup:      rollup,
 		tagAdvancer: tagAdv,
 		logger:      logger.With("component", "finalizer"),
@@ -117,45 +120,17 @@ func (f *finalizer) tick() {
 		return
 	}
 
-	// 4. Resolve candidate batch's lastL2Block, then fetch the L2 header.
-	lastL2Block, err := f.lookupBatchLastL2Block(candidate)
-	if err != nil {
-		f.logger.Info("finalizer: lookup batch lastL2Block failed",
-			"batchIndex", candidate, "err", err)
-		return
-	}
-	// Defensive: a zero BlockNumber means the contract slot is uninitialised
-	// (BatchDataStore returned the zero value). Advancing finalized to genesis
-	// would pass the monotonicity check on first call and produce a confusing
-	// "finalized at block 0" tag -- skip and retry on next tick.
-	if lastL2Block == 0 {
-		f.logger.Info("finalizer: batch has zero lastL2Block; skipping",
-			"batchIndex", candidate)
-		return
-	}
-	header, err := f.l2Client.HeaderByNumber(f.ctx, big.NewInt(int64(lastL2Block)))
-	if err != nil {
-		f.logger.Info("finalizer: read L2 header failed",
-			"batchIndex", candidate, "l2Block", lastL2Block, "err", err)
-		return
-	}
-	if header == nil {
+	// 4. Resolve candidate -> lastL2Block header via tagAdvancer's local map.
+	// Missing entry is expected during the catch-up window after restart
+	// (derivation hasn't re-verified that index yet) and resolves on the next
+	// tick once derivation walks past it.
+	header, ok := f.tagAdvancer.LookupVerifiedBatchHeader(candidate)
+	if !ok {
+		f.logger.Info("finalizer: verified batch header not found in local map; will retry",
+			"batchIndex", candidate, "verifiedMax", verifiedMax,
+			"maxCommittedAtFin", maxCommittedAtFin.Uint64())
 		return
 	}
 
 	f.tagAdvancer.advanceFinalized(f.ctx, candidate, header)
-}
-
-// lookupBatchLastL2Block resolves a batch index to its lastL2Block via the
-// rollup contract's BatchDataStore mapping (already populated for any
-// committed batch). This is the same data source blocktag.service used.
-func (f *finalizer) lookupBatchLastL2Block(batchIndex uint64) (uint64, error) {
-	bd, err := f.rollup.BatchDataStore(&bind.CallOpts{Context: f.ctx}, new(big.Int).SetUint64(batchIndex))
-	if err != nil {
-		return 0, err
-	}
-	if bd.BlockNumber == nil {
-		return 0, fmt.Errorf("batch %d has nil BlockNumber in BatchDataStore", batchIndex)
-	}
-	return bd.BlockNumber.Uint64(), nil
 }
