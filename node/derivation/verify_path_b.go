@@ -119,20 +119,31 @@ func verifyPathBContent(ctx context.Context, reader pathBBlockReader, metrics *M
 		totalL1MessagePopped = newTotal
 	}
 
-	// Pick V1 or V2 payload format based on batch version. V2 prepends the
-	// concatenated block contexts to the tx payload; V1 carries only txs.
-	// The chosen value is captured for diagnostics so a hash-mismatch log
-	// shows whether Path B took the V1 or V2 branch.
+	// Pick V1 or V2 blob payload format. The discriminator is the L1
+	// commitBatch ABI variant — NOT the BatchHeader version byte:
+	//
+	//   - Legacy ABI (BlockContexts in calldata) -> blob = TxsPayload (V1)
+	//   - New ABI (LastBlockNumber + NumL1Messages, no BlockContexts in
+	//     calldata) -> blob = TxsPayloadV2 (V2; blockContexts || txs at
+	//     blob head)
+	//
+	// Sequencer's createBatchHeader sets version byte from
+	// (isBatchUpgraded, isBatchV2Upgraded) while handleBatchSealing
+	// chooses encoding from (isBatchUpgraded, V2-fits-in-cap); during
+	// the V1->V2 transition window a single batch can have version=1 +
+	// V2 encoding. Path A already keys off `batch.BlockContexts != nil`
+	// (batch_info.go::ParseBatch); Path B mirrors that here via the
+	// `hasCalldataBlockContexts` flag set in ParseBatchMetadataOnly.
 	var (
 		payload        []byte
 		chosenEncoding string
 	)
-	if batchInfo.version >= 2 {
-		payload = bd.TxsPayloadV2()
-		chosenEncoding = "V2"
-	} else {
+	if batchInfo.hasCalldataBlockContexts {
 		payload = bd.TxsPayload()
 		chosenEncoding = "V1"
+	} else {
+		payload = bd.TxsPayloadV2()
+		chosenEncoding = "V2"
 	}
 
 	compressed, err := commonblob.CompressBatchBytes(payload)
@@ -191,6 +202,7 @@ func pathBFail(logger tmlog.Logger, metrics *Metrics, batchInfo *BatchInfo, kind
 		"kind", kind,
 		"batchIndex", batchInfo.batchIndex,
 		"version", batchInfo.version,
+		"hasCalldataBlockContexts", batchInfo.hasCalldataBlockContexts,
 		"firstBlock", batchInfo.firstBlockNumber,
 		"lastBlock", batchInfo.lastBlockNumber,
 		"parentTotalL1Popped", batchInfo.parentTotalL1MessagePopped,

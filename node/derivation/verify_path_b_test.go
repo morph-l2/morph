@@ -57,7 +57,13 @@ func makeEmptyL2Block(num uint64) *eth.Block {
 // verifyPathBContent against the supplied blocks and returns the versioned
 // hashes a real L1 commitBatch tx would have recorded for that batch. The
 // round-trip tests use this as the L1-side oracle.
-func rebuildExpectedBlobHashes(t *testing.T, blocks []*eth.Block, version, parentTotalL1Popped uint64, blobCount int) []common.Hash {
+//
+// useV2Encoding selects which payload format to compress:
+//   - true  -> TxsPayloadV2 (blockContexts || txs); matches new commitBatch
+//     ABI where BlockContexts is in the blob, not calldata.
+//   - false -> TxsPayload (txs only); matches legacy commitBatch ABI where
+//     BlockContexts is in calldata.
+func rebuildExpectedBlobHashes(t *testing.T, blocks []*eth.Block, useV2Encoding bool, parentTotalL1Popped uint64, blobCount int) []common.Hash {
 	t.Helper()
 
 	bd := commonbatch.NewBatchData()
@@ -73,7 +79,7 @@ func rebuildExpectedBlobHashes(t *testing.T, blocks []*eth.Block, version, paren
 	}
 
 	var payload []byte
-	if version >= 2 {
+	if useV2Encoding {
 		payload = bd.TxsPayloadV2()
 	} else {
 		payload = bd.TxsPayload()
@@ -90,9 +96,11 @@ func rebuildExpectedBlobHashes(t *testing.T, blocks []*eth.Block, version, paren
 	return sidecar.BlobHashes()
 }
 
-func TestPathB_RoundTripOK_V1(t *testing.T) {
+// TestPathB_RoundTripOK_LegacyABI exercises the V1 blob encoding (txs only;
+// BlockContexts in calldata) selected when hasCalldataBlockContexts is true.
+func TestPathB_RoundTripOK_LegacyABI(t *testing.T) {
 	blocks := []*eth.Block{makeEmptyL2Block(10), makeEmptyL2Block(11), makeEmptyL2Block(12)}
-	hashes := rebuildExpectedBlobHashes(t, blocks, 1, 0, 1)
+	hashes := rebuildExpectedBlobHashes(t, blocks, false /* V1 encoding */, 0, 1)
 
 	reader := &fakePathBBlockReader{blocks: map[uint64]*eth.Block{
 		10: blocks[0], 11: blocks[1], 12: blocks[2],
@@ -100,6 +108,7 @@ func TestPathB_RoundTripOK_V1(t *testing.T) {
 	bi := &BatchInfo{
 		batchIndex:                 7,
 		version:                    1,
+		hasCalldataBlockContexts:   true, // legacy ABI -> blob = TxsPayload
 		firstBlockNumber:           10,
 		lastBlockNumber:            12,
 		parentTotalL1MessagePopped: 0,
@@ -107,13 +116,16 @@ func TestPathB_RoundTripOK_V1(t *testing.T) {
 	}
 
 	if err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), bi); err != nil {
-		t.Fatalf("V1 round-trip failed: %v", err)
+		t.Fatalf("legacy-ABI / V1-encoding round-trip failed: %v", err)
 	}
 }
 
-func TestPathB_RoundTripOK_V2(t *testing.T) {
+// TestPathB_RoundTripOK_NewABI exercises the V2 blob encoding
+// (blockContexts || txs in blob; no BlockContexts in calldata) selected when
+// hasCalldataBlockContexts is false. version=2 is the post-V2-governance case.
+func TestPathB_RoundTripOK_NewABI(t *testing.T) {
 	blocks := []*eth.Block{makeEmptyL2Block(20), makeEmptyL2Block(21)}
-	hashes := rebuildExpectedBlobHashes(t, blocks, 2, 5, 1)
+	hashes := rebuildExpectedBlobHashes(t, blocks, true /* V2 encoding */, 5, 1)
 
 	reader := &fakePathBBlockReader{blocks: map[uint64]*eth.Block{
 		20: blocks[0], 21: blocks[1],
@@ -121,6 +133,7 @@ func TestPathB_RoundTripOK_V2(t *testing.T) {
 	bi := &BatchInfo{
 		batchIndex:                 8,
 		version:                    2,
+		hasCalldataBlockContexts:   false, // new ABI -> blob = TxsPayloadV2
 		firstBlockNumber:           20,
 		lastBlockNumber:            21,
 		parentTotalL1MessagePopped: 5,
@@ -128,13 +141,54 @@ func TestPathB_RoundTripOK_V2(t *testing.T) {
 	}
 
 	if err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), bi); err != nil {
-		t.Fatalf("V2 round-trip failed: %v", err)
+		t.Fatalf("new-ABI / V2-encoding round-trip failed: %v", err)
+	}
+}
+
+// TestPathB_VersionByte1_NewABI_UsesV2Encoding regression-tests the
+// production hash-mismatch QA hit on hoodi (commit txHash 0x763f5f76...,
+// batchIndex 17367):
+//
+//   - sequencer's tx-submitter passes nil isBatchUpgraded, defaulted to
+//     "always true" -> handleBatchSealing always tries V2 encoding first
+//     and uses it whenever the compressed payload fits in the seal cap
+//     (rollup.go:128, batch_cache.go:104, :787-829).
+//   - createBatchHeader sets the version byte from isBatchV2Upgraded;
+//     before that governance flag flips, the byte stays 1 even though
+//     the payload was V2-encoded (batch_cache.go:918-934).
+//   - The new commitBatch ABI does not carry BlockContexts in calldata
+//     (rollup.go:1128-1136), so blob payload MUST be V2-encoded for
+//     the chain history to be reconstructable.
+//
+// Path B must dispatch on the ABI flag (hasCalldataBlockContexts), not on
+// the version byte, or every transition-window batch fails.
+func TestPathB_VersionByte1_NewABI_UsesV2Encoding(t *testing.T) {
+	blocks := []*eth.Block{makeEmptyL2Block(30), makeEmptyL2Block(31), makeEmptyL2Block(32)}
+	// Sequencer encoded V2 even though version byte is 1.
+	hashes := rebuildExpectedBlobHashes(t, blocks, true /* V2 encoding */, 0, 1)
+
+	reader := &fakePathBBlockReader{blocks: map[uint64]*eth.Block{
+		30: blocks[0], 31: blocks[1], 32: blocks[2],
+	}}
+	bi := &BatchInfo{
+		batchIndex:                 17367,
+		version:                    1,     // BatchHeader byte; isBatchV2Upgraded not yet flipped.
+		hasCalldataBlockContexts:   false, // new ABI in use -> blob = TxsPayloadV2.
+		firstBlockNumber:           30,
+		lastBlockNumber:            32,
+		parentTotalL1MessagePopped: 0,
+		blobHashes:                 hashes,
+	}
+
+	if err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), bi); err != nil {
+		t.Fatalf("Path B must dispatch on hasCalldataBlockContexts (not version) for "+
+			"version=1 + new ABI batches; got: %v", err)
 	}
 }
 
 func TestPathB_VersionedHashMismatch(t *testing.T) {
 	blocks := []*eth.Block{makeEmptyL2Block(10)}
-	hashes := rebuildExpectedBlobHashes(t, blocks, 1, 0, 1)
+	hashes := rebuildExpectedBlobHashes(t, blocks, false /* V1 encoding */, 0, 1)
 	// Flip a single byte so the rebuilt hash cannot possibly match.
 	tampered := make([]common.Hash, len(hashes))
 	copy(tampered, hashes)
@@ -144,6 +198,7 @@ func TestPathB_VersionedHashMismatch(t *testing.T) {
 	bi := &BatchInfo{
 		batchIndex:                 9,
 		version:                    1,
+		hasCalldataBlockContexts:   true,
 		firstBlockNumber:           10,
 		lastBlockNumber:            10,
 		parentTotalL1MessagePopped: 0,
@@ -163,12 +218,13 @@ func TestPathB_LocalBlockMissing(t *testing.T) {
 	// Pre-build hashes that match a 2-block batch, then deliberately omit
 	// block 11 from the reader so verifyPathBContent observes it as nil.
 	blocks := []*eth.Block{makeEmptyL2Block(10), makeEmptyL2Block(11)}
-	hashes := rebuildExpectedBlobHashes(t, blocks, 1, 0, 1)
+	hashes := rebuildExpectedBlobHashes(t, blocks, false /* V1 encoding */, 0, 1)
 
 	reader := &fakePathBBlockReader{blocks: map[uint64]*eth.Block{10: blocks[0]}}
 	bi := &BatchInfo{
 		batchIndex:                 11,
 		version:                    1,
+		hasCalldataBlockContexts:   true,
 		firstBlockNumber:           10,
 		lastBlockNumber:            11,
 		parentTotalL1MessagePopped: 0,
@@ -186,18 +242,19 @@ func TestPathB_LocalBlockMissing(t *testing.T) {
 
 func TestPathB_LocalBlockReadError(t *testing.T) {
 	blocks := []*eth.Block{makeEmptyL2Block(10)}
-	hashes := rebuildExpectedBlobHashes(t, blocks, 1, 0, 1)
+	hashes := rebuildExpectedBlobHashes(t, blocks, false /* V1 encoding */, 0, 1)
 
 	reader := &fakePathBBlockReader{
 		blocks: map[uint64]*eth.Block{10: blocks[0]},
 		errs:   map[uint64]error{10: errors.New("rpc down")},
 	}
 	bi := &BatchInfo{
-		batchIndex:       12,
-		version:          1,
-		firstBlockNumber: 10,
-		lastBlockNumber:  10,
-		blobHashes:       hashes,
+		batchIndex:               12,
+		version:                  1,
+		hasCalldataBlockContexts: true,
+		firstBlockNumber:         10,
+		lastBlockNumber:          10,
+		blobHashes:               hashes,
 	}
 
 	err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), bi)

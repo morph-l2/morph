@@ -64,6 +64,23 @@ type BatchInfo struct {
 	// declared by the L1 commitBatch tx. Path B uses this to compare
 	// against locally-rebuilt versioned hashes (SPEC-005 section 4).
 	blobHashes []common.Hash
+
+	// hasCalldataBlockContexts records whether the L1 commitBatch tx
+	// carried BlockContexts in calldata (legacy ABI) versus relying on
+	// the blob payload to encode them at the head (new ABI with
+	// LastBlockNumber + NumL1Messages). This is the only correct
+	// discriminator for Path B's blob payload format:
+	//   - true  -> blob = TxsPayload (V1 encoding, txs only)
+	//   - false -> blob = TxsPayloadV2 (V2 encoding, blockContexts || txs)
+	// `batch.Version` byte is NOT a valid discriminator because the
+	// sequencer's createBatchHeader sets it from
+	// (isBatchUpgraded, isBatchV2Upgraded) while handleBatchSealing
+	// chooses encoding from (isBatchUpgraded, V2-fits-in-cap), so
+	// version=1 batches frequently carry V2-encoded blobs in the
+	// V1->V2 transition window. Path A already keys off
+	// `batch.BlockContexts != nil` (see ParseBatch); Path B mirrors
+	// that with this flag.
+	hasCalldataBlockContexts bool
 }
 
 func (bi *BatchInfo) FirstBlockNumber() uint64 {
@@ -108,6 +125,12 @@ func (bi *BatchInfo) ParseBatchMetadataOnly(batch geth.RPCRollupBatch) error {
 	bi.withdrawalRoot = batch.WithdrawRoot
 	bi.version = uint64(batch.Version)
 	bi.lastBlockNumber = batch.LastBlockNumber
+	// New commitBatch ABI (rollupABI / commitBatchWithProof) leaves
+	// batch.BlockContexts nil; legacy ABIs (beforeMoveBlockCtxABI,
+	// legacyRollupABI) populate it from calldata. UnPackData reflects this
+	// directly. See the field doc on BatchInfo for why version byte cannot
+	// be used here.
+	bi.hasCalldataBlockContexts = len(batch.BlockContexts) > 0
 
 	// Derive firstBlockNumber from parent batch's LastBlockNumber + 1.
 	// V0 -> V1 transition leaves parent LastBlockNumber unset; in that
