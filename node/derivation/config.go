@@ -38,11 +38,6 @@ const (
 	// DefaultVerifyMode is Path A (pull beacon blob, decode, derive, verify).
 	DefaultVerifyMode = VerifyModePathA
 
-	// DefaultFinalizerInterval is the polling cadence for the SPEC-005 section 4.7.4
-	// finalizer subcomponent that walks L1 finalized -> Rollup.LastCommittedBatchIndex.
-	// 30s is roughly an L1 epoch; cheap relative to derivation's main poll loop.
-	DefaultFinalizerInterval = 30 * time.Second
-
 	// DefaultReorgCheckDepth is the number of recent L1 blocks to check for
 	// reorgs in SPEC-005 §4.7.6 detection. 64 covers the post-Merge "finality
 	// distance" rule of thumb and provides safety margin if Confirmations is
@@ -76,7 +71,6 @@ type Config struct {
 	LogProgressInterval   time.Duration   `json:"log_progress_interval"`
 	FetchBlockRange       uint64          `json:"fetch_block_range"`
 	VerifyMode            string          `json:"verify_mode"`
-	FinalizerInterval     time.Duration   `json:"finalizer_interval"`
 	ReorgCheckDepth       uint64          `json:"reorg_check_depth"`
 	MetricsPort           uint64          `json:"metrics_port"`
 	MetricsHostname       string          `json:"metrics_hostname"`
@@ -101,7 +95,6 @@ func DefaultConfig() *Config {
 		LogProgressInterval: DefaultLogProgressInterval,
 		FetchBlockRange:     DefaultFetchBlockRange,
 		VerifyMode:          DefaultVerifyMode,
-		FinalizerInterval:   DefaultFinalizerInterval,
 		ReorgCheckDepth:     DefaultReorgCheckDepth,
 		L2:                  new(types.L2Config),
 	}
@@ -167,16 +160,6 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		return err
 	}
 	c.VerifyMode = normalized
-
-	if ctx.GlobalIsSet(flags.DerivationFinalizerInterval.Name) {
-		c.FinalizerInterval = ctx.GlobalDuration(flags.DerivationFinalizerInterval.Name)
-		if c.FinalizerInterval <= 0 {
-			return errors.New("invalid finalizerInterval")
-		}
-	}
-	if c.FinalizerInterval == 0 {
-		c.FinalizerInterval = DefaultFinalizerInterval
-	}
 
 	if ctx.GlobalIsSet(flags.DerivationReorgCheckDepth.Name) {
 		c.ReorgCheckDepth = ctx.GlobalUint64(flags.DerivationReorgCheckDepth.Name)

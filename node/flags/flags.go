@@ -246,13 +246,6 @@ var (
 		Value:  "pathA",
 	}
 
-	DerivationFinalizerInterval = cli.DurationFlag{
-		Name:   "derivation.finalizer-interval",
-		Usage:  "Polling cadence for the SPEC-005 finalizer subcomponent (queries L1 finalized -> Rollup.LastCommittedBatchIndex). Default 30s.",
-		EnvVar: prefixEnvVar("DERIVATION_FINALIZER_INTERVAL"),
-		Value:  30 * time.Second,
-	}
-
 	DerivationReorgCheckDepth = cli.Uint64Flag{
 		Name:   "derivation.reorg-check-depth",
 		Usage:  "Number of recent L1 blocks to check for reorgs (SPEC-005 §4.7.6). The scan is a no-op when --derivation.confirmations=finalized (L1 finalized doesn't reorg) and load-bearing when set lower; the gate is intentionally absent so behaviour is uniform across configs. Default 64.",
@@ -354,7 +347,6 @@ var Flags = []cli.Flag{
 	DerivationFetchBlockRange,
 	DerivationConfirmations,
 	DerivationVerifyMode,
-	DerivationFinalizerInterval,
 	DerivationReorgCheckDepth,
 	L1BeaconAddr,
 

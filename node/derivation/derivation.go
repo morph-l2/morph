@@ -61,11 +61,9 @@ type Derivation struct {
 	pollInterval        time.Duration
 	logProgressInterval time.Duration
 	verifyMode          string // SPEC-005 section 4.2: "pathA" (default) or "pathB"; bound at startup, never switches.
-	finalizerInterval   time.Duration
 	reorgCheckDepth     uint64 // SPEC-005 section 4.7.6: how far back to scan for L1 hash divergence each poll.
 
 	tagAdvancer *tagAdvancer
-	finalizer   *finalizer
 
 	stop chan struct{}
 }
@@ -124,7 +122,6 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 
 	l2Client := types.NewRetryableClient(aClient, eClient, logger)
 	tagAdv := newTagAdvancer(l2Client, metrics, logger)
-	fin := newFinalizer(ctx, cfg.FinalizerInterval, l1Client, l2Client, rollup, tagAdv, logger)
 
 	return &Derivation{
 		ctx:                   ctx,
@@ -147,10 +144,8 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		pollInterval:          cfg.PollInterval,
 		logProgressInterval:   cfg.LogProgressInterval,
 		verifyMode:            cfg.VerifyMode,
-		finalizerInterval:     cfg.FinalizerInterval,
 		reorgCheckDepth:       cfg.ReorgCheckDepth,
 		tagAdvancer:           tagAdv,
-		finalizer:             fin,
 		metrics:               metrics,
 		l1BeaconClient:        l1BeaconClient,
 		L2ToL1MessagePasser:   msgPasser,
@@ -158,12 +153,11 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 }
 
 func (d *Derivation) Start() {
-	// finalizer subcomponent -- SPEC-005 section 4.7.4. Runs in its own goroutine so
-	// L1-finalized polling does not block the derivation main loop's batch
-	// verification cadence.
-	go d.finalizer.run()
-
-	// block node startup during initial sync and print some helpful logs
+	// Single-goroutine design: the SPEC-005 finalizer step runs at the end
+	// of each derivationBlock iteration (see finalizer.go::finalizerTick).
+	// Folded into the main loop so the cursor-rewind recovery paths
+	// (handleL1Reorg + finalizerTick canonicality fail) don't race with
+	// each other on the L1 cursor / tagAdvancer.
 	go func() {
 		d.syncer.Start()
 		t := time.NewTicker(d.pollInterval)
@@ -172,6 +166,7 @@ func (d *Derivation) Start() {
 		for {
 			// don't wait for ticker during startup
 			d.derivationBlock(d.ctx)
+			d.finalizerTick()
 
 			select {
 			case <-d.ctx.Done():
@@ -196,9 +191,6 @@ func (d *Derivation) Stop() {
 		d.cancel()
 	}
 	<-d.stop
-	if d.finalizer != nil {
-		<-d.finalizer.stopped // join finalizer per SPEC-005 section 4.7.4 lifecycle contract
-	}
 	d.logger.Info("derivation service is stopped")
 }
 

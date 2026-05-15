@@ -90,37 +90,50 @@ func (d *Derivation) detectReorg(ctx context.Context) (*uint64, error) {
 	return nil, nil
 }
 
-// handleL1Reorg responds to a reorg detected at the given L1 height. It only
-// cleans up derivation DB state (saved L1 hashes + cursor) and resets the
-// tag advancer so the finalizer's canonicality check forces re-verification
-// before advancing finalized again.
-//
-// L2 chain rollback is intentionally NOT performed here -- the same commit
-// tx typically gets re-included in the new L1 chain with identical content,
-// so L2 blocks remain valid. If they don't, verifyBatchRoots in the next
-// poll will catch the mismatch.
+// handleL1Reorg responds to a reorg detected at the given L1 height. It is a
+// thin wrapper around rewindAndReset chosen so the call site reads as the
+// reorg-handling phase of derivationBlock.
 func (d *Derivation) handleL1Reorg(reorgAtL1Height uint64) error {
 	d.logger.Info("L1 reorg detected, cleaning DB records and restarting derivation from reorg point",
 		"reorgAtL1Height", reorgAtL1Height)
+	d.rewindAndReset(reorgAtL1Height)
+	return nil
+}
 
-	d.db.DeleteDerivationL1BlocksFrom(reorgAtL1Height)
-
-	if reorgAtL1Height > d.startHeight {
-		d.db.WriteLatestDerivationL1Height(reorgAtL1Height - 1)
-	} else {
-		// Reorg at or before startHeight -- reset so next loop starts from
-		// startHeight.
-		if d.startHeight > 0 {
-			d.db.WriteLatestDerivationL1Height(d.startHeight - 1)
-		} else {
-			d.db.WriteLatestDerivationL1Height(0)
-		}
+// rewindAndReset rewinds the derivation L1 cursor to (rewindToL1Height - 1),
+// clears any saved L1 block hashes at or above rewindToL1Height, and resets
+// the tag advancer's safe head. Used by:
+//
+//   - handleL1Reorg, after detectReorg finds an L1 hash divergence
+//   - finalizer's canonicality check, when the local L2 client's safe block
+//     hash no longer matches what tagAdvancer recorded
+//
+// Both situations are recovered by the same op-stack-style "reset to a known
+// good parent and re-derive forward" pattern: the next derivationBlock poll
+// re-fetches L1 commit batch logs from the rewound cursor, re-runs Path A or
+// Path B verification, and re-populates safe via advanceSafe. Persistent
+// problems surface naturally when verifyBatchRoots fails on re-derivation.
+//
+// L2 chain rollback is intentionally NOT performed here -- the same commit
+// tx typically gets re-included with identical content, so L2 blocks remain
+// valid. If they don't, derivation halts at the offending batch with an
+// error log, requiring operator intervention (SPEC-005 §3 non-goal).
+//
+// finalized is intentionally NOT cleared -- L1 finalized is monotonic, so
+// the previous finalized value remains valid.
+func (d *Derivation) rewindAndReset(rewindToL1Height uint64) {
+	if rewindToL1Height < d.startHeight {
+		rewindToL1Height = d.startHeight
 	}
 
-	// Clear safe head; derivation will re-verify from the rewound cursor and
-	// re-call advanceSafe with the now-canonical headers. finalized is
-	// intentionally NOT cleared -- L1 finalized is monotonic, so the
-	// previous finalized value remains valid.
+	d.db.DeleteDerivationL1BlocksFrom(rewindToL1Height)
+
+	if rewindToL1Height > 0 {
+		d.db.WriteLatestDerivationL1Height(rewindToL1Height - 1)
+	} else {
+		d.db.WriteLatestDerivationL1Height(0)
+	}
+
 	if d.tagAdvancer != nil {
 		safeMax := d.tagAdvancer.SafeMaxBatchIndex()
 		if safeMax > 0 {
@@ -129,8 +142,6 @@ func (d *Derivation) handleL1Reorg(reorgAtL1Height uint64) error {
 			d.tagAdvancer.reset(0)
 		}
 	}
-
-	return nil
 }
 
 // recordL1Blocks saves L1 block hashes for reorg detection, called at the

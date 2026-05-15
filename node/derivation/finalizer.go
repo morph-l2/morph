@@ -1,24 +1,21 @@
 package derivation
 
 import (
-	"context"
 	"math/big"
-	"time"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/rpc"
-	tmlog "github.com/tendermint/tendermint/libs/log"
-
-	"morph-l2/bindings/bindings"
-	"morph-l2/node/types"
 )
 
-// finalizer is the SPEC-005 section 4.7.4 finalized-head subcomponent. It runs
-// as an in-process goroutine inside Derivation (not a standalone service):
-// each tick it computes the new finalized L2 head from L1 state and the
-// local safe head, then forwards to tagAdvancer.advanceFinalized.
+// SPEC-005 §4.7.4 finalized-head tick.
+//
+// Originally a separate goroutine (with its own ticker / stopped channel),
+// folded into the derivation main loop because the only justification for
+// a separate goroutine was "L1 RPC could be slow" -- which was already true
+// for the main loop's eth_getLogs / eth_getTransactionByHash calls, so the
+// extra goroutine bought nothing and introduced cross-goroutine state writes
+// (cursor / tagAdvancer) that complicated the canonicality recovery path.
 //
 // The lookup is intentionally driven by L2 block numbers (not batch
 // indices) so it doesn't depend on Rollup.BatchDataStore being populated
@@ -33,67 +30,13 @@ import (
 // reliable, and from there the math becomes a number comparison against
 // the local safe head.
 //
-// Cheap: 1 L1 RPC + 2 L1 contract calls + 1 L2 RPC per tick (default 30s).
+// Cost: 1 L1 RPC + 2 L1 contract calls + 1 L2 RPC per main-loop poll.
 // Plus 1 L2 RPC for the rare "local verified beyond L1 finalized" branch.
-type finalizer struct {
-	ctx      context.Context
-	interval time.Duration
-	logger   tmlog.Logger
-
-	l1Client    *ethclient.Client
-	l2Client    *types.RetryableClient
-	rollup      *bindings.Rollup
-	tagAdvancer *tagAdvancer
-
-	stopped chan struct{}
-}
-
-func newFinalizer(
-	ctx context.Context,
-	interval time.Duration,
-	l1Client *ethclient.Client,
-	l2Client *types.RetryableClient,
-	rollup *bindings.Rollup,
-	tagAdv *tagAdvancer,
-	logger tmlog.Logger,
-) *finalizer {
-	return &finalizer{
-		ctx:         ctx,
-		interval:    interval,
-		l1Client:    l1Client,
-		l2Client:    l2Client,
-		rollup:      rollup,
-		tagAdvancer: tagAdv,
-		logger:      logger.With("component", "finalizer"),
-		stopped:     make(chan struct{}),
-	}
-}
-
-func (f *finalizer) run() {
-	defer close(f.stopped)
-
-	t := time.NewTicker(f.interval)
-	defer t.Stop()
-
-	// Run once immediately so the first tag flush doesn't wait a full
-	// interval after startup; matches blocktag's `initialize()` behavior.
-	f.tick()
-
-	for {
-		select {
-		case <-f.ctx.Done():
-			return
-		case <-t.C:
-			f.tick()
-		}
-	}
-}
-
-func (f *finalizer) tick() {
+func (d *Derivation) finalizerTick() {
 	// 1. Resolve the L1 finalized header.
-	finHeader, err := f.l1Client.HeaderByNumber(f.ctx, big.NewInt(int64(rpc.FinalizedBlockNumber)))
+	finHeader, err := d.l1Client.HeaderByNumber(d.ctx, big.NewInt(int64(rpc.FinalizedBlockNumber)))
 	if err != nil {
-		f.logger.Info("finalizer: read L1 finalized header failed", "err", err)
+		d.logger.Info("finalizer: read L1 finalized header failed", "err", err)
 		return
 	}
 	if finHeader == nil {
@@ -109,12 +52,12 @@ func (f *finalizer) tick() {
 	// for both calls is what makes the lookup reliable.
 	callOpts := &bind.CallOpts{
 		BlockNumber: finHeader.Number,
-		Context:     f.ctx,
+		Context:     d.ctx,
 	}
 
-	committedAtFin, err := f.rollup.LastCommittedBatchIndex(callOpts)
+	committedAtFin, err := d.rollup.LastCommittedBatchIndex(callOpts)
 	if err != nil {
-		f.logger.Info("finalizer: query LastCommittedBatchIndex@finalized failed",
+		d.logger.Info("finalizer: query LastCommittedBatchIndex@finalized failed",
 			"l1Block", finHeader.Number.Uint64(), "err", err)
 		return
 	}
@@ -123,9 +66,9 @@ func (f *finalizer) tick() {
 		return
 	}
 
-	bd, err := f.rollup.BatchDataStore(callOpts, committedAtFin)
+	bd, err := d.rollup.BatchDataStore(callOpts, committedAtFin)
 	if err != nil {
-		f.logger.Info("finalizer: query BatchDataStore@finalized failed",
+		d.logger.Info("finalizer: query BatchDataStore@finalized failed",
 			"l1Block", finHeader.Number.Uint64(), "batchIndex", committedAtFin.Uint64(), "err", err)
 		return
 	}
@@ -133,7 +76,7 @@ func (f *finalizer) tick() {
 		// Shouldn't happen for the latest committed batch at L1 finalized
 		// (see comment above). If it does, log and skip rather than risk
 		// finalizing genesis.
-		f.logger.Info("finalizer: BatchDataStore[committedAtFin]@finalized has zero blockNumber; skipping",
+		d.logger.Info("finalizer: BatchDataStore[committedAtFin]@finalized has zero blockNumber; skipping",
 			"l1Block", finHeader.Number.Uint64(), "batchIndex", committedAtFin.Uint64())
 		return
 	}
@@ -141,24 +84,22 @@ func (f *finalizer) tick() {
 
 	// 3. Read local safe head. If derivation hasn't verified anything
 	// since process start, there's nothing to anchor finalized to.
-	safeHash, safeNum := f.tagAdvancer.Safe()
+	safeHash, safeNum := d.tagAdvancer.Safe()
 	if safeNum == 0 {
 		return
 	}
 
 	// 4. Defensive canonicality check. Re-read the L2 client's header at
-	// safeNum and verify it still matches safeHash. This catches:
+	// safeNum and verify it still matches safeHash. On mismatch we rewind
+	// the derivation cursor (op-stack-style "reset to a known good parent
+	// and re-derive forward" -- shared with the L1 reorg recovery path
+	// via rewindAndReset). This catches:
 	//   - L2 client state divergence (rare; would surface other bugs too)
-	//   - L1 reorg propagation when Confirmations < finalized (currently
-	//     not the default, but is configurable; once L1 reorg detection
-	//     lands and Confirmations is upgraded, this check is the first
-	//     line of defense between advanceSafe and the next L1-reorg reset)
-	// On mismatch we don't advance finalized AND we reset the tag
-	// advancer's safe state so derivation re-verifies before we trust it
-	// again.
-	safeHdr, err := f.l2Client.HeaderByNumber(f.ctx, big.NewInt(int64(safeNum)))
+	//   - L1 reorg propagation that detectReorg missed (race or bug in the
+	//     reorg detection window)
+	safeHdr, err := d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(safeNum)))
 	if err != nil {
-		f.logger.Info("finalizer: read local L2 safe header failed; skipping advance",
+		d.logger.Info("finalizer: read local L2 safe header failed; skipping advance",
 			"safeNumber", safeNum, "err", err)
 		return
 	}
@@ -167,30 +108,37 @@ func (f *finalizer) tick() {
 		if safeHdr != nil {
 			actualHash = safeHdr.Hash().Hex()
 		}
-		f.logger.Error("finalizer: local safe head no longer canonical; skipping advance and resetting tag advancer",
+		// Rewind by reorgCheckDepth from the current cursor so the next
+		// derivationBlock poll re-fetches recent batches and re-verifies.
+		// Persistent breakage will resurface as verifyBatchRoots failure on
+		// re-derivation; transient state-client weirdness self-heals.
+		var rewindTo uint64
+		if cur := d.db.ReadLatestDerivationL1Height(); cur != nil {
+			if *cur > d.reorgCheckDepth {
+				rewindTo = *cur - d.reorgCheckDepth
+			} else {
+				rewindTo = d.startHeight
+			}
+		} else {
+			rewindTo = d.startHeight
+		}
+		d.logger.Error("finalizer: local safe head no longer canonical; rewinding cursor and resetting tag advancer",
 			"safeNumber", safeNum,
 			"expected", safeHash.Hex(),
-			"actual", actualHash)
-		// Reset back to one batch before the current safe; derivation will
-		// re-verify and re-call advanceSafe with the now-canonical header.
-		safeMaxBatch := f.tagAdvancer.SafeMaxBatchIndex()
-		if safeMaxBatch > 0 {
-			f.tagAdvancer.reset(safeMaxBatch - 1)
-		} else {
-			f.tagAdvancer.reset(0)
-		}
+			"actual", actualHash,
+			"rewindTo", rewindTo)
+		d.rewindAndReset(rewindTo)
 		return
 	}
 
 	// 5. Decide which side to anchor finalized to.
 	//
-	// In the common case (steady-state operation with default
-	// Confirmations=finalized), L1FinalizedLastBlock >= safeNum because
-	// derivation only walks L1-finalized commits and verifies them
-	// in-order; both sides advance together with safe trailing slightly.
-	// We anchor finalized to the local safe head -- no extra L2 RPC
-	// needed, and finalized exactly tracks "what the local node has
-	// verified".
+	// In the common case (steady-state operation), L1FinalizedLastBlock >=
+	// safeNum because derivation only walks L1-finalized commits and
+	// verifies them in-order; both sides advance together with safe
+	// trailing slightly. We anchor finalized to the local safe head -- no
+	// extra L2 RPC needed, and finalized exactly tracks "what the local
+	// node has verified".
 	//
 	// The other branch (safeNum > L1FinalizedLastBlock) only fires if
 	// derivation runs ahead of L1 finalized -- e.g. operator set
@@ -200,21 +148,21 @@ func (f *finalizer) tick() {
 	// (we know that block exists locally because L1FinalizedLastBlock <
 	// safeNum and we verified up to safeNum).
 	if l1FinalizedLastBlock >= safeNum {
-		f.tagAdvancer.advanceFinalized(f.ctx, committedAtFin.Uint64(), safeHash, safeNum)
+		d.tagAdvancer.advanceFinalized(d.ctx, committedAtFin.Uint64(), safeHash, safeNum)
 		return
 	}
 
-	finalizedHdr, err := f.l2Client.HeaderByNumber(f.ctx, big.NewInt(int64(l1FinalizedLastBlock)))
+	finalizedHdr, err := d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(l1FinalizedLastBlock)))
 	if err != nil {
-		f.logger.Info("finalizer: read L2 header at L1FinalizedLastBlock failed",
+		d.logger.Info("finalizer: read L2 header at L1FinalizedLastBlock failed",
 			"l2Block", l1FinalizedLastBlock, "err", err)
 		return
 	}
 	if finalizedHdr == nil {
-		f.logger.Info("finalizer: L2 header at L1FinalizedLastBlock missing locally; skipping",
+		d.logger.Info("finalizer: L2 header at L1FinalizedLastBlock missing locally; skipping",
 			"l2Block", l1FinalizedLastBlock)
 		return
 	}
 
-	f.tagAdvancer.advanceFinalized(f.ctx, committedAtFin.Uint64(), finalizedHdr.Hash(), l1FinalizedLastBlock)
+	d.tagAdvancer.advanceFinalized(d.ctx, committedAtFin.Uint64(), finalizedHdr.Hash(), l1FinalizedLastBlock)
 }
