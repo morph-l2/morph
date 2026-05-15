@@ -129,7 +129,8 @@ func TestTagAdvance_InvariantFinalizedGtSafe_Skips(t *testing.T) {
 	// reset the call recorder so we only inspect the finalized call.
 	fake.calls = nil
 
-	tagAdv.advanceFinalized(context.Background(), 6, headerAt(80, 'b'))
+	finHdr := headerAt(80, 'b')
+	tagAdv.advanceFinalized(context.Background(), 6, finHdr.Hash(), finHdr.Number.Uint64())
 
 	if len(fake.calls) != 0 {
 		t.Fatalf("expected SetBlockTags skipped on finalized > safe; got %d calls", len(fake.calls))
@@ -141,14 +142,16 @@ func TestTagAdvance_FinalizedMonotonic(t *testing.T) {
 	tagAdv.advanceSafe(context.Background(), 10, headerAt(120, 'a'))
 	fake.calls = nil
 
-	tagAdv.advanceFinalized(context.Background(), 8, headerAt(100, 'b'))
+	finHdr1 := headerAt(100, 'b')
+	tagAdv.advanceFinalized(context.Background(), 8, finHdr1.Hash(), finHdr1.Number.Uint64())
 	if got := tagAdv.finalizedL2Number; got != 100 {
 		t.Fatalf("finalized first advance: got %d, want 100", got)
 	}
 
 	// Second advance with smaller number should be ignored.
 	prevHash := tagAdv.finalizedL2Hash
-	tagAdv.advanceFinalized(context.Background(), 7, headerAt(80, 'c'))
+	finHdr2 := headerAt(80, 'c')
+	tagAdv.advanceFinalized(context.Background(), 7, finHdr2.Hash(), finHdr2.Number.Uint64())
 	if tagAdv.finalizedL2Number != 100 || tagAdv.finalizedL2Hash != prevHash {
 		t.Fatalf("finalized regressed: number=%d, hash unchanged=%v",
 			tagAdv.finalizedL2Number, tagAdv.finalizedL2Hash == prevHash)
@@ -186,69 +189,22 @@ func TestTagAdvance_BlockNumberError_SkipsFlush(t *testing.T) {
 	}
 }
 
-// TestTagAdvance_VerifiedBatchLookup covers the SPEC-005 finalizer hand-off:
-// advanceSafe records (batchIndex -> header) so the finalizer can resolve a
-// candidate without going through Rollup.BatchDataStore (which the contract
-// clears for older batches).
-func TestTagAdvance_VerifiedBatchLookup(t *testing.T) {
+// TestTagAdvance_SafeGetter covers the snapshot returned to the finalizer.
+// The finalizer reads (hash, number) atomically under the tagAdvancer mutex
+// to decide whether to anchor finalized to the local safe head or to the
+// L1-finalized batch's lastL2Block.
+func TestTagAdvance_SafeGetter(t *testing.T) {
 	tagAdv, _, _ := newTestTagAdvancer(t, 1000)
 
-	if _, ok := tagAdv.LookupVerifiedBatchHeader(7); ok {
-		t.Fatal("expected miss before any advanceSafe")
+	if hash, num := tagAdv.Safe(); num != 0 || hash != (common.Hash{}) {
+		t.Fatalf("expected zero safe before any advance; got (hash=%s, num=%d)", hash.Hex(), num)
 	}
 
 	hdr := headerAt(50, 'a')
 	tagAdv.advanceSafe(context.Background(), 7, hdr)
 
-	got, ok := tagAdv.LookupVerifiedBatchHeader(7)
-	if !ok {
-		t.Fatal("expected hit after advanceSafe; got miss")
-	}
-	if got.Hash() != hdr.Hash() {
-		t.Fatalf("LookupVerifiedBatchHeader returned wrong header (got hash %s, want %s)", got.Hash().Hex(), hdr.Hash().Hex())
-	}
-}
-
-// TestTagAdvance_VerifiedBatchEvictedOnFinalize asserts that a successful
-// advanceFinalized drops verified-batch entries at or below the new finalized
-// index, keeping the map bounded by the safe-vs-finalized lag.
-func TestTagAdvance_VerifiedBatchEvictedOnFinalize(t *testing.T) {
-	tagAdv, _, _ := newTestTagAdvancer(t, 1000)
-
-	tagAdv.advanceSafe(context.Background(), 5, headerAt(100, 'a'))
-	tagAdv.advanceSafe(context.Background(), 6, headerAt(110, 'b'))
-	tagAdv.advanceSafe(context.Background(), 7, headerAt(120, 'c'))
-
-	// Finalize batch 6 -> entries 5 and 6 should be evicted, 7 retained.
-	tagAdv.advanceFinalized(context.Background(), 6, headerAt(110, 'b'))
-
-	if _, ok := tagAdv.LookupVerifiedBatchHeader(5); ok {
-		t.Fatal("entry 5 should be evicted by advanceFinalized(6)")
-	}
-	if _, ok := tagAdv.LookupVerifiedBatchHeader(6); ok {
-		t.Fatal("entry 6 should be evicted by advanceFinalized(6)")
-	}
-	if _, ok := tagAdv.LookupVerifiedBatchHeader(7); !ok {
-		t.Fatal("entry 7 should be retained after advanceFinalized(6)")
-	}
-}
-
-// TestTagAdvance_VerifiedBatchClearedOnReset asserts that an L1 reorg reset
-// drops the entire verified-batch map: entries recorded before the reset are
-// no longer authoritative against the new L1 view, and derivation will refill
-// the map as it walks the rewound cursor.
-func TestTagAdvance_VerifiedBatchClearedOnReset(t *testing.T) {
-	tagAdv, _, _ := newTestTagAdvancer(t, 1000)
-
-	tagAdv.advanceSafe(context.Background(), 5, headerAt(100, 'a'))
-	tagAdv.advanceSafe(context.Background(), 6, headerAt(110, 'b'))
-
-	tagAdv.reset(4)
-
-	if _, ok := tagAdv.LookupVerifiedBatchHeader(5); ok {
-		t.Fatal("entry 5 should be cleared by reset")
-	}
-	if _, ok := tagAdv.LookupVerifiedBatchHeader(6); ok {
-		t.Fatal("entry 6 should be cleared by reset")
+	hash, num := tagAdv.Safe()
+	if num != 50 || hash != hdr.Hash() {
+		t.Fatalf("Safe() got (hash=%s, num=%d), want (hash=%s, num=50)", hash.Hex(), num, hdr.Hash().Hex())
 	}
 }
