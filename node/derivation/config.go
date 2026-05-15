@@ -42,6 +42,12 @@ const (
 	// finalizer subcomponent that walks L1 finalized -> Rollup.LastCommittedBatchIndex.
 	// 30s is roughly an L1 epoch; cheap relative to derivation's main poll loop.
 	DefaultFinalizerInterval = 30 * time.Second
+
+	// DefaultReorgCheckDepth is the number of recent L1 blocks to check for
+	// reorgs in SPEC-005 §4.7.6 detection. 64 covers the post-Merge "finality
+	// distance" rule of thumb and provides safety margin if Confirmations is
+	// configured below finalized.
+	DefaultReorgCheckDepth = uint64(64)
 )
 
 // validateAndDefaultVerifyMode normalises an empty VerifyMode to the default
@@ -71,6 +77,7 @@ type Config struct {
 	FetchBlockRange       uint64          `json:"fetch_block_range"`
 	VerifyMode            string          `json:"verify_mode"`
 	FinalizerInterval     time.Duration   `json:"finalizer_interval"`
+	ReorgCheckDepth       uint64          `json:"reorg_check_depth"`
 	MetricsPort           uint64          `json:"metrics_port"`
 	MetricsHostname       string          `json:"metrics_hostname"`
 	MetricsServerEnable   bool            `json:"metrics_server_enable"`
@@ -86,6 +93,7 @@ func DefaultConfig() *Config {
 		FetchBlockRange:     DefaultFetchBlockRange,
 		VerifyMode:          DefaultVerifyMode,
 		FinalizerInterval:   DefaultFinalizerInterval,
+		ReorgCheckDepth:     DefaultReorgCheckDepth,
 		L2:                  new(types.L2Config),
 	}
 }
@@ -159,6 +167,13 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	}
 	if c.FinalizerInterval == 0 {
 		c.FinalizerInterval = DefaultFinalizerInterval
+	}
+
+	if ctx.GlobalIsSet(flags.DerivationReorgCheckDepth.Name) {
+		c.ReorgCheckDepth = ctx.GlobalUint64(flags.DerivationReorgCheckDepth.Name)
+	}
+	if c.ReorgCheckDepth == 0 {
+		c.ReorgCheckDepth = DefaultReorgCheckDepth
 	}
 
 	l2EthAddr := ctx.GlobalString(flags.L2EthAddr.Name)

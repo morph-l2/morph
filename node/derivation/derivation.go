@@ -62,6 +62,7 @@ type Derivation struct {
 	logProgressInterval time.Duration
 	verifyMode          string // SPEC-005 section 4.2: "pathA" (default) or "pathB"; bound at startup, never switches.
 	finalizerInterval   time.Duration
+	reorgCheckDepth     uint64 // SPEC-005 section 4.7.6: how far back to scan for L1 hash divergence each poll.
 
 	tagAdvancer *tagAdvancer
 	finalizer   *finalizer
@@ -147,6 +148,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		logProgressInterval:   cfg.LogProgressInterval,
 		verifyMode:            cfg.VerifyMode,
 		finalizerInterval:     cfg.FinalizerInterval,
+		reorgCheckDepth:       cfg.ReorgCheckDepth,
 		tagAdvancer:           tagAdv,
 		finalizer:             fin,
 		metrics:               metrics,
@@ -201,6 +203,24 @@ func (d *Derivation) Stop() {
 }
 
 func (d *Derivation) derivationBlock(ctx context.Context) {
+	// SPEC-005 §4.7.6: check for an L1 reorg before processing any new logs.
+	// The scan is a no-op when --derivation.confirmations=finalized (L1
+	// finalized doesn't reorg by Ethereum consensus assumption) and
+	// load-bearing when configured below finalized; the gate is intentionally
+	// absent so behaviour is uniform across configs.
+	if reorgAt, err := d.detectReorg(ctx); err != nil {
+		d.logger.Error("L1 reorg detection failed; skipping this poll", "err", err)
+		return
+	} else if reorgAt != nil {
+		if err := d.handleL1Reorg(*reorgAt); err != nil {
+			d.logger.Error("handle L1 reorg failed", "err", err)
+		}
+		// Don't process further this cycle: cursor was rewound, let the next
+		// poll re-fetch from the new starting point. Avoids recording
+		// potentially-still-unstable L1 hashes if the chain is mid-reorg.
+		return
+	}
+
 	latestDerivation := d.db.ReadLatestDerivationL1Height()
 	latest, err := d.getLatestConfirmedBlockNumber(d.ctx)
 	if err != nil {
@@ -302,6 +322,14 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 
 		// SPEC-005 section 4.7.3: a verified batch (Path A or Path B) advances safe.
 		d.tagAdvancer.advanceSafe(d.ctx, batchInfo.batchIndex, lastHeader)
+	}
+
+	// SPEC-005 §4.7.6: record this poll's L1 block hashes so the next poll
+	// can detect a reorg. Failure here must NOT advance the cursor -- a gap
+	// in the recorded hashes would defeat detection across that gap.
+	if err := d.recordL1Blocks(ctx, start, end); err != nil {
+		d.logger.Error("recordL1Blocks failed; skipping cursor advance, will retry next poll", "err", err)
+		return
 	}
 
 	d.db.WriteLatestDerivationL1Height(end)
