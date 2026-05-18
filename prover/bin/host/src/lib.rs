@@ -131,7 +131,7 @@ impl BatchProver<DefaultClient> {
             .prove(&self.pk, stdin)
             .strategy(FulfillmentStrategy::Auction)
             .skip_simulation(true)
-            .gas_limit(50_000_000_000)
+            .gas_limit(10_000_000_000)
             .plonk()
             .timeout(Duration::from_secs(1200))
             .await
