@@ -45,9 +45,12 @@ impl BlobVerifier {
     /// KZG-verify a blob's commitment/proof and return its versioned hash.
     fn verify_kzg(blob_info: &BlobInfo) -> Result<B256, anyhow::Error> {
         let versioned_hash = kzg_to_versioned_hash(&blob_info.commitment);
-        let blob = KzgRsBlob::from_slice(&blob_info.blob_data).unwrap();
-        let commitment = Bytes48::from_slice(&blob_info.commitment).unwrap();
-        let proof = Bytes48::from_slice(&blob_info.proof).unwrap();
+        let blob = KzgRsBlob::from_slice(&blob_info.blob_data)
+            .map_err(|e| anyhow!("invalid blob_data length: {e:?}"))?;
+        let commitment = Bytes48::from_slice(&blob_info.commitment)
+            .map_err(|e| anyhow!("invalid commitment length: {e:?}"))?;
+        let proof = Bytes48::from_slice(&blob_info.proof)
+            .map_err(|e| anyhow!("invalid proof length: {e:?}"))?;
 
         let verify_result =
             kzg_rs::KzgProof::verify_blob_kzg_proof(blob, &commitment, &proof, &get_kzg_settings())
