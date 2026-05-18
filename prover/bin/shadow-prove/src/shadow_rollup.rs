@@ -447,6 +447,12 @@ where
         chain_id: u64,
         batch_header: &Bytes,
     ) -> Result<B256, anyhow::Error> {
+        // `version` is read only for logging here. Unlike the V2/non-V2 split in `lib.rs`
+        // (where the prover dispatches different blob-decoding paths), the public-input
+        // formula is uniform across versions: offset 57 holds the blob input field
+        // (versioned hash for V0/V1, aggregated hash for V2), and the on-chain verifier
+        // uses the same layout. Versioned routing happens earlier via the `batch_version`
+        // request parameter; nothing in this function needs to branch on it.
         let version = batch_header.first().copied().unwrap_or(0);
 
         let prev_state_root: &[u8] = batch_header.get(89..121).unwrap_or_default();
