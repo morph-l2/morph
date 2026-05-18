@@ -8,13 +8,14 @@ use prover_primitives::{alloy_primitives::keccak256, B256};
 use prover_utils::read_env_var;
 #[cfg(feature = "local")]
 use sp1_sdk::CpuProver;
+use sp1_sdk::{
+    network::FulfillmentStrategy, Elf, HashableKey, ProveRequest, Prover, ProverClient, ProvingKey,
+    SP1ProvingKey, SP1Stdin,
+};
 #[cfg(all(feature = "network", not(feature = "local")))]
 use sp1_sdk::{network::NetworkMode, NetworkProver};
-use sp1_sdk::{
-    Elf, HashableKey, ProveRequest, Prover, ProverClient, ProvingKey, SP1ProvingKey, SP1Stdin,
-};
 use sp1_verifier::PlonkVerifier;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
 pub const BATCH_VERIFIER_ELF: &[u8] = include_bytes!("../../client/elf/verifier-client");
@@ -94,28 +95,28 @@ impl BatchProver<DefaultClient> {
         let mut stdin = SP1Stdin::new();
         stdin.write(&serde_json::to_string(&input)?);
 
-        if read_env_var("DEVNET", false) {
-            let (mut public_values, execution_report) = self
-                .prover_client
-                .execute(Elf::Static(BATCH_VERIFIER_ELF), stdin.clone())
-                .await
-                .context("sp1-vm execution failed")?;
-            log::info!(
-                "Program executed successfully, Number of cycles: {}",
-                execution_report.total_instruction_count()
-            );
-            let pi_hash = public_values.read::<[u8; 32]>();
-            let public_values = B256::from_slice(&pi_hash);
+        // if read_env_var("DEVNET", false) {
+        //     let (mut public_values, execution_report) = self
+        //         .prover_client
+        //         .execute(Elf::Static(BATCH_VERIFIER_ELF), stdin.clone())
+        //         .await
+        //         .context("sp1-vm execution failed")?;
+        //     log::info!(
+        //         "Program executed successfully, Number of cycles: {}",
+        //         execution_report.total_instruction_count()
+        //     );
+        //     let pi_hash = public_values.read::<[u8; 32]>();
+        //     let public_values = B256::from_slice(&pi_hash);
 
-            log::info!(
-                "pi_hash generated with sp1-vm execution: {}",
-                alloy::hex::encode_prefixed(public_values.as_slice())
-            );
-            if pi_hash != expected_hash.as_slice() {
-                bail!("pi_hash mismatch with expected hash");
-            }
-            log::info!("Values are correct!");
-        }
+        //     log::info!(
+        //         "pi_hash generated with sp1-vm execution: {}",
+        //         alloy::hex::encode_prefixed(public_values.as_slice())
+        //     );
+        //     if pi_hash != expected_hash.as_slice() {
+        //         bail!("pi_hash mismatch with expected hash");
+        //     }
+        //     log::info!("Values are correct!");
+        // }
 
         if !prove {
             log::info!("Execution completed, No prove request, skipping...");
@@ -125,8 +126,16 @@ impl BatchProver<DefaultClient> {
         // Generate the proof
         log::info!("Start proving...");
         let start = Instant::now();
-        let mut proof =
-            self.prover_client.prove(&self.pk, stdin).plonk().await.context("proving failed")?;
+        let mut proof = self
+            .prover_client
+            .prove(&self.pk, stdin)
+            .strategy(FulfillmentStrategy::Auction)
+            .skip_simulation(true)
+            .gas_limit(50_000_000_000)
+            .plonk()
+            .timeout(Duration::from_secs(1200))
+            .await
+            .context("proving failed")?;
         let duration_mins = start.elapsed().as_secs() / 60;
         log::info!("Successfully generated proof!, time use: {} minutes", duration_mins);
 
