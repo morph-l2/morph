@@ -135,11 +135,21 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 			if err := startBlock.Decode(batchBytes[:60]); err != nil {
 				return fmt.Errorf("decode chunk block context error:%v", err)
 			}
+			// Guard against uint64 underflow for malformed batches whose
+			// LastBlockNumber is below the decoded start block.
+			if batch.LastBlockNumber < startBlock.Number {
+				return fmt.Errorf("invalid batch: lastBlockNumber %d < start block %d", batch.LastBlockNumber, startBlock.Number)
+			}
 			blockCount = batch.LastBlockNumber - startBlock.Number + 1
 		} else {
 			parentBatchBlock, err := parentBatchHeader.LastBlockNumber()
 			if err != nil {
 				return fmt.Errorf("decode batch header lastBlockNumber error:%v", err)
+			}
+			// Guard against uint64 underflow for malformed batches whose
+			// LastBlockNumber is below the parent's lastBlockNumber.
+			if batch.LastBlockNumber < parentBatchBlock {
+				return fmt.Errorf("invalid batch: lastBlockNumber %d < parent lastBlockNumber %d", batch.LastBlockNumber, parentBatchBlock)
 			}
 			blockCount = batch.LastBlockNumber - parentBatchBlock
 		}
