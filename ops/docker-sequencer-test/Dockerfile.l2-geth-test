@@ -1,5 +1,5 @@
 # Build Geth for Sequencer Test
-# Build context should be bitget/ (parent of morph)
+# Build context should be the polyrepo root (parent of morph)
 FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.24-ubuntu AS builder
 
 # Copy local go-ethereum (not submodule)

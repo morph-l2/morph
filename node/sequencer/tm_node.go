@@ -7,10 +7,8 @@ import (
 
 	"github.com/spf13/viper"
 	tmtypes "github.com/tendermint/tendermint/abci/types"
-	"github.com/tendermint/tendermint/blssignatures"
 	"github.com/tendermint/tendermint/config"
 	tmlog "github.com/tendermint/tendermint/libs/log"
-	tmos "github.com/tendermint/tendermint/libs/os"
 	tmnode "github.com/tendermint/tendermint/node"
 	"github.com/tendermint/tendermint/p2p"
 	"github.com/tendermint/tendermint/proxy"
@@ -71,14 +69,6 @@ func SetupNode(
 		return nil, err
 	}
 
-	if !tmos.FileExists(tmCfg.BLSKeyFile()) {
-		blssignatures.GenFileBLSKey().Save(tmCfg.BLSKeyFile())
-	}
-	blsPrivKey, err := blssignatures.PrivateKeyFromBytes(blssignatures.LoadBLSKey(tmCfg.BLSKeyFile()).PrivKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load bls priv key")
-	}
-
 	// Build verifier (SequencerVerifier implements tmsequencer.SequencerVerifier interface)
 	var tmVerifier tmsequencer.SequencerVerifier
 	if verifier != nil {
@@ -89,7 +79,6 @@ func SetupNode(
 		tmCfg,
 		executor,
 		privValidator,
-		&blsPrivKey,
 		nodeKey,
 		proxy.NewLocalClientCreator(NewApplication(tmtypes.NewBaseApplication(), executor.L2Client())),
 		tmnode.DefaultGenesisDocProviderFunc(tmCfg),

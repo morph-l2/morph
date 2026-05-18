@@ -5,12 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"time"
 
-	"github.com/morph-l2/go-ethereum/accounts/abi"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/common/hexutil"
 	eth "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/eth/catalyst"
 	"github.com/morph-l2/go-ethereum/ethclient"
@@ -19,7 +16,6 @@ import (
 	"github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/l2node"
 	tmlog "github.com/tendermint/tendermint/libs/log"
-	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/node/sync"
@@ -38,30 +34,16 @@ type Executor struct {
 	newSyncerFunc NewSyncerFunc
 	syncer        *sync.Syncer
 
-	govCaller       *bindings.GovCaller
 	sequencerCaller *bindings.SequencerCaller
 	l2StakingCaller *bindings.L2StakingCaller
 
 	currentSeqHash *[32]byte
-	valsByTmKey    map[[tmKeySize]byte]validatorInfo
+	seqTmKeySet    map[[tmKeySize]byte]struct{}
 
 	nextValidators [][]byte
-	batchParams    tmproto.BatchParams
 	tmPubKey       []byte
 	isSequencer    bool
 	devSequencer   bool
-
-	UpgradeBatchTime      uint64
-	blsKeyCheckForkHeight uint64
-	rollupABI             *abi.ABI
-	batchingCache         *BatchingCache
-
-	// Jade fork handling: force batch points at the 1st and 2nd block after fork.
-	// This state machine exists to avoid repeated HeaderByNumber calls after the fork is handled,
-	// while keeping results stable if CalculateCapWithProposalBlock is called multiple times at the same height.
-	jadeForkTime        uint64 // cached from geth eth_config.morph.jadeForkTime (0 means disabled/unknown)
-	jadeForkStage       uint8  // 0: not handled, 1: forced H1, 2: done (forced H2 or skipped beyond H2)
-	jadeForkForceHeight uint64 // if equals current height, must return true (stability across multiple calls)
 
 	logger  tmlog.Logger
 	metrics *Metrics
@@ -78,7 +60,6 @@ func getNextL1MsgIndex(client *types.RetryableClient) (uint64, error) {
 func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubKey) (*Executor, error) {
 	logger := config.Logger
 	logger = logger.With("module", "executor")
-	// L2 geth endpoint (required - current geth)
 	aClient, err := authclient.DialContext(context.Background(), config.L2.EngineAddr, config.L2.JwtSecret)
 	if err != nil {
 		return nil, err
@@ -88,31 +69,7 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		return nil, err
 	}
 
-	// L2Next endpoint (optional - for upgrade switch)
-	var aNextClient *authclient.Client
-	var eNextClient *ethclient.Client
-	if config.L2Next != nil && config.L2Next.EngineAddr != "" && config.L2Next.EthAddr != "" {
-		aNextClient, err = authclient.DialContext(context.Background(), config.L2Next.EngineAddr, config.L2Next.JwtSecret)
-		if err != nil {
-			return nil, err
-		}
-		eNextClient, err = ethclient.Dial(config.L2Next.EthAddr)
-		if err != nil {
-			return nil, err
-		}
-		logger.Info("L2Next geth configured (upgrade switch enabled)", "engineAddr", config.L2Next.EngineAddr, "ethAddr", config.L2Next.EthAddr)
-	} else {
-		logger.Info("L2Next geth not configured (no upgrade switch)")
-	}
-
-	// Fetch geth config at startup (with retry to wait for geth)
-	gethCfg, err := types.FetchGethConfigWithRetry(config.L2.EthAddr, logger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch geth config: %w", err)
-	}
-	logger.Info("Geth config fetched", "switchTime", gethCfg.SwitchTime, "useZktrie", gethCfg.UseZktrie)
-
-	l2Client := types.NewRetryableClient(aClient, eClient, aNextClient, eNextClient, gethCfg.SwitchTime, logger)
+	l2Client := types.NewRetryableClient(aClient, eClient, logger)
 	index, err := getNextL1MsgIndex(l2Client)
 	if err != nil {
 		return nil, err
@@ -123,41 +80,27 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	if err != nil {
 		return nil, err
 	}
-	gov, err := bindings.NewGovCaller(config.GovAddress, l2Client)
-	if err != nil {
-		return nil, err
-	}
 	l2Staking, err := bindings.NewL2StakingCaller(config.L2StakingAddress, l2Client)
 	if err != nil {
 		return nil, err
 	}
 
-	rollupAbi, err := bindings.RollupMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
 	var tmPubKeyBytes []byte
 	if tmPubKey != nil {
 		tmPubKeyBytes = tmPubKey.Bytes()
 	}
 	executor := &Executor{
-		l2Client:              l2Client,
-		bc:                    &Version1Converter{},
-		govCaller:             gov,
-		sequencerCaller:       sequencer,
-		l2StakingCaller:       l2Staking,
-		tmPubKey:              tmPubKeyBytes,
-		nextL1MsgIndex:        index,
-		maxL1MsgNumPerBlock:   config.MaxL1MessageNumPerBlock,
-		newSyncerFunc:         newSyncFunc,
-		devSequencer:          config.DevSequencer,
-		rollupABI:             rollupAbi,
-		batchingCache:         NewBatchingCache(),
-		UpgradeBatchTime:      config.UpgradeBatchTime,
-		blsKeyCheckForkHeight: config.BlsKeyCheckForkHeight,
-		jadeForkTime:          l2Client.JadeForkTime(),
-		logger:                logger,
-		metrics:               PrometheusMetrics("morphnode"),
+		l2Client:            l2Client,
+		bc:                  &Version1Converter{},
+		sequencerCaller:     sequencer,
+		l2StakingCaller:     l2Staking,
+		tmPubKey:            tmPubKeyBytes,
+		nextL1MsgIndex:      index,
+		maxL1MsgNumPerBlock: config.MaxL1MessageNumPerBlock,
+		newSyncerFunc:       newSyncFunc,
+		devSequencer:        config.DevSequencer,
+		logger:              logger,
+		metrics:             PrometheusMetrics("morphnode"),
 	}
 
 	if config.DevSequencer {
@@ -296,64 +239,39 @@ func (e *Executor) CheckBlockData(txs [][]byte, metaData []byte) (valid bool, er
 	return validated, err
 }
 
-func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2node.ConsensusData) (nextBatchParams *tmproto.BatchParams, nextValidatorSet [][]byte, err error) {
+func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2node.ConsensusData) (nextValidatorSet [][]byte, err error) {
 	e.logger.Info("DeliverBlock request", "txs length", len(txs),
-		"blockMeta length", len(metaData),
-		"batchHash", hexutil.Encode(consensusData.BatchHash))
+		"blockMeta length", len(metaData))
 	height, err := e.l2Client.BlockNumber(context.Background())
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if metaData == nil {
 		e.logger.Error("blockMeta cannot be nil")
-		return nil, nil, errors.New("blockMeta cannot be nil")
+		return nil, errors.New("blockMeta cannot be nil")
 	}
 
 	wrappedBlock := new(types.WrappedBlock)
 	if err = wrappedBlock.UnmarshalBinary(metaData); err != nil {
 		e.logger.Error("failed to UnmarshalBinary meta data bytes", "err", err)
-		return nil, nil, err
+		return nil, err
 	}
 
 	if wrappedBlock.Number <= height {
 		e.logger.Info("block already delivered by geth (via P2P sync)", "block_number", wrappedBlock.Number)
-		// Even if block was already delivered (e.g., synced via P2P), we still need to check
-		// if MPT switch should happen, otherwise sentry nodes won't switch to the correct geth.
-		e.l2Client.EnsureSwitched(context.Background(), wrappedBlock.Timestamp, wrappedBlock.Number)
-
-		// After switch, re-check height from the new geth client
-		// The block might exist in legacy geth but not in target geth after switch
-		newHeight, err := e.l2Client.BlockNumber(context.Background())
-		if err != nil {
-			return nil, nil, err
+		if e.devSequencer {
+			return consensusData.ValidatorSet, nil
 		}
-		if wrappedBlock.Number > newHeight {
-			e.logger.Info("block not in target geth after switch, need to deliver",
-				"block_number", wrappedBlock.Number,
-				"old_height", height,
-				"new_height", newHeight)
-			// Update height and continue to deliver the block
-			height = newHeight
-		} else {
-			if e.devSequencer {
-				return nil, consensusData.ValidatorSet, nil
-			}
-			return e.getParamsAndValsAtHeight(int64(wrappedBlock.Number))
-		}
+		return e.getValidatorsAtHeight(int64(wrappedBlock.Number))
 	}
 
 	// We only accept the continuous blocks for now.
 	// It acts like full sync. Snap sync is not enabled until the Geth enables snapshot with zkTrie
 	if wrappedBlock.Number > height+1 {
-		e.logger.Error("!!! CRITICAL: Geth is behind - node BLOCKED !!!",
+		e.logger.Error("geth is behind",
 			"consensus_block", wrappedBlock.Number,
-			"geth_height", height,
-			"action", "Switch to MPT-compatible geth IMMEDIATELY")
-		return nil, nil, types.ErrWrongBlockNumber
-	}
-
-	if len(consensusData.BatchHash) > 0 {
-		e.metrics.BatchPointHeight.Set(float64(wrappedBlock.Number))
+			"geth_height", height)
+		return nil, types.ErrWrongBlockNumber
 	}
 
 	l2Block := &catalyst.ExecutableL2Data{
@@ -373,43 +291,27 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 
 		Transactions: txs,
 	}
-	var batchHash *common.Hash
-	if consensusData.BatchHash != nil {
-		batchHash = new(common.Hash)
-		copy(batchHash[:], consensusData.BatchHash)
-	}
-	err = e.l2Client.NewL2Block(context.Background(), l2Block, batchHash)
+	err = e.l2Client.NewL2Block(context.Background(), l2Block)
 	if err != nil {
-		e.logger.Error("========================================")
-		e.logger.Error("CRITICAL: Failed to deliver block to geth!")
-		e.logger.Error("========================================")
 		e.logger.Error("failed to NewL2Block",
 			"error", err,
 			"block_number", l2Block.Number,
 			"block_timestamp", l2Block.Timestamp)
-		e.logger.Error("HINT: If this occurs after MPT upgrade, your geth node may not support MPT blocks. " +
-			"Please ensure you are running an MPT-compatible geth node.")
-		return nil, nil, err
+		return nil, err
 	}
 
-	// end block
 	e.updateNextL1MessageIndex(l2Block)
 
-	var newValidatorSet = consensusData.ValidatorSet
-	var newBatchParams *tmproto.BatchParams
+	newValidatorSet := consensusData.ValidatorSet
 	if !e.devSequencer {
 		if newValidatorSet, err = e.updateSequencerSet(l2Block.Number); err != nil {
-			return nil, nil, err
-		}
-		if newBatchParams, err = e.batchParamsUpdates(l2Block.Number); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
 
 	e.metrics.Height.Set(float64(l2Block.Number))
 
-	return newBatchParams, newValidatorSet,
-		nil
+	return newValidatorSet, nil
 }
 
 // EncodeTxs
@@ -440,43 +342,23 @@ func (e *Executor) RequestHeight(tmHeight int64) (int64, error) {
 	return int64(curHeight), nil
 }
 
-func (e *Executor) getParamsAndValsAtHeight(height int64) (*tmproto.BatchParams, [][]byte, error) {
+func (e *Executor) getValidatorsAtHeight(height int64) ([][]byte, error) {
 	callOpts := &bind.CallOpts{
 		BlockNumber: big.NewInt(height),
 	}
-	batchBlockInterval, err := e.govCaller.BatchBlockInterval(callOpts)
-	if err != nil {
-		return nil, nil, err
-	}
-	batchTimeout, err := e.govCaller.BatchTimeout(callOpts)
-	if err != nil {
-		return nil, nil, err
-	}
-	// fetch current sequencerSet info at certain height
 	addrs, err := e.sequencerCaller.GetSequencerSet2(callOpts)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	stakesInfo, err := e.l2StakingCaller.GetStakesInfo(callOpts, addrs)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	newValidators := make([][]byte, 0, len(addrs))
 	for i := range stakesInfo {
-		// validate blsKey to keep consistent with sequencerSetUpdates
-		if _, err := decodeBlsPubKey(stakesInfo[i].BlsKey); err != nil {
-			e.logger.Error("getParamsAndValsAtHeight: failed to decode bls key", "key bytes", hexutil.Encode(stakesInfo[i].BlsKey), "error", err)
-			if e.isBlsKeyCheckFork(uint64(height)) {
-				continue
-			}
-		}
 		newValidators = append(newValidators, stakesInfo[i].TmKey[:])
 	}
-
-	return &tmproto.BatchParams{
-		BlocksInterval: batchBlockInterval.Int64(),
-		Timeout:        time.Duration(batchTimeout.Int64() * int64(time.Second)),
-	}, newValidators, nil
+	return newValidators, nil
 }
 
 func (e *Executor) L2Client() *types.RetryableClient {
@@ -556,8 +438,7 @@ func (e *Executor) ApplyBlockV2(block *l2node.BlockV2) error {
 		return types.ErrWrongBlockNumber
 	}
 
-	// Apply the block (no batch hash in sequencer mode for now)
-	err = e.l2Client.NewL2Block(context.Background(), execBlock, nil)
+	err = e.l2Client.NewL2Block(context.Background(), execBlock)
 	if err != nil {
 		e.logger.Error("failed to apply block v2", "error", err)
 		return err

@@ -16,6 +16,9 @@ on:
             - "tx-submitter/**"
             - ".github/workflows/tx-submitter.yaml"
 
+permissions:
+    contents: read
+
 defaults:
     run:
         working-directory: "tx-submitter"

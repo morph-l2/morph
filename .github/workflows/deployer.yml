@@ -15,6 +15,9 @@ on:
             - "ops/l2-genesis/**"
             - ".github/workflows/deployer.yaml"
 
+permissions:
+    contents: read
+
 defaults:
     run:
         working-directory: "ops/l2-genesis"

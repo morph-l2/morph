@@ -79,12 +79,12 @@ This command updates the go-ethereum submodule to the commit/tag specified by `E
 
 ## Learn more
 
-Website: https://www.morphl2.io/
+Website: https://morph.network
 
-X (formerly Twitter): https://x.com/Morphl2
+X (formerly Twitter): https://x.com/MorphNetwork
 
 Medium: [Morph – Medium](https://medium.com/@morphlayer2)
 
-Telegram: https://t.me/morphoffical
+Telegram: https://t.me/MorphGlobal
 
 Gmail: info@morphl2.io

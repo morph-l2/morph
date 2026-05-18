@@ -12,6 +12,9 @@ on:
             - "prover/**"
             - ".github/workflows/prover.yaml"
 
+permissions:
+    contents: read
+
 defaults:
     run:
         working-directory: "prover"
