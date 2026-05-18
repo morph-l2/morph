@@ -10293,7 +10293,7 @@ dependencies = [
 [[package]]
 name = "zstd"
 version = "0.13.3"
-source = "git+https://github.com/anylots/zstd-rs.git?branch=zstd-dev#147bc25144f57278a538028df58afe8ae5e1dbe3"
+source = "git+https://github.com/morph-l2/zstd-rs.git?branch=zstd-dev#147bc25144f57278a538028df58afe8ae5e1dbe3"
 dependencies = [
  "zstd-safe",
 ]
@@ -10301,7 +10301,7 @@ dependencies = [
 [[package]]
 name = "zstd-safe"
 version = "7.0.0"
-source = "git+https://github.com/anylots/zstd-rs.git?branch=zstd-dev#147bc25144f57278a538028df58afe8ae5e1dbe3"
+source = "git+https://github.com/morph-l2/zstd-rs.git?branch=zstd-dev#147bc25144f57278a538028df58afe8ae5e1dbe3"
 dependencies = [
  "zstd-sys",
 ]
@@ -10309,7 +10309,7 @@ dependencies = [
 [[package]]
 name = "zstd-sys"
 version = "2.0.9+zstd.1.5.5"
-source = "git+https://github.com/anylots/zstd-rs.git?branch=zstd-dev#147bc25144f57278a538028df58afe8ae5e1dbe3"
+source = "git+https://github.com/morph-l2/zstd-rs.git?branch=zstd-dev#147bc25144f57278a538028df58afe8ae5e1dbe3"
 dependencies = [
  "cc",
  "pkg-config",

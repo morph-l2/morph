@@ -60,7 +60,7 @@ prometheus-client = "0.22"
 
 # Compression
 ruzstd = { git = "https://github.com/KillingSpark/zstd-rs.git", branch = "master" }
-zstd = { git = "https://github.com/anylots/zstd-rs.git", branch = "zstd-dev", features = [
+zstd = { git = "https://github.com/morph-l2/zstd-rs.git", branch = "zstd-dev", features = [
     "experimental",
 ] }
 
@@ -152,4 +152,4 @@ p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p2
 # Use the same local zstd implementation for transitive users (notably sp1-sdk)
 # to avoid multiple libzstd C implementations with different experimental
 # parameter numbers being linked into the same binary.
-zstd = { git = "https://github.com/anylots/zstd-rs.git", branch = "zstd-dev" }
+zstd = { git = "https://github.com/morph-l2/zstd-rs.git", branch = "zstd-dev" }
