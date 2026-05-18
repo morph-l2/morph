@@ -747,12 +747,6 @@ func (r *Rollup) handleDiscardedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 	if err = r.pendingTxs.Remove(tx.Hash()); err != nil {
 		log.Error("failed to remove transaction", "hash", tx.Hash().String(), "error", err)
 	}
-	record := r.pendingTxs.GetTxRecord(replacedTx.Hash())
-	if record == nil {
-		if err = r.pendingTxs.Add(replacedTx); err != nil {
-			log.Error("failed to add replaced transaction", "hash", replacedTx.Hash().String(), "error", err)
-		}
-	}
 	log.Info("Successfully resubmitted discarded transaction",
 		"old_tx", tx.Hash().String(),
 		"new_tx", replacedTx.Hash().String(),
@@ -1142,7 +1136,12 @@ func (r *Rollup) rollup() error {
 	}
 	useCommitState := storedBlobHash != [32]byte{}
 	if useCommitState {
-		log.Info("Using commitState (L1 holds blob versioned hash for batch)", "batch_index", batchIndex)
+		if err := r.validateStoredBlobAgainstSealedHeader(storedBlobHash, batchIndex); err != nil {
+			return err
+		}
+		log.Info("Using commitState (L1 stored blob hash matches sealed header)",
+			"batch_index", batchIndex,
+			"stored_blob_hash", common.Hash(storedBlobHash).Hex())
 	}
 
 	// tip and cap
@@ -1166,7 +1165,7 @@ func (r *Rollup) rollup() error {
 	// is available during eth_estimateGas simulation.
 	var estimateBlobHashes []common.Hash
 	var estimateBlobFeeCap *big.Int
-	if len(rpcRollupBatch.Sidecar.Blobs) > 0 {
+	if !useCommitState && len(rpcRollupBatch.Sidecar.Blobs) > 0 {
 		estimateBlobHashes = blob.BlobHashes(rpcRollupBatch.Sidecar.Blobs, rpcRollupBatch.Sidecar.Commitments)
 		estimateBlobFeeCap = blobFee
 	}
@@ -1298,6 +1297,33 @@ func (r *Rollup) createDynamicFeeTx(nonce, gas uint64, tip, gasFeeCap *big.Int, 
 	}), nil
 }
 
+// validateStoredBlobAgainstSealedHeader requires L1 stored blob hash to match the sealed
+// header blob field (offset 57). Sealed headers always carry a non-zero semantic value
+// (e.g. EmptyVersionedHash); callers must not skip validation when the field decodes to zero.
+func (r *Rollup) validateStoredBlobAgainstSealedHeader(stored [32]byte, batchIndex uint64) error {
+	if stored == ([32]byte{}) {
+		return nil
+	}
+	if !r.cfg.SealBatch || r.batchCache == nil {
+		return nil
+	}
+	header, ok := r.batchCache.GetSealedBatchHeader(batchIndex)
+	if !ok || header == nil {
+		return fmt.Errorf("commitState: sealed batch header %d not in cache", batchIndex)
+	}
+	headerBlob, err := header.BlobCommitHash()
+	if err != nil {
+		return fmt.Errorf("commitState: batch %d header blob field: %w", batchIndex, err)
+	}
+	if common.Hash(stored) != headerBlob {
+		return fmt.Errorf(
+			"commitState: L1 stored blob hash %s != sealed header %s (batch %d)",
+			common.Hash(stored).Hex(), headerBlob.Hex(), batchIndex,
+		)
+	}
+	return nil
+}
+
 // tryRebuildRollupCommitTx aligns an in-flight commit-like tx with L1 blob-hash state:
 //   - stored blob versioned hash set  -> must use commitState (no blob), upgrading commitBatch / blob txs
 //   - stored hash cleared              -> must use commitBatch (+ blob sidecar when present), downgrading stale commitState
@@ -1313,7 +1339,9 @@ func (r *Rollup) tryRebuildRollupCommitTx(tx *ethtypes.Transaction, tip, gasFeeC
 	if err != nil {
 		return nil, false, err
 	}
-
+	if err := r.validateStoredBlobAgainstSealedHeader(stored, batchIndex); err != nil {
+		return nil, true, err
+	}
 	if stored != ([32]byte{}) {
 		if method == constants.MethodCommitState && tx.Type() == ethtypes.DynamicFeeTxType {
 			return nil, false, nil
@@ -1670,33 +1698,34 @@ func UpdateGasLimit(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 	return newTx, nil
 }
 
-// send tx to l1 with business logic check
+// SendTx tracks the transaction in the pending pool, then broadcasts it to L1.
+// Add runs before send so a broadcast failure never leaves an untracked in-flight nonce.
+// If send fails after Add, the tx is removed from the pool and journal.
 func (r *Rollup) SendTx(tx *ethtypes.Transaction) error {
-
-	// judge tx info is valid
 	if tx == nil {
 		return errors.New("nil tx")
 	}
-	// l1 health check
 	if r.bm != nil && !r.bm.IsGrowth() {
 		return fmt.Errorf("block not growth in %d blocks time", r.cfg.BlockNotIncreasedThreshold)
 	}
 
-	err := sendTx(r.L1Client, r.cfg.TxFeeLimit, tx)
-	if err != nil {
-		return err
-	}
-
-	// after send tx
-	// add to pending txs
 	if r.pendingTxs != nil {
-		if err = r.pendingTxs.Add(tx); err != nil {
-			log.Error("failed to add transaction", "hash", tx.Hash().String(), "error", err)
+		if err := r.pendingTxs.Add(tx); err != nil {
+			return fmt.Errorf("track tx before send: %w", err)
 		}
 	}
 
-	return nil
+	if err := sendTx(r.L1Client, r.cfg.TxFeeLimit, tx); err != nil {
+		if r.pendingTxs != nil {
+			if remErr := r.pendingTxs.Remove(tx.Hash()); remErr != nil {
+				log.Error("failed to untrack tx after send failure",
+					"hash", tx.Hash().String(), "send_err", err, "remove_err", remErr)
+			}
+		}
+		return err
+	}
 
+	return nil
 }
 
 // send tx to l1 with business logic check

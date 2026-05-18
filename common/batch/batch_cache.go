@@ -108,7 +108,7 @@ func NewBatchCache(
 		isBatchV2Upgraded = func(uint64) bool { return false }
 	}
 	if maxBlobCount <= 0 {
-		maxBlobCount = 2
+		log.Crit("maxBlobCount must be greater than 0")
 	}
 	ctx := context.Background()
 	_, err := l2Clients.BlockNumber(ctx)
@@ -1264,20 +1264,33 @@ func (bc *BatchCache) logSealedBatch(batchHeader BatchHeaderBytes, batchHash com
 	if err != nil {
 		version = 0
 	}
-	blobVersionedHash, _ := batchHeader.BlobVersionedHash()
-	log.Info("Sealed batch header", "batchHash", batchHash.Hex(), "version", version, "blobVersionedHash", blobVersionedHash.Hex())
+	blobCommitHash, blobErr := batchHeader.BlobCommitHash()
+	if blobErr != nil {
+		log.Warn("Sealed batch: blob commit hash unavailable", "batchHash", batchHash.Hex(), "version", version, "err", blobErr)
+	}
+	log.Info("Sealed batch header",
+		"batchHash", batchHash.Hex(),
+		"version", version,
+		"blobCommitHash", blobCommitHash.Hex(),
+		"blobCount", blobCount,
+	)
 	batchIndex, _ := batchHeader.BatchIndex()
 	l1MessagePopped, _ := batchHeader.L1MessagePopped()
 	totalL1MessagePopped, _ := batchHeader.TotalL1MessagePopped()
 	dataHash, _ := batchHeader.DataHash()
 	parentBatchHash, _ := batchHeader.ParentBatchHash()
-	log.Info(fmt.Sprintf("===version: %d \n===batchIndex: %d \n===L1MessagePopped: %d \n===TotalL1MessagePopped: %d \n===dataHash: %x \n===BlobVersionedHash: %x \n===blockCount: %d \n===blobCount: %d \n===ParentBatchHash: %x \n",
+	blobFieldLabel := "BlobVersionedHash"
+	if version >= BatchHeaderVersion2 {
+		blobFieldLabel = "BlobHashesHash"
+	}
+	log.Info(fmt.Sprintf("===version: %d \n===batchIndex: %d \n===L1MessagePopped: %d \n===TotalL1MessagePopped: %d \n===dataHash: %x \n===%s: %x \n===blockCount: %d \n===blobCount: %d \n===ParentBatchHash: %x \n",
 		version,
 		batchIndex,
 		l1MessagePopped,
 		totalL1MessagePopped,
 		dataHash,
-		blobVersionedHash,
+		blobFieldLabel,
+		blobCommitHash,
 		blockCount,
 		blobCount,
 		parentBatchHash))
