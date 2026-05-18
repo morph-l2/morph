@@ -29,6 +29,9 @@ impl HostExecutor {
         let block = query_block(block_number, provider)
             .await
             .with_context(|| format!("query_block failed for block {block_number}"))?;
+        // Post-MPT migration (PR #886), the L2 state trie is a standard Ethereum MPT, so
+        // `header.state_root` is authoritative and replaces the previous custom `morph_diskRoot`
+        // RPC field. The root is re-derived locally below and checked against this value.
         let post_state_root = block.header.state_root;
 
         // layer2 chain id
@@ -49,6 +52,7 @@ impl HostExecutor {
         let prev_block = query_block(prev_block_number, provider)
             .await
             .with_context(|| format!("query_block failed for prev block {prev_block_number}"))?;
+        // Same rationale as `post_state_root`: header state_root is the MPT root.
         let prev_state_root = prev_block.header.state_root;
 
         let tx_count = block.transactions.len();
