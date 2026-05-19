@@ -240,6 +240,56 @@ func TestPathB_LocalBlockMissing(t *testing.T) {
 	}
 }
 
+// TestPathB_LocalBlockMissing_WrapsSentinel pins the contract hybrid mode
+// relies on: the error returned for the local_block_missing kind must
+// satisfy errors.Is(err, ErrPathBLocalBlockMissing) so derivationBlock can
+// distinguish sync lag from genuine divergence verdicts. Other failure
+// kinds must NOT match the sentinel (otherwise hybrid would silently
+// fall back on real divergence and mask it).
+func TestPathB_LocalBlockMissing_WrapsSentinel(t *testing.T) {
+	blocks := []*eth.Block{makeEmptyL2Block(10), makeEmptyL2Block(11)}
+	hashes := rebuildExpectedBlobHashes(t, blocks, false /* V1 encoding */, 0, 1)
+
+	// Positive case: block 11 absent from reader -> local_block_missing.
+	reader := &fakePathBBlockReader{blocks: map[uint64]*eth.Block{10: blocks[0]}}
+	bi := &BatchInfo{
+		batchIndex:               20,
+		version:                  1,
+		hasCalldataBlockContexts: true,
+		firstBlockNumber:         10,
+		lastBlockNumber:          11,
+		blobHashes:               hashes,
+	}
+	err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), bi)
+	if err == nil {
+		t.Fatal("expected local_block_missing error, got nil")
+	}
+	if !errors.Is(err, ErrPathBLocalBlockMissing) {
+		t.Fatalf("local_block_missing error must wrap ErrPathBLocalBlockMissing; got: %v", err)
+	}
+
+	// Negative case: a versioned_hash_mismatch must NOT match the sentinel.
+	wrongHashes := make([]common.Hash, len(hashes))
+	copy(wrongHashes, hashes)
+	wrongHashes[0][0] ^= 0xFF
+	readerOK := &fakePathBBlockReader{blocks: map[uint64]*eth.Block{10: blocks[0], 11: blocks[1]}}
+	biMismatch := &BatchInfo{
+		batchIndex:               21,
+		version:                  1,
+		hasCalldataBlockContexts: true,
+		firstBlockNumber:         10,
+		lastBlockNumber:          11,
+		blobHashes:               wrongHashes,
+	}
+	err = verifyPathBContent(context.Background(), readerOK, newDiscardMetrics(), tmlog.NewNopLogger(), biMismatch)
+	if err == nil {
+		t.Fatal("expected versioned_hash_mismatch error, got nil")
+	}
+	if errors.Is(err, ErrPathBLocalBlockMissing) {
+		t.Fatalf("versioned_hash_mismatch must NOT wrap ErrPathBLocalBlockMissing; got: %v", err)
+	}
+}
+
 func TestPathB_LocalBlockReadError(t *testing.T) {
 	blocks := []*eth.Block{makeEmptyL2Block(10)}
 	hashes := rebuildExpectedBlobHashes(t, blocks, false /* V1 encoding */, 0, 1)

@@ -31,12 +31,19 @@ const (
 	DefaultLogProgressInterval = time.Second * 10
 
 	// VerifyMode values (SPEC-005 section 4.2). Selected at startup; not switchable
-	// at runtime. Default is VerifyModePathA which preserves current behavior.
-	VerifyModePathA = "pathA"
-	VerifyModePathB = "pathB"
+	// at runtime.
+	//   - pathA  : pull beacon blob, decode, derive blocks via engine, verify roots.
+	//   - pathB  : rebuild blob bytes from local L2 blocks, compare versioned hashes
+	//              against the L1 commitBatch tx; no beacon blob fetch.
+	//   - hybrid : run Path B first; only when Path B fails with local_block_missing
+	//              (sync lag) fall back to Path A for that batch. Default.
+	VerifyModePathA  = "pathA"
+	VerifyModePathB  = "pathB"
+	VerifyModeHybrid = "hybrid"
 
-	// DefaultVerifyMode is Path A (pull beacon blob, decode, derive, verify).
-	DefaultVerifyMode = VerifyModePathA
+	// DefaultVerifyMode is hybrid: Path B primary, Path A as a sync-lag backup.
+	// Followers that keep up with P2P avoid the beacon blob fetch entirely.
+	DefaultVerifyMode = VerifyModeHybrid
 
 	// DefaultReorgCheckDepth is the number of recent L1 blocks to check for
 	// reorgs in SPEC-005 §4.7.6 detection. 64 covers the post-Merge "finality
@@ -50,13 +57,13 @@ const (
 // can be unit-tested without building a cli.Context.
 func validateAndDefaultVerifyMode(s string) (string, error) {
 	switch s {
-	case VerifyModePathA, VerifyModePathB:
+	case VerifyModePathA, VerifyModePathB, VerifyModeHybrid:
 		return s, nil
 	case "":
 		return DefaultVerifyMode, nil
 	default:
-		return "", fmt.Errorf("invalid derivation.verify-mode %q (must be %q or %q)",
-			s, VerifyModePathA, VerifyModePathB)
+		return "", fmt.Errorf("invalid derivation.verify-mode %q (must be %q, %q, or %q)",
+			s, VerifyModePathA, VerifyModePathB, VerifyModeHybrid)
 	}
 }
 

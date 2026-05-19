@@ -56,6 +56,7 @@ func newDiscardMetrics() *Metrics {
 		PathBTriggered:             discard.NewCounter(),
 		PathBFailed:                discard.NewCounter(),
 		PathBFailedByKind:          discard.NewCounter(),
+		HybridFallbackTotal:        discard.NewCounter(),
 		SafeAdvanceTotal:           discard.NewCounter(),
 		FinalizedAdvanceTotal:      discard.NewCounter(),
 		SafeL2BlockNumber:          discard.NewGauge(),

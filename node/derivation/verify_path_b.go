@@ -15,6 +15,16 @@ import (
 	commonblob "morph-l2/common/blob"
 )
 
+// ErrPathBLocalBlockMissing is wrapped into the error returned by
+// verifyPathBContent when the verifier cannot read a local L2 block that
+// falls inside the batch range, i.e. the local chain hasn't synced that
+// far yet. Hybrid mode (SPEC-005 §4.2) uses errors.Is to detect this
+// sync-lag case and fall back to Path A for that batch; all other Path B
+// failure kinds (versioned_hash_mismatch, parsing_txs_error, ...) are NOT
+// wrapped with this sentinel and must be treated as terminal verification
+// errors. String matching the message is intentionally avoided.
+var ErrPathBLocalBlockMissing = errors.New("path B: local L2 block missing for batch range")
+
 // SPEC-005 section 4 Path B: blob-independent batch content verification.
 //
 // In VerifyModePathB the node does not pull blobs from the beacon chain.
@@ -214,6 +224,12 @@ func pathBFail(logger tmlog.Logger, metrics *Metrics, batchInfo *BatchInfo, kind
 	}
 	logger.Error("path B verification failed: "+msg, args...)
 
+	// Sync-lag failure: wrap the sentinel so hybrid mode can identify this
+	// kind via errors.Is and fall back to Path A. All other kinds keep their
+	// current shape and remain terminal for the caller.
+	if kind == "local_block_missing" {
+		return fmt.Errorf("path B [%s]: %s: %w", kind, msg, ErrPathBLocalBlockMissing)
+	}
 	if cause != nil {
 		return fmt.Errorf("path B [%s]: %s: %w", kind, msg, cause)
 	}

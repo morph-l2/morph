@@ -60,7 +60,7 @@ type Derivation struct {
 	fetchBlockRange     uint64
 	pollInterval        time.Duration
 	logProgressInterval time.Duration
-	verifyMode          string // SPEC-005 section 4.2: "pathA" (default) or "pathB"; bound at startup, never switches.
+	verifyMode          string // SPEC-005 section 4.2: "pathA", "pathB", or "hybrid" (default); bound at startup, never switches.
 	reorgCheckDepth     uint64 // SPEC-005 section 4.7.6: how far back to scan for L1 hash divergence each poll.
 
 	tagAdvancer *tagAdvancer
@@ -252,6 +252,63 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			lastHeader *eth.Header
 		)
 		switch d.verifyMode {
+		case VerifyModeHybrid:
+			// SPEC-005 §4.2 hybrid: try Path B first; only when B reports
+			// local_block_missing (sync lag) do we fall back to Path A for
+			// this batch. Any other Path B outcome -- pass, divergence
+			// verdict (versioned_hash_mismatch / blob_count_mismatch),
+			// or runtime error -- is surfaced unchanged. Hybrid is a
+			// sync-lag backup, not a general fallback.
+			batchInfo, err = d.fetchBatchInfoPathB(ctx, lg.TxHash, lg.BlockNumber)
+			if err != nil {
+				if errors.Is(err, types.ErrNotCommitBatchTx) {
+					continue
+				}
+				d.logger.Error("hybrid path B fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
+				return
+			}
+			d.logger.Info("hybrid path B fetched batch metadata",
+				"batchIndex", batchInfo.batchIndex,
+				"version", batchInfo.version,
+				"parentTotalL1Popped", batchInfo.parentTotalL1MessagePopped,
+				"expectedBlobs", len(batchInfo.blobHashes),
+				"txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
+				"l1BlockNumber", batchInfo.l1BlockNumber, "firstL2BlockNumber", batchInfo.firstBlockNumber, "lastL2BlockNumber", batchInfo.lastBlockNumber)
+			verifyErr := d.verifyBatchContentPathB(ctx, batchInfo)
+			if verifyErr == nil {
+				lastHeader, err = d.fetchLocalLastHeader(ctx, batchInfo)
+				if err != nil {
+					d.logger.Error("hybrid path B local last-header fetch failed", "batchIndex", batchInfo.batchIndex, "error", err)
+					return
+				}
+			} else if errors.Is(verifyErr, ErrPathBLocalBlockMissing) {
+				// Sync lag: re-fetch BatchInfo via Path A (need blockContexts
+				// for derive) and run the Path A flow for this batch.
+				d.metrics.IncHybridFallback()
+				d.logger.Info("hybrid falling back to path A (local block missing)", "batchIndex", batchInfo.batchIndex)
+				batchInfo, err = d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
+				if err != nil {
+					if errors.Is(err, types.ErrNotCommitBatchTx) {
+						continue
+					}
+					d.logger.Error("hybrid fallback fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
+					return
+				}
+				lastHeader, err = d.derive(batchInfo)
+				if err != nil {
+					d.logger.Error("hybrid fallback derive blocks interrupt", "error", err)
+					return
+				}
+				d.logger.Info("hybrid fallback derivation complete", "batch_index", batchInfo.batchIndex, "currentBatchEndBlock", lastHeader.Number.Uint64())
+			} else {
+				// Any other path B outcome (divergence verdict or runtime error)
+				// is terminal under hybrid -- same as pure path B.
+				d.metrics.SetBatchStatus(stateException)
+				d.logger.Error("hybrid path B content verification failed", "batchIndex", batchInfo.batchIndex, "error", verifyErr)
+				return
+			}
+			d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
+			d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
 		case VerifyModePathB:
 			batchInfo, err = d.fetchBatchInfoPathB(ctx, lg.TxHash, lg.BlockNumber)
 			if err != nil {

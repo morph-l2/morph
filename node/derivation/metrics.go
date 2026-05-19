@@ -35,6 +35,14 @@ type Metrics struct {
 	PathBFailed       metrics.Counter
 	PathBFailedByKind metrics.Counter
 
+	// SPEC-005 §4.2 Hybrid fallback counter. Increments once per batch where
+	// hybrid mode demoted to Path A because Path B reported local_block_missing.
+	// Steady-state value should approach zero on followers that keep up via P2P;
+	// a sustained non-zero rate indicates the local L2 sync lags the L1 commit
+	// feed. Distinct from path_b_failed_by_kind_total{kind="local_block_missing"}
+	// in that the latter still counts hybrid's underlying B attempt.
+	HybridFallbackTotal metrics.Counter
+
 	// SPEC-005 section 4.7 Tag management metrics. Replace the (previously absent)
 	// blocktag instrumentation; on-call alerts should now key off these.
 	SafeAdvanceTotal           metrics.Counter
@@ -105,6 +113,12 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Name:      "path_b_failed_by_kind_total",
 			Help:      "Path B failures broken down by kind label (versioned_hash_mismatch, local_block_missing, ...).",
 		}, append(append([]string(nil), labels...), "kind")).With(labelsAndValues...),
+		HybridFallbackTotal: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "verify_hybrid_fallback_total",
+			Help:      "Times hybrid verify fell back to Path A because the local L2 chain hadn't synced the batch range yet (sync-lag backup).",
+		}, labels).With(labelsAndValues...),
 		SafeAdvanceTotal: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: metricsSubsystem,
@@ -170,6 +184,10 @@ func (m *Metrics) SetSyncedBatchIndex(batchIndex uint64) {
 
 func (m *Metrics) IncPathBTriggered() {
 	m.PathBTriggered.Add(1)
+}
+
+func (m *Metrics) IncHybridFallback() {
+	m.HybridFallbackTotal.Add(1)
 }
 
 func (m *Metrics) IncPathBFailed() {
