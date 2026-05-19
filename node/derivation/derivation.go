@@ -199,7 +199,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 	// The scan is a no-op when --derivation.confirmations=finalized (L1
 	// finalized doesn't reorg by Ethereum consensus assumption) and
 	// load-bearing when configured below finalized; the gate is intentionally
-	// absent so behaviour is uniform across configs.
+	// absent so behavior is uniform across configs.
 	if reorgAt, err := d.detectReorg(ctx); err != nil {
 		d.logger.Error("L1 reorg detection failed; skipping this poll", "err", err)
 		return

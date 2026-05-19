@@ -88,7 +88,7 @@ func DefaultConfig() *Config {
 			// advancer when an L1 hash mismatch is observed. Operators wanting
 			// strict no-reorg-possible reads can still set
 			// --derivation.confirmations=-3 (rpc.FinalizedBlockNumber) or
-			// --l1.confirmations=-3 to revert to the previous behaviour.
+			// --l1.confirmations=-3 to revert to the previous behavior.
 			Confirmations: rpc.SafeBlockNumber,
 		},
 		PollInterval:        DefaultPollInterval,
