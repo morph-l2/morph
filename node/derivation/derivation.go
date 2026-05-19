@@ -337,7 +337,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			}
 			d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
 			d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
-		default: // VerifyModePathA
+		case VerifyModePathA:
 			batchInfo, err = d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
 			if err != nil {
 				if errors.Is(err, types.ErrNotCommitBatchTx) {
@@ -356,6 +356,14 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			d.logger.Info("batch derivation complete", "batch_index", batchInfo.batchIndex, "currentBatchEndBlock", lastHeader.Number.Uint64())
 			d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
 			d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
+		default:
+			// Unreachable: validateAndDefaultVerifyMode rejects unknown values
+			// at startup and normalises empty to DefaultVerifyMode (hybrid).
+			// If we get here it's a programming error -- a new mode added to
+			// the constant set without a switch arm. Fail loud rather than
+			// silently fall through to a stale "default = pathA" semantics.
+			d.logger.Error("unknown verifyMode reached derivationBlock; refusing to process batch", "verifyMode", d.verifyMode)
+			return
 		}
 
 		if lastHeader.Number.Uint64() <= d.baseHeight {
