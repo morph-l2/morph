@@ -222,7 +222,7 @@ where
             let pending_tx = match send {
                 Ok(pending_tx) => pending_tx,
                 Err(e) => {
-                    log::error!("send tx of prove_state error: {:#?}", e);
+                    log::error!("send tx of l1_shadow_rollup.prove_state error: {:#?}", e);
                     // METRICS.shadow_verify_result.set(2);
                     continue;
                 }

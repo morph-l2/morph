@@ -47,7 +47,10 @@ impl BatchProver<DefaultClient> {
             {
                 ProverClient::builder()
                     .network_for(NetworkMode::Mainnet)
-                    .rpc_url("https://rpc.mainnet.succinct.xyz")
+                    .rpc_url(&read_env_var(
+                        "SP1_RPC_URL",
+                        "https://rpc.mainnet.succinct.xyz".to_owned(),
+                    ))
                     .build()
                     .await
             }
@@ -95,28 +98,28 @@ impl BatchProver<DefaultClient> {
         let mut stdin = SP1Stdin::new();
         stdin.write(&serde_json::to_string(&input)?);
 
-        // if read_env_var("DEVNET", false) {
-        //     let (mut public_values, execution_report) = self
-        //         .prover_client
-        //         .execute(Elf::Static(BATCH_VERIFIER_ELF), stdin.clone())
-        //         .await
-        //         .context("sp1-vm execution failed")?;
-        //     log::info!(
-        //         "Program executed successfully, Number of cycles: {}",
-        //         execution_report.total_instruction_count()
-        //     );
-        //     let pi_hash = public_values.read::<[u8; 32]>();
-        //     let public_values = B256::from_slice(&pi_hash);
+        if read_env_var("DEVNET", false) {
+            let (mut public_values, execution_report) = self
+                .prover_client
+                .execute(Elf::Static(BATCH_VERIFIER_ELF), stdin.clone())
+                .await
+                .context("sp1-vm execution failed")?;
+            log::info!(
+                "Program executed successfully, Number of cycles: {}",
+                execution_report.total_instruction_count()
+            );
+            let pi_hash = public_values.read::<[u8; 32]>();
+            let public_values = B256::from_slice(&pi_hash);
 
-        //     log::info!(
-        //         "pi_hash generated with sp1-vm execution: {}",
-        //         alloy::hex::encode_prefixed(public_values.as_slice())
-        //     );
-        //     if pi_hash != expected_hash.as_slice() {
-        //         bail!("pi_hash mismatch with expected hash");
-        //     }
-        //     log::info!("Values are correct!");
-        // }
+            log::info!(
+                "pi_hash generated with sp1-vm execution: {}",
+                alloy::hex::encode_prefixed(public_values.as_slice())
+            );
+            if pi_hash != expected_hash.as_slice() {
+                bail!("pi_hash mismatch with expected hash");
+            }
+            log::info!("Values are correct!");
+        }
 
         if !prove {
             log::info!("Execution completed, No prove request, skipping...");
@@ -131,9 +134,9 @@ impl BatchProver<DefaultClient> {
             .prove(&self.pk, stdin)
             .strategy(FulfillmentStrategy::Auction)
             .skip_simulation(true)
-            .gas_limit(10_000_000_000)
+            .gas_limit(read_env_var("SP1_GAS_LIMIT", 10_000_000_000))
             .plonk()
-            .timeout(Duration::from_secs(1200))
+            .timeout(Duration::from_secs(read_env_var("SP1_TIMEOUT", 1200)))
             .await
             .context("proving failed")?;
         let duration_mins = start.elapsed().as_secs() / 60;

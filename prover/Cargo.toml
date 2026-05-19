@@ -59,7 +59,9 @@ prometheus = { version = "0.9", features = ["process"] }
 prometheus-client = "0.22"
 
 # Compression
+# zstd decompression, the pure Rust implementation used in riscv client.
 ruzstd = { git = "https://github.com/KillingSpark/zstd-rs.git", branch = "master" }
+# zstd compression, the C implementation used in host.
 zstd = { git = "https://github.com/morph-l2/zstd-rs.git", branch = "zstd-dev", features = [
     "experimental",
 ] }
