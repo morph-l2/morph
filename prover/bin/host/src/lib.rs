@@ -8,14 +8,17 @@ use prover_primitives::{alloy_primitives::keccak256, B256};
 use prover_utils::read_env_var;
 #[cfg(feature = "local")]
 use sp1_sdk::CpuProver;
-use sp1_sdk::{
-    network::FulfillmentStrategy, Elf, HashableKey, ProveRequest, Prover, ProverClient, ProvingKey,
-    SP1ProvingKey, SP1Stdin,
-};
+
 #[cfg(all(feature = "network", not(feature = "local")))]
-use sp1_sdk::{network::NetworkMode, NetworkProver};
+use sp1_sdk::{network::FulfillmentStrategy, network::NetworkMode, NetworkProver};
+#[cfg(all(feature = "network", not(feature = "local")))]
+use std::time::Duration;
+
+use sp1_sdk::{
+    Elf, HashableKey, ProveRequest, Prover, ProverClient, ProvingKey, SP1ProvingKey, SP1Stdin,
+};
 use sp1_verifier::PlonkVerifier;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
 pub const BATCH_VERIFIER_ELF: &[u8] = include_bytes!("../../client/elf/verifier-client");
@@ -129,16 +132,29 @@ impl BatchProver<DefaultClient> {
         // Generate the proof
         log::info!("Start proving...");
         let start = Instant::now();
-        let mut proof = self
-            .prover_client
-            .prove(&self.pk, stdin)
-            .strategy(FulfillmentStrategy::Auction)
-            .skip_simulation(true)
-            .gas_limit(read_env_var("SP1_GAS_LIMIT", 10_000_000_000))
-            .plonk()
-            .timeout(Duration::from_secs(read_env_var("SP1_TIMEOUT", 1200)))
-            .await
-            .context("proving failed")?;
+        let mut proof = {
+            #[cfg(all(feature = "network", not(feature = "local")))]
+            {
+                self.prover_client
+                    .prove(&self.pk, stdin)
+                    .strategy(FulfillmentStrategy::Auction)
+                    .skip_simulation(true)
+                    .gas_limit(read_env_var("SP1_GAS_LIMIT", 10_000_000_000))
+                    .plonk()
+                    .timeout(Duration::from_secs(read_env_var("SP1_TIMEOUT", 1200)))
+                    .await
+                    .context("network prove error")?
+            }
+            #[cfg(feature = "local")]
+            {
+                self.prover_client
+                    .prove(&self.pk, stdin)
+                    .plonk()
+                    .await
+                    .context("local prove error")?
+            }
+        };
+
         let duration_mins = start.elapsed().as_secs() / 60;
         log::info!("Successfully generated proof!, time use: {} minutes", duration_mins);
 
