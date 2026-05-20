@@ -19,12 +19,20 @@ func TestParseAddr(t *testing.T) {
 		wantPort uint32
 		wantErr  bool
 	}{
+		// Legacy bare CID:port — accepted for backward compat.
 		{"16:5000", 16, 5000, false},
 		{"3:8000", 3, 8000, false},
 		{"0:1", 0, 1, false},
+		// vsock:CID:port — matches ops-cli convention.
+		{"vsock:16:5000", 16, 5000, false},
+		{"vsock:3:8000", 3, 8000, false},
+		{"vsock:0:1", 0, 1, false},
+		// Errors.
 		{"abc:5000", 0, 0, true},
 		{"16:bad", 0, 0, true},
 		{"16", 0, 0, true},
+		{"vsock:16", 0, 0, true},
+		{"vsock:abc:5000", 0, 0, true},
 		{"", 0, 0, true},
 	}
 	for _, tc := range cases {
