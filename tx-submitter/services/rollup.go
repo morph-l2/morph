@@ -234,16 +234,16 @@ func (r *Rollup) Start() error {
 		r.metrics.SetHasPendingFinalizeBatch(hasPendingFinalizeBatch)
 	})
 
-	go utils.Loop(r.ctx, r.cfg.RollupInterval, func() {
-		r.rollupFinalizeMu.Lock()
-		defer r.rollupFinalizeMu.Unlock()
-		if err := r.rollup(); err != nil {
-			if utils.IsRpcErr(err) {
-				r.metrics.IncRpcErrors()
-			}
-			log.Error("rollup failed,wait for the next try", "error", err)
-		}
-	})
+	// go utils.Loop(r.ctx, r.cfg.RollupInterval, func() {
+	// 	r.rollupFinalizeMu.Lock()
+	// 	defer r.rollupFinalizeMu.Unlock()
+	// 	if err := r.rollup(); err != nil {
+	// 		if utils.IsRpcErr(err) {
+	// 			r.metrics.IncRpcErrors()
+	// 		}
+	// 		log.Error("rollup failed,wait for the next try", "error", err)
+	// 	}
+	// })
 
 	if r.cfg.Finalize {
 		go utils.Loop(r.ctx, r.cfg.FinalizeInterval, func() {
