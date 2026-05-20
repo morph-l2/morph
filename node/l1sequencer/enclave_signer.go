@@ -270,9 +270,15 @@ func (s *EnclaveSigner) dial() (net.Conn, error) {
 }
 
 func parseAddr(addr string) (uint32, uint32, error) {
-	parts := strings.SplitN(addr, ":", 2)
+	// Accept both "vsock:CID:port" (matches ops-cli's --addr convention)
+	// and bare "CID:port" (legacy — kept so existing systemd Environment
+	// / k8s ConfigMap entries keep working through the format unification).
+	// TrimPrefix is a no-op when the prefix isn't there, so one parse
+	// path covers both.
+	s := strings.TrimPrefix(addr, "vsock:")
+	parts := strings.SplitN(s, ":", 2)
 	if len(parts) != 2 {
-		return 0, 0, fmt.Errorf("addr must be CID:port, got %q", addr)
+		return 0, 0, fmt.Errorf("addr must be CID:port or vsock:CID:port, got %q", addr)
 	}
 	cid, err := strconv.ParseUint(parts[0], 10, 32)
 	if err != nil {
