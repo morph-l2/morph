@@ -42,7 +42,7 @@ async fn main() {
     dotenv::dotenv().ok();
     env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
 
-    let prover = BatchProver::default();
+    let prover = BatchProver::new().await.expect("failed to initialize BatchProver");
 
     let args = Args::parse();
     let mut input = if args.use_rpc_db {
@@ -69,7 +69,7 @@ async fn main() {
         println!("Saved executor input to {input_path}");
     }
 
-    let proof = prover.prove(&mut input, args.prove).unwrap();
+    let proof = prover.prove(&mut input, args.prove).await.unwrap();
     if let Some(evm_proof) = proof {
         let proof_dir =
             PathBuf::from("proof").join(format!("blocks_{}_{}", args.start_block, args.end_block));

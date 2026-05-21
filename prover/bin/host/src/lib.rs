@@ -8,9 +8,15 @@ use prover_primitives::{alloy_primitives::keccak256, B256};
 use prover_utils::read_env_var;
 #[cfg(feature = "local")]
 use sp1_sdk::CpuProver;
+
 #[cfg(all(feature = "network", not(feature = "local")))]
-use sp1_sdk::{network::NetworkMode, NetworkProver};
-use sp1_sdk::{HashableKey, Prover, ProverClient, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
+use sp1_sdk::{network::FulfillmentStrategy, network::NetworkMode, NetworkProver};
+#[cfg(all(feature = "network", not(feature = "local")))]
+use std::time::Duration;
+
+use sp1_sdk::{
+    Elf, HashableKey, ProveRequest, Prover, ProverClient, ProvingKey, SP1ProvingKey, SP1Stdin,
+};
 use sp1_verifier::PlonkVerifier;
 use std::time::Instant;
 
@@ -24,7 +30,6 @@ const MAX_PROVE_BLOCKS: usize = 4096;
 pub struct BatchProver<C> {
     prover_client: C,
     pk: SP1ProvingKey,
-    vk: SP1VerifyingKey,
 }
 
 #[cfg(feature = "local")]
@@ -37,31 +42,38 @@ pub type DefaultClient = NetworkProver;
 #[cfg(all(not(feature = "local"), not(feature = "network")))]
 compile_error!("One of `local` or `network` features must be enabled for morph-prove.");
 
-/// A batch prover that uses the default proving client based on the feature flag.
-impl Default for BatchProver<DefaultClient> {
-    fn default() -> Self {
+impl BatchProver<DefaultClient> {
+    /// Creates a new BatchProver with the default proving client based on the feature flag.
+    pub async fn new() -> Result<Self, anyhow::Error> {
         let prover_client = {
             #[cfg(all(feature = "network", not(feature = "local")))]
             {
                 ProverClient::builder()
                     .network_for(NetworkMode::Mainnet)
-                    .rpc_url("https://rpc.mainnet.succinct.xyz")
+                    .rpc_url(&read_env_var(
+                        "SP1_RPC_URL",
+                        "https://rpc.mainnet.succinct.xyz".to_owned(),
+                    ))
                     .build()
+                    .await
             }
             #[cfg(feature = "local")]
             {
-                ProverClient::builder().cpu().build()
+                ProverClient::builder().cpu().build().await
             }
         };
-        let (pk, vk) = prover_client.setup(BATCH_VERIFIER_ELF);
-        log::info!("Batch ELF Verification Key: {:?}", vk.vk.bytes32());
-        Self { prover_client, pk, vk }
+        let pk = prover_client
+            .setup(Elf::Static(BATCH_VERIFIER_ELF))
+            .await
+            .context("failed to setup prover")?;
+        log::info!("Batch ELF Verification Key: {:?}", pk.verifying_key().bytes32());
+        Ok(Self { prover_client, pk })
     }
 }
 
 impl BatchProver<DefaultClient> {
     /// Proves a batch of EVM transactions and verifies the proof.
-    pub fn prove(
+    pub async fn prove(
         &self,
         input: &mut ExecutorInput,
         prove: bool,
@@ -92,8 +104,8 @@ impl BatchProver<DefaultClient> {
         if read_env_var("DEVNET", false) {
             let (mut public_values, execution_report) = self
                 .prover_client
-                .execute(BATCH_VERIFIER_ELF, &stdin)
-                .run()
+                .execute(Elf::Static(BATCH_VERIFIER_ELF), stdin.clone())
+                .await
                 .context("sp1-vm execution failed")?;
             log::info!(
                 "Program executed successfully, Number of cycles: {}",
@@ -120,8 +132,29 @@ impl BatchProver<DefaultClient> {
         // Generate the proof
         log::info!("Start proving...");
         let start = Instant::now();
-        let mut proof =
-            self.prover_client.prove(&self.pk, &stdin).plonk().run().context("proving failed")?;
+        let mut proof = {
+            #[cfg(all(feature = "network", not(feature = "local")))]
+            {
+                self.prover_client
+                    .prove(&self.pk, stdin)
+                    .strategy(FulfillmentStrategy::Auction)
+                    .skip_simulation(true)
+                    .gas_limit(read_env_var("SP1_GAS_LIMIT", 10_000_000_000))
+                    .plonk()
+                    .timeout(Duration::from_secs(read_env_var("SP1_TIMEOUT", 1200)))
+                    .await
+                    .context("network prove error")?
+            }
+            #[cfg(feature = "local")]
+            {
+                self.prover_client
+                    .prove(&self.pk, stdin)
+                    .plonk()
+                    .await
+                    .context("local prove error")?
+            }
+        };
+
         let duration_mins = start.elapsed().as_secs() / 60;
         log::info!("Successfully generated proof!, time use: {} minutes", duration_mins);
 
@@ -129,7 +162,8 @@ impl BatchProver<DefaultClient> {
         let plonk_proof = proof.bytes();
         let public_inputs = proof.public_values.to_vec();
         let plonk_vk = *sp1_verifier::PLONK_VK_BYTES;
-        PlonkVerifier::verify(&plonk_proof, &public_inputs, &self.vk.bytes32(), plonk_vk)
+        let vk = self.pk.verifying_key();
+        PlonkVerifier::verify(&plonk_proof, &public_inputs, &vk.bytes32(), plonk_vk)
             .context("failed to verify proof")?;
         log::info!("Successfully verified proof!");
 
@@ -140,7 +174,7 @@ impl BatchProver<DefaultClient> {
             alloy::hex::encode_prefixed(pi_bytes)
         );
         let fixture = EvmProofFixture {
-            vkey: self.vk.bytes32().to_string(),
+            vkey: vk.bytes32().to_string(),
             public_values: B256::from_slice(&pi_bytes).to_string(),
             proof: alloy::hex::encode_prefixed(proof.bytes()),
         };
@@ -156,7 +190,7 @@ impl BatchProver<DefaultClient> {
 mod tests {
     use prover_primitives::B256;
 
-    use sp1_sdk::{HashableKey, ProverClient, SP1ProofWithPublicValues};
+    use sp1_sdk::{Elf, HashableKey, Prover, ProverClient, ProvingKey, SP1ProofWithPublicValues};
     use sp1_verifier::PlonkVerifier;
 
     use crate::{
@@ -164,16 +198,17 @@ mod tests {
         BATCH_VERIFIER_ELF,
     };
 
-    #[test]
-    pub fn verify_proof() {
+    #[tokio::test]
+    pub async fn verify_proof() {
         let proof_loaded = SP1ProofWithPublicValues::load("../../proof/artifact_mainnet").unwrap();
 
         let proof = proof_loaded.bytes();
         let public_inputs = proof_loaded.public_values.to_vec();
 
-        let client = ProverClient::from_env();
+        let client = ProverClient::from_env().await;
 
-        let (_pk, vk) = client.setup(BATCH_VERIFIER_ELF);
+        let pk = client.setup(Elf::Static(BATCH_VERIFIER_ELF)).await.unwrap();
+        let vk = pk.verifying_key();
         // Print the verification key.
         println!("Program Verification Key: {}", vk.bytes32());
         let plonk_vk = *sp1_verifier::PLONK_VK_BYTES;

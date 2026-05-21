@@ -8,13 +8,13 @@ volumes:
   morph_data_1:
   morph_data_2:
   morph_data_3:
-  sentry_geth_data:
+  sentry_el_data:
   node_data_0:
   node_data_1:
   node_data_2:
   node_data_3:
   sentry_node_data:
-  validator_geth_data:
+  validator_el_data:
   validator_node_data:
   layer1-el-data:
   layer1-cl-data:
@@ -116,8 +116,8 @@ services:
     restart: unless-stopped
 
   # ========== L2 Services ==========
-  morph-geth-0:
-    container_name: morph-geth-0
+  morph-el-0:
+    container_name: morph-el-0
     depends_on:
       layer1-el:
         condition: service_started
@@ -143,10 +143,10 @@ services:
       - "/bin/bash"
       - "/entrypoint.sh"
 
-  morph-geth-1:
-    container_name: morph-geth-1
+  morph-el-1:
+    container_name: morph-el-1
     depends_on:
-      - morph-geth-0
+      - morph-el-0
     image: morph-geth:latest
     restart: unless-stopped
     ports:
@@ -167,10 +167,10 @@ services:
       - "/bin/bash"
       - "/entrypoint.sh"
 
-  morph-geth-2:
-    container_name: morph-geth-2
+  morph-el-2:
+    container_name: morph-el-2
     depends_on:
-      - morph-geth-0
+      - morph-el-0
     image: morph-geth:latest
     restart: unless-stopped
     ports:
@@ -191,10 +191,10 @@ services:
       - "/bin/bash"
       - "/entrypoint.sh"
 
-  morph-geth-3:
-    container_name: morph-geth-3
+  morph-el-3:
+    container_name: morph-el-3
     depends_on:
-      - morph-geth-0
+      - morph-el-0
     image: morph-geth:latest
     restart: unless-stopped
     ports:
@@ -219,7 +219,7 @@ services:
   node-0:
     container_name: node-0
     depends_on:
-      morph-geth-0:
+      morph-el-0:
         condition: service_started
     image: morph-node:latest
     build:
@@ -232,8 +232,8 @@ services:
       - "26658"
       - "26660"
     environment:
-      - MORPH_NODE_L2_ETH_RPC=http://morph-geth-0:8545
-      - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-0:8551
+      - MORPH_NODE_L2_ETH_RPC=http://morph-el-0:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://morph-el-0:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
@@ -261,8 +261,8 @@ services:
       - "26658"
       - "26660"
     environment:
-      - MORPH_NODE_L2_ETH_RPC=http://morph-geth-1:8545
-      - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-1:8551
+      - MORPH_NODE_L2_ETH_RPC=http://morph-el-1:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://morph-el-1:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
@@ -291,8 +291,8 @@ services:
       - "26660"
     environment:
       - EMPTY_BLOCK_DELAY=true
-      - MORPH_NODE_L2_ETH_RPC=http://morph-geth-2:8545
-      - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-2:8551
+      - MORPH_NODE_L2_ETH_RPC=http://morph-el-2:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://morph-el-2:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
@@ -321,8 +321,8 @@ services:
       - "26660"
     environment:
       - EMPTY_BLOCK_DELAY=true
-      - MORPH_NODE_L2_ETH_RPC=http://morph-geth-3:8545
-      - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-3:8551
+      - MORPH_NODE_L2_ETH_RPC=http://morph-el-3:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://morph-el-3:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
@@ -337,8 +337,8 @@ services:
       morphnode
       --home $NODE_DATA_DIR
 
-  sentry-geth-0:
-    container_name: sentry-geth-0
+  sentry-el-0:
+    container_name: sentry-el-0
     depends_on:
       node-3:
         condition: service_started
@@ -354,7 +354,7 @@ services:
       - "6060"
       - "30303"
     volumes:
-      - "sentry_geth_data:/db"
+      - "sentry_el_data:/db"
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
       - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
@@ -376,8 +376,8 @@ services:
       - "26660"
     environment:
       - EMPTY_BLOCK_DELAY=true
-      - MORPH_NODE_L2_ETH_RPC=http://sentry-geth-0:8545
-      - MORPH_NODE_L2_ENGINE_RPC=http://sentry-geth-0:8551
+      - MORPH_NODE_L2_ETH_RPC=http://sentry-el-0:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://sentry-el-0:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
@@ -392,8 +392,8 @@ services:
       --home $NODE_DATA_DIR
     
 
-  validator_geth:
-     container_name: validator_geth
+  validator-el:
+     container_name: validator-el
      image: morph-geth:latest
      depends_on:
        tx-submitter-0:
@@ -403,12 +403,12 @@ services:
        - "7546:8546"
        - "7551:8551"
      healthcheck:
-       test: curl -f http://localhost:8545
+       test: ["CMD-SHELL", "wget -qO- --header='Content-Type: application/json' --post-data='{\"jsonrpc\":\"2.0\",\"method\":\"eth_chainId\",\"params\":[],\"id\":1}' http://localhost:8545 | grep -q '\"result\"'"]
        interval: 30s
        timeout: 5s
        retries: 3
      volumes:
-       - "validator_geth_data:${GETH_DATA_DIR}"
+       - "validator_el_data:${GETH_DATA_DIR}"
        - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
        - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
      entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
@@ -418,7 +418,7 @@ services:
   validator_node:
      container_name: validator_node
      depends_on:
-       validator_geth:
+       validator-el:
            condition: service_started
        node-0:
          condition: service_started
@@ -426,8 +426,8 @@ services:
      ports:
        - "26660"
      environment:
-       - MORPH_NODE_L2_ETH_RPC=http://validator_geth:8545
-       - MORPH_NODE_L2_ENGINE_RPC=http://validator_geth:8551
+       - MORPH_NODE_L2_ETH_RPC=http://validator-el:8545
+       - MORPH_NODE_L2_ENGINE_RPC=http://validator-el:8551
        - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
        ## todo need to replace it to a public network
        - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
@@ -470,7 +470,7 @@ services:
      - TX_SUBMITTER_BUILD_ENV=dev
      - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
      - TX_SUBMITTER_L1_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
-     - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-0:8545,http://morph-geth-1:8545
+     - TX_SUBMITTER_L2_ETH_RPCS=http://morph-el-0:8545,http://morph-el-1:8545
      - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
      - TX_SUBMITTER_MAX_TX_SIZE=125952
      - TX_SUBMITTER_POLL_INTERVAL=3s
@@ -483,6 +483,7 @@ services:
      - TX_SUBMITTER_FINALIZE=true
      - TX_SUBMITTER_MAX_FINALIZE_NUM=100
      - TX_SUBMITTER_PRIORITY_ROLLUP=true
+     - TX_SUBMITTER_SEAL_BATCH=true
      - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
      - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
      - TX_SUBMITTER_METRICS_PORT=6060
@@ -515,7 +516,7 @@ services:
      - TX_SUBMITTER_BUILD_ENV=dev
      - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
      - TX_SUBMITTER_L1_PRIVATE_KEY=0x0890c388c3bf5e04fee1d8f3c117e5f44f435ced7baf7bfd66c10e1f3a3f4b10
-     - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-0:8545,http://morph-geth-1:8545
+     - TX_SUBMITTER_L2_ETH_RPCS=http://morph-el-0:8545,http://morph-el-1:8545
      - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
      - TX_SUBMITTER_MAX_TX_SIZE=125952
      - TX_SUBMITTER_POLL_INTERVAL=3s
@@ -528,6 +529,7 @@ services:
      - TX_SUBMITTER_FINALIZE=false
      - TX_SUBMITTER_MAX_FINALIZE_NUM=100
      - TX_SUBMITTER_PRIORITY_ROLLUP=false
+     - TX_SUBMITTER_SEAL_BATCH=true
      - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
      - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
      - TX_SUBMITTER_METRICS_PORT=6060
@@ -558,7 +560,7 @@ services:
       - TX_SUBMITTER_BUILD_ENV=dev
       - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
       - TX_SUBMITTER_L1_PRIVATE_KEY=0x6fd437eef7a83c486bd2e0a802ae071b3912d125ac31ac08f60841fd891559ae
-      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-2:8545,http://morph-geth-3:8545
+      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-el-2:8545,http://morph-el-3:8545
       - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
       - TX_SUBMITTER_MAX_TX_SIZE=125952
       - TX_SUBMITTER_POLL_INTERVAL=3s
@@ -571,6 +573,7 @@ services:
       - TX_SUBMITTER_FINALIZE=false
       - TX_SUBMITTER_MAX_FINALIZE_NUM=100
       - TX_SUBMITTER_PRIORITY_ROLLUP=false
+      - TX_SUBMITTER_SEAL_BATCH=true
       - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
       - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
       - TX_SUBMITTER_METRICS_PORT=6060
@@ -601,7 +604,7 @@ services:
       - TX_SUBMITTER_BUILD_ENV=dev
       - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
       - TX_SUBMITTER_L1_PRIVATE_KEY=0x9ae53aecdaebe4dcbfec96f3123a2a8c53f9596bf4b3d5adc9a388ccb361b4c0
-      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-geth-2:8545,http://morph-geth-3:8545
+      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-el-2:8545,http://morph-el-3:8545
       - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
       - TX_SUBMITTER_MAX_TX_SIZE=125952
       - TX_SUBMITTER_POLL_INTERVAL=3s
@@ -614,6 +617,7 @@ services:
       - TX_SUBMITTER_FINALIZE=false
       - TX_SUBMITTER_MAX_FINALIZE_NUM=100
       - TX_SUBMITTER_PRIORITY_ROLLUP=false
+      - TX_SUBMITTER_SEAL_BATCH=true
       - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
       - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
       - TX_SUBMITTER_METRICS_PORT=6060
@@ -642,7 +646,7 @@ services:
     environment:
       - GAS_ORACLE_L1_RPC=${L1_ETH_RPC}
       - GAS_ORACLE_L1_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
-      - GAS_ORACLE_L2_RPC=http://morph-geth-0:8545
+      - GAS_ORACLE_L2_RPC=http://morph-el-0:8545
       - GAS_THRESHOLD=5
       - INTERVAL=28000
       - L2_GAS_PRICE_ORACLE=0x530000000000000000000000000000000000000F

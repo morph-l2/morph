@@ -114,14 +114,14 @@ start-bk-prod-morph-prod-mainnet-to-morph-shadow-proving:
 	/data/secret-manager-wrapper  ./shadow-proving
 
 # testnet
-build-bk-prod-morph-prod-testnet-to-morph-shadow-proving:
+build-bk-prod-morph-prod-testnet-to-morph-shadow-proving-hoodi:
 	if [ ! -d dist ]; then mkdir -p dist; fi
 	cd $(PWD)/prover/bin/shadow-prove && CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --release
 	cp prover/target/release/shadow-proving dist/
 	aws s3 cp s3://morph-0582-morph-technical-department-testnet-data/testnet/hoodi/morph-setup/secret-manager-wrapper.tar.gz ./
 	tar -xvzf secret-manager-wrapper.tar.gz
 
-start-bk-prod-morph-prod-testnet-to-morph-shadow-proving:
+start-bk-prod-morph-prod-testnet-to-morph-shadow-proving-hoodi:
 	/data/secret-manager-wrapper ./shadow-proving
 
 # qanet

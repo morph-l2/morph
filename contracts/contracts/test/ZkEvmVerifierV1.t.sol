@@ -7,7 +7,7 @@ import {ZkEvmVerifierV1} from "../libraries/verifier/ZkEvmVerifierV1.sol";
 
 struct ProofFixture {
     bytes proof;
-    bytes32 publicValues;
+    bytes publicValues;
     bytes32 vkey;
 }
 
@@ -35,15 +35,17 @@ contract EvmTest is Test {
     // Prove state success.
     function test_ValidProof() public {
         ProofFixture memory fixture = loadFixture();
-        evm.verifyPlonk(fixture.proof, abi.encodePacked(fixture.publicValues));
+        evm.verifyPlonk(fixture.proof, fixture.publicValues);
     }
 
     // Prove state fail.
     function testRevert_InValidProof() public {
         vm.expectRevert();
         ProofFixture memory fixture = loadFixture();
-        // Create a fake proof.
-        fixture.proof[31] = 0x00;
-        evm.verifyPlonk(fixture.proof, abi.encodePacked(fixture.publicValues));
+        // Corrupt a byte inside the gnark proof body (proofBytes layout in
+        // SP1 v6: [0..4]=selector, [4..36]=exit_code, [36..68]=vk_root,
+        // [68..100]=nonce, [100..]=gnark proof).
+        fixture.proof[200] = ~fixture.proof[200];
+        evm.verifyPlonk(fixture.proof, fixture.publicValues);
     }
 }
