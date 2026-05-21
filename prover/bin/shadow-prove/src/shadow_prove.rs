@@ -213,8 +213,7 @@ where
                 ),
                 Err(e) => {
                     log::error!("proveCommittedBatchState dry-run failed: {:#?}", e);
-                    METRICS.shadow_verify_result.set(2);
-                    continue;
+                    // METRICS.shadow_verify_result.set(2);
                 }
             }
             let shadow_tx = self.l1_shadow_rollup.proveState(batch_index, aggr_proof);
@@ -223,8 +222,8 @@ where
             let pending_tx = match send {
                 Ok(pending_tx) => pending_tx,
                 Err(e) => {
-                    log::error!("send tx of prove_state error: {:#?}", e);
-                    METRICS.shadow_verify_result.set(2);
+                    log::error!("send tx of l1_shadow_rollup.prove_state error: {:#?}", e);
+                    // METRICS.shadow_verify_result.set(2);
                     continue;
                 }
             };
