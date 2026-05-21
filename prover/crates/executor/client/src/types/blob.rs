@@ -15,6 +15,13 @@ pub struct BlobData {}
 /// Decode a single blob's BLS12-381 field elements into raw bytes (4096 x 31 bytes).
 /// Does NOT decompress — call [`decompress_batch`] on the concatenated output of all blobs.
 pub fn decode_blob_scalars(blob_data: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
+    if blob_data.len() != BLOB_WIDTH * 32 {
+        return Err(anyhow!(
+            "invalid blob length: expected {}, got {}",
+            BLOB_WIDTH * 32,
+            blob_data.len()
+        ));
+    }
     let mut chunk = vec![0u8; BLOB_WIDTH * 31];
     for i in 0..BLOB_WIDTH {
         if blob_data[i * 32] != 0 {

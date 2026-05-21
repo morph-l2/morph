@@ -29,6 +29,9 @@ var (
 )
 
 func TestRollupWithProof(t *testing.T) {
+	if pk == "" {
+		t.Skip("pk is unset; provide a hex private key to run TestRollupWithProof")
+	}
 	testDB := openTestKV(t)
 
 	cache := NewBatchCache(nil, nil, 2, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)

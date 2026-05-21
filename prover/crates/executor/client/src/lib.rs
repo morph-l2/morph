@@ -34,10 +34,25 @@ pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
         hex::encode(batch_info.sequencer_root().as_slice()),
         input.batch_version,
     );
-    let public_input_hash = if input.batch_version >= 2 {
-        batch_info.public_input_hash_v2(&versioned_hashes)
-    } else {
-        batch_info.public_input_hash(&versioned_hashes[0])
+    let public_input_hash = match input.batch_version {
+        0 | 1 => {
+            if versioned_hashes.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "batch version {} requires exactly 1 versioned hash, got 0",
+                    input.batch_version
+                ));
+            }
+            batch_info.public_input_hash(&versioned_hashes[0])
+        }
+        2 => {
+            if versioned_hashes.is_empty() {
+                return Err(anyhow::anyhow!("batch version 2 requires at least 1 versioned hash"));
+            }
+            batch_info.public_input_hash_v2(&versioned_hashes)
+        }
+        v => {
+            return Err(anyhow::anyhow!("unsupported batch version: {}", v));
+        }
     };
     #[cfg(not(target_os = "zkvm"))]
     log::info!("public input hash: {public_input_hash:?}");

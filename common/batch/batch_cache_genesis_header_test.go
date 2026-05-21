@@ -3,8 +3,6 @@ package batch
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/signal"
 	"sync"
 	"testing"
 	"time"
@@ -124,19 +122,8 @@ func TestBatchCacheInitWithGlobalGenesisHeader(t *testing.T) {
 	_, err = cache.l2Clients.BlockNumber(context.Background())
 	require.NoError(t, err)
 
-	go testLoop(cache.ctx, 5*time.Second, func() {
-		batchCacheSyncMu.Lock()
-		defer batchCacheSyncMu.Unlock()
-		err := cache.AssembleCurrentBatchHeader()
-		if err != nil {
-			log.Error("Assemble current batch failed, wait for the next try", "error", err)
-		}
-	})
-
-	// Catch CTRL-C to ensure a graceful shutdown.
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
-
-	// Wait until the interrupt signal is received from an OS signal.
-	<-interrupt
+	batchCacheSyncMu.Lock()
+	err = cache.AssembleCurrentBatchHeader()
+	batchCacheSyncMu.Unlock()
+	require.NoError(t, err)
 }
