@@ -35,21 +35,23 @@ type Metrics struct {
 	PathBFailed       metrics.Counter
 	PathBFailedByKind metrics.Counter
 
-	// SPEC-005 §4.2 / §4.6 Path B self-heal counters (target design — currently
-	// TODO; the call sites are not wired until the EL number-continuity check is
-	// relaxed in a separate spec). On versioned_hash_mismatch the verifier is
-	// designed to: (1) pull the real blob from beacon, (2) re-derive the batch
-	// (overwriting locally divergent blocks via EL forkchoice), (3) re-run the
-	// shared verifyBatchRoots. Three counters, mirroring the spec metrics table:
+	// SPEC-005 §4.2 / §4.6 Path B self-heal counters. On a divergence verdict
+	// (ErrBatchVerifyDivergence; covers versioned_hash_mismatch +
+	// blob_count_mismatch) the Path B branch in derivation.go pulls the real
+	// blob from beacon, re-derives the batch via the V2 engine API
+	// (NewL2BlockV2, which reorgs locally divergent unsafe blocks), and
+	// re-runs the shared verifyBatchRoots:
 	//
-	//   - PathBSelfHealTriggered      : self-heal attempt started (mismatch detected)
+	//   - PathBSelfHealTriggered      : self-heal attempt started (divergence detected)
 	//   - PathBSelfHealSucceeded      : self-heal completed and verifyBatchRoots passed
 	//   - PathBSelfHealFailedByKind   : self-heal failed; sub_kind label =
 	//       blob_unavailable / parse_error / derive_error / roots_mismatch
 	//
-	// Until the EL change lands, these counters stay at 0 and a verified-hash
-	// mismatch falls through to the legacy "log + return + retry next poll"
-	// failure path (counted under path_b_failed_by_kind_total{kind="versioned_hash_mismatch"}).
+	// Temporary EL dependency: NewL2BlockV2 lives in go-ethereum PR #325
+	// (https://github.com/morph-l2/go-ethereum/pull/325). go.mod currently
+	// pins to that PR's HEAD commit; once #325 merges and a release is cut,
+	// the bump is reverted to the released pseudo-version with no caller
+	// change. morph-reth's matching change is tracked separately.
 	PathBSelfHealTriggered    metrics.Counter
 	PathBSelfHealSucceeded    metrics.Counter
 	PathBSelfHealFailedByKind metrics.Counter
@@ -128,7 +130,7 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Namespace: namespace,
 			Subsystem: metricsSubsystem,
 			Name:      "path_b_self_heal_triggered_total",
-			Help:      "Times Path B detected a versioned hash mismatch and entered the self-heal branch (pull real blob → derive → shared verifyBatchRoots). Stays at 0 until the EL number-continuity check is relaxed (separate spec).",
+			Help:      "Times Path B detected a divergence verdict and entered the self-heal branch (pull real blob → re-derive via NewL2BlockV2 → shared verifyBatchRoots).",
 		}, labels).With(labelsAndValues...),
 		PathBSelfHealSucceeded: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
 			Namespace: namespace,

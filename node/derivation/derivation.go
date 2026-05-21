@@ -268,36 +268,71 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				"expectedBlobs", len(batchInfo.blobHashes),
 				"txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
 				"l1BlockNumber", batchInfo.l1BlockNumber, "firstL2BlockNumber", batchInfo.firstBlockNumber, "lastL2BlockNumber", batchInfo.lastBlockNumber)
-			if err := d.verifyBatchContentPathB(ctx, batchInfo); err != nil {
-				// Only flip BatchStatus on a real divergence verdict; runtime
-				// or transient errors (e.g. local_block_read_error) just log
-				// and retry next poll without raising the divergence alert.
-				if errors.Is(err, ErrBatchVerifyDivergence) {
-					d.metrics.SetBatchStatus(stateException)
-					// TODO(SPEC-005 §4.3 self-heal): on versioned_hash_mismatch
-					// the spec calls for a single-batch self-heal here — pull
-					// the real blob from beacon, re-derive the batch via the
-					// existing Path A engine API path (overwriting locally
-					// divergent blocks via EL forkchoice), then re-run the
-					// shared verifyBatchRoots; on success increment
-					// path_b_self_heal_succeeded_total and continue, on
-					// failure increment path_b_self_heal_failed_total{sub_kind=...}
-					// and fall through to the legacy failure path below.
-					// Blocked on the EL number-continuity check
-					// (`params.Number == latestNumber + 1`) being relaxed in
-					// morph-reth `crates/engine-api/src/builder.rs` and
-					// go-ethereum `eth/catalyst/l2_api.go` (separate spec).
-					// Until then a divergence verdict falls through to
-					// the legacy "log + return + retry next poll" path,
-					// counted under
-					// path_b_failed_by_kind_total{kind="versioned_hash_mismatch"}.
+			verifyErr := d.verifyBatchContentPathB(ctx, batchInfo)
+			if verifyErr == nil {
+				lastHeader, err = d.fetchLocalLastHeader(ctx, batchInfo)
+				if err != nil {
+					d.logger.Error("path B local last-header fetch failed", "batchIndex", batchInfo.batchIndex, "error", err)
+					return
 				}
-				d.logger.Error("path B content verification failed", "batchIndex", batchInfo.batchIndex, "error", err)
-				return
-			}
-			lastHeader, err = d.fetchLocalLastHeader(ctx, batchInfo)
-			if err != nil {
-				d.logger.Error("path B local last-header fetch failed", "batchIndex", batchInfo.batchIndex, "error", err)
+			} else if errors.Is(verifyErr, ErrBatchVerifyDivergence) {
+				// SPEC-005 §4.3 Path B self-heal: a divergence verdict means
+				// the local L2 blocks in the batch range disagree with the
+				// sequencer's blob. Pull the real blob, re-derive via the V2
+				// engine API (PR #325, https://github.com/morph-l2/go-ethereum/pull/325),
+				// which reorgs the locally divergent unsafe blocks; then run
+				// the shared verifyBatchRoots. On full success, fall through
+				// to the normal post-verify bookkeeping.
+				d.metrics.IncPathBSelfHealTriggered()
+				d.logger.Info("path B divergence; entering self-heal",
+					"batchIndex", batchInfo.batchIndex, "verifyError", verifyErr)
+				d.metrics.SetBatchStatus(stateException)
+
+				batchInfoFull, fetchErr := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
+				if fetchErr != nil {
+					if errors.Is(fetchErr, types.ErrNotCommitBatchTx) {
+						// Should not happen: pathB fetch already accepted this
+						// tx as a commitBatch. Treat as derive_error — the
+						// sub_kind is for an unexpected runtime regression.
+						d.metrics.IncPathBSelfHealFailed("derive_error")
+					} else {
+						d.metrics.IncPathBSelfHealFailed("blob_unavailable")
+					}
+					d.logger.Error("path B self-heal: fetch real batch failed",
+						"batchIndex", batchInfo.batchIndex, "error", fetchErr)
+					return
+				}
+
+				healLastHeader, deriveErr := d.deriveForSelfHeal(batchInfoFull)
+				if deriveErr != nil {
+					d.metrics.IncPathBSelfHealFailed("derive_error")
+					d.logger.Error("path B self-heal: derive failed",
+						"batchIndex", batchInfo.batchIndex, "error", deriveErr)
+					return
+				}
+
+				if rootsErr := d.verifyBatchRoots(batchInfoFull, healLastHeader); rootsErr != nil {
+					d.metrics.IncPathBSelfHealFailed("roots_mismatch")
+					d.logger.Error("path B self-heal: verifyBatchRoots failed",
+						"batchIndex", batchInfo.batchIndex, "error", rootsErr)
+					return
+				}
+
+				d.metrics.IncPathBSelfHealSucceeded()
+				d.logger.Info("path B self-heal: success",
+					"batchIndex", batchInfo.batchIndex,
+					"firstBlock", batchInfoFull.firstBlockNumber,
+					"lastBlock", batchInfoFull.lastBlockNumber)
+				batchInfo = batchInfoFull
+				lastHeader = healLastHeader
+			} else {
+				// Transient kind (local_block_missing / local_block_read_error
+				// / parsing_txs_error / compress_error / sidecar_build_error /
+				// invalid_block_range / empty_blob_hashes): log + return +
+				// retry next poll. Do NOT raise the divergence alert
+				// (BatchStatus stays at stateNormal).
+				d.logger.Error("path B content verification failed",
+					"batchIndex", batchInfo.batchIndex, "error", verifyErr)
 				return
 			}
 			d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())

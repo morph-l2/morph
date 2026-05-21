@@ -4,7 +4,7 @@ go 1.24.0
 
 replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.7
 
-require github.com/morph-l2/go-ethereum v1.10.14-0.20260506071313-045be0fdc7ca
+require github.com/morph-l2/go-ethereum v1.10.14-0.20260508105911-56deb7072ae4
 
 require (
 	github.com/VictoriaMetrics/fastcache v1.12.2 // indirect
