@@ -2,10 +2,10 @@ module morph-l2/tools
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.6
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.7
 
 require (
-	github.com/morph-l2/go-ethereum v1.10.14-0.20260317041928-1d4605778e32
+	github.com/morph-l2/go-ethereum v1.10.14-0.20260506071313-045be0fdc7ca
 	github.com/tendermint/tendermint v0.35.9
 )
 

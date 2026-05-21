@@ -1,0 +1,47 @@
+x-reth-command: &reth-command
+  - node
+  - --chain=/genesis.json
+  - --datadir=/db
+  - --http
+  - --http.addr=0.0.0.0
+  - --http.port=8545
+  - --http.api=web3,debug,eth,txpool,net,trace,admin,reth
+  - --ws
+  - --ws.addr=0.0.0.0
+  - --ws.port=8546
+  - --ws.api=web3,debug,eth,txpool,net,trace,admin,reth
+  - --authrpc.addr=0.0.0.0
+  - --authrpc.port=8551
+  - --authrpc.jwtsecret=/jwt-secret.txt
+  - --nat=none
+  - --disable-discovery
+
+x-reth-service: &reth-service
+  image: ${MORPH_RETH_IMAGE:-ghcr.io/morph-l2/morph-reth:latest}
+  user: "0:0"
+  entrypoint:
+    - ${MORPH_RETH_ENTRYPOINT:-/usr/local/bin/morph-reth}
+  command: *reth-command
+
+services:
+  morph-el-0:
+    <<: *reth-service
+    build: !reset null
+
+  morph-el-1:
+    <<: *reth-service
+
+  morph-el-2:
+    <<: *reth-service
+
+  morph-el-3:
+    <<: *reth-service
+
+  sentry-el-0:
+    <<: *reth-service
+    build: !reset null
+
+  validator-el:
+    <<: *reth-service
+    healthcheck:
+      disable: true

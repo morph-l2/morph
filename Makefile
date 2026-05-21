@@ -1,7 +1,7 @@
 ################## update dependencies ####################
-ETHEREUM_SUBMODULE_COMMIT_OR_TAG := morph-v2.2.1
-ETHEREUM_TARGET_VERSION := morph-v2.2.1
-TENDERMINT_TARGET_VERSION := v0.3.6
+ETHEREUM_SUBMODULE_COMMIT_OR_TAG := morph-v2.2.2
+ETHEREUM_TARGET_VERSION := morph-v2.2.2
+TENDERMINT_TARGET_VERSION := v0.3.7
 
 
 ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum
@@ -137,26 +137,69 @@ go-ubuntu-builder:
 
 ################## devnet 4 nodes ####################
 
-devnet-up: submodules go-ubuntu-builder
-	python3 ops/devnet-morph/main.py --polyrepo-dir=.
+EXECUTION_CLIENT ?= geth
+MORPH_RETH_BUILD_FROM_SOURCE ?= false
+ifeq ($(MORPH_RETH_BUILD_FROM_SOURCE),true)
+MORPH_RETH_IMAGE ?= morph-reth:latest
+MORPH_RETH_ENTRYPOINT ?= /app/morph-reth
+else
+MORPH_RETH_IMAGE ?= ghcr.io/morph-l2/morph-reth:latest
+MORPH_RETH_ENTRYPOINT ?= /usr/local/bin/morph-reth
+endif
+MORPH_RETH_DIR ?= ../morph-reth
+MORPH_RETH_BUILD_PROFILE ?= release
+MORPH_RETH_RUSTFLAGS ?=
+MORPH_RETH_DOCKER_TARGET ?= builder
+export MORPH_RETH_IMAGE
+export MORPH_RETH_DIR
+export MORPH_RETH_BUILD_PROFILE
+export MORPH_RETH_RUSTFLAGS
+export MORPH_RETH_DOCKER_TARGET
+export MORPH_RETH_ENTRYPOINT
+DEVNET_COMPOSE_FILES := -f docker-compose-4nodes.yml
+
+ifeq ($(EXECUTION_CLIENT),geth)
+DEVNET_EXECUTION_DEPS := submodules
+else ifeq ($(EXECUTION_CLIENT),reth)
+DEVNET_COMPOSE_FILES += -f docker-compose-reth.yml
+ifeq ($(MORPH_RETH_BUILD_FROM_SOURCE),true)
+DEVNET_EXECUTION_DEPS := reth
+else
+DEVNET_EXECUTION_DEPS := reth-image
+endif
+else
+$(error unsupported EXECUTION_CLIENT "$(EXECUTION_CLIENT)", expected "geth" or "reth")
+endif
+
+devnet-up: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder
+	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT)
 .PHONY: devnet-up
 
-devnet-up-debugccc:
-	python3 ops/devnet-morph/main.py --polyrepo-dir=. --debugccc
+devnet-up-reth:
+	$(MAKE) devnet-up EXECUTION_CLIENT=reth
+.PHONY: devnet-up-reth
+
+devnet-up-debugccc: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder
+	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT) --debugccc
 .PHONY: devnet-up-debugccc
 
 devnet-down:
-	cd ops/docker && docker compose -f docker-compose-4nodes.yml down
+	cd ops/docker && docker compose $(DEVNET_COMPOSE_FILES) down
 .PHONY: devnet-down
 
 devnet-clean-build: devnet-l1-clean
-	cd ops/docker && docker compose -f docker-compose-4nodes.yml down --volumes --remove-orphans
+	cd ops/docker && docker compose $(DEVNET_COMPOSE_FILES) down --volumes --remove-orphans
 	docker volume ls --filter name=docker_ --format='{{.Name}}' | xargs docker volume rm 2>/dev/null || true
 	rm -rf ops/l2-genesis/.devnet
 	rm -rf ops/docker/.devnet
 	rm -rf ops/docker/consensus/beacondata ops/docker/consensus/validatordata ops/docker/consensus/genesis.ssz
 	rm -rf ops/docker/execution/geth
+	rm -rf ops/docker/execution/reth
 .PHONY: devnet-clean-build
+
+devnet-clean-build-reth:
+	$(MAKE) devnet-clean-build EXECUTION_CLIENT=reth
+.PHONY: devnet-clean-build-reth
 
 devnet-clean: devnet-clean-build
 	docker image ls '*morph*' --format='{{.Repository}}' | xargs -r docker rmi
@@ -171,8 +214,17 @@ devnet-l1-clean:
 .PHONY: devnet-l1-clean
 
 devnet-logs:
-	@(cd ops/docker && docker-compose logs -f)
+	@(cd ops/docker && docker compose $(DEVNET_COMPOSE_FILES) logs -f)
 .PHONY: devnet-logs
+
+reth-image:
+	docker pull "$(MORPH_RETH_IMAGE)"
+.PHONY: reth-image
+
+reth:
+	@test -d "$(MORPH_RETH_DIR)" || (echo "morph-reth directory not found: $(MORPH_RETH_DIR)" && exit 1)
+	docker build -t "$(MORPH_RETH_IMAGE)" --target "$(MORPH_RETH_DOCKER_TARGET)" --build-arg BUILD_PROFILE="$(MORPH_RETH_BUILD_PROFILE)" --build-arg RUSTFLAGS="$(MORPH_RETH_RUSTFLAGS)" "$(MORPH_RETH_DIR)"
+.PHONY: reth
 
 # tx-submitter
 SUBMITTERS := $(shell grep -o 'tx-submitter-[0-9]*[^:]' ops/docker/docker-compose-4nodes.yml | sort | uniq)

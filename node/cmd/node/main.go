@@ -21,7 +21,6 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/node/blocktag"
-	"morph-l2/node/cmd/keyconverter"
 	node "morph-l2/node/core"
 	"morph-l2/node/db"
 	"morph-l2/node/derivation"
@@ -34,21 +33,12 @@ import (
 	"morph-l2/node/validator"
 )
 
-var keyConverterCmd = cli.Command{
-	Name:    "key-converter",
-	Aliases: []string{"kc"},
-	Usage:   "tools to convert base64-encoded keys(tendermint key/bls key) to the format used by contracts",
-	Action:  keyconverter.ConvertKey,
-	Flags:   keyconverter.Flags,
-}
-
 func main() {
 	app := cli.NewApp()
 	app.Flags = flags.Flags
 	app.Name = "morphnode"
 	app.Action = L2NodeMain
 	app.Commands = []cli.Command{
-		keyConverterCmd,
 		versionCmd,
 	}
 	err := app.Run(os.Args)
