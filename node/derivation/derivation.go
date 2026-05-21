@@ -301,9 +301,13 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				}
 				d.logger.Info("hybrid fallback derivation complete", "batch_index", batchInfo.batchIndex, "currentBatchEndBlock", lastHeader.Number.Uint64())
 			} else {
-				// Any other path B outcome (divergence verdict or runtime error)
-				// is terminal under hybrid -- same as pure path B.
-				d.metrics.SetBatchStatus(stateException)
+				// Any other path B outcome is terminal under hybrid (same as
+				// pure path B). Only flip BatchStatus when the verifier
+				// actually produced a divergence verdict; transient / runtime
+				// errors must not light up the divergence alert.
+				if errors.Is(verifyErr, ErrBatchVerifyDivergence) {
+					d.metrics.SetBatchStatus(stateException)
+				}
 				d.logger.Error("hybrid path B content verification failed", "batchIndex", batchInfo.batchIndex, "error", verifyErr)
 				return
 			}
@@ -326,7 +330,12 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				"txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
 				"l1BlockNumber", batchInfo.l1BlockNumber, "firstL2BlockNumber", batchInfo.firstBlockNumber, "lastL2BlockNumber", batchInfo.lastBlockNumber)
 			if err := d.verifyBatchContentPathB(ctx, batchInfo); err != nil {
-				d.metrics.SetBatchStatus(stateException)
+				// Only flip BatchStatus on a real divergence verdict; runtime
+				// or transient errors (e.g. local_block_read_error) just log
+				// and retry next poll without raising the divergence alert.
+				if errors.Is(err, ErrBatchVerifyDivergence) {
+					d.metrics.SetBatchStatus(stateException)
+				}
 				d.logger.Error("path B content verification failed", "batchIndex", batchInfo.batchIndex, "error", err)
 				return
 			}
@@ -370,7 +379,12 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			continue
 		}
 		if err := d.verifyBatchRoots(batchInfo, lastHeader); err != nil {
-			d.metrics.SetBatchStatus(stateException)
+			// stateException only when the verifier produced a real mismatch
+			// verdict (root or withdrawal root). Transient failures (e.g.
+			// MessageRoot RPC error) just log and retry next poll.
+			if errors.Is(err, ErrBatchVerifyDivergence) {
+				d.metrics.SetBatchStatus(stateException)
+			}
 			d.logger.Error("batch roots verification failed", "batchIndex", batchInfo.batchIndex, "error", err)
 			return
 		}

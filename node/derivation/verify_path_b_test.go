@@ -240,54 +240,105 @@ func TestPathB_LocalBlockMissing(t *testing.T) {
 	}
 }
 
-// TestPathB_LocalBlockMissing_WrapsSentinel pins the contract hybrid mode
-// relies on: the error returned for the local_block_missing kind must
-// satisfy errors.Is(err, ErrPathBLocalBlockMissing) so derivationBlock can
-// distinguish sync lag from genuine divergence verdicts. Other failure
-// kinds must NOT match the sentinel (otherwise hybrid would silently
-// fall back on real divergence and mask it).
-func TestPathB_LocalBlockMissing_WrapsSentinel(t *testing.T) {
+// TestPathB_SentinelContract pins the two error-wrapping invariants the
+// derivation switch relies on:
+//
+//   - local_block_missing      -> wraps ErrPathBLocalBlockMissing only
+//     (hybrid uses this to fall back to Path A)
+//   - versioned_hash_mismatch  -> wraps ErrBatchVerifyDivergence only
+//   - blob_count_mismatch      -> wraps ErrBatchVerifyDivergence only
+//     (call sites flip BatchStatus=stateException
+//     ONLY on this sentinel, never on transient
+//     / runtime errors)
+//   - any other kind (transient I/O, encoding error, ...) -> wraps NEITHER
+//
+// The cross-checks (positive + negative for each sentinel) prevent two
+// regressions: (a) hybrid silently fallback-ing on a real divergence, and
+// (b) lighting up the divergence alert on a transient RPC failure.
+func TestPathB_SentinelContract(t *testing.T) {
 	blocks := []*eth.Block{makeEmptyL2Block(10), makeEmptyL2Block(11)}
 	hashes := rebuildExpectedBlobHashes(t, blocks, false /* V1 encoding */, 0, 1)
 
-	// Positive case: block 11 absent from reader -> local_block_missing.
-	reader := &fakePathBBlockReader{blocks: map[uint64]*eth.Block{10: blocks[0]}}
-	bi := &BatchInfo{
-		batchIndex:               20,
-		version:                  1,
-		hasCalldataBlockContexts: true,
-		firstBlockNumber:         10,
-		lastBlockNumber:          11,
-		blobHashes:               hashes,
-	}
-	err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), bi)
-	if err == nil {
-		t.Fatal("expected local_block_missing error, got nil")
-	}
-	if !errors.Is(err, ErrPathBLocalBlockMissing) {
-		t.Fatalf("local_block_missing error must wrap ErrPathBLocalBlockMissing; got: %v", err)
-	}
+	t.Run("local_block_missing", func(t *testing.T) {
+		reader := &fakePathBBlockReader{blocks: map[uint64]*eth.Block{10: blocks[0]}}
+		bi := &BatchInfo{
+			batchIndex: 20, version: 1, hasCalldataBlockContexts: true,
+			firstBlockNumber: 10, lastBlockNumber: 11, blobHashes: hashes,
+		}
+		err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), bi)
+		if err == nil {
+			t.Fatal("expected local_block_missing error, got nil")
+		}
+		if !errors.Is(err, ErrPathBLocalBlockMissing) {
+			t.Fatalf("local_block_missing must wrap ErrPathBLocalBlockMissing; got: %v", err)
+		}
+		if errors.Is(err, ErrBatchVerifyDivergence) {
+			t.Fatalf("local_block_missing must NOT wrap ErrBatchVerifyDivergence (sync lag is not divergence); got: %v", err)
+		}
+	})
 
-	// Negative case: a versioned_hash_mismatch must NOT match the sentinel.
-	wrongHashes := make([]common.Hash, len(hashes))
-	copy(wrongHashes, hashes)
-	wrongHashes[0][0] ^= 0xFF
-	readerOK := &fakePathBBlockReader{blocks: map[uint64]*eth.Block{10: blocks[0], 11: blocks[1]}}
-	biMismatch := &BatchInfo{
-		batchIndex:               21,
-		version:                  1,
-		hasCalldataBlockContexts: true,
-		firstBlockNumber:         10,
-		lastBlockNumber:          11,
-		blobHashes:               wrongHashes,
-	}
-	err = verifyPathBContent(context.Background(), readerOK, newDiscardMetrics(), tmlog.NewNopLogger(), biMismatch)
-	if err == nil {
-		t.Fatal("expected versioned_hash_mismatch error, got nil")
-	}
-	if errors.Is(err, ErrPathBLocalBlockMissing) {
-		t.Fatalf("versioned_hash_mismatch must NOT wrap ErrPathBLocalBlockMissing; got: %v", err)
-	}
+	t.Run("versioned_hash_mismatch", func(t *testing.T) {
+		wrongHashes := make([]common.Hash, len(hashes))
+		copy(wrongHashes, hashes)
+		wrongHashes[0][0] ^= 0xFF
+		reader := &fakePathBBlockReader{blocks: map[uint64]*eth.Block{10: blocks[0], 11: blocks[1]}}
+		bi := &BatchInfo{
+			batchIndex: 21, version: 1, hasCalldataBlockContexts: true,
+			firstBlockNumber: 10, lastBlockNumber: 11, blobHashes: wrongHashes,
+		}
+		err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), bi)
+		if err == nil {
+			t.Fatal("expected versioned_hash_mismatch error, got nil")
+		}
+		if !errors.Is(err, ErrBatchVerifyDivergence) {
+			t.Fatalf("versioned_hash_mismatch must wrap ErrBatchVerifyDivergence; got: %v", err)
+		}
+		if errors.Is(err, ErrPathBLocalBlockMissing) {
+			t.Fatalf("versioned_hash_mismatch must NOT wrap ErrPathBLocalBlockMissing (would mask real divergence in hybrid); got: %v", err)
+		}
+	})
+
+	t.Run("blob_count_mismatch", func(t *testing.T) {
+		// Declare 2 blob hashes for a payload that fits in 1 -> blob_count_mismatch.
+		extraHash := hashes[0]
+		twoHashes := []common.Hash{hashes[0], extraHash}
+		reader := &fakePathBBlockReader{blocks: map[uint64]*eth.Block{10: blocks[0], 11: blocks[1]}}
+		bi := &BatchInfo{
+			batchIndex: 22, version: 1, hasCalldataBlockContexts: true,
+			firstBlockNumber: 10, lastBlockNumber: 11, blobHashes: twoHashes,
+		}
+		err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), bi)
+		if err == nil {
+			t.Fatal("expected blob_count_mismatch error, got nil")
+		}
+		if !errors.Is(err, ErrBatchVerifyDivergence) {
+			t.Fatalf("blob_count_mismatch must wrap ErrBatchVerifyDivergence; got: %v", err)
+		}
+	})
+
+	t.Run("transient_read_error_wraps_neither_sentinel", func(t *testing.T) {
+		// local_block_read_error: RPC down talking to local L2. This is
+		// "verifier could not run", NOT a divergence verdict. Must not
+		// trigger BatchStatus=stateException at the call site.
+		reader := &fakePathBBlockReader{
+			blocks: map[uint64]*eth.Block{10: blocks[0]},
+			errs:   map[uint64]error{10: errors.New("rpc down")},
+		}
+		bi := &BatchInfo{
+			batchIndex: 23, version: 1, hasCalldataBlockContexts: true,
+			firstBlockNumber: 10, lastBlockNumber: 10, blobHashes: hashes,
+		}
+		err := verifyPathBContent(context.Background(), reader, newDiscardMetrics(), tmlog.NewNopLogger(), bi)
+		if err == nil {
+			t.Fatal("expected wrapped read error, got nil")
+		}
+		if errors.Is(err, ErrBatchVerifyDivergence) {
+			t.Fatalf("transient read error must NOT wrap ErrBatchVerifyDivergence; got: %v", err)
+		}
+		if errors.Is(err, ErrPathBLocalBlockMissing) {
+			t.Fatalf("transient read error must NOT wrap ErrPathBLocalBlockMissing; got: %v", err)
+		}
+	})
 }
 
 func TestPathB_LocalBlockReadError(t *testing.T) {

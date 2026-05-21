@@ -224,11 +224,18 @@ func pathBFail(logger tmlog.Logger, metrics *Metrics, batchInfo *BatchInfo, kind
 	}
 	logger.Error("path B verification failed: "+msg, args...)
 
-	// Sync-lag failure: wrap the sentinel so hybrid mode can identify this
-	// kind via errors.Is and fall back to Path A. All other kinds keep their
-	// current shape and remain terminal for the caller.
+	// Sync-lag failure: wrap the local-block-missing sentinel so hybrid mode
+	// can identify this kind via errors.Is and fall back to Path A.
 	if kind == "local_block_missing" {
 		return fmt.Errorf("path B [%s]: %s: %w", kind, msg, ErrPathBLocalBlockMissing)
+	}
+	// Real divergence verdicts: wrap ErrBatchVerifyDivergence so call sites
+	// can flip BatchStatus to stateException ONLY here. Other kinds (encoding
+	// errors, parsing errors, transient I/O) intentionally do NOT wrap this
+	// sentinel — they mean "verifier could not run", not "verifier determined
+	// divergence", and must not trigger the divergence alert.
+	if kind == "versioned_hash_mismatch" || kind == "blob_count_mismatch" {
+		return fmt.Errorf("path B [%s]: %s: %w", kind, msg, ErrBatchVerifyDivergence)
 	}
 	if cause != nil {
 		return fmt.Errorf("path B [%s]: %s: %w", kind, msg, cause)
