@@ -65,6 +65,11 @@ func (m *MockRollup) CommittedBatches(opts *bind.CallOpts, batchIndex *big.Int) 
 	return [32]byte{}, nil
 }
 
+// BatchBlobVersionedHashes implements IRollup (no stored hash by default)
+func (m *MockRollup) BatchBlobVersionedHashes(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error) {
+	return [32]byte{}, nil
+}
+
 // BatchDataStore implements IRollup
 func (m *MockRollup) BatchDataStore(opts *bind.CallOpts, batchIndex *big.Int) (struct {
 	OriginTimestamp        *big.Int
