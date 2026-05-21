@@ -133,6 +133,19 @@ func (b BatchHeaderBytes) BlobHashesHash() (common.Hash, error) {
 	return common.BytesToHash(b[57:89]), nil
 }
 
+// BlobCommitHash returns the blob-related 32-byte field at offset [57:89]:
+// V0/V1 use BlobVersionedHash; V2+ use BlobHashesHash (same wire offset, different semantics).
+func (b BatchHeaderBytes) BlobCommitHash() (common.Hash, error) {
+	version, err := b.Version()
+	if err != nil {
+		return common.Hash{}, err
+	}
+	if version >= BatchHeaderVersion2 {
+		return b.BlobHashesHash()
+	}
+	return b.BlobVersionedHash()
+}
+
 func (b BatchHeaderBytes) PrevStateRoot() (common.Hash, error) {
 	if err := b.validate(); err != nil {
 		return common.Hash{}, err

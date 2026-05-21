@@ -18,6 +18,7 @@ type IRollup interface {
 	BatchInsideChallengeWindow(opts *bind.CallOpts, batchIndex *big.Int) (bool, error)
 	BatchExist(opts *bind.CallOpts, batchIndex *big.Int) (bool, error)
 	CommittedBatches(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error)
+	BatchBlobVersionedHashes(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error)
 	BatchDataStore(opts *bind.CallOpts, batchIndex *big.Int) (struct {
 		OriginTimestamp        *big.Int
 		FinalizeTimestamp      *big.Int

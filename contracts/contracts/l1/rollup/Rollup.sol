@@ -923,22 +923,25 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     function _computeBlobVersionedHash(uint256 _version) internal view returns (bytes32 _blobVersionedHash) {
         if (_version == 2) {
             uint256 _blobCount;
+            // Single assembly block: collect blob hashes, hash, and bump 0x40 before any
+            // Solidity code runs. Splitting assembly around `require` left scratch memory
+            // unreserved and allowed the compiler to overwrite it via mload(0x40).
             assembly {
                 let scratchPtr := mload(0x40)
                 let i := 0
                 for {} 1 {} {
                     let h := blobhash(i)
-                    if iszero(h) { break }
+                    if iszero(h) {
+                        break
+                    }
                     mstore(add(scratchPtr, mul(i, 32)), h)
                     i := add(i, 1)
                 }
                 _blobCount := i
+                _blobVersionedHash := keccak256(scratchPtr, mul(i, 32))
+                mstore(0x40, add(scratchPtr, mul(i, 32)))
             }
             require(_blobCount > 0, "V2 requires at least 1 blob");
-            assembly {
-                let scratchPtr := mload(0x40)
-                _blobVersionedHash := keccak256(scratchPtr, mul(_blobCount, 32))
-            }
         } else {
             require(blobhash(1) == bytes32(0), "legacy batches support exactly 1 blob");
             _blobVersionedHash = (blobhash(0) == bytes32(0)) ? ZERO_VERSIONED_HASH : blobhash(0);
