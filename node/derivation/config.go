@@ -32,18 +32,20 @@ const (
 
 	// VerifyMode values (SPEC-005 section 4.2). Selected at startup; not switchable
 	// at runtime.
-	//   - pathA  : pull beacon blob, decode, derive blocks via engine, verify roots.
-	//   - pathB  : rebuild blob bytes from local L2 blocks, compare versioned hashes
-	//              against the L1 commitBatch tx; no beacon blob fetch.
-	//   - hybrid : run Path B first; only when Path B fails with local_block_missing
-	//              (sync lag) fall back to Path A for that batch. Default.
-	VerifyModePathA  = "pathA"
-	VerifyModePathB  = "pathB"
-	VerifyModeHybrid = "hybrid"
+	//   - pathA : pull beacon blob, decode, derive blocks via engine, verify roots.
+	//   - pathB : rebuild blob bytes from local L2 blocks, compare versioned hashes
+	//             against the L1 commitBatch tx; no beacon blob fetch on the happy
+	//             path. On versioned_hash_mismatch the spec calls for self-heal
+	//             (pull real blob → derive → shared verifyBatchRoots), which is
+	//             currently TODO -- blocked on EL number-continuity relaxation in
+	//             morph-reth / go-ethereum (separate spec).
+	VerifyModePathA = "pathA"
+	VerifyModePathB = "pathB"
 
-	// DefaultVerifyMode is hybrid: Path B primary, Path A as a sync-lag backup.
-	// Followers that keep up with P2P avoid the beacon blob fetch entirely.
-	DefaultVerifyMode = VerifyModeHybrid
+	// DefaultVerifyMode is pathB: rebuild + compare locally on the happy path,
+	// no beacon blob fetch. Operators who need the legacy "always pull blob"
+	// behavior can set --derivation.verify-mode=pathA.
+	DefaultVerifyMode = VerifyModePathB
 
 	// DefaultReorgCheckDepth is the number of recent L1 blocks to check for
 	// reorgs in SPEC-005 §4.7.6 detection. 64 covers the post-Merge "finality
@@ -57,13 +59,13 @@ const (
 // can be unit-tested without building a cli.Context.
 func validateAndDefaultVerifyMode(s string) (string, error) {
 	switch s {
-	case VerifyModePathA, VerifyModePathB, VerifyModeHybrid:
+	case VerifyModePathA, VerifyModePathB:
 		return s, nil
 	case "":
 		return DefaultVerifyMode, nil
 	default:
-		return "", fmt.Errorf("invalid derivation.verify-mode %q (must be %q, %q, or %q)",
-			s, VerifyModePathA, VerifyModePathB, VerifyModeHybrid)
+		return "", fmt.Errorf("invalid derivation.verify-mode %q (must be %q or %q)",
+			s, VerifyModePathA, VerifyModePathB)
 	}
 }
 

@@ -14,30 +14,32 @@ import (
 	commonblob "morph-l2/common/blob"
 )
 
-// ErrPathBLocalBlockMissing is wrapped into the error returned by
-// verifyBatchContentPathB when the local L2 chain has not yet synced a
-// block in the batch range. Hybrid mode (SPEC-005 §4.2) uses errors.Is to
-// detect this sync-lag case and fall back to Path A for that single batch.
-// Other Path B failure kinds (versioned_hash_mismatch, parsing_txs_error,
-// ...) are NOT wrapped with this sentinel; string matching the message is
-// intentionally avoided.
-var ErrPathBLocalBlockMissing = errors.New("path B: local L2 block missing for batch range")
-
 // SPEC-005 section 4 Path B: blob-independent batch content verification.
 //
-// In VerifyModePathB the node does not pull blobs from the beacon chain.
-// Instead it reads the L2 blocks in the batch range from local storage,
-// reapplies the sequencer's encoding to rebuild the blob bytes, and
-// compares the resulting versioned hashes against the values declared by
-// the L1 commitBatch tx (carried in BatchInfo.blobHashes).
+// In VerifyModePathB the node does not pull blobs from the beacon chain on
+// the happy path. Instead it reads the L2 blocks in the batch range from
+// local storage, reapplies the sequencer's encoding to rebuild the blob
+// bytes, and compares the resulting versioned hashes against the values
+// declared by the L1 commitBatch tx (carried in BatchInfo.blobHashes).
 //
 // State / withdrawal root verification (verify.go::verifyBatchRoots) is
 // independent of this path and runs after success.
 //
-// In pure pathA / pathB mode the choice is fixed at startup and not
-// switchable at runtime. In hybrid mode, Path B runs first and Path A
-// is invoked as a one-shot backup ONLY when this file's verifier reports
-// ErrPathBLocalBlockMissing.
+// On versioned_hash_mismatch the spec (SPEC-005 §4.3) calls for a
+// single-batch self-heal: pull the real blob from beacon, decode + derive
+// the batch via the existing Path A engine API path (which would replace
+// the locally divergent blocks via EL forkchoice), then re-run the shared
+// verifyBatchRoots. That self-heal is **currently TODO** and not wired
+// up here -- it is blocked on the EL number-continuity check (`params.Number
+// == latestNumber + 1` in morph-reth `crates/engine-api/src/builder.rs`
+// and go-ethereum `eth/catalyst/l2_api.go`) being relaxed in a separate
+// spec. Until then a versioned_hash_mismatch falls through to the legacy
+// failure path (log + return + retry next poll) under
+// path_b_failed_by_kind_total{kind="versioned_hash_mismatch"} and the
+// path_b_self_heal_* counters stay at 0.
+//
+// Mode is selected at startup via --derivation.verify-mode and is not
+// switchable at runtime.
 
 // fetchBatchInfoPathB pulls the L1 commitBatch tx, decodes its calldata,
 // and populates a BatchInfo using only the calldata + tx blob hashes -- no
@@ -74,15 +76,15 @@ func (d *Derivation) fetchBatchInfoPathB(ctx context.Context, txHash common.Hash
 //
 // Failure paths intentionally inline metric inc + structured log + error
 // construction at each kind site rather than route through a shared
-// helper. Two error-wrapping invariants the call site (derivation.go) and
-// hybrid mode rely on:
+// helper. One error-wrapping invariant the call site (derivation.go)
+// relies on:
 //
-//   - kind=local_block_missing wraps ErrPathBLocalBlockMissing so hybrid
-//     can errors.Is-detect sync lag and fall back to Path A.
 //   - kind=versioned_hash_mismatch and kind=blob_count_mismatch wrap
 //     ErrBatchVerifyDivergence so the call site flips BatchStatus to
 //     stateException ONLY on a real "verifier reached unequal verdict";
 //     transient / runtime errors must NOT light up the divergence alert.
+//     versioned_hash_mismatch will additionally be the self-heal trigger
+//     once the EL change lands (see file-level comment).
 //
 // All other kinds are plain errors. When you add a new kind, decide
 // deliberately whether it represents "verifier could not run" (no
@@ -132,7 +134,7 @@ func (d *Derivation) verifyBatchContentPathB(ctx context.Context, batchInfo *Bat
 			d.metrics.IncPathBFailedKind("local_block_missing")
 			d.logger.Error("path B verification failed: local block missing",
 				append([]interface{}{"kind", "local_block_missing", "blockNumber", n}, logBase...)...)
-			return fmt.Errorf("path B [local_block_missing]: local block %d missing: %w", n, ErrPathBLocalBlockMissing)
+			return fmt.Errorf("path B [local_block_missing]: local block %d missing", n)
 		}
 
 		txsPayload, l1TxHashes, newTotal, l2TxNum, err := commonbatch.ParsingTxs(block.Transactions(), totalL1MessagePopped)
@@ -247,8 +249,8 @@ func hashesHexCSV(hs []common.Hash) string {
 }
 
 // fetchLocalLastHeader returns the local L2 header at
-// batchInfo.lastBlockNumber. Used by Path B and hybrid (Path B branch)
-// after content verification succeeds, to feed verifyBatchRoots.
+// batchInfo.lastBlockNumber. Used by Path B after content verification
+// succeeds, to feed verifyBatchRoots.
 func (d *Derivation) fetchLocalLastHeader(ctx context.Context, batchInfo *BatchInfo) (*eth.Header, error) {
 	header, err := d.l2Client.HeaderByNumber(ctx, big.NewInt(int64(batchInfo.lastBlockNumber)))
 	if err != nil {

@@ -241,9 +241,9 @@ var (
 
 	DerivationVerifyMode = cli.StringFlag{
 		Name:   "derivation.verify-mode",
-		Usage:  `Batch verification mode (SPEC-005 §4.2). "pathA" pulls beacon blob, decodes, and derives blocks via engine. "pathB" rebuilds blob bytes from local L2 blocks and compares versioned hashes against L1 (no beacon fetch). "hybrid" (default) runs Path B first and only falls back to Path A when Path B reports a missing local block (sync lag); all other Path B outcomes pass through unchanged. Selected at startup; not switchable at runtime.`,
+		Usage:  `Batch verification mode (SPEC-005 §4.2). "pathA" pulls beacon blob, decodes, and derives blocks via engine. "pathB" (default) rebuilds blob bytes from local L2 blocks and compares versioned hashes against L1 (no beacon fetch on the happy path); on versioned hash mismatch the verifier is designed to self-heal by pulling the real blob and re-deriving the batch — currently TODO, blocked on EL number-continuity check relaxation in morph-reth/go-ethereum (separate spec). Selected at startup; not switchable at runtime.`,
 		EnvVar: prefixEnvVar("DERIVATION_VERIFY_MODE"),
-		Value:  "hybrid",
+		Value:  "pathB",
 	}
 
 	DerivationReorgCheckDepth = cli.Uint64Flag{

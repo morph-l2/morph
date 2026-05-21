@@ -35,13 +35,24 @@ type Metrics struct {
 	PathBFailed       metrics.Counter
 	PathBFailedByKind metrics.Counter
 
-	// SPEC-005 §4.2 Hybrid fallback counter. Increments once per batch where
-	// hybrid mode demoted to Path A because Path B reported local_block_missing.
-	// Steady-state value should approach zero on followers that keep up via P2P;
-	// a sustained non-zero rate indicates the local L2 sync lags the L1 commit
-	// feed. Distinct from path_b_failed_by_kind_total{kind="local_block_missing"}
-	// in that the latter still counts hybrid's underlying B attempt.
-	HybridFallbackTotal metrics.Counter
+	// SPEC-005 §4.2 / §4.6 Path B self-heal counters (target design — currently
+	// TODO; the call sites are not wired until the EL number-continuity check is
+	// relaxed in a separate spec). On versioned_hash_mismatch the verifier is
+	// designed to: (1) pull the real blob from beacon, (2) re-derive the batch
+	// (overwriting locally divergent blocks via EL forkchoice), (3) re-run the
+	// shared verifyBatchRoots. Three counters, mirroring the spec metrics table:
+	//
+	//   - PathBSelfHealTriggered      : self-heal attempt started (mismatch detected)
+	//   - PathBSelfHealSucceeded      : self-heal completed and verifyBatchRoots passed
+	//   - PathBSelfHealFailedByKind   : self-heal failed; sub_kind label =
+	//       blob_unavailable / parse_error / derive_error / roots_mismatch
+	//
+	// Until the EL change lands, these counters stay at 0 and a verified-hash
+	// mismatch falls through to the legacy "log + return + retry next poll"
+	// failure path (counted under path_b_failed_by_kind_total{kind="versioned_hash_mismatch"}).
+	PathBSelfHealTriggered    metrics.Counter
+	PathBSelfHealSucceeded    metrics.Counter
+	PathBSelfHealFailedByKind metrics.Counter
 
 	// SPEC-005 section 4.7 Tag management metrics. Replace the (previously absent)
 	// blocktag instrumentation; on-call alerts should now key off these.
@@ -113,12 +124,24 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Name:      "path_b_failed_by_kind_total",
 			Help:      "Path B failures broken down by kind label (versioned_hash_mismatch, local_block_missing, ...).",
 		}, append(append([]string(nil), labels...), "kind")).With(labelsAndValues...),
-		HybridFallbackTotal: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+		PathBSelfHealTriggered: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: metricsSubsystem,
-			Name:      "verify_hybrid_fallback_total",
-			Help:      "Times hybrid verify fell back to Path A because the local L2 chain hadn't synced the batch range yet (sync-lag backup).",
+			Name:      "path_b_self_heal_triggered_total",
+			Help:      "Times Path B detected a versioned hash mismatch and entered the self-heal branch (pull real blob → derive → shared verifyBatchRoots). Stays at 0 until the EL number-continuity check is relaxed (separate spec).",
 		}, labels).With(labelsAndValues...),
+		PathBSelfHealSucceeded: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "path_b_self_heal_succeeded_total",
+			Help:      "Times Path B self-heal completed and the shared verifyBatchRoots passed.",
+		}, labels).With(labelsAndValues...),
+		PathBSelfHealFailedByKind: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "path_b_self_heal_failed_total",
+			Help:      "Path B self-heal failures broken down by sub_kind label (blob_unavailable, parse_error, derive_error, roots_mismatch).",
+		}, append(append([]string(nil), labels...), "sub_kind")).With(labelsAndValues...),
 		SafeAdvanceTotal: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: metricsSubsystem,
@@ -186,8 +209,23 @@ func (m *Metrics) IncPathBTriggered() {
 	m.PathBTriggered.Add(1)
 }
 
-func (m *Metrics) IncHybridFallback() {
-	m.HybridFallbackTotal.Add(1)
+// IncPathBSelfHealTriggered marks the entry into the self-heal branch
+// (versioned_hash_mismatch detected). Paired with either
+// IncPathBSelfHealSucceeded or IncPathBSelfHealFailed{sub_kind}.
+func (m *Metrics) IncPathBSelfHealTriggered() {
+	m.PathBSelfHealTriggered.Add(1)
+}
+
+// IncPathBSelfHealSucceeded marks self-heal completion + verifyBatchRoots pass.
+func (m *Metrics) IncPathBSelfHealSucceeded() {
+	m.PathBSelfHealSucceeded.Add(1)
+}
+
+// IncPathBSelfHealFailed marks a self-heal failure under one of the documented
+// sub_kinds: blob_unavailable / parse_error / derive_error / roots_mismatch.
+// New sub_kinds require updating the help text on PathBSelfHealFailedByKind.
+func (m *Metrics) IncPathBSelfHealFailed(subKind string) {
+	m.PathBSelfHealFailedByKind.With("sub_kind", subKind).Add(1)
 }
 
 func (m *Metrics) IncPathBFailed() {
