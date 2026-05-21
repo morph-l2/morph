@@ -44,7 +44,7 @@ func RetrieveBlobBytes(blob *kzg4844.Blob) ([]byte, error) {
 	data := make([]byte, MaxBlobBytesSize)
 	for i := 0; i < 4096; i++ {
 		if blob[i*32] != 0 {
-			return nil, fmt.Errorf("invalid blob, found non-zero high order byte %x of field element %d", data[i*32], i)
+			return nil, fmt.Errorf("invalid blob, found non-zero high order byte %x of field element %d", blob[i*32], i)
 		}
 		copy(data[i*31:i*31+31], blob[i*32+1:i*32+32])
 	}

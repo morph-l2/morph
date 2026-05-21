@@ -2,6 +2,7 @@ package blob
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"math/big"
 
 	"github.com/morph-l2/go-ethereum/common"
@@ -242,7 +243,7 @@ var (
 func BlobHashes(blobs []kzg4844.Blob, commitments []kzg4844.Commitment) []common.Hash {
 	hasher := sha256.New()
 	h := make([]common.Hash, len(commitments))
-	for i := range blobs {
+	for i := range commitments {
 		h[i] = kzg4844.CalcBlobHashV1(hasher, &commitments[i])
 	}
 	return h
@@ -250,6 +251,9 @@ func BlobHashes(blobs []kzg4844.Blob, commitments []kzg4844.Commitment) []common
 
 // MakeBlobProof builds KZG proofs for blob transactions (sidecar v0).
 func MakeBlobProof(blobs []kzg4844.Blob, commitment []kzg4844.Commitment) ([]kzg4844.Proof, error) {
+	if len(blobs) != len(commitment) {
+		return nil, fmt.Errorf("blob/commitment length mismatch: %d != %d", len(blobs), len(commitment))
+	}
 	proofs := make([]kzg4844.Proof, len(blobs))
 	for i := range blobs {
 		proof, err := kzg4844.ComputeBlobProof(&blobs[i], commitment[i])

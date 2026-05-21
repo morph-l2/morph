@@ -9,6 +9,11 @@ Generate zk proof for the l2 batch.
 
 ### Build the Program
 
+SP1 v6 requires the 64-bit succinct toolchain. Install with:
+
+```sh
+sp1up --version v6.2.0
+```
 
 To build the program to risc-v bin:
 
@@ -18,7 +23,7 @@ cargo prove build
 ```
 or use docker(reproducible compilation):
 ```sh
-cargo prove build  --docker --tag v5.2.4
+cargo prove build  --docker --tag v6.2.0
 ```
 
 This will output the compiled ELF to the file client/elf/verifier-client.
