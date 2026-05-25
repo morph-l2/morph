@@ -140,14 +140,31 @@ func (bi *BatchInfo) ParseBatchMetadataOnly(batch geth.RPCRollupBatch) error {
 		return fmt.Errorf("decode parent batch header version error:%v", err)
 	}
 	if parentVersion == 0 {
-		if len(batch.BlockContexts) < 2+60 {
-			return fmt.Errorf("calldata block contexts too short for first block context: have %d, need %d", len(batch.BlockContexts), 2+60)
+		// Parent is V0, which doesn't have LastBlockNumber in header.
+		if len(batch.BlockContexts) == 0 {
+			// New ABI: no BlockContexts in calldata.
+			// For genesis batch (index 0), it contains only block 1.
+			// So firstBlockNumber = parentBatchIndex + 2.
+			// For general case: genesis batch is always index 0 and contains block 1.
+			if parentBatchIndex == 0 {
+				bi.firstBlockNumber = 2
+			} else {
+				// This shouldn't happen in practice: V0 batches after genesis
+				// should have been submitted with legacy ABI (with BlockContexts).
+				// But if it does, we can't derive firstBlockNumber without more info.
+				return fmt.Errorf("cannot derive firstBlockNumber: parent is V0 (non-genesis) but current batch has no BlockContexts")
+			}
+		} else {
+			// Legacy ABI: BlockContexts in calldata.
+			if len(batch.BlockContexts) < 2+60 {
+				return fmt.Errorf("calldata block contexts too short for first block context: have %d, need %d", len(batch.BlockContexts), 2+60)
+			}
+			var firstBlock BlockContext
+			if err := firstBlock.Decode(batch.BlockContexts[2 : 2+60]); err != nil {
+				return fmt.Errorf("decode first block context error:%v", err)
+			}
+			bi.firstBlockNumber = firstBlock.Number
 		}
-		var firstBlock BlockContext
-		if err := firstBlock.Decode(batch.BlockContexts[2 : 2+60]); err != nil {
-			return fmt.Errorf("decode first block context error:%v", err)
-		}
-		bi.firstBlockNumber = firstBlock.Number
 	} else {
 		parentLast, err := parentBatchHeader.LastBlockNumber()
 		if err != nil {
