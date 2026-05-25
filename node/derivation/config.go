@@ -30,22 +30,13 @@ const (
 	// DefaultLogProgressInterval is the frequency at which we log progress.
 	DefaultLogProgressInterval = time.Second * 10
 
-	// VerifyMode values (SPEC-005 section 4.2). Selected at startup; not switchable
-	// at runtime.
-	//   - pathA : pull beacon blob, decode, derive blocks via engine, verify roots.
-	//   - pathB : rebuild blob bytes from local L2 blocks, compare versioned hashes
-	//             against the L1 commitBatch tx; no beacon blob fetch on the happy
-	//             path. On versioned_hash_mismatch the spec calls for self-heal
-	//             (pull real blob → derive → shared verifyBatchRoots), which is
-	//             currently TODO -- blocked on EL number-continuity relaxation in
-	//             morph-reth / go-ethereum (separate spec).
-	VerifyModePathA = "pathA"
-	VerifyModePathB = "pathB"
+	VerifyModeLayer1 = "layer1"
+	VerifyModeLocal  = "local"
 
 	// DefaultVerifyMode is pathB: rebuild + compare locally on the happy path,
 	// no beacon blob fetch. Operators who need the legacy "always pull blob"
 	// behavior can set --derivation.verify-mode=pathA.
-	DefaultVerifyMode = VerifyModePathB
+	DefaultVerifyMode = VerifyModeLocal
 
 	// DefaultReorgCheckDepth is the number of recent L1 blocks to check for
 	// reorgs in SPEC-005 §4.7.6 detection. 64 covers the post-Merge "finality
@@ -59,13 +50,13 @@ const (
 // can be unit-tested without building a cli.Context.
 func validateAndDefaultVerifyMode(s string) (string, error) {
 	switch s {
-	case VerifyModePathA, VerifyModePathB:
+	case VerifyModeLayer1, VerifyModeLocal:
 		return s, nil
 	case "":
 		return DefaultVerifyMode, nil
 	default:
 		return "", fmt.Errorf("invalid derivation.verify-mode %q (must be %q or %q)",
-			s, VerifyModePathA, VerifyModePathB)
+			s, VerifyModeLayer1, VerifyModeLocal)
 	}
 }
 

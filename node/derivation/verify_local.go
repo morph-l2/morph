@@ -16,7 +16,7 @@ import (
 
 // SPEC-005 section 4 Path B: blob-independent batch content verification.
 //
-// In VerifyModePathB the node does not pull blobs from the beacon chain on
+// In VerifyModeLocal the node does not pull blobs from the beacon chain on
 // the happy path. Instead it reads the L2 blocks in the batch range from
 // local storage, reapplies the sequencer's encoding to rebuild the blob
 // bytes, and compares the resulting versioned hashes against the values
@@ -41,11 +41,11 @@ import (
 // Mode is selected at startup via --derivation.verify-mode and is not
 // switchable at runtime.
 
-// fetchBatchInfoPathB pulls the L1 commitBatch tx, decodes its calldata,
+// fetchBatchInfoOutline pulls the L1 commitBatch tx, decodes its calldata,
 // and populates a BatchInfo using only the calldata + tx blob hashes -- no
 // beacon blob fetch. Returned BatchInfo is sufficient for
 // verifyBatchContentPathB and verifyBatchRoots.
-func (d *Derivation) fetchBatchInfoPathB(ctx context.Context, txHash common.Hash, blockNumber uint64) (*BatchInfo, error) {
+func (d *Derivation) fetchBatchInfoOutline(ctx context.Context, txHash common.Hash, blockNumber uint64) (*BatchInfo, error) {
 	tx, pending, err := d.l1Client.TransactionByHash(ctx, txHash)
 	if err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func (d *Derivation) fetchBatchInfoPathB(ctx context.Context, txHash common.Hash
 // deliberately whether it represents "verifier could not run" (no
 // sentinel) vs "verifier produced a divergence verdict" (wrap
 // ErrBatchVerifyDivergence) and update the SentinelContract test.
-func (d *Derivation) verifyBatchContentPathB(ctx context.Context, batchInfo *BatchInfo) error {
+func (d *Derivation) rebuildBlob(ctx context.Context, batchInfo *BatchInfo) ([]common.Hash, error) {
 	d.metrics.IncPathBTriggered()
 
 	// Standard log fields used by every failure-path Error log. Per-site
@@ -106,17 +106,15 @@ func (d *Derivation) verifyBatchContentPathB(ctx context.Context, batchInfo *Bat
 	}
 
 	if batchInfo.firstBlockNumber == 0 || batchInfo.lastBlockNumber < batchInfo.firstBlockNumber {
-		d.metrics.IncPathBFailedKind("invalid_block_range")
 		d.logger.Error("path B verification failed: invalid block range",
 			append([]interface{}{"kind", "invalid_block_range"}, logBase...)...)
-		return fmt.Errorf("path B [invalid_block_range]: invalid block range [%d, %d]",
+		return nil, fmt.Errorf("path B [invalid_block_range]: invalid block range [%d, %d]",
 			batchInfo.firstBlockNumber, batchInfo.lastBlockNumber)
 	}
 	if len(batchInfo.blobHashes) == 0 {
-		d.metrics.IncPathBFailedKind("empty_blob_hashes")
 		d.logger.Error("path B verification failed: no blob hashes recorded",
 			append([]interface{}{"kind", "empty_blob_hashes"}, logBase...)...)
-		return fmt.Errorf("path B [empty_blob_hashes]: no blob hashes recorded for batch %d", batchInfo.batchIndex)
+		return nil, fmt.Errorf("path B [empty_blob_hashes]: no blob hashes recorded for batch %d", batchInfo.batchIndex)
 	}
 
 	bd := commonbatch.NewBatchData()
@@ -125,24 +123,21 @@ func (d *Derivation) verifyBatchContentPathB(ctx context.Context, batchInfo *Bat
 	for n := batchInfo.firstBlockNumber; n <= batchInfo.lastBlockNumber; n++ {
 		block, err := d.l2Client.BlockByNumber(ctx, big.NewInt(int64(n)))
 		if err != nil {
-			d.metrics.IncPathBFailedKind("local_block_read_error")
 			d.logger.Error("path B verification failed: read local block",
 				append([]interface{}{"kind", "local_block_read_error", "blockNumber", n, "cause", err}, logBase...)...)
-			return fmt.Errorf("path B [local_block_read_error]: read local block %d failed: %w", n, err)
+			return nil, fmt.Errorf("path B [local_block_read_error]: read local block %d failed: %w", n, err)
 		}
 		if block == nil {
-			d.metrics.IncPathBFailedKind("local_block_missing")
 			d.logger.Error("path B verification failed: local block missing",
 				append([]interface{}{"kind", "local_block_missing", "blockNumber", n}, logBase...)...)
-			return fmt.Errorf("path B [local_block_missing]: local block %d missing", n)
+			return nil, fmt.Errorf("path B [local_block_missing]: local block %d missing", n)
 		}
 
 		txsPayload, l1TxHashes, newTotal, l2TxNum, err := commonbatch.ParsingTxs(block.Transactions(), totalL1MessagePopped)
 		if err != nil {
-			d.metrics.IncPathBFailedKind("parsing_txs_error")
 			d.logger.Error("path B verification failed: parse local block txs",
 				append([]interface{}{"kind", "parsing_txs_error", "blockNumber", n, "cause", err}, logBase...)...)
-			return fmt.Errorf("path B [parsing_txs_error]: parsingTxs failed at block %d: %w", n, err)
+			return nil, fmt.Errorf("path B [parsing_txs_error]: parsingTxs failed at block %d: %w", n, err)
 		}
 		l1MsgNum := int(newTotal - totalL1MessagePopped)
 		blockCtx := commonbatch.BuildBlockContext(block.Header(), l2TxNum+l1MsgNum, l1MsgNum)
@@ -179,13 +174,12 @@ func (d *Derivation) verifyBatchContentPathB(ctx context.Context, batchInfo *Bat
 
 	compressed, err := commonblob.CompressBatchBytes(payload)
 	if err != nil {
-		d.metrics.IncPathBFailedKind("compress_error")
 		d.logger.Error("path B verification failed: compress",
 			append([]interface{}{
 				"kind", "compress_error",
 				"encoding", chosenEncoding, "payloadLen", len(payload), "cause", err,
 			}, logBase...)...)
-		return fmt.Errorf("path B [compress_error]: compress failed: %w", err)
+		return nil, fmt.Errorf("path B [compress_error]: compress failed: %w", err)
 	}
 
 	// maxBlobs is only an upper bound for sidecar capacity; the actual
@@ -195,18 +189,16 @@ func (d *Derivation) verifyBatchContentPathB(ctx context.Context, batchInfo *Bat
 	// the wrong blob count and a confusing hash mismatch later.
 	sidecar, err := commonblob.MakeBlobTxSidecar(compressed, len(batchInfo.blobHashes))
 	if err != nil {
-		d.metrics.IncPathBFailedKind("sidecar_build_error")
 		d.logger.Error("path B verification failed: build sidecar",
 			append([]interface{}{
 				"kind", "sidecar_build_error",
 				"encoding", chosenEncoding, "payloadLen", len(payload), "compressedLen", len(compressed), "cause", err,
 			}, logBase...)...)
-		return fmt.Errorf("path B [sidecar_build_error]: build sidecar failed: %w", err)
+		return nil, fmt.Errorf("path B [sidecar_build_error]: build sidecar failed: %w", err)
 	}
 
 	rebuilt := sidecar.BlobHashes()
 	if len(rebuilt) != len(batchInfo.blobHashes) {
-		d.metrics.IncPathBFailedKind("blob_count_mismatch")
 		d.logger.Error("path B verification failed: blob count mismatch",
 			append([]interface{}{
 				"kind", "blob_count_mismatch",
@@ -215,26 +207,10 @@ func (d *Derivation) verifyBatchContentPathB(ctx context.Context, batchInfo *Bat
 				"rebuiltHashes", hashesHexCSV(rebuilt),
 				"expectedHashes", hashesHexCSV(batchInfo.blobHashes),
 			}, logBase...)...)
-		return fmt.Errorf("path B [blob_count_mismatch]: blob count mismatch (rebuilt=%d, l1=%d): %w",
+		return nil, fmt.Errorf("path B [blob_count_mismatch]: blob count mismatch (rebuilt=%d, l1=%d): %w",
 			len(rebuilt), len(batchInfo.blobHashes), ErrBatchVerifyDivergence)
 	}
-	for i := range rebuilt {
-		if rebuilt[i] != batchInfo.blobHashes[i] {
-			d.metrics.IncPathBFailedKind("versioned_hash_mismatch")
-			d.logger.Error("path B verification failed: versioned hash mismatch",
-				append([]interface{}{
-					"kind", "versioned_hash_mismatch",
-					"encoding", chosenEncoding, "payloadLen", len(payload), "compressedLen", len(compressed),
-					"rebuiltBlobs", len(rebuilt),
-					"mismatchIndex", i,
-					"rebuiltHashes", hashesHexCSV(rebuilt),
-					"expectedHashes", hashesHexCSV(batchInfo.blobHashes),
-				}, logBase...)...)
-			return fmt.Errorf("path B [versioned_hash_mismatch]: versioned hash mismatch at index %d (rebuilt=%s, l1=%s): %w",
-				i, rebuilt[i].Hex(), batchInfo.blobHashes[i].Hex(), ErrBatchVerifyDivergence)
-		}
-	}
-	return nil
+	return rebuilt, nil
 }
 
 // hashesHexCSV renders a small slice of hashes as a comma-separated hex

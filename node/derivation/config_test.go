@@ -10,21 +10,21 @@ import (
 // fail-fast so a typo never reaches the main loop.
 
 func TestVerifyMode_DefaultIsPathB(t *testing.T) {
-	if got := DefaultConfig().VerifyMode; got != VerifyModePathB {
-		t.Fatalf("DefaultConfig().VerifyMode = %q, want %q", got, VerifyModePathB)
+	if got := DefaultConfig().VerifyMode; got != VerifyModeLocal {
+		t.Fatalf("DefaultConfig().VerifyMode = %q, want %q", got, VerifyModeLocal)
 	}
 
 	got, err := validateAndDefaultVerifyMode("")
 	if err != nil {
 		t.Fatalf("empty verify-mode rejected: %v", err)
 	}
-	if got != VerifyModePathB {
-		t.Fatalf("empty verify-mode normalised to %q, want %q", got, VerifyModePathB)
+	if got != VerifyModeLocal {
+		t.Fatalf("empty verify-mode normalised to %q, want %q", got, VerifyModeLocal)
 	}
 }
 
 func TestVerifyMode_AcceptsExplicitModes(t *testing.T) {
-	for _, mode := range []string{VerifyModePathA, VerifyModePathB} {
+	for _, mode := range []string{VerifyModeLayer1, VerifyModeLocal} {
 		got, err := validateAndDefaultVerifyMode(mode)
 		if err != nil {
 			t.Fatalf("%s rejected: %v", mode, err)
@@ -46,7 +46,7 @@ func TestVerifyMode_RejectsUnknown(t *testing.T) {
 		}
 		// Error message should enumerate the valid modes so a typo's fix
 		// is obvious from the log line alone.
-		for _, mode := range []string{VerifyModePathA, VerifyModePathB} {
+		for _, mode := range []string{VerifyModeLayer1, VerifyModeLocal} {
 			if !strings.Contains(err.Error(), mode) {
 				t.Fatalf("error should list %q as a valid mode; got: %v", mode, err)
 			}

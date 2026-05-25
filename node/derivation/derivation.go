@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/morph-l2/go-ethereum/eth/catalyst"
 	"math/big"
 	"time"
 
@@ -252,13 +253,13 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			lastHeader *eth.Header
 		)
 		switch d.verifyMode {
-		case VerifyModePathB:
-			batchInfo, err = d.fetchBatchInfoPathB(ctx, lg.TxHash, lg.BlockNumber)
+		case VerifyModeLocal:
+			batchInfo, err = d.fetchBatchInfoOutline(ctx, lg.TxHash, lg.BlockNumber)
 			if err != nil {
 				if errors.Is(err, types.ErrNotCommitBatchTx) {
 					continue
 				}
-				d.logger.Error("path B fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
+				d.logger.Error("fetch batch info outline failed", "err", err)
 				return
 			}
 			d.logger.Info("path B fetched batch metadata",
@@ -268,76 +269,38 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				"expectedBlobs", len(batchInfo.blobHashes),
 				"txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
 				"l1BlockNumber", batchInfo.l1BlockNumber, "firstL2BlockNumber", batchInfo.firstBlockNumber, "lastL2BlockNumber", batchInfo.lastBlockNumber)
-			verifyErr := d.verifyBatchContentPathB(ctx, batchInfo)
-			if verifyErr == nil {
-				lastHeader, err = d.fetchLocalLastHeader(ctx, batchInfo)
-				if err != nil {
-					d.logger.Error("path B local last-header fetch failed", "batchIndex", batchInfo.batchIndex, "error", err)
-					return
-				}
-			} else if errors.Is(verifyErr, ErrBatchVerifyDivergence) {
-				// SPEC-005 §4.3 Path B self-heal: a divergence verdict means
-				// the local L2 blocks in the batch range disagree with the
-				// sequencer's blob. Pull the real blob, re-derive via the V2
-				// engine API (PR #325, https://github.com/morph-l2/go-ethereum/pull/325),
-				// which reorgs the locally divergent unsafe blocks; then run
-				// the shared verifyBatchRoots. On full success, fall through
-				// to the normal post-verify bookkeeping.
-				d.metrics.IncPathBSelfHealTriggered()
-				d.logger.Info("path B divergence; entering self-heal",
-					"batchIndex", batchInfo.batchIndex, "verifyError", verifyErr)
-				d.metrics.SetBatchStatus(stateException)
-
-				batchInfoFull, fetchErr := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
-				if fetchErr != nil {
-					if errors.Is(fetchErr, types.ErrNotCommitBatchTx) {
-						// Should not happen: pathB fetch already accepted this
-						// tx as a commitBatch. Treat as derive_error — the
-						// sub_kind is for an unexpected runtime regression.
-						d.metrics.IncPathBSelfHealFailed("derive_error")
-					} else {
-						d.metrics.IncPathBSelfHealFailed("blob_unavailable")
-					}
-					d.logger.Error("path B self-heal: fetch real batch failed",
-						"batchIndex", batchInfo.batchIndex, "error", fetchErr)
-					return
-				}
-
-				healLastHeader, deriveErr := d.deriveForSelfHeal(batchInfoFull)
-				if deriveErr != nil {
-					d.metrics.IncPathBSelfHealFailed("derive_error")
-					d.logger.Error("path B self-heal: derive failed",
-						"batchIndex", batchInfo.batchIndex, "error", deriveErr)
-					return
-				}
-
-				if rootsErr := d.verifyBatchRoots(batchInfoFull, healLastHeader); rootsErr != nil {
-					d.metrics.IncPathBSelfHealFailed("roots_mismatch")
-					d.logger.Error("path B self-heal: verifyBatchRoots failed",
-						"batchIndex", batchInfo.batchIndex, "error", rootsErr)
-					return
-				}
-
-				d.metrics.IncPathBSelfHealSucceeded()
-				d.logger.Info("path B self-heal: success",
-					"batchIndex", batchInfo.batchIndex,
-					"firstBlock", batchInfoFull.firstBlockNumber,
-					"lastBlock", batchInfoFull.lastBlockNumber)
-				batchInfo = batchInfoFull
-				lastHeader = healLastHeader
-			} else {
-				// Transient kind (local_block_missing / local_block_read_error
-				// / parsing_txs_error / compress_error / sidecar_build_error /
-				// invalid_block_range / empty_blob_hashes): log + return +
-				// retry next poll. Do NOT raise the divergence alert
-				// (BatchStatus stays at stateNormal).
-				d.logger.Error("path B content verification failed",
-					"batchIndex", batchInfo.batchIndex, "error", verifyErr)
+			rebuilt, err := d.rebuildBlob(ctx, batchInfo)
+			if err != nil {
+				d.logger.Error("rebuildBlob failed", "err", err)
 				return
 			}
-			d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
+			lastHeader, err = d.fetchLocalLastHeader(ctx, batchInfo)
+			if err != nil {
+				d.logger.Error("path B local last-header fetch failed", "batchIndex", batchInfo.batchIndex, "error", err)
+				return
+			}
+			for i := range rebuilt {
+				if rebuilt[i] != batchInfo.blobHashes[i] {
+					// TODO reorg
+					batchInfoFull, fetchErr := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
+					if fetchErr != nil {
+						d.logger.Error("path B self-heal: fetch real batch failed",
+							"batchIndex", batchInfo.batchIndex, "error", fetchErr)
+						return
+					}
+					lastHeader, err = d.deriveForce(batchInfoFull)
+					if err != nil {
+						d.logger.Error("path B self-heal: derive failed",
+							"batchIndex", batchInfo.batchIndex, "error", err)
+						return
+					}
+					break
+				}
+			}
+
+			d.metrics.SetL2DeriveHeight(batchInfo.lastBlockNumber)
 			d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
-		case VerifyModePathA:
+		case VerifyModeLayer1:
 			batchInfo, err = d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
 			if err != nil {
 				if errors.Is(err, types.ErrNotCommitBatchTx) {
@@ -655,6 +618,7 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1Message
 	for bIndex, block := range rollupData.blockContexts {
 		// This may happen to nodes started from snapshot, in which case we will no longer handle L1Msg
 		if block.Number <= l2Height {
+			totalL1MessagePopped += uint64(block.l1MsgNum)
 			continue
 		}
 		var l1Transactions []*eth.Transaction
@@ -663,7 +627,7 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1Message
 			return fmt.Errorf("get l1 message error:%v", err)
 		}
 		if len(l1Messages) != int(block.l1MsgNum) {
-			return fmt.Errorf("invalid l1 msg num,expect %v,have %v", block.l1MsgNum, l1Messages)
+			return fmt.Errorf("invalid l1 msg num,expect %v,have %v", block.l1MsgNum, len(l1Messages))
 		}
 		totalL1MessagePopped += uint64(block.l1MsgNum)
 		if len(l1Messages) > 0 {
@@ -717,6 +681,73 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 	}
 
 	return lastHeader, nil
+}
+
+func (d *Derivation) deriveForce(rollupData *BatchInfo) (*eth.Header, error) {
+	firstNum := rollupData.firstBlockNumber
+	if firstNum == 0 {
+		return nil, fmt.Errorf("invalid firstBlockNumber 0 for batch %d", rollupData.batchIndex)
+	}
+
+	// Anchor: parent of the batch's first block must already exist locally.
+	parentHeader, err := d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(firstNum-1)))
+	if err != nil {
+		return nil, fmt.Errorf("read parent header at %d: %w", firstNum-1, err)
+	}
+	if parentHeader == nil {
+		return nil, fmt.Errorf("parent header at %d missing", firstNum-1)
+	}
+	parentHash := parentHeader.Hash()
+
+	var lastHeader *eth.Header
+	for _, blockData := range rollupData.blockContexts {
+		execData := safeL2DataToExecutable(blockData.SafeL2Data, parentHash)
+		err = func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(60)*time.Second)
+			defer cancel()
+			err = d.l2Client.NewL2BlockV2(ctx, execData, true /* isSafe */)
+			if err != nil {
+				d.logger.Error("NewL2BlockV2 failed",
+					"batchIndex", rollupData.batchIndex,
+					"blockNumber", execData.Number,
+					"parent", parentHash.Hex(),
+					"error", err,
+				)
+				return err
+			}
+			return nil
+		}()
+
+		// Read back to chain the next iteration's parent and to feed
+		// verifyBatchRoots at the end.
+		h, err := d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(execData.Number)))
+		if err != nil {
+			return nil, fmt.Errorf("read header at %d after NewL2BlockV2: %w", execData.Number, err)
+		}
+		if h == nil {
+			return nil, fmt.Errorf(" header at %d missing after NewL2BlockV2", execData.Number)
+		}
+		parentHash = h.Hash()
+		lastHeader = h
+
+		d.logger.Info("block written via NewL2BlockV2",
+			"batchIndex", rollupData.batchIndex,
+			"blockNumber", execData.Number,
+			"hash", h.Hash().Hex(),
+		)
+	}
+	return lastHeader, nil
+}
+
+func safeL2DataToExecutable(s *catalyst.SafeL2Data, parentHash common.Hash) *catalyst.ExecutableL2Data {
+	return &catalyst.ExecutableL2Data{
+		ParentHash:   parentHash,
+		Number:       s.Number,
+		GasLimit:     s.GasLimit,
+		BaseFee:      s.BaseFee,
+		Timestamp:    s.Timestamp,
+		Transactions: s.Transactions,
+	}
 }
 
 func (d *Derivation) getLatestConfirmedBlockNumber(ctx context.Context) (uint64, error) {

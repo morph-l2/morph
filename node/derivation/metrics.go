@@ -26,7 +26,7 @@ type Metrics struct {
 	SyncedBatchIndex metrics.Gauge
 
 	// SPEC-005 section 4.6 Path B counters. PathBTriggered increments once per batch
-	// processed under VerifyModePathB; PathBFailed is the unlabelled total.
+	// processed under VerifyModeLocal; PathBFailed is the unlabelled total.
 	// PathBFailedByKind carries a "kind" label so dashboards / alerts can split
 	// failures by category (versioned hash mismatch vs local block missing vs
 	// encoding error vs ...). Increment both via IncPathBFailedKind so the
@@ -211,35 +211,8 @@ func (m *Metrics) IncPathBTriggered() {
 	m.PathBTriggered.Add(1)
 }
 
-// IncPathBSelfHealTriggered marks the entry into the self-heal branch
-// (versioned_hash_mismatch detected). Paired with either
-// IncPathBSelfHealSucceeded or IncPathBSelfHealFailed{sub_kind}.
-func (m *Metrics) IncPathBSelfHealTriggered() {
-	m.PathBSelfHealTriggered.Add(1)
-}
-
-// IncPathBSelfHealSucceeded marks self-heal completion + verifyBatchRoots pass.
-func (m *Metrics) IncPathBSelfHealSucceeded() {
-	m.PathBSelfHealSucceeded.Add(1)
-}
-
-// IncPathBSelfHealFailed marks a self-heal failure under one of the documented
-// sub_kinds: blob_unavailable / parse_error / derive_error / roots_mismatch.
-// New sub_kinds require updating the help text on PathBSelfHealFailedByKind.
-func (m *Metrics) IncPathBSelfHealFailed(subKind string) {
-	m.PathBSelfHealFailedByKind.With("sub_kind", subKind).Add(1)
-}
-
 func (m *Metrics) IncPathBFailed() {
 	m.PathBFailed.Add(1)
-}
-
-// IncPathBFailedKind increments both the unlabelled PathBFailed total and the
-// PathBFailedByKind counter scoped to the given kind. Call sites in
-// verify_path_b.go use this so the kind label and the total stay aligned.
-func (m *Metrics) IncPathBFailedKind(kind string) {
-	m.PathBFailed.Add(1)
-	m.PathBFailedByKind.With("kind", kind).Add(1)
 }
 
 func (m *Metrics) IncSafeAdvance() {
