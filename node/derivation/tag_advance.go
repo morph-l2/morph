@@ -133,9 +133,16 @@ func (t *tagAdvancer) SafeMaxBatchIndex() uint64 {
 }
 
 // reset clears safe head when the derivation main loop detects an L1 reorg
-// and rewinds its cursor. finalized is intentionally NOT reset -- see
-// SPEC-005 section 4.7.6: L1 finalized is assumed monotonic, and finalizer.tick will
-// re-evaluate on the next iteration.
+// and rewinds its cursor. Safe head is zeroed (not rewound to a "real" value)
+// because reorged batches may have different content; the next advanceSafe
+// re-establishes truth from re-derivation. finalized is intentionally NOT
+// reset -- see SPEC-005 section 4.7.6: L1 finalized is assumed monotonic, and
+// finalizer.tick will re-evaluate on the next iteration.
+//
+// SafeL2BlockNumber gauge is intentionally NOT reset: it represents the
+// highest verified L2 block watermark for ops dashboards, not the in-memory
+// state. The next advanceSafe overwrites it; reorg recovery stalls are
+// detected via l1_reorg_reset_total + unsafe-safe lag instead.
 func (t *tagAdvancer) reset(toBatchIndex uint64) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -145,7 +152,6 @@ func (t *tagAdvancer) reset(toBatchIndex uint64) {
 	t.safeMaxBatchIndex = toBatchIndex
 	t.lastNotifiedSafe = common.Hash{}
 	t.metrics.IncL1ReorgReset()
-	t.metrics.SetSafeL2BlockNumber(0)
 	t.logger.Info("tag advancer reset on L1 reorg", "to_batch_index", toBatchIndex)
 }
 
