@@ -14,7 +14,7 @@ import (
 // a true "verifier reached a verdict of inconsistent" — i.e. the local
 // chain disagrees with what L1 committed. Currently produced by:
 //   - verifyBatchRoots, when local stateRoot or withdrawalRoot ≠ L1 calldata
-//   - verify_path_b's pathBFail, for kinds versioned_hash_mismatch and
+//   - verify_local's rebuildBlob, for kinds versioned_hash_mismatch and
 //     blob_count_mismatch
 //
 // Call sites in derivation.go gate `metrics.SetBatchStatus(stateException)`
@@ -30,7 +30,7 @@ var ErrBatchVerifyDivergence = errors.New("batch verify: divergence verdict")
 // SPEC-005 section 3.4 invariant: this check is independent of blob data -- both
 // batchInfo.root (postStateRoot) and batchInfo.withdrawalRoot are extracted
 // from L1 calldata at parse time, so this function runs identically under
-// Path A (online beacon blob) and Path B (local-rebuild) verification modes.
+// layer1 (beacon blob) and local-rebuild verification modes.
 //
 // Returns nil on match. On mismatch the error wraps ErrBatchVerifyDivergence
 // so callers can distinguish a real divergence verdict from a transient

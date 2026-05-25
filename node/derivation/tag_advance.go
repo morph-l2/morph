@@ -59,7 +59,7 @@ func newTagAdvancer(l2Client tagL2Client, metrics *Metrics, logger tmlog.Logger)
 }
 
 // advanceSafe is called by the derivation main loop after a batch passes both
-// content verification (Path A or Path B) and verifyBatchRoots. It records the
+// content verification (layer1 or local verify) and verifyBatchRoots. It records the
 // new safe head and flushes via SetBlockTags.
 func (t *tagAdvancer) advanceSafe(ctx context.Context, batchIndex uint64, lastHeader *eth.Header) {
 	if lastHeader == nil {

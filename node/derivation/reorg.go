@@ -111,7 +111,7 @@ func (d *Derivation) handleL1Reorg(reorgAtL1Height uint64) error {
 // Both situations are recovered by the same op-stack-style "reset to a known
 // good parent and re-derive forward" pattern: the next derivationBlock poll
 // re-fetches L1 commit batch logs from the rewound cursor, re-runs Path A or
-// Path B verification, and re-populates safe via advanceSafe. Persistent
+// local verify verification, and re-populates safe via advanceSafe. Persistent
 // problems surface naturally when verifyBatchRoots fails on re-derivation.
 //
 // L2 chain rollback is intentionally NOT performed here -- the same commit

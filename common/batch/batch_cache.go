@@ -939,7 +939,7 @@ func (bc *BatchCache) createBatchHeader(dataHash common.Hash, sidecar *ethtypes.
 // in order; L1 message transactions are excluded from the payload but their
 // hashes and queue indices are tracked separately.
 //
-// Exported for derivation Path B (SPEC-005), which must rebuild blob bytes from
+// Exported for derivation local verify (SPEC-005), which must rebuild blob bytes from
 // local L2 blocks using the same encoding the sequencer applied at seal time.
 func ParsingTxs(transactions []*ethtypes.Transaction, totalL1MessagePoppedBefore uint64) (
 	txsPayload []byte,
@@ -1020,7 +1020,7 @@ func (bc *BatchCache) sealEffectiveBlobCount(blockTimestamp uint64, replayCommit
 // BlockContext blob the batch builder writes for each block.
 // Format: Number(8) || Timestamp(8) || BaseFee(32) || GasLimit(8) || numTxs(2) || numL1Messages(2)
 //
-// Exported for derivation Path B (SPEC-005); see ParsingTxs.
+// Exported for derivation local verify (SPEC-005); see ParsingTxs.
 func BuildBlockContext(header *ethtypes.Header, txsNum, l1MsgNum int) []byte {
 	blsBytes := make([]byte, 60)
 

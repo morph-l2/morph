@@ -9,7 +9,7 @@ import (
 )
 
 // retryableError must classify ethereum.NotFound as permanent so that
-// SPEC-005 Path B fails fast when a target L2 block has not yet been sealed
+// SPEC-005 local verify fails fast when a target L2 block has not yet been sealed
 // locally (snapshot too old or P2P sync still catching up). Without this
 // classification the caller blocks for the full 30-minute backoff budget
 // before the gap is surfaced.

@@ -25,39 +25,16 @@ type Metrics struct {
 	LatestBatchIndex metrics.Gauge
 	SyncedBatchIndex metrics.Gauge
 
-	// SPEC-005 section 4.6 Path B counters. PathBTriggered increments once per batch
-	// processed under VerifyModeLocal; PathBFailed is the unlabelled total.
-	// PathBFailedByKind carries a "kind" label so dashboards / alerts can split
-	// failures by category (versioned hash mismatch vs local block missing vs
-	// encoding error vs ...). Increment both via IncPathBFailedKind so the
-	// total stays in sync with the sum across kinds.
-	PathBTriggered    metrics.Counter
-	PathBFailed       metrics.Counter
-	PathBFailedByKind metrics.Counter
+	// LocalVerifyTriggered increments once per batch processed under
+	// VerifyModeLocal -- presence/absence on dashboards confirms the local
+	// verifier is running. Failure tracking is intentionally not split into
+	// separate counters; failures surface as Error logs and propagate as
+	// ErrBatchVerifyDivergence to BatchStatus=stateException.
+	LocalVerifyTriggered metrics.Counter
 
-	// SPEC-005 §4.2 / §4.6 Path B self-heal counters. On a divergence verdict
-	// (ErrBatchVerifyDivergence; covers versioned_hash_mismatch +
-	// blob_count_mismatch) the Path B branch in derivation.go pulls the real
-	// blob from beacon, re-derives the batch via the V2 engine API
-	// (NewL2BlockV2, which reorgs locally divergent unsafe blocks), and
-	// re-runs the shared verifyBatchRoots:
-	//
-	//   - PathBSelfHealTriggered      : self-heal attempt started (divergence detected)
-	//   - PathBSelfHealSucceeded      : self-heal completed and verifyBatchRoots passed
-	//   - PathBSelfHealFailedByKind   : self-heal failed; sub_kind label =
-	//       blob_unavailable / parse_error / derive_error / roots_mismatch
-	//
-	// Temporary EL dependency: NewL2BlockV2 lives in go-ethereum PR #325
-	// (https://github.com/morph-l2/go-ethereum/pull/325). go.mod currently
-	// pins to that PR's HEAD commit; once #325 merges and a release is cut,
-	// the bump is reverted to the released pseudo-version with no caller
-	// change. morph-reth's matching change is tracked separately.
-	PathBSelfHealTriggered    metrics.Counter
-	PathBSelfHealSucceeded    metrics.Counter
-	PathBSelfHealFailedByKind metrics.Counter
-
-	// SPEC-005 section 4.7 Tag management metrics. Replace the (previously absent)
-	// blocktag instrumentation; on-call alerts should now key off these.
+	// Tag management metrics. SafeL2BlockNumber / FinalizedL2BlockNumber are
+	// the canonical "where is the chain now" gauges; the counters track
+	// transitions for rate-based alerts.
 	SafeAdvanceTotal           metrics.Counter
 	FinalizedAdvanceTotal      metrics.Counter
 	SafeL2BlockNumber          metrics.Gauge
@@ -108,42 +85,12 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Name:      "synced_batch_index",
 			Help:      "",
 		}, labels).With(labelsAndValues...),
-		PathBTriggered: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+		LocalVerifyTriggered: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: metricsSubsystem,
-			Name:      "path_b_triggered_total",
-			Help:      "Number of batches verified via SPEC-005 Path B (local-rebuild).",
+			Name:      "local_verify_triggered_total",
+			Help:      "Number of batches processed by the local-rebuild verifier.",
 		}, labels).With(labelsAndValues...),
-		PathBFailed: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: namespace,
-			Subsystem: metricsSubsystem,
-			Name:      "path_b_failed_total",
-			Help:      "Path B failures: local block missing, encoding error, or versioned hash mismatch.",
-		}, labels).With(labelsAndValues...),
-		PathBFailedByKind: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: namespace,
-			Subsystem: metricsSubsystem,
-			Name:      "path_b_failed_by_kind_total",
-			Help:      "Path B failures broken down by kind label (versioned_hash_mismatch, local_block_missing, ...).",
-		}, append(append([]string(nil), labels...), "kind")).With(labelsAndValues...),
-		PathBSelfHealTriggered: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: namespace,
-			Subsystem: metricsSubsystem,
-			Name:      "path_b_self_heal_triggered_total",
-			Help:      "Times Path B detected a divergence verdict and entered the self-heal branch (pull real blob → re-derive via NewL2BlockV2 → shared verifyBatchRoots).",
-		}, labels).With(labelsAndValues...),
-		PathBSelfHealSucceeded: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: namespace,
-			Subsystem: metricsSubsystem,
-			Name:      "path_b_self_heal_succeeded_total",
-			Help:      "Times Path B self-heal completed and the shared verifyBatchRoots passed.",
-		}, labels).With(labelsAndValues...),
-		PathBSelfHealFailedByKind: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: namespace,
-			Subsystem: metricsSubsystem,
-			Name:      "path_b_self_heal_failed_total",
-			Help:      "Path B self-heal failures broken down by sub_kind label (blob_unavailable, parse_error, derive_error, roots_mismatch).",
-		}, append(append([]string(nil), labels...), "sub_kind")).With(labelsAndValues...),
 		SafeAdvanceTotal: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: metricsSubsystem,
@@ -207,12 +154,8 @@ func (m *Metrics) SetSyncedBatchIndex(batchIndex uint64) {
 	m.SyncedBatchIndex.Set(float64(batchIndex))
 }
 
-func (m *Metrics) IncPathBTriggered() {
-	m.PathBTriggered.Add(1)
-}
-
-func (m *Metrics) IncPathBFailed() {
-	m.PathBFailed.Add(1)
+func (m *Metrics) IncLocalVerifyTriggered() {
+	m.LocalVerifyTriggered.Add(1)
 }
 
 func (m *Metrics) IncSafeAdvance() {

@@ -9,7 +9,7 @@ import (
 // startup; the validation switch in SetCliContext rejects unknown values
 // fail-fast so a typo never reaches the main loop.
 
-func TestVerifyMode_DefaultIsPathB(t *testing.T) {
+func TestVerifyMode_DefaultIsLocal(t *testing.T) {
 	if got := DefaultConfig().VerifyMode; got != VerifyModeLocal {
 		t.Fatalf("DefaultConfig().VerifyMode = %q, want %q", got, VerifyModeLocal)
 	}
@@ -38,7 +38,7 @@ func TestVerifyMode_AcceptsExplicitModes(t *testing.T) {
 func TestVerifyMode_RejectsUnknown(t *testing.T) {
 	// "hybrid" was the old default; ensure post-removal it's rejected so
 	// stale operator configs fail loud rather than silently falling back to
-	// pathB.
+	// local.
 	for _, bad := range []string{"pathC", "hybrid"} {
 		err := validateAndDefaultVerifyModeErr(t, bad)
 		if !strings.Contains(err.Error(), bad) {

@@ -118,19 +118,19 @@ func TestNoBlocktagReferences(t *testing.T) {
 	}
 }
 
-// TestPathBUsesCommonBlobPackage guards SPEC-005 section 3.4: Path B must use
+// TestLocalVerifyUsesCommonBlobPackage guards SPEC-005 section 3.4: local verify must use
 // `common/blob` helpers (the same set tx-submitter calls), not the duplicate
 // implementations under `common/batch/blob.go`. Codec drift between the two
 // would cause permanent versioned hash mismatches.
-func TestPathBUsesCommonBlobPackage(t *testing.T) {
-	body, err := os.ReadFile("verify_path_b.go")
+func TestLocalVerifyUsesCommonBlobPackage(t *testing.T) {
+	body, err := os.ReadFile("verify_local.go")
 	if err != nil {
-		t.Fatalf("read verify_path_b.go: %v", err)
+		t.Fatalf("read verify_local.go: %v", err)
 	}
 	src := string(body)
 
 	if !strings.Contains(src, `"morph-l2/common/blob"`) {
-		t.Fatalf("verify_path_b.go must import morph-l2/common/blob")
+		t.Fatalf("verify_local.go must import morph-l2/common/blob")
 	}
 	// Sanity check the actual call sites -- import is necessary but not
 	// sufficient; mismatched calls (e.g., commonbatch.CompressBatchBytes)
@@ -138,7 +138,7 @@ func TestPathBUsesCommonBlobPackage(t *testing.T) {
 	required := []string{"commonblob.CompressBatchBytes", "commonblob.MakeBlobTxSidecar"}
 	for _, sym := range required {
 		if !strings.Contains(src, sym) {
-			t.Errorf("verify_path_b.go missing required call %q", sym)
+			t.Errorf("verify_local.go missing required call %q", sym)
 		}
 	}
 }

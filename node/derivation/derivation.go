@@ -61,7 +61,7 @@ type Derivation struct {
 	fetchBlockRange     uint64
 	pollInterval        time.Duration
 	logProgressInterval time.Duration
-	verifyMode          string // SPEC-005 section 4.2: "pathA" or "pathB" (default); bound at startup, never switches.
+	verifyMode          string // SPEC-005 section 4.2: "layer1" or "local" (default); bound at startup, never switches.
 	reorgCheckDepth     uint64 // SPEC-005 section 4.7.6: how far back to scan for L1 hash divergence each poll.
 
 	tagAdvancer *tagAdvancer
@@ -262,7 +262,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				d.logger.Error("fetch batch info outline failed", "err", err)
 				return
 			}
-			d.logger.Info("path B fetched batch metadata",
+			d.logger.Info("local verify fetched batch metadata",
 				"batchIndex", batchInfo.batchIndex,
 				"version", batchInfo.version,
 				"parentTotalL1Popped", batchInfo.parentTotalL1MessagePopped,
@@ -276,7 +276,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			}
 			lastHeader, err = d.fetchLocalLastHeader(ctx, batchInfo)
 			if err != nil {
-				d.logger.Error("path B local last-header fetch failed", "batchIndex", batchInfo.batchIndex, "error", err)
+				d.logger.Error("local verify local last-header fetch failed", "batchIndex", batchInfo.batchIndex, "error", err)
 				return
 			}
 			for i := range rebuilt {
@@ -284,13 +284,13 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 					// TODO reorg
 					batchInfoFull, fetchErr := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
 					if fetchErr != nil {
-						d.logger.Error("path B self-heal: fetch real batch failed",
+						d.logger.Error("local verify self-heal: fetch real batch failed",
 							"batchIndex", batchInfo.batchIndex, "error", fetchErr)
 						return
 					}
 					lastHeader, err = d.deriveForce(batchInfoFull)
 					if err != nil {
-						d.logger.Error("path B self-heal: derive failed",
+						d.logger.Error("local verify self-heal: derive failed",
 							"batchIndex", batchInfo.batchIndex, "error", err)
 						return
 					}
@@ -321,7 +321,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
 		default:
 			// Unreachable: validateAndDefaultVerifyMode rejects unknown values
-			// at startup and normalises empty to DefaultVerifyMode (pathB).
+			// at startup and normalises empty to DefaultVerifyMode (local).
 			// If we get here it's a programming error -- a new mode added to
 			// the constant set without a switch arm. Fail loud rather than
 			// silently fall through to stale semantics.
@@ -345,7 +345,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		d.metrics.SetBatchStatus(stateNormal)
 		d.metrics.SetL1SyncHeight(lg.BlockNumber)
 
-		// SPEC-005 section 4.7.3: a verified batch (Path A or Path B) advances safe.
+		// SPEC-005 section 4.7.3: a verified batch (layer1 or local verify) advances safe.
 		d.tagAdvancer.advanceSafe(d.ctx, batchInfo.batchIndex, lastHeader)
 	}
 

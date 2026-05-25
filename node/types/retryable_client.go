@@ -131,7 +131,7 @@ func (rc *RetryableClient) NewSafeL2Block(ctx context.Context, safeL2Data *catal
 // skips verifyBlock + ValidateState (used for L1-confirmed blocks where
 // the caller already trusts the block's content).
 //
-// Used by SPEC-005 §4.3 Path B self-heal: when local-rebuild produces a
+// Used by SPEC-005 §4.3 local verify self-heal: when local-rebuild produces a
 // versioned hash that disagrees with L1, we pull the real blob, derive
 // the batch using the true sequencer payload, and rewrite the locally
 // divergent unsafe blocks via this API.
@@ -278,11 +278,11 @@ func (rc *RetryableClient) SetBlockTags(ctx context.Context, safeBlockHash commo
 //
 // Permanent classifications (do NOT retry):
 //   - ethereum.NotFound: target block / header doesn't exist locally. With
-//     SPEC-005 Path B reading L2 blocks the sequencer hasn't yet sealed
+//     SPEC-005 local verify reading L2 blocks the sequencer hasn't yet sealed
 //     locally (snapshot too old, sync still catching up), this is a "wait
 //     for sync" condition, not a transient RPC blip; retrying every
 //     backoff tick for 30 minutes wastes the cycle and hides the gap from
-//     the operator. The caller (e.g. verify_path_b) surfaces the missing
+//     the operator. The caller (e.g. verify_local) surfaces the missing
 //     block, derivation logs an Error, and the next poll re-evaluates.
 //   - DiscontinuousBlockError: structurally invalid input that no amount
 //     of retry will fix.

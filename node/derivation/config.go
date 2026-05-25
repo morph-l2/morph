@@ -33,9 +33,9 @@ const (
 	VerifyModeLayer1 = "layer1"
 	VerifyModeLocal  = "local"
 
-	// DefaultVerifyMode is pathB: rebuild + compare locally on the happy path,
-	// no beacon blob fetch. Operators who need the legacy "always pull blob"
-	// behavior can set --derivation.verify-mode=pathA.
+	// DefaultVerifyMode is "local": rebuild + compare locally on the happy
+	// path, no beacon blob fetch. Operators who need the legacy "always
+	// pull blob" behavior can set --derivation.verify-mode=layer1.
 	DefaultVerifyMode = VerifyModeLocal
 
 	// DefaultReorgCheckDepth is the number of recent L1 blocks to check for
