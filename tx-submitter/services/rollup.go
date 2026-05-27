@@ -927,15 +927,9 @@ func (r *Rollup) finalize() error {
 	// gas bump
 	gas = r.BumpGas(gas)
 
-	var nonce uint64
-	pn := r.pendingTxs.GetNonce()
-	if pn != 0 {
-		nonce = pn + 1
-	} else {
-		nonce, err = r.L1Client.PendingNonceAt(context.Background(), r.WalletAddr())
-		if err != nil {
-			return fmt.Errorf("query layer1 nonce error:%v", err.Error())
-		}
+	nonce := r.getNextNonce()
+	if nonce == 0 {
+		return fmt.Errorf("failed to get next nonce")
 	}
 
 	tx := ethtypes.NewTx(&ethtypes.DynamicFeeTx{
@@ -1227,14 +1221,17 @@ func (r *Rollup) rollup() error {
 }
 
 func (r *Rollup) getNextNonce() uint64 {
-	if pn := r.pendingTxs.GetNonce(); pn != 0 {
-		return pn + 1
-	}
-
 	nonce, err := r.L1Client.PendingNonceAt(context.Background(), r.WalletAddr())
 	if err != nil {
 		log.Error("Failed to get nonce", "error", err)
 		return 0
+	}
+	if r.pendingTxs.Len() == 0 {
+		return nonce
+	}
+	pn := r.pendingTxs.GetNonce()
+	if pn+1 > nonce {
+		return pn + 1
 	}
 	return nonce
 }
