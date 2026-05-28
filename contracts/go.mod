@@ -6,7 +6,7 @@ replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.
 
 require (
 	github.com/iden3/go-iden3-crypto v0.0.16
-	github.com/morph-l2/go-ethereum v1.10.14-0.20260506071313-045be0fdc7ca
+	github.com/morph-l2/go-ethereum v1.10.14-0.20260526091422-01e8a4291b88
 	github.com/stretchr/testify v1.10.0
 )
 
@@ -23,7 +23,6 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/ethereum/c-kzg-4844/v2 v2.1.5 // indirect
-	github.com/ethereum/go-ethereum v1.10.26 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
 	github.com/go-kit/kit v0.12.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
