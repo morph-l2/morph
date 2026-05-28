@@ -2,6 +2,7 @@ package types
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"strings"
 	"time"
@@ -122,6 +123,44 @@ func (rc *RetryableClient) NewSafeL2Block(ctx context.Context, safeL2Data *catal
 	return
 }
 
+// NewL2BlockV2 wraps engine_newL2BlockV2 — the reorg-capable variant of
+// NewSafeL2Block introduced by go-ethereum PR #325. Unlike NewSafeL2Block
+// (which requires parent == currentHead), V2 only requires the parent to
+// exist on-chain; SetCanonical detects parentHash != currentHead and
+// triggers EL forkchoice reorg automatically. With isSafe=true the EL
+// skips verifyBlock + ValidateState (used for L1-confirmed blocks where
+// the caller already trusts the block's content).
+//
+// Used by SPEC-005 §4.3 local verify self-heal: when local-rebuild produces a
+// versioned hash that disagrees with L1, we pull the real blob, derive
+// the batch using the true sequencer payload, and rewrite the locally
+// divergent unsafe blocks via this API.
+//
+// Temporary note: the upstream PR https://github.com/morph-l2/go-ethereum/pull/325
+// is still open. Once merged into main and the morph go-ethereum
+// dependency is bumped to a release that contains the merged commit,
+// no caller change is needed.
+func (rc *RetryableClient) NewL2BlockV2(ctx context.Context, executableL2Data *catalyst.ExecutableL2Data, isSafe bool) (err error) {
+	if retryErr := backoff.Retry(func() error {
+		respErr := rc.authClient.NewL2BlockV2(ctx, executableL2Data, isSafe)
+		if respErr != nil {
+			rc.logger.Error("NewL2BlockV2 failed",
+				"block_number", executableL2Data.Number,
+				"parent_hash", executableL2Data.ParentHash,
+				"is_safe", isSafe,
+				"error", respErr)
+			if retryableError(respErr) {
+				return respErr
+			}
+			err = respErr
+		}
+		return nil
+	}, rc.b); retryErr != nil {
+		return retryErr
+	}
+	return
+}
+
 func (rc *RetryableClient) BlockNumber(ctx context.Context) (ret uint64, err error) {
 	if retryErr := backoff.Retry(func() error {
 		resp, respErr := rc.ethClient.BlockNumber(ctx)
@@ -144,10 +183,11 @@ func (rc *RetryableClient) HeaderByNumber(ctx context.Context, blockNumber *big.
 	if retryErr := backoff.Retry(func() error {
 		resp, respErr := rc.ethClient.HeaderByNumber(ctx, blockNumber)
 		if respErr != nil {
-			rc.logger.Info("failed to call HeaderByNumber", "error", respErr)
 			if retryableError(respErr) {
+				rc.logger.Info("failed to call HeaderByNumber, will retry", "error", respErr)
 				return respErr
 			}
+			rc.logger.Error("failed to call HeaderByNumber, non-retryable", "error", respErr)
 			err = respErr
 		}
 		ret = resp
@@ -162,10 +202,11 @@ func (rc *RetryableClient) BlockByNumber(ctx context.Context, blockNumber *big.I
 	if retryErr := backoff.Retry(func() error {
 		resp, respErr := rc.ethClient.BlockByNumber(ctx, blockNumber)
 		if respErr != nil {
-			rc.logger.Info("failed to call BlockByNumber", "error", respErr)
 			if retryableError(respErr) {
+				rc.logger.Info("failed to call BlockByNumber, will retry", "error", respErr)
 				return respErr
 			}
+			rc.logger.Error("failed to call BlockByNumber, non-retryable", "error", respErr)
 			err = respErr
 		}
 		ret = resp
@@ -230,7 +271,25 @@ func (rc *RetryableClient) SetBlockTags(ctx context.Context, safeBlockHash commo
 }
 
 // currently we want every error retryable, except the DiscontinuousBlockError
+// retryableError reports whether an RPC error should trigger an exponential
+// backoff retry inside RetryableClient. Errors not classified as retryable
+// escape immediately so callers see the failure on the first poll cycle
+// rather than after the 30-minute MaxElapsedTime budget runs out.
+//
+// Permanent classifications (do NOT retry):
+//   - ethereum.NotFound: target block / header doesn't exist locally. With
+//     SPEC-005 local verify reading L2 blocks the sequencer hasn't yet sealed
+//     locally (snapshot too old, sync still catching up), this is a "wait
+//     for sync" condition, not a transient RPC blip; retrying every
+//     backoff tick for 30 minutes wastes the cycle and hides the gap from
+//     the operator. The caller (e.g. verify_local) surfaces the missing
+//     block, derivation logs an Error, and the next poll re-evaluates.
+//   - DiscontinuousBlockError: structurally invalid input that no amount
+//     of retry will fix.
 func retryableError(err error) bool {
+	if errors.Is(err, ethereum.NotFound) {
+		return false
+	}
 	return !strings.Contains(err.Error(), DiscontinuousBlockError)
 }
 
