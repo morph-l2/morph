@@ -162,25 +162,6 @@ var (
 		EnvVar: prefixEnvVar("MOCK_SEQUENCER"),
 	}
 
-	ValidatorEnable = cli.BoolFlag{
-		Name:   "validator",
-		Usage:  "Enable the validator mode",
-		EnvVar: prefixEnvVar("VALIDATOR"),
-	}
-
-	ChallengeEnable = cli.BoolFlag{
-		Name:   "validator.challengeEnable",
-		Usage:  "Enable the validator challenge",
-		EnvVar: prefixEnvVar("VALIDATOR_CHALLENGE_ENABLE"),
-	}
-
-	// validator
-	ValidatorPrivateKey = cli.StringFlag{
-		Name:   "validator.privateKey",
-		Usage:  "Private Key corresponding to SUBSIDY Owner",
-		EnvVar: prefixEnvVar("VALIDATOR_PRIVATE_KEY"),
-	}
-
 	// derivation
 	RollupContractAddress = cli.StringFlag{
 		Name:   "derivation.rollupAddress",
@@ -216,14 +197,6 @@ var (
 		Name:   "derivation.fetchBlockRange",
 		Usage:  "Number of blocks that we collect in a single eth_getLogs query",
 		EnvVar: prefixEnvVar("DERIVATION_FETCH_BLOCK_RANGE"),
-	}
-
-	// BlockTag options
-	BlockTagSafeConfirmations = cli.Uint64Flag{
-		Name:   "blocktag.safeConfirmations",
-		Usage:  "Number of L1 blocks to wait before considering a batch as safe",
-		EnvVar: prefixEnvVar("BLOCKTAG_SAFE_CONFIRMATIONS"),
-		Value:  10,
 	}
 
 	// L1 Sequencer options
@@ -264,6 +237,20 @@ var (
 		Name:   "derivation.confirmations",
 		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
 		EnvVar: prefixEnvVar("DERIVATION_CONFIRMATIONS"),
+	}
+
+	DerivationVerifyMode = cli.StringFlag{
+		Name:   "derivation.verify-mode",
+		Usage:  `Batch verification mode (SPEC-005 §4.2). "layer1" pulls beacon blob, decodes, and derives blocks via engine. "local" (default) rebuilds blob bytes from local L2 blocks and compares versioned hashes against L1 (no beacon fetch on the happy path); on versioned hash mismatch the verifier is designed to self-heal by pulling the real blob and re-deriving the batch — currently TODO, blocked on EL number-continuity check relaxation in morph-reth/go-ethereum (separate spec). Selected at startup; not switchable at runtime.`,
+		EnvVar: prefixEnvVar("DERIVATION_VERIFY_MODE"),
+		Value:  "local",
+	}
+
+	DerivationReorgCheckDepth = cli.Uint64Flag{
+		Name:   "derivation.reorg-check-depth",
+		Usage:  "Number of recent L1 blocks to check for reorgs (SPEC-005 §4.7.6). The scan is a no-op when --derivation.confirmations=finalized (L1 finalized doesn't reorg) and load-bearing when set lower; the gate is intentionally absent so behavior is uniform across configs. Default 64.",
+		EnvVar: prefixEnvVar("DERIVATION_REORG_CHECK_DEPTH"),
+		Value:  64,
 	}
 	// Logger
 	LogLevel = &cli.StringFlag{
@@ -350,11 +337,6 @@ var Flags = []cli.Flag{
 	DevSequencer,
 	TendermintConfigPath,
 	MockEnabled,
-	ValidatorEnable,
-	ChallengeEnable,
-
-	// validator
-	ValidatorPrivateKey,
 
 	// derivation
 	RollupContractAddress,
@@ -364,10 +346,9 @@ var Flags = []cli.Flag{
 	DerivationLogProgressInterval,
 	DerivationFetchBlockRange,
 	DerivationConfirmations,
+	DerivationVerifyMode,
+	DerivationReorgCheckDepth,
 	L1BeaconAddr,
-
-	// blocktag options
-	BlockTagSafeConfirmations,
 
 	// L1 Sequencer options
 	L1SequencerContractAddr,
