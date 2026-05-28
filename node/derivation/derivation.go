@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/morph-l2/go-ethereum/eth/catalyst"
 	"math/big"
 	"time"
 
@@ -27,7 +28,6 @@ import (
 	nodecommon "morph-l2/node/common"
 	"morph-l2/node/sync"
 	"morph-l2/node/types"
-	"morph-l2/node/validator"
 )
 
 var (
@@ -42,7 +42,6 @@ type Derivation struct {
 	RollupContractAddress common.Address
 	confirmations         rpc.BlockNumber
 	l2Client              *types.RetryableClient
-	validator             *validator.Validator
 	logger                tmlog.Logger
 	rollup                *bindings.Rollup
 	metrics               *Metrics
@@ -62,7 +61,12 @@ type Derivation struct {
 	fetchBlockRange     uint64
 	pollInterval        time.Duration
 	logProgressInterval time.Duration
-	stop                chan struct{}
+	verifyMode          string // SPEC-005 section 4.2: "layer1" or "local" (default); bound at startup, never switches.
+	reorgCheckDepth     uint64 // SPEC-005 section 4.7.6: how far back to scan for L1 hash divergence each poll.
+
+	tagAdvancer *tagAdvancer
+
+	stop chan struct{}
 }
 
 type DeployContractBackend interface {
@@ -72,7 +76,7 @@ type DeployContractBackend interface {
 	ethereum.TransactionReader
 }
 
-func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, db Database, validator *validator.Validator, rollup *bindings.Rollup, logger tmlog.Logger) (*Derivation, error) {
+func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, db Database, rollup *bindings.Rollup, logger tmlog.Logger) (*Derivation, error) {
 	l1Client, err := ethclient.Dial(cfg.L1.Addr)
 	if err != nil {
 		return nil, err
@@ -117,12 +121,14 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	baseHttp := NewBasicHTTPClient(cfg.BeaconRpc, logger)
 	l1BeaconClient := NewL1BeaconClient(baseHttp)
 
+	l2Client := types.NewRetryableClient(aClient, eClient, logger)
+	tagAdv := newTagAdvancer(l2Client, metrics, logger)
+
 	return &Derivation{
 		ctx:                   ctx,
 		db:                    db,
 		l1Client:              l1Client,
 		syncer:                syncer,
-		validator:             validator,
 		rollup:                rollup,
 		rollupABI:             rollupAbi,
 		legacyRollupABI:       legacyRollupAbi,
@@ -130,7 +136,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		logger:                logger,
 		RollupContractAddress: cfg.RollupContractAddress,
 		confirmations:         cfg.L1.Confirmations,
-		l2Client:              types.NewRetryableClient(aClient, eClient, logger),
+		l2Client:              l2Client,
 		cancel:                cancel,
 		stop:                  make(chan struct{}),
 		startHeight:           cfg.StartHeight,
@@ -138,6 +144,9 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		fetchBlockRange:       cfg.FetchBlockRange,
 		pollInterval:          cfg.PollInterval,
 		logProgressInterval:   cfg.LogProgressInterval,
+		verifyMode:            cfg.VerifyMode,
+		reorgCheckDepth:       cfg.ReorgCheckDepth,
+		tagAdvancer:           tagAdv,
 		metrics:               metrics,
 		l1BeaconClient:        l1BeaconClient,
 		L2ToL1MessagePasser:   msgPasser,
@@ -145,7 +154,11 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 }
 
 func (d *Derivation) Start() {
-	// block node startup during initial sync and print some helpful logs
+	// Single-goroutine design: the SPEC-005 finalizer step runs at the end
+	// of each derivationBlock iteration (see finalizer.go::finalizerTick).
+	// Folded into the main loop so the cursor-rewind recovery paths
+	// (handleL1Reorg + finalizerTick canonicality fail) don't race with
+	// each other on the L1 cursor / tagAdvancer.
 	go func() {
 		d.syncer.Start()
 		t := time.NewTicker(d.pollInterval)
@@ -154,6 +167,7 @@ func (d *Derivation) Start() {
 		for {
 			// don't wait for ticker during startup
 			d.derivationBlock(d.ctx)
+			d.finalizerTick()
 
 			select {
 			case <-d.ctx.Done():
@@ -182,6 +196,24 @@ func (d *Derivation) Stop() {
 }
 
 func (d *Derivation) derivationBlock(ctx context.Context) {
+	// SPEC-005 §4.7.6: check for an L1 reorg before processing any new logs.
+	// The scan is a no-op when --derivation.confirmations=finalized (L1
+	// finalized doesn't reorg by Ethereum consensus assumption) and
+	// load-bearing when configured below finalized; the gate is intentionally
+	// absent so behavior is uniform across configs.
+	if reorgAt, err := d.detectReorg(ctx); err != nil {
+		d.logger.Error("L1 reorg detection failed; skipping this poll", "err", err)
+		return
+	} else if reorgAt != nil {
+		if err := d.handleL1Reorg(*reorgAt); err != nil {
+			d.logger.Error("handle L1 reorg failed", "err", err)
+		}
+		// Don't process further this cycle: cursor was rewound, let the next
+		// poll re-fetch from the new starting point. Avoids recording
+		// potentially-still-unstable L1 hashes if the chain is mid-reorg.
+		return
+	}
+
 	latestDerivation := d.db.ReadLatestDerivationL1Height()
 	latest, err := d.getLatestConfirmedBlockNumber(d.ctx)
 	if err != nil {
@@ -216,60 +248,113 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 	d.logger.Info("fetched rollup tx", "txNum", len(logs), "latestBatchIndex", latestBatchIndex)
 
 	for _, lg := range logs {
-		batchInfo, err := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
-		if err != nil {
-			if errors.Is(err, types.ErrNotCommitBatchTx) {
-				continue
+		var (
+			batchInfo  *BatchInfo
+			lastHeader *eth.Header
+		)
+		switch d.verifyMode {
+		case VerifyModeLocal:
+			batchInfo, err = d.fetchBatchInfoOutline(ctx, lg.TxHash, lg.BlockNumber)
+			if err != nil {
+				if errors.Is(err, types.ErrNotCommitBatchTx) {
+					continue
+				}
+				d.logger.Error("fetch batch info outline failed", "err", err)
+				return
 			}
-			d.logger.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
-			return
-		}
-		d.logger.Info("fetch rollup transaction success", "txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
-			"l1BlockNumber", batchInfo.l1BlockNumber, "firstL2BlockNumber", batchInfo.firstBlockNumber, "lastL2BlockNumber", batchInfo.lastBlockNumber)
+			d.logger.Info("local verify fetched batch metadata",
+				"batchIndex", batchInfo.batchIndex,
+				"version", batchInfo.version,
+				"parentTotalL1Popped", batchInfo.parentTotalL1MessagePopped,
+				"expectedBlobs", len(batchInfo.blobHashes),
+				"txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
+				"l1BlockNumber", batchInfo.l1BlockNumber, "firstL2BlockNumber", batchInfo.firstBlockNumber, "lastL2BlockNumber", batchInfo.lastBlockNumber)
+			rebuilt, err := d.rebuildBlob(ctx, batchInfo)
+			if err != nil {
+				d.logger.Error("rebuildBlob failed", "err", err)
+				return
+			}
+			lastHeader, err = d.fetchLocalLastHeader(ctx, batchInfo)
+			if err != nil {
+				d.logger.Error("local verify local last-header fetch failed", "batchIndex", batchInfo.batchIndex, "error", err)
+				return
+			}
+			for i := range rebuilt {
+				if rebuilt[i] != batchInfo.blobHashes[i] {
+					// TODO reorg
+					batchInfoFull, fetchErr := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
+					if fetchErr != nil {
+						d.logger.Error("local verify self-heal: fetch real batch failed",
+							"batchIndex", batchInfo.batchIndex, "error", fetchErr)
+						return
+					}
+					lastHeader, err = d.deriveForce(batchInfoFull)
+					if err != nil {
+						d.logger.Error("local verify self-heal: derive failed",
+							"batchIndex", batchInfo.batchIndex, "error", err)
+						return
+					}
+					break
+				}
+			}
 
-		// derivation
-		lastHeader, err := d.derive(batchInfo)
-		if err != nil {
-			d.logger.Error("derive blocks interrupt", "error", err)
+			d.metrics.SetL2DeriveHeight(batchInfo.lastBlockNumber)
+			d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
+		case VerifyModeLayer1:
+			batchInfo, err = d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
+			if err != nil {
+				if errors.Is(err, types.ErrNotCommitBatchTx) {
+					continue
+				}
+				d.logger.Error("fetch batch info failed", "txHash", lg.TxHash, "blockNumber", lg.BlockNumber, "error", err)
+				return
+			}
+			d.logger.Info("fetch rollup transaction success", "txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
+				"l1BlockNumber", batchInfo.l1BlockNumber, "firstL2BlockNumber", batchInfo.firstBlockNumber, "lastL2BlockNumber", batchInfo.lastBlockNumber)
+			lastHeader, err = d.derive(batchInfo)
+			if err != nil {
+				d.logger.Error("derive blocks interrupt", "error", err)
+				return
+			}
+			d.logger.Info("batch derivation complete", "batch_index", batchInfo.batchIndex, "currentBatchEndBlock", lastHeader.Number.Uint64())
+			d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
+			d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
+		default:
+			// Unreachable: validateAndDefaultVerifyMode rejects unknown values
+			// at startup and normalises empty to DefaultVerifyMode (local).
+			// If we get here it's a programming error -- a new mode added to
+			// the constant set without a switch arm. Fail loud rather than
+			// silently fall through to stale semantics.
+			d.logger.Error("unknown verifyMode reached derivationBlock; refusing to process batch", "verifyMode", d.verifyMode)
 			return
 		}
-		// only last block of batch
-		d.logger.Info("batch derivation complete", "batch_index", batchInfo.batchIndex, "currentBatchEndBlock", lastHeader.Number.Uint64())
-		d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
-		d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
+
 		if lastHeader.Number.Uint64() <= d.baseHeight {
 			continue
 		}
-		withdrawalRoot, err := d.L2ToL1MessagePasser.MessageRoot(&bind.CallOpts{
-			BlockNumber: lastHeader.Number,
-		})
-		if err != nil {
-			d.logger.Error("get withdrawal root failed", "error", err)
-			return
-		}
-
-		rootMismatch := !bytes.Equal(lastHeader.Root.Bytes(), batchInfo.root.Bytes())
-		withdrawalMismatch := !bytes.Equal(withdrawalRoot[:], batchInfo.withdrawalRoot.Bytes())
-
-		if rootMismatch || withdrawalMismatch {
-			d.metrics.SetBatchStatus(stateException)
-			// TODO The challenge switch is currently on and will be turned on in the future
-			if d.validator != nil && d.validator.ChallengeEnable() {
-				if err := d.validator.ChallengeState(batchInfo.batchIndex); err != nil {
-					d.logger.Error("challenge state failed", "batchIndex", batchInfo.batchIndex, "error", err)
-					return
-				}
+		if err := d.verifyBatchRoots(batchInfo, lastHeader); err != nil {
+			// stateException only when the verifier produced a real mismatch
+			// verdict (root or withdrawal root). Transient failures (e.g.
+			// MessageRoot RPC error) just log and retry next poll.
+			if errors.Is(err, ErrBatchVerifyDivergence) {
+				d.metrics.SetBatchStatus(stateException)
 			}
-			d.logger.Error("root hash or withdrawal hash is not equal",
-				"originStateRootHash", batchInfo.root,
-				"deriveStateRootHash", lastHeader.Root.Hex(),
-				"batchWithdrawalRoot", batchInfo.withdrawalRoot.Hex(),
-				"deriveWithdrawalRoot", common.BytesToHash(withdrawalRoot[:]).Hex(),
-			)
+			d.logger.Error("batch roots verification failed", "batchIndex", batchInfo.batchIndex, "error", err)
 			return
 		}
 		d.metrics.SetBatchStatus(stateNormal)
 		d.metrics.SetL1SyncHeight(lg.BlockNumber)
+
+		// SPEC-005 section 4.7.3: a verified batch (layer1 or local verify) advances safe.
+		d.tagAdvancer.advanceSafe(d.ctx, batchInfo.batchIndex, lastHeader)
+	}
+
+	// SPEC-005 §4.7.6: record this poll's L1 block hashes so the next poll
+	// can detect a reorg. Failure here must NOT advance the cursor -- a gap
+	// in the recorded hashes would defeat detection across that gap.
+	if err := d.recordL1Blocks(ctx, start, end); err != nil {
+		d.logger.Error("recordL1Blocks failed; skipping cursor advance, will retry next poll", "err", err)
+		return
 	}
 
 	d.db.WriteLatestDerivationL1Height(end)
@@ -416,6 +501,7 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	rollupData.l1BlockNumber = blockNumber
 	rollupData.txHash = txHash
 	rollupData.nonce = tx.Nonce()
+	rollupData.blobHashes = tx.BlobHashes()
 	return rollupData, nil
 }
 
@@ -532,6 +618,7 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1Message
 	for bIndex, block := range rollupData.blockContexts {
 		// This may happen to nodes started from snapshot, in which case we will no longer handle L1Msg
 		if block.Number <= l2Height {
+			totalL1MessagePopped += uint64(block.l1MsgNum)
 			continue
 		}
 		var l1Transactions []*eth.Transaction
@@ -540,7 +627,7 @@ func (d *Derivation) handleL1Message(rollupData *BatchInfo, parentTotalL1Message
 			return fmt.Errorf("get l1 message error:%v", err)
 		}
 		if len(l1Messages) != int(block.l1MsgNum) {
-			return fmt.Errorf("invalid l1 msg num,expect %v,have %v", block.l1MsgNum, l1Messages)
+			return fmt.Errorf("invalid l1 msg num,expect %v,have %v", block.l1MsgNum, len(l1Messages))
 		}
 		totalL1MessagePopped += uint64(block.l1MsgNum)
 		if len(l1Messages) > 0 {
@@ -594,6 +681,73 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 	}
 
 	return lastHeader, nil
+}
+
+func (d *Derivation) deriveForce(rollupData *BatchInfo) (*eth.Header, error) {
+	firstNum := rollupData.firstBlockNumber
+	if firstNum == 0 {
+		return nil, fmt.Errorf("invalid firstBlockNumber 0 for batch %d", rollupData.batchIndex)
+	}
+
+	// Anchor: parent of the batch's first block must already exist locally.
+	parentHeader, err := d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(firstNum-1)))
+	if err != nil {
+		return nil, fmt.Errorf("read parent header at %d: %w", firstNum-1, err)
+	}
+	if parentHeader == nil {
+		return nil, fmt.Errorf("parent header at %d missing", firstNum-1)
+	}
+	parentHash := parentHeader.Hash()
+
+	var lastHeader *eth.Header
+	for _, blockData := range rollupData.blockContexts {
+		execData := safeL2DataToExecutable(blockData.SafeL2Data, parentHash)
+		err = func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(60)*time.Second)
+			defer cancel()
+			err = d.l2Client.NewL2BlockV2(ctx, execData, true /* isSafe */)
+			if err != nil {
+				d.logger.Error("NewL2BlockV2 failed",
+					"batchIndex", rollupData.batchIndex,
+					"blockNumber", execData.Number,
+					"parent", parentHash.Hex(),
+					"error", err,
+				)
+				return err
+			}
+			return nil
+		}()
+
+		// Read back to chain the next iteration's parent and to feed
+		// verifyBatchRoots at the end.
+		h, err := d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(execData.Number)))
+		if err != nil {
+			return nil, fmt.Errorf("read header at %d after NewL2BlockV2: %w", execData.Number, err)
+		}
+		if h == nil {
+			return nil, fmt.Errorf(" header at %d missing after NewL2BlockV2", execData.Number)
+		}
+		parentHash = h.Hash()
+		lastHeader = h
+
+		d.logger.Info("block written via NewL2BlockV2",
+			"batchIndex", rollupData.batchIndex,
+			"blockNumber", execData.Number,
+			"hash", h.Hash().Hex(),
+		)
+	}
+	return lastHeader, nil
+}
+
+func safeL2DataToExecutable(s *catalyst.SafeL2Data, parentHash common.Hash) *catalyst.ExecutableL2Data {
+	return &catalyst.ExecutableL2Data{
+		ParentHash:   parentHash,
+		Number:       s.Number,
+		GasLimit:     s.GasLimit,
+		BaseFee:      s.BaseFee,
+		Timestamp:    s.Timestamp,
+		Transactions: s.Transactions,
+	}
 }
 
 func (d *Derivation) getLatestConfirmedBlockNumber(ctx context.Context) (uint64, error) {
