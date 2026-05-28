@@ -59,6 +59,11 @@ type BatchInfo struct {
 	root                       common.Hash
 	withdrawalRoot             common.Hash
 	parentTotalL1MessagePopped uint64
+
+	// blobHashes is the ordered list of EIP-4844 blob versioned hashes
+	// declared by the L1 commitBatch tx. local verify uses this to compare
+	// against locally-rebuilt versioned hashes (SPEC-005 section 4).
+	blobHashes []common.Hash
 }
 
 func (bi *BatchInfo) FirstBlockNumber() uint64 {
