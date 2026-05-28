@@ -40,8 +40,3 @@ services:
   sentry-el-0:
     <<: *reth-service
     build: !reset null
-
-  validator-el:
-    <<: *reth-service
-    healthcheck:
-      disable: true
