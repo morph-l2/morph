@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"morph-l2/bindings/bindings"
+	commonbatch "morph-l2/common/batch"
 	"morph-l2/node/derivation"
-	nodetypes "morph-l2/node/types"
 	"morph-l2/oracle/backoff"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
@@ -163,7 +163,7 @@ func (o *Oracle) getBatchSubmissionByLogs(rLogs []types.Log, recordBatchSubmissi
 				PostStateRoot: common.BytesToHash(rollupBatchData.PostStateRoot[:]),
 				WithdrawRoot:  common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
 			}
-			parentBatchHeader := nodetypes.BatchHeaderBytes(batch.ParentBatchHeader)
+			parentBatchHeader := commonbatch.BatchHeaderBytes(batch.ParentBatchHeader)
 			parentVersion, err := parentBatchHeader.Version()
 			if err != nil {
 				return fmt.Errorf("decode parent batch version error:%v", err)

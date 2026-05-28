@@ -23,6 +23,7 @@ cargo prove build
 ```
 or use docker(reproducible compilation):
 ```sh
+cd bin/client
 cargo prove build  --docker --tag v6.2.0
 ```
 

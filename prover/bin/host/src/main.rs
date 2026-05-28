@@ -4,7 +4,7 @@ use alloy_provider::{Provider, ProviderBuilder};
 use clap::Parser;
 use morph_prove::{execute::execute_batch, utils::command_args::parse_u64_auto_radix, BatchProver};
 use prover_executor_client::types::input::ExecutorInput;
-use prover_executor_host::{blob::get_blob_info_from_traces, trace::trace_to_input};
+use prover_executor_host::{blob::get_blob_infos_from_traces, trace::trace_to_input};
 use prover_primitives::types::BlockTrace;
 
 /// The arguments for the command.
@@ -32,6 +32,9 @@ struct Args {
     /// Whether to save input.
     #[clap(long)]
     save_input: bool,
+    /// Batch header version (0/1 = V0/V1, 2 = V2 multi-blob).
+    #[clap(long = "batch-version", default_value_t = 0)]
+    batch_version: u8,
 }
 
 #[tokio::main]
@@ -45,14 +48,17 @@ async fn main() {
     let mut input = if args.use_rpc_db {
         // Use RPC to fetch state.
         let provider = ProviderBuilder::new().connect_http(args.rpc.parse().unwrap()).erased();
-        execute_batch(1, args.start_block, args.end_block, &provider, true).await.unwrap()
+        execute_batch(1, args.start_block, args.end_block, &provider, true, args.batch_version)
+            .await
+            .unwrap()
     } else {
         // Use local traces file.
         let block_traces = &mut load_trace(&args.block_path);
         let blocks_inputs = block_traces.iter().map(trace_to_input).collect::<Vec<_>>();
         ExecutorInput {
             block_inputs: blocks_inputs,
-            blob_info: get_blob_info_from_traces(block_traces).unwrap(),
+            blob_infos: get_blob_infos_from_traces(block_traces).unwrap(),
+            batch_version: args.batch_version,
         }
     };
     if args.save_input {

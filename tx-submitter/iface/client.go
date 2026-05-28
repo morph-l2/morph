@@ -38,6 +38,11 @@ type L2Clients struct {
 	Clients []L2Client
 }
 
+// Len returns the number of configured L2 clients.
+func (c *L2Clients) Len() int {
+	return len(c.Clients)
+}
+
 // getFirstClient returns the first available client, or an error if no clients are available
 func (c *L2Clients) getFirstClient() (L2Client, error) {
 	if len(c.Clients) == 0 {

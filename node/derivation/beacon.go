@@ -159,8 +159,29 @@ func KZGToVersionedHash(commitment kzg4844.Commitment) (out common.Hash) {
 	return out
 }
 
-func VerifyBlobProof(blob *Blob, commitment kzg4844.Commitment, proof kzg4844.Proof) error {
-	return kzg4844.VerifyBlobProof(blob.KZGBlob(), commitment, proof)
+// verifyBlob authenticates a blob against the L1-signed versioned blob hash
+// by recomputing the KZG commitment locally and checking
+//
+//	KZGToVersionedHash(BlobToCommitment(blob)) == expectedHash
+//
+// We deliberately do NOT verify a beacon-supplied kzg_proof. After
+// EIP-7594 (PeerDAS / Osaka) the beacon /eth/v1/beacon/blob_sidecars
+// endpoint's kzg_proof field is no longer guaranteed to be a legacy
+// single-blob proof across forks/clients, and the new
+// /eth/v1/beacon/blobs endpoint does not return proofs at all. The
+// commitment round-trip gives us the same security property
+// (blob bytes -> commitment -> versioned hash matches the L1-signed
+// hash) without depending on those fields.
+func verifyBlob(blob *Blob, expectedHash common.Hash) error {
+	commitment, err := kzg4844.BlobToCommitment(blob.KZGBlob())
+	if err != nil {
+		return fmt.Errorf("cannot compute KZG commitment for blob: %w", err)
+	}
+	got := KZGToVersionedHash(commitment)
+	if got != expectedHash {
+		return fmt.Errorf("recomputed blob hash %s does not match expected %s", got.Hex(), expectedHash.Hex())
+	}
+	return nil
 }
 
 // dataAndHashesFromTxs extracts calldata and datahashes from the input transactions and returns them. It

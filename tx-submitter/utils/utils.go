@@ -15,11 +15,9 @@ import (
 	ntype "morph-l2/node/types"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi"
-	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/log"
-	"github.com/morph-l2/go-ethereum/rpc"
 )
 
 // Loop Run the f func periodically.
@@ -71,12 +69,42 @@ func ParseParentBatchIndex(calldata []byte) uint64 {
 	///   * batchIndex              8           uint64      1       The index of the batch
 	///   * l1MessagePopped         8           uint64      9       Number of L1 messages popped in the batch
 
-	abi, _ := bindings.RollupMetaData.GetAbi()
-	parms, _ := abi.Methods["commitBatch"].Inputs.UnpackValues(calldata[4:])
+	if len(calldata) < 4 {
+		return 0
+	}
+	rollupAbi, err := bindings.RollupMetaData.GetAbi()
+	if err != nil {
+		return 0
+	}
+	sel := calldata[:4]
+	var method abi.Method
+	var ok bool
+	if bytes.Equal(sel, rollupAbi.Methods["commitState"].ID) {
+		method, ok = rollupAbi.Methods["commitState"]
+	} else if bytes.Equal(sel, rollupAbi.Methods["commitBatch"].ID) {
+		method, ok = rollupAbi.Methods["commitBatch"]
+	} else {
+		// Unknown selector: keep legacy behavior (unpack as commitBatch). Matches older fixtures and
+		// any tx whose first tuple matches BatchDataInput layout even if the selector differs.
+		method, ok = rollupAbi.Methods["commitBatch"]
+	}
+	if !ok {
+		return 0
+	}
+	parms, err := method.Inputs.UnpackValues(calldata[4:])
+	if err != nil || len(parms) == 0 {
+		return 0
+	}
 	v := reflect.ValueOf(parms[0])
 	pbh := v.FieldByName("ParentBatchHeader")
-	batchIndex := binary.BigEndian.Uint64(pbh.Bytes()[1:9])
-	return batchIndex
+	if !pbh.IsValid() {
+		return 0
+	}
+	b := pbh.Bytes()
+	if len(b) < 9 {
+		return 0
+	}
+	return binary.BigEndian.Uint64(b[1:9])
 }
 
 // SetFBatchIndex sets the batch index in the calldata while preserving all other data
@@ -119,51 +147,6 @@ func SetFBatchIndex(calldata []byte, batchIndex uint64) error {
 	return nil
 }
 
-// ParseL1Mempool parses the L1 mempool and returns the transactions.
-func ParseL1Mempool(rpc *rpc.Client, addr common.Address) ([]*types.Transaction, error) {
-
-	var result map[string]map[string]*types.Transaction
-	err := rpc.Call(&result, "txpool_contentFrom", addr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get txpool content: %v", err)
-	}
-
-	var txs []*types.Transaction
-
-	// get pending txs
-	if pendingTxs, ok := result["pending"]; ok {
-		for _, tx := range pendingTxs {
-			txs = append(txs, tx)
-		}
-	}
-
-	// get queued txs
-	if pendingTxs, ok := result["queued"]; ok {
-		for _, tx := range pendingTxs {
-			txs = append(txs, tx)
-		}
-	}
-
-	return txs, nil
-
-}
-
-func ParseMempoolLatestBatchIndex(id []byte, txs []*types.Transaction) uint64 {
-
-	var res uint64
-	for _, tx := range txs {
-		if bytes.Equal(tx.Data()[:4], id) {
-			pindex := ParseParentBatchIndex(tx.Data())
-			if pindex > res {
-				res = pindex
-			}
-		}
-	}
-
-	return res + 1
-
-}
-
 func ParseBusinessInfo(tx *types.Transaction, a *abi.ABI) []interface{} {
 	// var method string
 	// var batchIndex uint64
@@ -173,6 +156,13 @@ func ParseBusinessInfo(tx *types.Transaction, a *abi.ABI) []interface{} {
 		id := tx.Data()[:4]
 		if bytes.Equal(id, a.Methods["commitBatch"].ID) {
 			method := "commitBatch"
+			batchIndex := ParseParentBatchIndex(tx.Data()) + 1
+			res = append(res,
+				"method", method,
+				"batchIndex", batchIndex,
+			)
+		} else if bytes.Equal(id, a.Methods["commitState"].ID) {
+			method := "commitState"
 			batchIndex := ParseParentBatchIndex(tx.Data()) + 1
 			res = append(res,
 				"method", method,
@@ -205,6 +195,8 @@ func ParseMethod(tx *types.Transaction, a *abi.ABI) string {
 	id := tx.Data()[:4]
 	if bytes.Equal(id, a.Methods["commitBatch"].ID) {
 		return "commitBatch"
+	} else if bytes.Equal(id, a.Methods["commitState"].ID) {
+		return "commitState"
 	} else if bytes.Equal(id, a.Methods["finalizeBatch"].ID) {
 		return "finalizeBatch"
 	} else {
