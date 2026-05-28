@@ -44,10 +44,11 @@ services:
   # Independent execution clients for the HA cluster. They join the existing
   # L2 P2P mesh via static-nodes.json and sync blocks from morph-geth-0/1/2/3.
   ha-geth-0:
-    image: morph-geth-test:latest
+    image: morph-geth:feat
+    pull_policy: never
     container_name: ha-geth-0
     depends_on:
-      morph-geth-0:
+      morph-el-0:
         condition: service_started
     restart: unless-stopped
     ports:
@@ -66,10 +67,11 @@ services:
       - "/entrypoint.sh"
 
   ha-geth-1:
-    image: morph-geth-test:latest
+    image: morph-geth:feat
+    pull_policy: never
     container_name: ha-geth-1
     depends_on:
-      morph-geth-0:
+      morph-el-0:
         condition: service_started
     restart: unless-stopped
     ports:
@@ -88,10 +90,11 @@ services:
       - "/entrypoint.sh"
 
   ha-geth-2:
-    image: morph-geth-test:latest
+    image: morph-geth:feat
+    pull_policy: never
     container_name: ha-geth-2
     depends_on:
-      morph-geth-0:
+      morph-el-0:
         condition: service_started
     restart: unless-stopped
     ports:
@@ -111,7 +114,8 @@ services:
 
   # ─── ha-node-0: Raft bootstrap leader candidate ────────────────────────────
   ha-node-0:
-    image: morph-node-test:latest
+    image: morph-node:feat
+    pull_policy: never
     container_name: ha-node-0
     depends_on:
       ha-geth-0:
@@ -125,7 +129,9 @@ services:
       - "9501:9401"   # HA Admin RPC (host port moved from node-0)
     environment:
       # Sequencer private key — only ha-node-0/1/2 hold this.
-      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+      # Rotated to new key for sequencer migration test (2026-05-11)
+      # New address: 0xAb70B9eAF487d6cfFD3AD420785BE389D5B28390
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0x4c60870f2eda2dbb0d8af6d33f3eb1fab4c0171387d784ff7423b4e529980f3c
       - MORPH_NODE_L2_ETH_RPC=http://ha-geth-0:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-0:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
@@ -141,7 +147,7 @@ services:
       - MORPH_NODE_HA_BOOTSTRAP=true
       - MORPH_NODE_HA_SERVER_ID=ha-node-0
       - MORPH_NODE_HA_ADVERTISED_ADDR=ha-node-0:9400
-      - MORPH_NODE_LOG_LEVEL=debug
+      - MORPH_NODE_LOG_LEVEL=info
     volumes:
       - ".devnet/ha-node0:${NODE_DATA_DIR}"
       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
@@ -151,7 +157,8 @@ services:
 
   # ─── ha-node-1: Raft follower ─────────────────────────────────────────────
   ha-node-1:
-    image: morph-node-test:latest
+    image: morph-node:feat
+    pull_policy: never
     container_name: ha-node-1
     depends_on:
       ha-node-0:
@@ -164,7 +171,9 @@ services:
       - "26660"
       - "9601:9401"
     environment:
-      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+      # Rotated to new key for sequencer migration test (2026-05-11)
+      # New address: 0xAb70B9eAF487d6cfFD3AD420785BE389D5B28390
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0x4c60870f2eda2dbb0d8af6d33f3eb1fab4c0171387d784ff7423b4e529980f3c
       - MORPH_NODE_L2_ETH_RPC=http://ha-geth-1:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-1:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
@@ -179,7 +188,7 @@ services:
       - MORPH_NODE_HA_JOIN=ha-node-0:9401
       - MORPH_NODE_HA_SERVER_ID=ha-node-1
       - MORPH_NODE_HA_ADVERTISED_ADDR=ha-node-1:9400
-      - MORPH_NODE_LOG_LEVEL=debug
+      - MORPH_NODE_LOG_LEVEL=info
     volumes:
       - ".devnet/ha-node1:${NODE_DATA_DIR}"
       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
@@ -189,7 +198,8 @@ services:
 
   # ─── ha-node-2: Raft follower ─────────────────────────────────────────────
   ha-node-2:
-    image: morph-node-test:latest
+    image: morph-node:feat
+    pull_policy: never
     container_name: ha-node-2
     depends_on:
       ha-node-0:
@@ -202,7 +212,9 @@ services:
       - "26660"
       - "9701:9401"
     environment:
-      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+      # Rotated to new key for sequencer migration test (2026-05-11)
+      # New address: 0xAb70B9eAF487d6cfFD3AD420785BE389D5B28390
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0x4c60870f2eda2dbb0d8af6d33f3eb1fab4c0171387d784ff7423b4e529980f3c
       - MORPH_NODE_L2_ETH_RPC=http://ha-geth-2:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-2:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
@@ -217,7 +229,7 @@ services:
       - MORPH_NODE_HA_JOIN=ha-node-0:9401
       - MORPH_NODE_HA_SERVER_ID=ha-node-2
       - MORPH_NODE_HA_ADVERTISED_ADDR=ha-node-2:9400
-      - MORPH_NODE_LOG_LEVEL=debug
+      - MORPH_NODE_LOG_LEVEL=info
     volumes:
       - ".devnet/ha-node2:${NODE_DATA_DIR}"
       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
