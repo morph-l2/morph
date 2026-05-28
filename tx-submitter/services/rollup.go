@@ -1271,8 +1271,8 @@ func (r *Rollup) createBlobTx(rpcBatch *eth.RPCRollupBatch, nonce, gas uint64, t
 	return ethtypes.NewTx(&ethtypes.BlobTx{
 		ChainID:    uint256.MustFromBig(r.chainId),
 		Nonce:      nonce,
-		GasTipCap:  uint256.MustFromBig(big.NewInt(tip.Int64())),
-		GasFeeCap:  uint256.MustFromBig(big.NewInt(gasFeeCap.Int64())),
+		GasTipCap:  uint256.MustFromBig(tip),
+		GasFeeCap:  uint256.MustFromBig(gasFeeCap),
 		Gas:        gas,
 		To:         r.rollupAddr,
 		Data:       calldata,
@@ -1658,7 +1658,7 @@ func UpdateGasLimit(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 
 		newTx = ethtypes.NewTx(&ethtypes.LegacyTx{
 			Nonce:    tx.Nonce(),
-			GasPrice: big.NewInt(tx.GasPrice().Int64()),
+			GasPrice: new(big.Int).Set(tx.GasPrice()),
 			Gas:      newGasLimit,
 			To:       tx.To(),
 			Value:    tx.Value(),
@@ -1666,9 +1666,10 @@ func UpdateGasLimit(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 		})
 	} else if tx.Type() == ethtypes.DynamicFeeTxType {
 		newTx = ethtypes.NewTx(&ethtypes.DynamicFeeTx{
+			ChainID:   tx.ChainId(),
 			Nonce:     tx.Nonce(),
-			GasTipCap: big.NewInt(tx.GasTipCap().Int64()),
-			GasFeeCap: big.NewInt(tx.GasFeeCap().Int64()),
+			GasTipCap: new(big.Int).Set(tx.GasTipCap()),
+			GasFeeCap: new(big.Int).Set(tx.GasFeeCap()),
 			Gas:       newGasLimit,
 			To:        tx.To(),
 			Value:     tx.Value(),
@@ -1678,8 +1679,8 @@ func UpdateGasLimit(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 		newTx = ethtypes.NewTx(&ethtypes.BlobTx{
 			ChainID:    uint256.MustFromBig(tx.ChainId()),
 			Nonce:      tx.Nonce(),
-			GasTipCap:  uint256.MustFromBig(big.NewInt(tx.GasTipCap().Int64())),
-			GasFeeCap:  uint256.MustFromBig(big.NewInt(tx.GasFeeCap().Int64())),
+			GasTipCap:  uint256.MustFromBig(tx.GasTipCap()),
+			GasFeeCap:  uint256.MustFromBig(tx.GasFeeCap()),
 			Gas:        newGasLimit,
 			To:         *tx.To(),
 			Value:      uint256.MustFromBig(tx.Value()),
