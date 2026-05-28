@@ -38,13 +38,14 @@ def setup_devnet_nodes():
     # Run the Tendermint testnet command
     print("Setting up the devnet...")
     command = [
-        "tendermint", "testnet", "--v", "4", "--n", "1", "--o", devnet_dir,
+        "tendermint", "testnet", "--v", "4", "--n", "2", "--o", devnet_dir,
         "--populate-persistent-peers",
         "--hostname", "node-0",
         "--hostname", "node-1",
         "--hostname", "node-2",
         "--hostname", "node-3",
-        "--hostname", "sentry-node-0"
+        "--hostname", "sentry-node-0",
+        "--hostname", "sentry-node-1",
     ]
 
     if subprocess.call(command) != 0:
@@ -54,7 +55,7 @@ def setup_devnet_nodes():
     # Modify config.toml files using toml library
     print("Modifying config.toml files...")
     config_files = [
-        os.path.join(devnet_dir, f"node{i}/config/config.toml") for i in range(5)
+        os.path.join(devnet_dir, f"node{i}/config/config.toml") for i in range(6)
     ]
 
     persistent_peers_value = (
@@ -83,7 +84,7 @@ def setup_devnet_nodes():
         content = content.replace('block_sync = false', 'block_sync = true')
         content = re.sub(r'persistent_peers\s*=\s*".*?"', f'persistent_peers = "{persistent_peers_value}"', content)
 
-        # Modify pex for nodes 0 to 3
+        # Modify pex for validator nodes.
         if i < 4:
             content = content.replace('pex = true', 'pex = false')
 
@@ -94,19 +95,23 @@ def setup_devnet_nodes():
 
     # Copy key files to devnet node directories
     print("Copying key files...")
-    node_dirs = [f"node{i}" for i in range(5)]
+    node_dirs = [f"node{i}" for i in range(6)]
 
     for node in node_dirs:
         source_dir = os.path.join(docker_dir, node)
         dest_dir = os.path.join(devnet_dir, node, "config")
 
-        if not os.path.isdir(source_dir) or not os.path.isdir(dest_dir):
+        if not os.path.isdir(dest_dir):
+            print(f"Error: Missing destination directory for {node}. Exiting.")
+            sys.exit(1)
+
+        if not os.path.isdir(source_dir):
             print(f"Error: Missing source or destination directory for {node}. Exiting.")
             sys.exit(1)
 
         shutil.copyfile(os.path.join(source_dir, "node_key.json"), os.path.join(dest_dir, "node_key.json"))
 
-        if node != "node4":
+        if node not in ("node4", "node5"):
             shutil.copyfile(os.path.join(source_dir, "priv_validator_key.json"), os.path.join(dest_dir, "priv_validator_key.json"))
 
         # Copy and rename genesis file
