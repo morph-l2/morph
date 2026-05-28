@@ -20,7 +20,6 @@ import (
 	"github.com/urfave/cli"
 
 	"morph-l2/bindings/bindings"
-	"morph-l2/node/blocktag"
 	node "morph-l2/node/core"
 	"morph-l2/node/db"
 	"morph-l2/node/derivation"
@@ -31,7 +30,6 @@ import (
 	"morph-l2/node/sequencer/mock"
 	"morph-l2/node/sync"
 	"morph-l2/node/types"
-	"morph-l2/node/validator"
 )
 
 func main() {
@@ -51,22 +49,20 @@ func main() {
 
 func L2NodeMain(ctx *cli.Context) error {
 	var (
-		err         error
-		executor    *node.Executor
-		syncer      *sync.Syncer
-		ms          *mock.Sequencer
-		tmNode      *tmnode.Node
-		dvNode      *derivation.Derivation
-		blockTagSvc *blocktag.BlockTagService
-		tracker     *l1sequencer.L1Tracker
-		verifier    *l1sequencer.SequencerVerifier
-		signer      l1sequencer.Signer
-		haService   *hakeeper.HAService
+		err       error
+		executor  *node.Executor
+		syncer    *sync.Syncer
+		ms        *mock.Sequencer
+		tmNode    *tmnode.Node
+		dvNode    *derivation.Derivation
+		tracker   *l1sequencer.L1Tracker
+		verifier  *l1sequencer.SequencerVerifier
+		signer    l1sequencer.Signer
+		haService *hakeeper.HAService
 
 		nodeConfig = node.DefaultConfig()
 	)
 	isMockSequencer := ctx.GlobalBool(flags.MockEnabled.Name)
-	isValidator := ctx.GlobalBool(flags.ValidatorEnable.Name)
 
 	if err = nodeConfig.SetCliContext(ctx); err != nil {
 		return err
@@ -76,123 +72,108 @@ func L2NodeMain(ctx *cli.Context) error {
 		return err
 	}
 
-	if isValidator {
-		// configure store
-		dbConfig := db.DefaultConfig()
-		dbConfig.SetCliContext(ctx)
-		store, err := db.NewStore(dbConfig, home)
-		if err != nil {
-			return err
-		}
-		derivationCfg := derivation.DefaultConfig()
-		if err := derivationCfg.SetCliContext(ctx); err != nil {
-			return fmt.Errorf("derivation set cli context error: %v", err)
-		}
-		syncConfig := sync.DefaultConfig()
-		if err = syncConfig.SetCliContext(ctx); err != nil {
-			return err
-		}
-		syncer, err = sync.NewSyncer(context.Background(), store, syncConfig, nodeConfig.Logger)
-		if err != nil {
-			return fmt.Errorf("failed to create syncer, error: %v", err)
-		}
-		validatorCfg := validator.NewConfig()
-		if err := validatorCfg.SetCliContext(ctx); err != nil {
-			return fmt.Errorf("validator set cli context error: %v", err)
-		}
-		l1Client, err := ethclient.Dial(derivationCfg.L1.Addr)
-		if err != nil {
-			return fmt.Errorf("dial l1 node error:%v", err)
-		}
-		rollup, err := bindings.NewRollup(derivationCfg.RollupContractAddress, l1Client)
-		if err != nil {
-			return fmt.Errorf("NewRollup error:%v", err)
-		}
-		vt, err := validator.NewValidator(validatorCfg, rollup, nodeConfig.Logger)
-		if err != nil {
-			return fmt.Errorf("new validator client error: %v", err)
-		}
+	// ========== Shared store + syncer (used by both executor and derivation) ==========
+	dbConfig := db.DefaultConfig()
+	dbConfig.SetCliContext(ctx)
+	store, err := db.NewStore(dbConfig, home)
+	if err != nil {
+		return err
+	}
+	syncConfig := sync.DefaultConfig()
+	if err = syncConfig.SetCliContext(ctx); err != nil {
+		return err
+	}
+	syncer, err = sync.NewSyncer(context.Background(), store, syncConfig, nodeConfig.Logger)
+	if err != nil {
+		return fmt.Errorf("failed to create syncer, error: %v", err)
+	}
 
-		dvNode, err = derivation.NewDerivationClient(context.Background(), derivationCfg, syncer, store, vt, rollup, nodeConfig.Logger)
+	// ========== Derivation config + L1 client + rollup binding ==========
+	// All non-mock nodes self-verify against L1; the L1 client + rollup binding
+	// is shared by L1 sequencer components and derivation.
+	derivationCfg := derivation.DefaultConfig()
+	if err := derivationCfg.SetCliContext(ctx); err != nil {
+		return fmt.Errorf("derivation set cli context error: %v", err)
+	}
+	l1Client, err := ethclient.Dial(derivationCfg.L1.Addr)
+	if err != nil {
+		return fmt.Errorf("dial l1 node error: %v", err)
+	}
+	rollup, err := bindings.NewRollup(derivationCfg.RollupContractAddress, l1Client)
+	if err != nil {
+		return fmt.Errorf("NewRollup error: %v", err)
+	}
+
+	tracker, verifier, signer, err = initL1SequencerComponents(ctx, l1Client, nodeConfig.Logger)
+	if err != nil {
+		return fmt.Errorf("failed to init L1 sequencer components: %w", err)
+	}
+
+	// ========== Executor + sequencer / mock ==========
+	tmCfg, err := sequencer.LoadTmConfig(ctx, home)
+	if err != nil {
+		return err
+	}
+	tmVal := privval.LoadOrGenFilePV(tmCfg.PrivValidatorKeyFile(), tmCfg.PrivValidatorStateFile())
+	pubKey, _ := tmVal.GetPubKey()
+
+	// Reuse the shared syncer instance -- DevSequencer mode is the only path
+	// that pulls a syncer out of NewExecutor, so we hand back the same one
+	// rather than letting NewExecutor open a second store + syncer.
+	newSyncerFunc := func() (*sync.Syncer, error) { return syncer, nil }
+	executor, err = node.NewExecutor(newSyncerFunc, nodeConfig, pubKey)
+	if err != nil {
+		return err
+	}
+
+	// Eagerly start the L1 message syncer for post-upgrade sequencer nodes that
+	// are NOT in the PBFT validator set (separated-deployment / HA cluster).
+	// In the combined-deployment case, updateSequencerSet already started the
+	// syncer inside NewExecutor, so SetSyncer is a no-op there.
+	if signer != nil && executor.Syncer() == nil {
+		l1Syncer, err := node.NewSyncer(ctx, home, nodeConfig)
 		if err != nil {
-			return fmt.Errorf("new derivation client error: %v", err)
+			return fmt.Errorf("failed to init L1 syncer for post-upgrade sequencer: %w", err)
 		}
-		dvNode.Start()
-		nodeConfig.Logger.Info("derivation node starting")
+		executor.SetSyncer(l1Syncer)
+		l1Syncer.Start()
+		nodeConfig.Logger.Info("L1 syncer start", "reason", "post-upgrade sequencer not in PBFT validator set")
+	}
+
+	haService, err = initHAService(ctx, home, nodeConfig.Logger)
+	if err != nil {
+		return err
+	}
+
+	if isMockSequencer {
+		ms, err = mock.NewSequencer(executor)
+		if err != nil {
+			return err
+		}
+		go ms.Start()
 	} else {
-		// ========== Create L1 Client ==========
-		l1RPC := ctx.GlobalString(flags.L1NodeAddr.Name)
-		l1Client, err := ethclient.Dial(l1RPC)
+		// Convert typed nil (*HAService)(nil) to untyped nil interface to avoid
+		// Go's nil interface gotcha: a typed nil satisfies (ha != nil) checks.
+		var ha tmsequencer.SequencerHA
+		if haService != nil {
+			ha = haService
+		}
+		tmNode, err = sequencer.SetupNode(tmCfg, tmVal, executor, nodeConfig.Logger, verifier, signer, ha)
 		if err != nil {
-			return fmt.Errorf("failed to dial L1 node: %w", err)
+			return fmt.Errorf("failed to setup consensus node: %v", err)
 		}
-
-		tracker, verifier, signer, err = initL1SequencerComponents(ctx, l1Client, nodeConfig.Logger)
-		if err != nil {
-			return fmt.Errorf("failed to init L1 sequencer components: %w", err)
-		}
-
-		// ========== Launch Tendermint Node ==========
-		tmCfg, err := sequencer.LoadTmConfig(ctx, home)
-		if err != nil {
-			return err
-		}
-		tmVal := privval.LoadOrGenFilePV(tmCfg.PrivValidatorKeyFile(), tmCfg.PrivValidatorStateFile())
-		pubKey, _ := tmVal.GetPubKey()
-
-		newSyncerFunc := func() (*sync.Syncer, error) { return node.NewSyncer(ctx, home, nodeConfig) }
-		executor, err = node.NewExecutor(newSyncerFunc, nodeConfig, pubKey)
-		if err != nil {
-			return err
-		}
-
-		// Eagerly start the L1 message syncer for post-upgrade sequencer nodes that
-		// are NOT in the PBFT validator set (separated-deployment / HA cluster).
-		// In the combined-deployment case, updateSequencerSet already started the
-		// syncer inside NewExecutor, so SetSyncer is a no-op there.
-		if signer != nil && executor.Syncer() == nil {
-			l1Syncer, err := node.NewSyncer(ctx, home, nodeConfig)
-			if err != nil {
-				return fmt.Errorf("failed to init L1 syncer for post-upgrade sequencer: %w", err)
-			}
-			executor.SetSyncer(l1Syncer)
-			l1Syncer.Start()
-			nodeConfig.Logger.Info("L1 syncer start", "reason", "post-upgrade sequencer not in PBFT validator set")
-		}
-
-		haService, err = initHAService(ctx, home, nodeConfig.Logger)
-		if err != nil {
-			return err
-		}
-
-		if isMockSequencer {
-			ms, err = mock.NewSequencer(executor)
-			if err != nil {
-				return err
-			}
-			go ms.Start()
-		} else {
-			// Convert typed nil (*HAService)(nil) to untyped nil interface to avoid
-			// Go's nil interface gotcha: a typed nil satisfies (ha != nil) checks.
-			var ha tmsequencer.SequencerHA
-			if haService != nil {
-				ha = haService
-			}
-			tmNode, err = sequencer.SetupNode(tmCfg, tmVal, executor, nodeConfig.Logger, verifier, signer, ha)
-			if err != nil {
-				return fmt.Errorf("failed to setup consensus node: %v", err)
-			}
-			if err = tmNode.Start(); err != nil {
-				return fmt.Errorf("failed to start consensus node, error: %v", err)
-			}
-		}
-
-		// ========== Initialize BlockTagService ==========
-		blockTagSvc, err = initBlockTagService(ctx, l1Client, executor, nodeConfig.Logger)
-		if err != nil {
-			return fmt.Errorf("failed to init BlockTagService: %w", err)
+		if err = tmNode.Start(); err != nil {
+			return fmt.Errorf("failed to start consensus node, error: %v", err)
 		}
 	}
+
+	// ========== Derivation (SPEC-005: self-verifies + drives safe/finalized tags) ==========
+	dvNode, err = derivation.NewDerivationClient(context.Background(), derivationCfg, syncer, store, rollup, nodeConfig.Logger)
+	if err != nil {
+		return fmt.Errorf("new derivation client error: %v", err)
+	}
+	dvNode.Start()
+	nodeConfig.Logger.Info("derivation started")
 
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, []os.Signal{
@@ -217,9 +198,6 @@ func L2NodeMain(ctx *cli.Context) error {
 	}
 	if dvNode != nil {
 		dvNode.Stop()
-	}
-	if blockTagSvc != nil {
-		blockTagSvc.Stop()
 	}
 	if tracker != nil {
 		tracker.Stop()
@@ -341,31 +319,6 @@ func initL1SequencerComponents(
 	}
 
 	return tracker, verifier, signer, nil
-}
-
-// initBlockTagService initializes the block tag service
-func initBlockTagService(
-	ctx *cli.Context,
-	l1Client *ethclient.Client,
-	executor *node.Executor,
-	logger tmlog.Logger,
-) (*blocktag.BlockTagService, error) {
-	config := blocktag.DefaultConfig()
-	if err := config.SetCliContext(ctx); err != nil {
-		return nil, err
-	}
-
-	svc, err := blocktag.NewBlockTagService(context.Background(), l1Client, executor.L2Client(), config, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := svc.Start(); err != nil {
-		return nil, err
-	}
-
-	logger.Info("BlockTagService started")
-	return svc, nil
 }
 
 func homeDir(ctx *cli.Context) (string, error) {
