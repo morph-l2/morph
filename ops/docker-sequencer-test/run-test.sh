@@ -209,7 +209,11 @@ for i in range(4):
 l1_sequencer_addr = addresses.get('Proxy__L1Sequencer', '')
 if l1_sequencer_addr:
     upgrade_height = os.environ.get('UPGRADE_HEIGHT', '10')
-    sequencer_addr = deploy_config['l2StakingAddresses'][0]  # node-0's address
+    # Override for whitelist integration test: register the HA cluster's
+    # signer key (0xAb70...) so that ha-node-X can produce blocks after the
+    # PBFT->HA upgrade. Without this, isSequencerAt() always returns false
+    # for the HA leader and no blocks are produced.
+    sequencer_addr = os.environ.get('HA_SEQUENCER_ADDR', deploy_config['l2StakingAddresses'][0])
     deployer_pk = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
     log.info(f'Initializing L1Sequencer history: sequencer={sequencer_addr}, startL2Block={upgrade_height}')
     try:
