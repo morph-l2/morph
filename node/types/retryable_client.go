@@ -2,6 +2,7 @@ package types
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"strings"
 	"time"
@@ -177,10 +178,11 @@ func (rc *RetryableClient) HeaderByNumber(ctx context.Context, blockNumber *big.
 	if retryErr := backoff.Retry(func() error {
 		resp, respErr := rc.ethClient.HeaderByNumber(ctx, blockNumber)
 		if respErr != nil {
-			rc.logger.Info("failed to call HeaderByNumber", "error", respErr)
 			if retryableError(respErr) {
+				rc.logger.Info("failed to call HeaderByNumber, will retry", "error", respErr)
 				return respErr
 			}
+			rc.logger.Error("failed to call HeaderByNumber, non-retryable", "error", respErr)
 			err = respErr
 		}
 		ret = resp
@@ -195,10 +197,11 @@ func (rc *RetryableClient) BlockByNumber(ctx context.Context, blockNumber *big.I
 	if retryErr := backoff.Retry(func() error {
 		resp, respErr := rc.ethClient.BlockByNumber(ctx, blockNumber)
 		if respErr != nil {
-			rc.logger.Info("failed to call BlockByNumber", "error", respErr)
 			if retryableError(respErr) {
+				rc.logger.Info("failed to call BlockByNumber, will retry", "error", respErr)
 				return respErr
 			}
+			rc.logger.Error("failed to call BlockByNumber, non-retryable", "error", respErr)
 			err = respErr
 		}
 		ret = resp
@@ -262,11 +265,31 @@ func (rc *RetryableClient) SetBlockTags(ctx context.Context, safeBlockHash commo
 	return
 }
 
+// currently we want every error retryable, except the DiscontinuousBlockError
+// retryableError reports whether an RPC error should trigger an exponential
+// backoff retry inside RetryableClient. Errors not classified as retryable
+// escape immediately so callers see the failure on the first poll cycle
+// rather than after the 30-minute MaxElapsedTime budget runs out.
+//
+// Permanent classifications (do NOT retry):
+//   - ethereum.NotFound: target block / header doesn't exist locally. With
+//     SPEC-005 local verify reading L2 blocks the sequencer hasn't yet sealed
+//     locally (snapshot too old, sync still catching up), this is a "wait
+//     for sync" condition, not a transient RPC blip; retrying every
+//     backoff tick for 30 minutes wastes the cycle and hides the gap from
+//     the operator. The caller (e.g. verify_local) surfaces the missing
+//     block, derivation logs an Error, and the next poll re-evaluates.
+//   - DiscontinuousBlockError: structurally invalid input that no amount
+//     of retry will fix.
+//
 // retryableError returns true for transient errors that should be retried.
 // Permanent logic errors (wrong block number, missing parent) and block
 // validation errors (hash mismatch, invalid NextL1MsgIndex) are not retried,
 // because the same payload will always fail and only delay error surfacing.
 func retryableError(err error) bool {
+	if errors.Is(err, ethereum.NotFound) {
+		return false
+	}
 	msg := err.Error()
 	return !strings.Contains(msg, DiscontinuousBlockError) &&
 		!strings.Contains(msg, WrongBlockNumberError) &&
