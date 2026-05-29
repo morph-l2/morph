@@ -475,7 +475,7 @@ func (e *Executor) ApplyBlockV2(block *l2node.BlockV2) (applied bool, err error)
 		}
 	}
 
-	if _, err := e.l2Client.NewL2BlockV2(context.Background(), execBlock, false); err != nil {
+	if _, err := e.l2Client.NewL2BlockV2(context.Background(), execBlock); err != nil {
 		e.logger.Error("failed to apply block v2",
 			"number", execBlock.Number,
 			"hash", execBlock.Hash.Hex(),
