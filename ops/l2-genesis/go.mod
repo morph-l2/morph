@@ -2,11 +2,12 @@ module morph-l2/morph-deployer
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.0.0-20260515043308-c6f7e21e4b14
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.0.0-20260528040048-6393e1eaad71
+replace github.com/morph-l2/go-ethereum => github.com/morph-l2/go-ethereum v0.0.0-20260529085258-5c5b433f18f2
 
 require (
 	github.com/holiman/uint256 v1.2.4
-	github.com/morph-l2/go-ethereum v0.0.0-20260508105911-56deb7072ae4
+	github.com/morph-l2/go-ethereum v0.0.0-20260529085258-5c5b433f18f2
 	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli v1.22.17
 )
@@ -25,7 +26,6 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/ethereum/c-kzg-4844/v2 v2.1.5 // indirect
-	github.com/ethereum/go-ethereum v1.10.26 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
 	github.com/go-kit/kit v0.12.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
@@ -77,5 +77,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
-
-replace github.com/morph-l2/go-ethereum => github.com/morph-l2/go-ethereum v0.0.0-20260508105911-56deb7072ae4

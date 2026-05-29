@@ -412,14 +412,14 @@ start_ha_cluster() {
     done
 
     # Stop any existing containers from a previous run
-    $COMPOSE_HA stop morph-geth-0 morph-geth-1 morph-geth-2 morph-geth-3 \
-        node-0 node-1 node-2 node-3 sentry-geth-0 sentry-node-0 \
+    $COMPOSE_HA stop morph-el-0 morph-el-1 morph-el-2 morph-el-3 \
+        node-0 node-1 node-2 node-3 sentry-el-0 sentry-node-0 \
         ha-geth-0 ha-geth-1 ha-geth-2 ha-node-0 ha-node-1 ha-node-2 2>/dev/null || true
 
     # Start ALL geth nodes (PBFT + isolated HA + sentry)
-    log_info "Starting geth nodes (PBFT morph-geth-* + ha-geth-* + sentry)..."
-    $COMPOSE_HA up -d morph-geth-0 morph-geth-1 morph-geth-2 morph-geth-3 \
-                       ha-geth-0 ha-geth-1 ha-geth-2 sentry-geth-0
+    log_info "Starting geth nodes (PBFT morph-el-* + ha-geth-* + sentry)..."
+    $COMPOSE_HA up -d morph-el-0 morph-el-1 morph-el-2 morph-el-3 \
+                       ha-geth-0 ha-geth-1 ha-geth-2 sentry-el-0
     sleep 5
 
     # Start tendermint nodes:

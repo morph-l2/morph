@@ -72,6 +72,20 @@ func L2NodeMain(ctx *cli.Context) error {
 		return err
 	}
 
+	// ========== Shared L1 client ==========
+	// One ethclient.Dial per process — all L1-touching components (syncer,
+	// derivation, l1sequencer Tracker/Verifier/Signer, rollup binding) share
+	// the same connection pool, retry policy, and metrics surface. Adding a
+	// new consumer means injecting this client, not opening a new one.
+	l1RPC := ctx.GlobalString(flags.L1NodeAddr.Name)
+	if l1RPC == "" {
+		return fmt.Errorf("%s is required", flags.L1NodeAddr.Name)
+	}
+	l1Client, err := ethclient.Dial(l1RPC)
+	if err != nil {
+		return fmt.Errorf("dial l1 node error: %v", err)
+	}
+
 	// ========== Shared store + syncer (used by both executor and derivation) ==========
 	dbConfig := db.DefaultConfig()
 	dbConfig.SetCliContext(ctx)
@@ -83,25 +97,9 @@ func L2NodeMain(ctx *cli.Context) error {
 	if err = syncConfig.SetCliContext(ctx); err != nil {
 		return err
 	}
-	syncer, err = sync.NewSyncer(context.Background(), store, syncConfig, nodeConfig.Logger)
+	syncer, err = sync.NewSyncer(context.Background(), store, syncConfig, nodeConfig.Logger, l1Client)
 	if err != nil {
 		return fmt.Errorf("failed to create syncer, error: %v", err)
-	}
-
-	// ========== Derivation config + L1 client + rollup binding ==========
-	// All non-mock nodes self-verify against L1; the L1 client + rollup binding
-	// is shared by L1 sequencer components and derivation.
-	derivationCfg := derivation.DefaultConfig()
-	if err := derivationCfg.SetCliContext(ctx); err != nil {
-		return fmt.Errorf("derivation set cli context error: %v", err)
-	}
-	l1Client, err := ethclient.Dial(derivationCfg.L1.Addr)
-	if err != nil {
-		return fmt.Errorf("dial l1 node error: %v", err)
-	}
-	rollup, err := bindings.NewRollup(derivationCfg.RollupContractAddress, l1Client)
-	if err != nil {
-		return fmt.Errorf("NewRollup error: %v", err)
 	}
 
 	tracker, verifier, signer, err = initL1SequencerComponents(ctx, l1Client, nodeConfig.Logger)
@@ -131,13 +129,9 @@ func L2NodeMain(ctx *cli.Context) error {
 	// In the combined-deployment case, updateSequencerSet already started the
 	// syncer inside NewExecutor, so SetSyncer is a no-op there.
 	if signer != nil && executor.Syncer() == nil {
-		l1Syncer, err := node.NewSyncer(ctx, home, nodeConfig)
-		if err != nil {
-			return fmt.Errorf("failed to init L1 syncer for post-upgrade sequencer: %w", err)
-		}
-		executor.SetSyncer(l1Syncer)
-		l1Syncer.Start()
-		nodeConfig.Logger.Info("L1 syncer start", "reason", "post-upgrade sequencer not in PBFT validator set")
+		executor.SetSyncer(syncer)
+		syncer.Start()
+		nodeConfig.Logger.Info("L1 syncer start", "reason", "post-upgrade always start")
 	}
 
 	haService, err = initHAService(ctx, home, nodeConfig.Logger)
@@ -168,7 +162,15 @@ func L2NodeMain(ctx *cli.Context) error {
 	}
 
 	// ========== Derivation (SPEC-005: self-verifies + drives safe/finalized tags) ==========
-	dvNode, err = derivation.NewDerivationClient(context.Background(), derivationCfg, syncer, store, rollup, nodeConfig.Logger)
+	derivationCfg := derivation.DefaultConfig()
+	if err := derivationCfg.SetCliContext(ctx); err != nil {
+		return fmt.Errorf("derivation set cli context error: %v", err)
+	}
+	rollup, err := bindings.NewRollup(derivationCfg.RollupContractAddress, l1Client)
+	if err != nil {
+		return fmt.Errorf("NewRollup error: %v", err)
+	}
+	dvNode, err = derivation.NewDerivationClient(context.Background(), derivationCfg, syncer, store, rollup, l1Client, tmNode, haService != nil, nodeConfig.Logger)
 	if err != nil {
 		return fmt.Errorf("new derivation client error: %v", err)
 	}
