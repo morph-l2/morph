@@ -13,6 +13,7 @@ COPY ./tendermint/go.mod ./tendermint/go.sum /polyrepo/tendermint/
 # Copy morph go.work and all module dependency files
 COPY ./morph/go.work ./morph/go.work.sum /polyrepo/morph/
 COPY ./morph/node/go.mod ./morph/node/go.sum /polyrepo/morph/node/
+COPY ./morph/common/go.mod ./morph/common/go.sum /polyrepo/morph/common/
 COPY ./morph/bindings/go.mod ./morph/bindings/go.sum /polyrepo/morph/bindings/
 COPY ./morph/contracts/go.mod ./morph/contracts/go.sum /polyrepo/morph/contracts/
 COPY ./morph/oracle/go.mod ./morph/oracle/go.sum /polyrepo/morph/oracle/

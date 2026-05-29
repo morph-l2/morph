@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	syncos "sync"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
@@ -25,6 +26,7 @@ import (
 type NewSyncerFunc func() (*sync.Syncer, error)
 
 type Executor struct {
+	mu                  syncos.RWMutex
 	l2Client            *types.RetryableClient
 	bc                  BlockConverter
 	nextL1MsgIndex      uint64
@@ -450,6 +452,8 @@ func (e *Executor) RequestBlockDataV2(parentHashBytes []byte) (*l2node.BlockV2, 
 // and reorg detection; lower layer (NewL2BlockV2 + SetCanonical) handles the
 // actual chain reorganization automatically.
 func (e *Executor) ApplyBlockV2(block *l2node.BlockV2) (applied bool, err error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	execBlock := blockV2ToExecutableL2Data(block)
 
 	// Reorg / idempotent detection: only check when incoming block height
@@ -471,7 +475,7 @@ func (e *Executor) ApplyBlockV2(block *l2node.BlockV2) (applied bool, err error)
 		}
 	}
 
-	if err := e.l2Client.NewL2BlockV2(context.Background(), execBlock, false); err != nil {
+	if _, err := e.l2Client.NewL2BlockV2(context.Background(), execBlock, false); err != nil {
 		e.logger.Error("failed to apply block v2",
 			"number", execBlock.Number,
 			"hash", execBlock.Hash.Hex(),
