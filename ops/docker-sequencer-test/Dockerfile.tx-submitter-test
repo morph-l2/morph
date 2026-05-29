@@ -1,0 +1,40 @@
+# Build tx-submitter using the polyrepo workspace (../tendermint, ../go-ethereum
+# siblings of morph/). Build context must be the polyrepo root, not morph/.
+FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.24-ubuntu AS builder
+
+# Cache module deps before copying full source.
+COPY ./go-ethereum/go.mod ./go-ethereum/go.sum /polyrepo/go-ethereum/
+COPY ./tendermint/go.mod ./tendermint/go.sum /polyrepo/tendermint/
+
+COPY ./morph/go.work ./morph/go.work.sum /polyrepo/morph/
+COPY ./morph/node/go.mod ./morph/node/go.sum /polyrepo/morph/node/
+COPY ./morph/common/go.mod ./morph/common/go.sum /polyrepo/morph/common/
+COPY ./morph/bindings/go.mod ./morph/bindings/go.sum /polyrepo/morph/bindings/
+COPY ./morph/contracts/go.mod ./morph/contracts/go.sum /polyrepo/morph/contracts/
+COPY ./morph/oracle/go.mod ./morph/oracle/go.sum /polyrepo/morph/oracle/
+COPY ./morph/tx-submitter/go.mod ./morph/tx-submitter/go.sum /polyrepo/morph/tx-submitter/
+COPY ./morph/ops/l2-genesis/go.mod ./morph/ops/l2-genesis/go.sum /polyrepo/morph/ops/l2-genesis/
+COPY ./morph/ops/tools/go.mod ./morph/ops/tools/go.sum /polyrepo/morph/ops/tools/
+COPY ./morph/token-price-oracle/go.mod ./morph/token-price-oracle/go.sum /polyrepo/morph/token-price-oracle/
+
+WORKDIR /polyrepo/morph/tx-submitter
+RUN go mod download
+
+# Now copy full source.
+COPY ./go-ethereum /polyrepo/go-ethereum
+COPY ./tendermint /polyrepo/tendermint
+COPY ./morph /polyrepo/morph
+
+WORKDIR /polyrepo/morph/tx-submitter
+RUN make build
+
+# Runtime stage.
+FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.24-ubuntu
+
+RUN apt-get -qq update \
+    && apt-get -qq install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /polyrepo/morph/tx-submitter/tx-submitter /usr/local/bin/
+
+CMD ["tx-submitter"]

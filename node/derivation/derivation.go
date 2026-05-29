@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/morph-l2/go-ethereum/eth/catalyst"
 	"math/big"
 	"time"
 
@@ -759,48 +758,45 @@ func (d *Derivation) deriveForce(rollupData *BatchInfo) (*eth.Header, error) {
 	}
 
 	for _, blockData := range rollupData.blockContexts {
-		execData := safeL2DataToExecutable(blockData.SafeL2Data, lastHeader.Hash())
+		// Pin the parent so SetCanonical reorgs from the local fork to the
+		// L1-canonical chain. NewSafeL2Block executes the block internally
+		// and fills the header with the resulting state/receipt roots —
+		// the caller only knows block contents (txs + timestamp), not the
+		// post-execution roots, so this is the right API for the rewrite.
+		parentHash := lastHeader.Hash()
+		safeData := *blockData.SafeL2Data
+		safeData.ParentHash = &parentHash
+
 		err = func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(60)*time.Second)
 			defer cancel()
-			next, err := d.l2Client.NewL2BlockV2(ctx, execData, true /* isSafe */)
+			next, err := d.l2Client.NewSafeL2Block(ctx, &safeData)
 			if err != nil {
-				d.logger.Error("NewL2BlockV2 failed",
+				d.logger.Error("NewSafeL2Block failed",
 					"batchIndex", rollupData.batchIndex,
-					"blockNumber", execData.Number,
-					"parent", execData.ParentHash.Hex(),
+					"blockNumber", safeData.Number,
+					"parent", parentHash.Hex(),
 					"error", err,
 				)
 				return err
 			}
 			if next == nil {
-				return fmt.Errorf("header at %d missing after NewL2BlockV2", execData.Number)
+				return fmt.Errorf("header at %d missing after NewSafeL2Block", safeData.Number)
 			}
 			lastHeader = next
 			return nil
 		}()
 		if err != nil {
-			return nil, fmt.Errorf("apply block %d: %w", execData.Number, err)
+			return nil, fmt.Errorf("apply block %d: %w", safeData.Number, err)
 		}
 
-		d.logger.Info("block written via NewL2BlockV2",
+		d.logger.Info("block written via NewSafeL2Block",
 			"batchIndex", rollupData.batchIndex,
-			"blockNumber", execData.Number,
+			"blockNumber", safeData.Number,
 			"hash", lastHeader.Hash().Hex(),
 		)
 	}
 	return lastHeader, nil
-}
-
-func safeL2DataToExecutable(s *catalyst.SafeL2Data, parentHash common.Hash) *catalyst.ExecutableL2Data {
-	return &catalyst.ExecutableL2Data{
-		ParentHash:   parentHash,
-		Number:       s.Number,
-		GasLimit:     s.GasLimit,
-		BaseFee:      s.BaseFee,
-		Timestamp:    s.Timestamp,
-		Transactions: s.Transactions,
-	}
 }
 
 func (d *Derivation) getLatestConfirmedBlockNumber(ctx context.Context) (uint64, error) {
