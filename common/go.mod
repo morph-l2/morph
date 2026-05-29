@@ -2,11 +2,11 @@ module morph-l2/common
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.7
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.0.0-20260529095305-b1b3a3a1d806
 
 require (
 	github.com/holiman/uint256 v1.2.4
-	github.com/morph-l2/go-ethereum v0.0.0-20260529085258-5c5b433f18f2
+	github.com/morph-l2/go-ethereum v0.0.0-20260529141627-eb5fbf8f9748
 	github.com/stretchr/testify v1.10.0
 	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a
 )

@@ -86,11 +86,25 @@ func (d *Derivation) fetchBatchInfoOutline(ctx context.Context, txHash common.Ha
 		blobHashes:                 tx.BlobHashes(),
 	}
 
-	parentLast, err := parentHeader.LastBlockNumber()
-	if err != nil {
-		return nil, fmt.Errorf("decode parent batch header lastBlockNumber error:%v", err)
+	// Compatibility shim for v0 parent — only reachable on test/devnet
+	// deployments where the genesis batch (batchIndex=0) is v0 and V1 is
+	// activated immediately, so the only v0 batch in the chain is genesis
+	// itself. In that case the very first user batch (batchIndex=1) starts
+	// at block 1 (genesis is block 0). Production networks deploy with V1
+	// already enabled and v2 batches always have v1+ parents (since V2
+	// upgrade is layered on top of V1), so this branch is never hit there.
+	// Reorg semantics only exist post-V2 anyway, so processing pre-V2
+	// batches via this outline path isn't meaningful — the hardcode is a
+	// pragmatic fallback rather than a load-bearing path.
+	if parentVersion, vErr := parentHeader.Version(); vErr == nil && parentVersion == 0 {
+		bi.firstBlockNumber = 1
+	} else {
+		parentLast, err := parentHeader.LastBlockNumber()
+		if err != nil {
+			return nil, fmt.Errorf("decode parent batch header lastBlockNumber error:%v", err)
+		}
+		bi.firstBlockNumber = parentLast + 1
 	}
-	bi.firstBlockNumber = parentLast + 1
 
 	return bi, nil
 }
