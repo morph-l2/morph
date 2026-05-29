@@ -22,6 +22,7 @@ import (
 	"github.com/morph-l2/go-ethereum/ethclient/authclient"
 	"github.com/morph-l2/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
+	tmnode "github.com/tendermint/tendermint/node"
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
@@ -37,6 +38,7 @@ var (
 
 type Derivation struct {
 	ctx                   context.Context
+	node                  *tmnode.Node
 	syncer                *sync.Syncer
 	l1Client              *ethclient.Client
 	RollupContractAddress common.Address
@@ -66,6 +68,8 @@ type Derivation struct {
 
 	tagAdvancer *tagAdvancer
 
+	isHaMode bool
+
 	stop chan struct{}
 }
 
@@ -76,10 +80,12 @@ type DeployContractBackend interface {
 	ethereum.TransactionReader
 }
 
-func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, db Database, rollup *bindings.Rollup, logger tmlog.Logger) (*Derivation, error) {
-	l1Client, err := ethclient.Dial(cfg.L1.Addr)
-	if err != nil {
-		return nil, err
+// NewDerivationClient takes a shared l1Client owned by main.go. See
+// sync.NewSyncer for rationale — every L1-touching component in this
+// process shares one connection pool / retry / metrics surface.
+func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, db Database, rollup *bindings.Rollup, l1Client *ethclient.Client, node *tmnode.Node, isHaMode bool, logger tmlog.Logger) (*Derivation, error) {
+	if l1Client == nil {
+		return nil, errors.New("l1Client cannot be nil")
 	}
 	aClient, err := authclient.DialContext(context.Background(), cfg.L2.EngineAddr, cfg.L2.JwtSecret)
 	if err != nil {
@@ -126,6 +132,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 
 	return &Derivation{
 		ctx:                   ctx,
+		node:                  node,
 		db:                    db,
 		l1Client:              l1Client,
 		syncer:                syncer,
@@ -150,6 +157,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		metrics:               metrics,
 		l1BeaconClient:        l1BeaconClient,
 		L2ToL1MessagePasser:   msgPasser,
+		isHaMode:              isHaMode,
 	}, nil
 }
 
@@ -281,7 +289,44 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			}
 			for i := range rebuilt {
 				if rebuilt[i] != batchInfo.blobHashes[i] {
-					// TODO reorg
+					// HA-mode invariant: blocks are committed via Raft consensus and
+					// the L1 batch is built from those committed blocks, so the
+					// rebuilt blob hash MUST equal the on-chain blob hash. A
+					// mismatch here means the local L2 chain has diverged from what
+					// the cluster committed — possible causes: corrupted DB, wrong
+					// genesis, manual chain surgery, or a Raft / sequencer bug.
+					// Auto-reorg is unsafe (would mask the real problem), so we
+					// hard-stop derivation and require operator intervention.
+					if d.isHaMode {
+						d.logger.Error("HA node: blob hash mismatch detected — derivation halted, manual intervention required (this should never happen in a healthy cluster)",
+							"batchIndex", batchInfo.batchIndex,
+							"blobIndex", i,
+							"expected", batchInfo.blobHashes[i].Hex(),
+							"rebuilt", rebuilt[i].Hex(),
+							"l1TxHash", lg.TxHash.Hex(),
+							"l1BlockNumber", lg.BlockNumber)
+						return
+					}
+
+					d.logger.Info("blob hash mismatch; triggering self-heal reorg",
+						"batchIndex", batchInfo.batchIndex,
+						"expected", batchInfo.blobHashes[i].Hex(),
+						"rebuilt", rebuilt[i].Hex())
+
+					// Quiesce blocksync + broadcast reactors so they don't race
+					// with the derivation-driven reorg below. HA sequencers and
+					// mock-mode (d.node == nil) skip — sequencers don't
+					// auto-reorg, mock has no consensus reactors. Stop/Start
+					// are idempotent via IsRunning checks, so retrying next
+					// poll is safe if Stop fails here.
+					if d.node != nil {
+						if err = d.node.StopReactorsBeforeReorg(); err != nil {
+							d.logger.Error("StopReactorsBeforeReorg failed; skipping reorg, will retry next poll",
+								"batchIndex", batchInfo.batchIndex, "err", err)
+							return
+						}
+					}
+
 					batchInfoFull, fetchErr := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
 					if fetchErr != nil {
 						d.logger.Error("local verify self-heal: fetch real batch failed",
@@ -293,6 +338,21 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 						d.logger.Error("local verify self-heal: derive failed",
 							"batchIndex", batchInfo.batchIndex, "error", err)
 						return
+					}
+
+					// Restart reactors using the post-reorg head height so
+					// blocksync rebuilds its pool from currentHeight+1 and
+					// catches back up via P2P. If this fails the L2 chain is
+					// still correctly reorged but reactors are degraded —
+					// surface loudly so it's visible in monitoring; next poll
+					// will retry only if a *new* mismatch appears.
+					if d.node != nil {
+						if err = d.node.StartReactorsAfterReorg(lastHeader.Number.Int64()); err != nil {
+							d.logger.Error("StartReactorsAfterReorg failed; chain is reorged but reactors are degraded",
+								"batchIndex", batchInfo.batchIndex,
+								"postReorgHeight", lastHeader.Number.Int64(),
+								"err", err)
+						}
 					}
 					break
 				}
@@ -690,50 +750,43 @@ func (d *Derivation) deriveForce(rollupData *BatchInfo) (*eth.Header, error) {
 	}
 
 	// Anchor: parent of the batch's first block must already exist locally.
-	parentHeader, err := d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(firstNum-1)))
+	lastHeader, err := d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(firstNum-1)))
 	if err != nil {
 		return nil, fmt.Errorf("read parent header at %d: %w", firstNum-1, err)
 	}
-	if parentHeader == nil {
+	if lastHeader == nil {
 		return nil, fmt.Errorf("parent header at %d missing", firstNum-1)
 	}
-	parentHash := parentHeader.Hash()
 
-	var lastHeader *eth.Header
 	for _, blockData := range rollupData.blockContexts {
-		execData := safeL2DataToExecutable(blockData.SafeL2Data, parentHash)
+		execData := safeL2DataToExecutable(blockData.SafeL2Data, lastHeader.Hash())
 		err = func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(60)*time.Second)
 			defer cancel()
-			err = d.l2Client.NewL2BlockV2(ctx, execData, true /* isSafe */)
+			next, err := d.l2Client.NewL2BlockV2(ctx, execData, true /* isSafe */)
 			if err != nil {
 				d.logger.Error("NewL2BlockV2 failed",
 					"batchIndex", rollupData.batchIndex,
 					"blockNumber", execData.Number,
-					"parent", parentHash.Hex(),
+					"parent", execData.ParentHash.Hex(),
 					"error", err,
 				)
 				return err
 			}
+			if next == nil {
+				return fmt.Errorf("header at %d missing after NewL2BlockV2", execData.Number)
+			}
+			lastHeader = next
 			return nil
 		}()
-
-		// Read back to chain the next iteration's parent and to feed
-		// verifyBatchRoots at the end.
-		h, err := d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(execData.Number)))
 		if err != nil {
-			return nil, fmt.Errorf("read header at %d after NewL2BlockV2: %w", execData.Number, err)
+			return nil, fmt.Errorf("apply block %d: %w", execData.Number, err)
 		}
-		if h == nil {
-			return nil, fmt.Errorf(" header at %d missing after NewL2BlockV2", execData.Number)
-		}
-		parentHash = h.Hash()
-		lastHeader = h
 
 		d.logger.Info("block written via NewL2BlockV2",
 			"batchIndex", rollupData.batchIndex,
 			"blockNumber", execData.Number,
-			"hash", h.Hash().Hex(),
+			"hash", lastHeader.Hash().Hex(),
 		)
 	}
 	return lastHeader, nil

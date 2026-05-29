@@ -118,9 +118,9 @@ func (rc *RetryableClient) NewL2Block(ctx context.Context, executableL2Data *cat
 	return
 }
 
-func (rc *RetryableClient) NewL2BlockV2(ctx context.Context, executableL2Data *catalyst.ExecutableL2Data, isSafe bool) (err error) {
+func (rc *RetryableClient) NewL2BlockV2(ctx context.Context, executableL2Data *catalyst.ExecutableL2Data, isSafe bool) (header *eth.Header, err error) {
 	if retryErr := backoff.Retry(func() error {
-		respErr := rc.authClient.NewL2BlockV2(ctx, executableL2Data, isSafe)
+		respHeader, respErr := rc.authClient.NewL2BlockV2(ctx, executableL2Data, isSafe)
 		if respErr != nil {
 			rc.logger.Error("NewL2BlockV2 failed",
 				"block_number", executableL2Data.Number,
@@ -130,10 +130,12 @@ func (rc *RetryableClient) NewL2BlockV2(ctx context.Context, executableL2Data *c
 				return respErr
 			}
 			err = respErr
+			return nil
 		}
+		header = respHeader
 		return nil
 	}, rc.b); retryErr != nil {
-		return retryErr
+		return nil, retryErr
 	}
 	return
 }

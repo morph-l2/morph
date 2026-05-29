@@ -31,10 +31,14 @@ type Syncer struct {
 	isFake              bool
 }
 
-func NewSyncer(ctx context.Context, db Database, config *Config, logger tmlog.Logger) (*Syncer, error) {
-	l1Client, err := ethclient.Dial(config.L1.Addr)
-	if err != nil {
-		return nil, err
+// NewSyncer wires the L1 message bridge to the provided shared l1Client.
+// The client is owned by the caller (typically main.go) so that all
+// L1-touching components (syncer, derivation, l1sequencer.Tracker/Verifier,
+// rollup binding) share a single connection pool, retry policy, and metrics
+// surface. Do NOT dial a fresh client here.
+func NewSyncer(ctx context.Context, db Database, config *Config, logger tmlog.Logger, l1Client *ethclient.Client) (*Syncer, error) {
+	if l1Client == nil {
+		return nil, errors.New("l1Client cannot be nil")
 	}
 
 	if config.L1MessageQueueAddress == nil {

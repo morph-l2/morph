@@ -88,8 +88,10 @@ func (e *Executor) updateSequencerSet(height uint64) ([][]byte, error) {
 			go e.syncer.Start()
 		}
 	} else if e.isSequencer && !isSequencer {
-		e.logger.Info("I am not a sequencer, stop syncing")
-		e.syncer.Stop()
+		// as the derivation always need the syncer running, it should not be stopped
+
+		//e.logger.Info("I am not a sequencer, stop syncing")
+		//e.syncer.Stop()
 	}
 	e.isSequencer = isSequencer
 	return validatorUpdates, nil
