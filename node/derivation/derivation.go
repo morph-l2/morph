@@ -351,6 +351,20 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 							"batchIndex", batchInfo.batchIndex, "error", fetchErr)
 						return
 					}
+
+					// Quiesce blocksync + broadcast reactors so they don't race
+					// with the derivation-driven reorg below. HA sequencers and
+					// mock-mode (d.node == nil) skip — sequencers don't
+					// auto-reorg, mock has no consensus reactors. Stop/Start
+					// are idempotent via IsRunning checks, so retrying next
+					// poll is safe if Stop fails here.
+					if d.node != nil {
+						if err = d.node.StopReactorsBeforeReorg(); err != nil {
+							d.logger.Error("StopReactorsBeforeReorg failed; skipping reorg, will retry next poll",
+								"batchIndex", batchInfo.batchIndex, "err", err)
+							return
+						}
+					}
 					localLatest, err := d.l2Client.BlockNumber(ctx)
 					if err != nil {
 						d.logger.Error("local verify fill-gap: read local latest failed",
@@ -363,6 +377,22 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 							"batchIndex", batchInfo.batchIndex, "error", err)
 						return
 					}
+
+					// Restart reactors using the post-reorg head height so
+					// blocksync rebuilds its pool from currentHeight+1 and
+					// catches back up via P2P. If this fails the L2 chain is
+					// still correctly reorged but reactors are degraded —
+					// surface loudly so it's visible in monitoring; next poll
+					// will retry only if a *new* mismatch appears.
+					if d.node != nil {
+						if err = d.node.StartReactorsAfterReorg(lastHeader.Number.Int64()); err != nil {
+							d.logger.Error("StartReactorsAfterReorg failed; chain is reorged but reactors are degraded",
+								"batchIndex", batchInfo.batchIndex,
+								"postReorgHeight", lastHeader.Number.Int64(),
+								"err", err)
+						}
+					}
+
 					d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
 					d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
 					break
