@@ -65,6 +65,13 @@ type Derivation struct {
 	verifyMode          string // SPEC-005 section 4.2: "layer1" or "local" (default); bound at startup, never switches.
 	reorgCheckDepth     uint64 // SPEC-005 section 4.7.6: how far back to scan for L1 hash divergence each poll.
 
+	// lastObservedL2Latest caches the L2 head observed at the previous
+	// derivationBlock pull, used by the Path B entry-point dispatcher
+	// to tell scenario C (sequencer stopped → fillGap) from scenario D
+	// (sequencer alive, P2P still catching up → wait for next poll).
+	// Updated once per pull at the top of derivationBlock.
+	lastObservedL2Latest uint64
+
 	tagAdvancer *tagAdvancer
 
 	isHaMode bool
@@ -221,6 +228,19 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		return
 	}
 
+	// SPEC-005 §4.3 Path B entry-point: cache L2 latest once per pull so
+	// the inner per-batch loop can decide scenario C/D by comparing the
+	// current head with the previous pull's observation. Growth across
+	// the poll interval (default 15s) is the alive-vs-stopped signal —
+	// no inline sleep needed inside the batch loop.
+	currentL2Latest, err := d.l2Client.BlockNumber(d.ctx)
+	if err != nil {
+		d.logger.Error("local verify: read L2 latest failed; skipping this poll", "err", err)
+		return
+	}
+	l2Grew := currentL2Latest > d.lastObservedL2Latest
+	d.lastObservedL2Latest = currentL2Latest
+
 	latestDerivation := d.db.ReadLatestDerivationL1Height()
 	latest, err := d.getLatestConfirmedBlockNumber(d.ctx)
 	if err != nil {
@@ -277,16 +297,12 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				"txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
 				"l1BlockNumber", batchInfo.l1BlockNumber, "firstL2BlockNumber", batchInfo.firstBlockNumber, "lastL2BlockNumber", batchInfo.lastBlockNumber)
 			// SPEC-005 §4.3 Path B entry-point: scenario A/B/C/D dispatch.
-			// rebuildBlob needs every block in [first..last] locally. If
-			// lastBlockNumber is missing, retry-poll within an observation
-			// window. Two early-exit signals:
-			//   - header arrives → P2P delivered, fall through to A/B
-			//     (rebuildBlob); whether the head grew is irrelevant.
-			//   - header still missing but L2 head grew → sequencer alive,
-			//     skip this batch this poll (scenario D).
-			// Window exhausted with neither signal → sequencer stopped,
-			// fall through to L1 blob fill-gap (scenario C: pull real
-			// blob + deriveForce skipping blocks already present locally).
+			// One HeaderByNumber per batch — no inline retry / sleep. Cross-
+			// poll growth (l2Grew, captured at the top of derivationBlock)
+			// distinguishes scenario C/D when the header is missing.
+			//   header present → A/B (rebuildBlob).
+			//   header missing + l2Grew → D (alive, skip; next poll re-tries).
+			//   header missing + !l2Grew → C (stopped; L1 blob fill-gap).
 			lastHdr, hdrErr := d.l2Client.HeaderByNumber(ctx, big.NewInt(int64(batchInfo.lastBlockNumber)))
 			if hdrErr != nil && !errors.Is(hdrErr, ethereum.NotFound) {
 				d.logger.Error("local verify: HeaderByNumber for lastBlock failed",
@@ -296,86 +312,57 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				return
 			}
 			if lastHdr == nil {
-				snapshot, err := d.l2Client.BlockNumber(ctx)
-				if err != nil {
-					d.logger.Error("local verify: BlockNumber snapshot failed",
-						"batchIndex", batchInfo.batchIndex, "err", err)
+				if l2Grew {
+					// Abort the whole pull (don't advance the L1 cursor) so
+					// the next poll re-fetches this batch's log and re-tries
+					// once P2P has caught up. `continue` would skip past this
+					// batch only to commit cursor advance at the end of
+					// derivationBlock, leaving this batch's L1 log inside the
+					// already-processed range and never derived.
+					d.logger.Info("local verify: lastBlock missing but L2 head grew vs previous poll; aborting pull, will retry next poll (scenario D)",
+						"batchIndex", batchInfo.batchIndex,
+						"lastBlockNumber", batchInfo.lastBlockNumber,
+						"l2Latest", currentL2Latest)
 					return
 				}
-				var grew bool
-				for i := 0; i < 3; i++ {
-					select {
-					case <-ctx.Done():
-						return
-					case <-time.After(2 * time.Second):
-					}
-					hdr, err := d.l2Client.HeaderByNumber(ctx, big.NewInt(int64(batchInfo.lastBlockNumber)))
-					if err != nil && !errors.Is(err, ethereum.NotFound) {
-						d.logger.Error("local verify: HeaderByNumber retry failed",
-							"batchIndex", batchInfo.batchIndex,
-							"lastBlockNumber", batchInfo.lastBlockNumber,
-							"err", err)
-						return
-					}
-					if hdr != nil {
-						lastHdr = hdr
-						break
-					}
-					cur, err := d.l2Client.BlockNumber(ctx)
-					if err != nil {
-						d.logger.Error("local verify: BlockNumber observation failed",
-							"batchIndex", batchInfo.batchIndex, "err", err)
-						return
-					}
-					if cur > snapshot {
-						grew = true
-					}
-				}
-				if lastHdr == nil {
-					if grew {
-						d.logger.Info("local verify: lastBlock missing but L2 head growing; skipping batch this poll (scenario D)",
-							"batchIndex", batchInfo.batchIndex,
-							"lastBlockNumber", batchInfo.lastBlockNumber)
+				// Scenario C: sequencer stopped → L1 blob fill-gap.
+				d.logger.Info("local verify: lastBlock missing and L2 head flat across polls; fallback to L1 blob fill-gap (scenario C)",
+					"batchIndex", batchInfo.batchIndex,
+					"lastBlockNumber", batchInfo.lastBlockNumber,
+					"l2Latest", currentL2Latest)
+				batchInfoFull, fetchErr := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
+				if fetchErr != nil {
+					if errors.Is(fetchErr, types.ErrNotCommitBatchTx) {
 						continue
 					}
-					// Scenario C: sequencer stopped → L1 blob fill-gap.
-					d.logger.Info("local verify: lastBlock missing and L2 head flat; fallback to L1 blob fill-gap (scenario C)",
-						"batchIndex", batchInfo.batchIndex,
-						"lastBlockNumber", batchInfo.lastBlockNumber)
-					batchInfoFull, fetchErr := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
-					if fetchErr != nil {
-						if errors.Is(fetchErr, types.ErrNotCommitBatchTx) {
-							continue
-						}
-						d.logger.Error("local verify fill-gap: fetch real batch failed",
-							"batchIndex", batchInfo.batchIndex, "error", fetchErr)
-						return
-					}
-
-					// Quiesce blocksync + broadcast reactors via withReactorsQuiesced
-					// so the deferred Start runs whether deriveForce succeeds
-					// or fails — without it, a deriveForce error would leave
-					// reactors stopped indefinitely (Stop is idempotent on
-					// retry, but Start is never reached).
-					err = d.withReactorsQuiesced(ctx, batchInfo.batchIndex, func() error {
-						localLatest, err := d.l2Client.BlockNumber(ctx)
-						if err != nil {
-							return fmt.Errorf("read local latest: %w", err)
-						}
-						var derErr error
-						lastHeader, derErr = d.deriveForce(batchInfoFull, localLatest)
-						return derErr
-					})
-					if err != nil {
-						d.logger.Error("local verify fill-gap: derive failed",
-							"batchIndex", batchInfo.batchIndex, "error", err)
-						return
-					}
-
-					d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
-					d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
-					break
+					d.logger.Error("local verify fill-gap: fetch real batch failed",
+						"batchIndex", batchInfo.batchIndex, "error", fetchErr)
+					return
 				}
+
+				// Quiesce blocksync + broadcast reactors via withReactorsQuiesced
+				// so the deferred Start runs whether deriveForce succeeds
+				// or fails — without it, a deriveForce error would leave
+				// reactors stopped indefinitely (Stop is idempotent on
+				// retry, but Start is never reached).
+				err = d.withReactorsQuiesced(ctx, batchInfo.batchIndex, func() error {
+					localLatest, err := d.l2Client.BlockNumber(ctx)
+					if err != nil {
+						return fmt.Errorf("read local latest: %w", err)
+					}
+					var derErr error
+					lastHeader, derErr = d.deriveForce(batchInfoFull, localLatest)
+					return derErr
+				})
+				if err != nil {
+					d.logger.Error("local verify fill-gap: derive failed",
+						"batchIndex", batchInfo.batchIndex, "error", err)
+					return
+				}
+
+				d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
+				d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
+				break
 			}
 
 			rebuilt, err := d.rebuildBlob(ctx, batchInfo)
