@@ -1,0 +1,5 @@
+docker build -t vsock-http:latest .
+
+nitro-cli build-enclave --docker-uri vsock-http:latest --output-file vsock-http.eif
+
+nitro-cli run-enclave --eif-path vsock-http.eif --cpu-count 2 --memory 1024 --debug-mode --enclave-cid 16
