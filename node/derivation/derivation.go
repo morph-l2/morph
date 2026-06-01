@@ -352,45 +352,24 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 						return
 					}
 
-					// Quiesce blocksync + broadcast reactors so they don't race
-					// with the derivation-driven reorg below. HA sequencers and
-					// mock-mode (d.node == nil) skip — sequencers don't
-					// auto-reorg, mock has no consensus reactors. Stop/Start
-					// are idempotent via IsRunning checks, so retrying next
-					// poll is safe if Stop fails here.
-					if d.node != nil {
-						if err = d.node.StopReactorsBeforeReorg(); err != nil {
-							d.logger.Error("StopReactorsBeforeReorg failed; skipping reorg, will retry next poll",
-								"batchIndex", batchInfo.batchIndex, "err", err)
-							return
+					// Quiesce blocksync + broadcast reactors via withReactorsQuiesced
+					// so the deferred Start runs whether deriveForce succeeds
+					// or fails — without it, a deriveForce error would leave
+					// reactors stopped indefinitely (Stop is idempotent on
+					// retry, but Start is never reached).
+					err = d.withReactorsQuiesced(ctx, batchInfo.batchIndex, func() error {
+						localLatest, err := d.l2Client.BlockNumber(ctx)
+						if err != nil {
+							return fmt.Errorf("read local latest: %w", err)
 						}
-					}
-					localLatest, err := d.l2Client.BlockNumber(ctx)
-					if err != nil {
-						d.logger.Error("local verify fill-gap: read local latest failed",
-							"batchIndex", batchInfo.batchIndex, "error", err)
-						return
-					}
-					lastHeader, err = d.deriveForce(batchInfoFull, localLatest)
+						var derErr error
+						lastHeader, derErr = d.deriveForce(batchInfoFull, localLatest)
+						return derErr
+					})
 					if err != nil {
 						d.logger.Error("local verify fill-gap: derive failed",
 							"batchIndex", batchInfo.batchIndex, "error", err)
 						return
-					}
-
-					// Restart reactors using the post-reorg head height so
-					// blocksync rebuilds its pool from currentHeight+1 and
-					// catches back up via P2P. If this fails the L2 chain is
-					// still correctly reorged but reactors are degraded —
-					// surface loudly so it's visible in monitoring; next poll
-					// will retry only if a *new* mismatch appears.
-					if d.node != nil {
-						if err = d.node.StartReactorsAfterReorg(lastHeader.Number.Int64()); err != nil {
-							d.logger.Error("StartReactorsAfterReorg failed; chain is reorged but reactors are degraded",
-								"batchIndex", batchInfo.batchIndex,
-								"postReorgHeight", lastHeader.Number.Int64(),
-								"err", err)
-						}
 					}
 
 					d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
@@ -442,39 +421,19 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 						return
 					}
 
-					// Quiesce blocksync + broadcast reactors so they don't race
-					// with the derivation-driven reorg below. HA sequencers and
-					// mock-mode (d.node == nil) skip — sequencers don't
-					// auto-reorg, mock has no consensus reactors. Stop/Start
-					// are idempotent via IsRunning checks, so retrying next
-					// poll is safe if Stop fails here.
-					if d.node != nil {
-						if err = d.node.StopReactorsBeforeReorg(); err != nil {
-							d.logger.Error("StopReactorsBeforeReorg failed; skipping reorg, will retry next poll",
-								"batchIndex", batchInfo.batchIndex, "err", err)
-							return
-						}
-					}
-					lastHeader, err = d.deriveForce(batchInfoFull, 0)
+					// Quiesce blocksync + broadcast reactors via withReactorsQuiesced
+					// so the deferred Start runs whether deriveForce succeeds
+					// or fails — without it, a deriveForce error would leave
+					// reactors stopped indefinitely.
+					err = d.withReactorsQuiesced(ctx, batchInfo.batchIndex, func() error {
+						var derErr error
+						lastHeader, derErr = d.deriveForce(batchInfoFull, 0)
+						return derErr
+					})
 					if err != nil {
 						d.logger.Error("local verify self-heal: derive failed",
 							"batchIndex", batchInfo.batchIndex, "error", err)
 						return
-					}
-
-					// Restart reactors using the post-reorg head height so
-					// blocksync rebuilds its pool from currentHeight+1 and
-					// catches back up via P2P. If this fails the L2 chain is
-					// still correctly reorged but reactors are degraded —
-					// surface loudly so it's visible in monitoring; next poll
-					// will retry only if a *new* mismatch appears.
-					if d.node != nil {
-						if err = d.node.StartReactorsAfterReorg(lastHeader.Number.Int64()); err != nil {
-							d.logger.Error("StartReactorsAfterReorg failed; chain is reorged but reactors are degraded",
-								"batchIndex", batchInfo.batchIndex,
-								"postReorgHeight", lastHeader.Number.Int64(),
-								"err", err)
-						}
 					}
 					break
 				}
@@ -879,6 +838,41 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 // locally. For scenario B that's batch.firstBlockNumber-1 (above safe head).
 // For scenario C with skipNumber == localLatestL2 that's localLatestL2 itself
 // (necessarily ≥ firstBlockNumber-1 once skipNumber covers everything below).
+// withReactorsQuiesced runs body while consensus reactors (blocksync /
+// broadcast) are paused, guaranteeing StartReactorsAfterReorg runs even if
+// body returns an error. body's writes may have moved the chain head
+// partway, so the restart height is read from the L2 EL latest in the
+// deferred restart — not from any header body returned, which would be
+// nil or stale on partial failure. HA sequencers and mock-mode skip
+// (d.node == nil): sequencers don't auto-reorg, mock has no reactors.
+func (d *Derivation) withReactorsQuiesced(ctx context.Context, batchIndex uint64, body func() error) error {
+	if d.node == nil {
+		return body()
+	}
+	if err := d.node.StopReactorsBeforeReorg(); err != nil {
+		d.logger.Error("StopReactorsBeforeReorg failed; skipping reorg, will retry next poll",
+			"batchIndex", batchIndex, "err", err)
+		return err
+	}
+	defer func() {
+		// Truth source for the post-write head is the EL — body may have
+		// applied N of M blocks before failing. Use background context so
+		// a cancelled ctx doesn't prevent reactor restart.
+		cur, readErr := d.l2Client.BlockNumber(context.Background())
+		if readErr != nil {
+			d.logger.Error("post-write BlockNumber read failed; reactor restart will use 0 as fallback",
+				"batchIndex", batchIndex, "err", readErr)
+		}
+		if startErr := d.node.StartReactorsAfterReorg(int64(cur)); startErr != nil {
+			d.logger.Error("StartReactorsAfterReorg failed; chain partial-derived, reactors degraded",
+				"batchIndex", batchIndex,
+				"postWriteHeight", cur,
+				"err", startErr)
+		}
+	}()
+	return body()
+}
+
 func (d *Derivation) deriveForce(rollupData *BatchInfo, skipNumber uint64) (*eth.Header, error) {
 	firstNum := rollupData.firstBlockNumber
 	if firstNum == 0 {
