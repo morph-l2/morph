@@ -840,14 +840,27 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 // (necessarily ≥ firstBlockNumber-1 once skipNumber covers everything below).
 // withReactorsQuiesced runs body while consensus reactors (blocksync /
 // broadcast) are paused, guaranteeing StartReactorsAfterReorg runs even if
-// body returns an error. body's writes may have moved the chain head
-// partway, so the restart height is read from the L2 EL latest in the
-// deferred restart — not from any header body returned, which would be
-// nil or stale on partial failure. HA sequencers and mock-mode skip
-// (d.node == nil): sequencers don't auto-reorg, mock has no reactors.
+// body returns an error. The restart height comes from the L2 EL latest
+// (truth source for what was actually applied — body may have written
+// only N of M blocks before failing); on EL read failure we fall back to
+// the pre-write height we captured before stopping reactors, never to
+// zero (which would tell blocksync to re-fetch from genesis). HA
+// sequencers and mock-mode skip (d.node == nil): sequencers don't
+// auto-reorg, mock has no reactors.
 func (d *Derivation) withReactorsQuiesced(ctx context.Context, batchIndex uint64, body func() error) error {
 	if d.node == nil {
 		return body()
+	}
+	// Capture pre-write height first: it's the safe lower bound for
+	// reactor restart if the post-write BlockNumber read fails. If we
+	// can't read it now we shouldn't pause reactors at all — better to
+	// fail this batch than risk leaving them stopped with no way to
+	// pick a sensible resume height.
+	preWrite, err := d.l2Client.BlockNumber(context.Background())
+	if err != nil {
+		d.logger.Error("pre-write BlockNumber read failed; skipping reorg, will retry next poll",
+			"batchIndex", batchIndex, "err", err)
+		return err
 	}
 	if err := d.node.StopReactorsBeforeReorg(); err != nil {
 		d.logger.Error("StopReactorsBeforeReorg failed; skipping reorg, will retry next poll",
@@ -855,18 +868,21 @@ func (d *Derivation) withReactorsQuiesced(ctx context.Context, batchIndex uint64
 		return err
 	}
 	defer func() {
-		// Truth source for the post-write head is the EL — body may have
-		// applied N of M blocks before failing. Use background context so
-		// a cancelled ctx doesn't prevent reactor restart.
-		cur, readErr := d.l2Client.BlockNumber(context.Background())
-		if readErr != nil {
-			d.logger.Error("post-write BlockNumber read failed; reactor restart will use 0 as fallback",
-				"batchIndex", batchIndex, "err", readErr)
+		// Use background context so a cancelled parent ctx doesn't
+		// prevent reactor restart.
+		height := preWrite
+		if cur, readErr := d.l2Client.BlockNumber(context.Background()); readErr == nil {
+			height = cur
+		} else {
+			d.logger.Error("post-write BlockNumber read failed; falling back to pre-write height",
+				"batchIndex", batchIndex,
+				"fallbackHeight", height,
+				"err", readErr)
 		}
-		if startErr := d.node.StartReactorsAfterReorg(int64(cur)); startErr != nil {
+		if startErr := d.node.StartReactorsAfterReorg(int64(height)); startErr != nil {
 			d.logger.Error("StartReactorsAfterReorg failed; chain partial-derived, reactors degraded",
 				"batchIndex", batchIndex,
-				"postWriteHeight", cur,
+				"postWriteHeight", height,
 				"err", startErr)
 		}
 	}()
