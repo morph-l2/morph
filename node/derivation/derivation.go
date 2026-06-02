@@ -228,19 +228,6 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		return
 	}
 
-	// SPEC-005 §4.3 Path B entry-point: cache L2 latest once per pull so
-	// the inner per-batch loop can decide scenario C/D by comparing the
-	// current head with the previous pull's observation. Growth across
-	// the poll interval (default 15s) is the alive-vs-stopped signal —
-	// no inline sleep needed inside the batch loop.
-	currentL2Latest, err := d.l2Client.BlockNumber(d.ctx)
-	if err != nil {
-		d.logger.Error("local verify: read L2 latest failed; skipping this poll", "err", err)
-		return
-	}
-	l2Grew := currentL2Latest > d.lastObservedL2Latest
-	d.lastObservedL2Latest = currentL2Latest
-
 	latestDerivation := d.db.ReadLatestDerivationL1Height()
 	latest, err := d.getLatestConfirmedBlockNumber(d.ctx)
 	if err != nil {
@@ -312,6 +299,18 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				return
 			}
 			if lastHdr == nil {
+				// SPEC-005 §4.3 Path B entry-point: cache L2 latest once per pull so
+				// the inner per-batch loop can decide scenario C/D by comparing the
+				// current head with the previous pull's observation. Growth across
+				// the poll interval (default 15s) is the alive-vs-stopped signal —
+				// no inline sleep needed inside the batch loop.
+				currentL2Latest, err := d.l2Client.BlockNumber(d.ctx)
+				if err != nil {
+					d.logger.Error("local verify: read L2 latest failed; skipping this poll", "err", err)
+					return
+				}
+				l2Grew := currentL2Latest > d.lastObservedL2Latest
+				d.lastObservedL2Latest = currentL2Latest
 				if l2Grew {
 					// Abort the whole pull (don't advance the L1 cursor) so
 					// the next poll re-fetches this batch's log and re-tries
