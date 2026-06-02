@@ -2,9 +2,9 @@ module morph-l2/node
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.0.0-20260529095305-b1b3a3a1d806
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.0.0-20260602085346-ee68e1bcf49a
 
-replace github.com/morph-l2/go-ethereum => github.com/morph-l2/go-ethereum v0.0.0-20260529141627-eb5fbf8f9748
+replace github.com/morph-l2/go-ethereum => github.com/morph-l2/go-ethereum v0.0.0-20260602085100-22da419ae001
 
 require (
 	github.com/cenkalti/backoff/v4 v4.1.3
@@ -15,7 +15,8 @@ require (
 	github.com/hashicorp/raft v1.7.3
 	github.com/hashicorp/raft-boltdb/v2 v2.3.1
 	github.com/klauspost/compress v1.17.9
-	github.com/morph-l2/go-ethereum v0.5.0
+	github.com/mdlayher/vsock v1.2.1
+	github.com/morph-l2/go-ethereum v1.10.14-0.20251219060125-03910bc750a2
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.17.0
 	github.com/spf13/viper v1.13.0
@@ -89,7 +90,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
 	github.com/mdlayher/socket v0.4.1 // indirect
-	github.com/mdlayher/vsock v1.2.1 // indirect
 	github.com/mimoo/StrobeGo v0.0.0-20210601165009-122bf33a46e0 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
