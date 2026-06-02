@@ -74,8 +74,6 @@ type Derivation struct {
 
 	tagAdvancer *tagAdvancer
 
-	isHaMode bool
-
 	stop chan struct{}
 }
 
@@ -89,7 +87,7 @@ type DeployContractBackend interface {
 // NewDerivationClient takes a shared l1Client owned by main.go. See
 // sync.NewSyncer for rationale — every L1-touching component in this
 // process shares one connection pool / retry / metrics surface.
-func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, db Database, rollup *bindings.Rollup, l1Client *ethclient.Client, node *tmnode.Node, isHaMode bool, logger tmlog.Logger) (*Derivation, error) {
+func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, db Database, rollup *bindings.Rollup, l1Client *ethclient.Client, node *tmnode.Node, logger tmlog.Logger) (*Derivation, error) {
 	if l1Client == nil {
 		return nil, errors.New("l1Client cannot be nil")
 	}
@@ -163,7 +161,6 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		metrics:               metrics,
 		l1BeaconClient:        l1BeaconClient,
 		L2ToL1MessagePasser:   msgPasser,
-		isHaMode:              isHaMode,
 	}, nil
 }
 
@@ -379,25 +376,6 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			}
 			for i := range rebuilt {
 				if rebuilt[i] != batchInfo.blobHashes[i] {
-					// HA-mode invariant: blocks are committed via Raft consensus and
-					// the L1 batch is built from those committed blocks, so the
-					// rebuilt blob hash MUST equal the on-chain blob hash. A
-					// mismatch here means the local L2 chain has diverged from what
-					// the cluster committed — possible causes: corrupted DB, wrong
-					// genesis, manual chain surgery, or a Raft / sequencer bug.
-					// Auto-reorg is unsafe (would mask the real problem), so we
-					// hard-stop derivation and require operator intervention.
-					if d.isHaMode {
-						d.logger.Error("HA node: blob hash mismatch detected — derivation halted, manual intervention required (this should never happen in a healthy cluster)",
-							"batchIndex", batchInfo.batchIndex,
-							"blobIndex", i,
-							"expected", batchInfo.blobHashes[i].Hex(),
-							"rebuilt", rebuilt[i].Hex(),
-							"l1TxHash", lg.TxHash.Hex(),
-							"l1BlockNumber", lg.BlockNumber)
-						return
-					}
-
 					d.logger.Info("blob hash mismatch; triggering self-heal reorg",
 						"batchIndex", batchInfo.batchIndex,
 						"expected", batchInfo.blobHashes[i].Hex(),
