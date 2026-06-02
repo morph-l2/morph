@@ -65,6 +65,13 @@ type Derivation struct {
 	verifyMode          string // SPEC-005 section 4.2: "layer1" or "local" (default); bound at startup, never switches.
 	reorgCheckDepth     uint64 // SPEC-005 section 4.7.6: how far back to scan for L1 hash divergence each poll.
 
+	// lastObservedL2Latest caches the L2 head observed at the previous
+	// derivationBlock pull, used by the Path B entry-point dispatcher
+	// to tell scenario C (sequencer stopped → fillGap) from scenario D
+	// (sequencer alive, P2P still catching up → wait for next poll).
+	// Updated once per pull at the top of derivationBlock.
+	lastObservedL2Latest uint64
+
 	tagAdvancer *tagAdvancer
 
 	isHaMode bool
@@ -254,6 +261,21 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 	d.metrics.SetLatestBatchIndex(latestBatchIndex.Uint64())
 	d.logger.Info("fetched rollup tx", "txNum", len(logs), "latestBatchIndex", latestBatchIndex)
 
+	// SPEC-005 §4.3 Path B entry-point: snapshot L2 latest once before the
+	// per-batch loop so all batches in this pull share the same alive-vs-
+	// stopped verdict. Captured here (rather than at the top of
+	// derivationBlock) so it's fresh past the L1 prep RPCs above and lives
+	// next to its only consumer below. Read before any deriveForce write
+	// so fillGap's own writes can't pollute the comparison for subsequent
+	// batches in the same pull.
+	currentL2Latest, err := d.l2Client.BlockNumber(d.ctx)
+	if err != nil {
+		d.logger.Error("local verify: read L2 latest failed; skipping this poll", "err", err)
+		return
+	}
+	l2Grew := currentL2Latest > d.lastObservedL2Latest
+	d.lastObservedL2Latest = currentL2Latest
+
 	for _, lg := range logs {
 		var (
 			batchInfo  *BatchInfo
@@ -276,6 +298,75 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				"expectedBlobs", len(batchInfo.blobHashes),
 				"txNonce", batchInfo.nonce, "txHash", batchInfo.txHash,
 				"l1BlockNumber", batchInfo.l1BlockNumber, "firstL2BlockNumber", batchInfo.firstBlockNumber, "lastL2BlockNumber", batchInfo.lastBlockNumber)
+			// SPEC-005 §4.3 Path B entry-point: scenario A/B/C/D dispatch.
+			// One HeaderByNumber per batch — no inline retry / sleep. Cross-
+			// poll growth (l2Grew, captured at the top of derivationBlock)
+			// distinguishes scenario C/D when the header is missing.
+			//   header present → A/B (rebuildBlob).
+			//   header missing + l2Grew → D (alive, skip; next poll re-tries).
+			//   header missing + !l2Grew → C (stopped; L1 blob fill-gap).
+			lastHdr, hdrErr := d.l2Client.HeaderByNumber(ctx, big.NewInt(int64(batchInfo.lastBlockNumber)))
+			if hdrErr != nil && !errors.Is(hdrErr, ethereum.NotFound) {
+				d.logger.Error("local verify: HeaderByNumber for lastBlock failed",
+					"batchIndex", batchInfo.batchIndex,
+					"lastBlockNumber", batchInfo.lastBlockNumber,
+					"err", hdrErr)
+				return
+			}
+			if lastHdr == nil {
+				if l2Grew {
+					// Abort the whole pull (don't advance the L1 cursor) so
+					// the next poll re-fetches this batch's log and re-tries
+					// once P2P has caught up. `continue` would skip past this
+					// batch only to commit cursor advance at the end of
+					// derivationBlock, leaving this batch's L1 log inside the
+					// already-processed range and never derived.
+					d.logger.Info("local verify: lastBlock missing but L2 head grew vs previous poll; aborting pull, will retry next poll (scenario D)",
+						"batchIndex", batchInfo.batchIndex,
+						"lastBlockNumber", batchInfo.lastBlockNumber,
+						"l2Latest", currentL2Latest)
+					return
+				}
+				// Scenario C: sequencer stopped → L1 blob fill-gap.
+				d.logger.Info("local verify: lastBlock missing and L2 head flat across polls; fallback to L1 blob fill-gap (scenario C)",
+					"batchIndex", batchInfo.batchIndex,
+					"lastBlockNumber", batchInfo.lastBlockNumber,
+					"l2Latest", currentL2Latest)
+				batchInfoFull, fetchErr := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
+				if fetchErr != nil {
+					if errors.Is(fetchErr, types.ErrNotCommitBatchTx) {
+						continue
+					}
+					d.logger.Error("local verify fill-gap: fetch real batch failed",
+						"batchIndex", batchInfo.batchIndex, "error", fetchErr)
+					return
+				}
+
+				// Quiesce blocksync + broadcast reactors via withReactorsQuiesced
+				// so the deferred Start runs whether deriveForce succeeds
+				// or fails — without it, a deriveForce error would leave
+				// reactors stopped indefinitely (Stop is idempotent on
+				// retry, but Start is never reached).
+				err = d.withReactorsQuiesced(ctx, batchInfo.batchIndex, func() error {
+					localLatest, err := d.l2Client.BlockNumber(ctx)
+					if err != nil {
+						return fmt.Errorf("read local latest: %w", err)
+					}
+					var derErr error
+					lastHeader, derErr = d.deriveForce(batchInfoFull, localLatest)
+					return derErr
+				})
+				if err != nil {
+					d.logger.Error("local verify fill-gap: derive failed",
+						"batchIndex", batchInfo.batchIndex, "error", err)
+					return
+				}
+
+				d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
+				d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
+				break
+			}
+
 			rebuilt, err := d.rebuildBlob(ctx, batchInfo)
 			if err != nil {
 				d.logger.Error("rebuildBlob failed", "err", err)
@@ -312,46 +403,26 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 						"expected", batchInfo.blobHashes[i].Hex(),
 						"rebuilt", rebuilt[i].Hex())
 
-					// Quiesce blocksync + broadcast reactors so they don't race
-					// with the derivation-driven reorg below. HA sequencers and
-					// mock-mode (d.node == nil) skip — sequencers don't
-					// auto-reorg, mock has no consensus reactors. Stop/Start
-					// are idempotent via IsRunning checks, so retrying next
-					// poll is safe if Stop fails here.
-					if d.node != nil {
-						if err = d.node.StopReactorsBeforeReorg(); err != nil {
-							d.logger.Error("StopReactorsBeforeReorg failed; skipping reorg, will retry next poll",
-								"batchIndex", batchInfo.batchIndex, "err", err)
-							return
-						}
-					}
-
 					batchInfoFull, fetchErr := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
 					if fetchErr != nil {
 						d.logger.Error("local verify self-heal: fetch real batch failed",
 							"batchIndex", batchInfo.batchIndex, "error", fetchErr)
 						return
 					}
-					lastHeader, err = d.deriveForce(batchInfoFull)
+
+					// Quiesce blocksync + broadcast reactors via withReactorsQuiesced
+					// so the deferred Start runs whether deriveForce succeeds
+					// or fails — without it, a deriveForce error would leave
+					// reactors stopped indefinitely.
+					err = d.withReactorsQuiesced(ctx, batchInfo.batchIndex, func() error {
+						var derErr error
+						lastHeader, derErr = d.deriveForce(batchInfoFull, 0)
+						return derErr
+					})
 					if err != nil {
 						d.logger.Error("local verify self-heal: derive failed",
 							"batchIndex", batchInfo.batchIndex, "error", err)
 						return
-					}
-
-					// Restart reactors using the post-reorg head height so
-					// blocksync rebuilds its pool from currentHeight+1 and
-					// catches back up via P2P. If this fails the L2 chain is
-					// still correctly reorged but reactors are degraded —
-					// surface loudly so it's visible in monitoring; next poll
-					// will retry only if a *new* mismatch appears.
-					if d.node != nil {
-						if err = d.node.StartReactorsAfterReorg(lastHeader.Number.Int64()); err != nil {
-							d.logger.Error("StartReactorsAfterReorg failed; chain is reorged but reactors are degraded",
-								"batchIndex", batchInfo.batchIndex,
-								"postReorgHeight", lastHeader.Number.Int64(),
-								"err", err)
-						}
 					}
 					break
 				}
@@ -742,22 +813,99 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 	return lastHeader, nil
 }
 
-func (d *Derivation) deriveForce(rollupData *BatchInfo) (*eth.Header, error) {
+// deriveForce writes the batch's blocks via NewSafeL2Block.
+//
+// skipNumber lets one implementation serve two SPEC-005 §4.3 Path B scenarios:
+//
+//   - skipNumber == 0 (scenario B, self-heal): every block is written; EL
+//     SetCanonical reorgs the local fork onto the L1-canonical chain.
+//   - skipNumber > 0 (scenario C, fill-gap): blocks with Number ≤ skipNumber
+//     are skipped (already present locally, presumed valid via P2P), only
+//     the missing tail is appended; no reorg of existing blocks.
+//
+// In both cases the parent of the first block we actually write must exist
+// locally. For scenario B that's batch.firstBlockNumber-1 (above safe head).
+// For scenario C with skipNumber == localLatestL2 that's localLatestL2 itself
+// (necessarily ≥ firstBlockNumber-1 once skipNumber covers everything below).
+// withReactorsQuiesced runs body while consensus reactors (blocksync /
+// broadcast) are paused, guaranteeing StartReactorsAfterReorg runs even if
+// body returns an error. The restart height comes from the L2 EL latest
+// (truth source for what was actually applied — body may have written
+// only N of M blocks before failing); on EL read failure we fall back to
+// the pre-write height we captured before stopping reactors, never to
+// zero (which would tell blocksync to re-fetch from genesis). HA
+// sequencers and mock-mode skip (d.node == nil): sequencers don't
+// auto-reorg, mock has no reactors.
+func (d *Derivation) withReactorsQuiesced(ctx context.Context, batchIndex uint64, body func() error) error {
+	if d.node == nil {
+		return body()
+	}
+	// Capture pre-write height first: it's the safe lower bound for
+	// reactor restart if the post-write BlockNumber read fails. If we
+	// can't read it now we shouldn't pause reactors at all — better to
+	// fail this batch than risk leaving them stopped with no way to
+	// pick a sensible resume height.
+	preWrite, err := d.l2Client.BlockNumber(context.Background())
+	if err != nil {
+		d.logger.Error("pre-write BlockNumber read failed; skipping reorg, will retry next poll",
+			"batchIndex", batchIndex, "err", err)
+		return err
+	}
+	if err := d.node.StopReactorsBeforeReorg(); err != nil {
+		d.logger.Error("StopReactorsBeforeReorg failed; skipping reorg, will retry next poll",
+			"batchIndex", batchIndex, "err", err)
+		return err
+	}
+	defer func() {
+		// Use background context so a cancelled parent ctx doesn't
+		// prevent reactor restart.
+		height := preWrite
+		if cur, readErr := d.l2Client.BlockNumber(context.Background()); readErr == nil {
+			height = cur
+		} else {
+			d.logger.Error("post-write BlockNumber read failed; falling back to pre-write height",
+				"batchIndex", batchIndex,
+				"fallbackHeight", height,
+				"err", readErr)
+		}
+		if startErr := d.node.StartReactorsAfterReorg(int64(height)); startErr != nil {
+			d.logger.Error("StartReactorsAfterReorg failed; chain partial-derived, reactors degraded",
+				"batchIndex", batchIndex,
+				"postWriteHeight", height,
+				"err", startErr)
+		}
+	}()
+	return body()
+}
+
+func (d *Derivation) deriveForce(rollupData *BatchInfo, skipNumber uint64) (*eth.Header, error) {
 	firstNum := rollupData.firstBlockNumber
 	if firstNum == 0 {
 		return nil, fmt.Errorf("invalid firstBlockNumber 0 for batch %d", rollupData.batchIndex)
 	}
 
-	// Anchor: parent of the batch's first block must already exist locally.
-	lastHeader, err := d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(firstNum-1)))
+	// Anchor: parent of the first block we will WRITE must exist locally.
+	// scenario B (skipNumber==0): firstNum-1.
+	// scenario C: max(firstNum-1, skipNumber).
+	parentNum := firstNum - 1
+	if skipNumber > parentNum {
+		parentNum = skipNumber
+	}
+	lastHeader, err := d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(parentNum)))
 	if err != nil {
-		return nil, fmt.Errorf("read parent header at %d: %w", firstNum-1, err)
+		return nil, fmt.Errorf("read parent header at %d: %w", parentNum, err)
 	}
 	if lastHeader == nil {
-		return nil, fmt.Errorf("parent header at %d missing", firstNum-1)
+		return nil, fmt.Errorf("parent header at %d missing", parentNum)
 	}
 
 	for _, blockData := range rollupData.blockContexts {
+		// Skip blocks already present locally (scenario C). For scenario B
+		// skipNumber == 0 means this branch is never taken.
+		if blockData.SafeL2Data.Number <= skipNumber {
+			continue
+		}
+
 		// Pin the parent so SetCanonical reorgs from the local fork to the
 		// L1-canonical chain. NewSafeL2Block executes the block internally
 		// and fills the header with the resulting state/receipt roots —
