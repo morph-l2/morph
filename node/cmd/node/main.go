@@ -161,21 +161,30 @@ func L2NodeMain(ctx *cli.Context) error {
 		}
 	}
 
-	// ========== Derivation (SPEC-005: self-verifies + drives safe/finalized tags) ==========
-	derivationCfg := derivation.DefaultConfig()
-	if err := derivationCfg.SetCliContext(ctx); err != nil {
-		return fmt.Errorf("derivation set cli context error: %v", err)
+	// ========== Derivation ==========
+	// Only fullnodes (no signer) derive blocks from L1. Sequencer nodes
+	// (HA leader/follower or single-sequencer) produce blocks locally and
+	// replicate via Raft / broadcast — running derivation on a sequencer
+	// is both redundant (it would re-fetch L1 batches it produced) and
+	// unsafe (deriveForce would risk a self-reorg on transient divergence).
+	if signer == nil {
+		derivationCfg := derivation.DefaultConfig()
+		if err := derivationCfg.SetCliContext(ctx); err != nil {
+			return fmt.Errorf("derivation set cli context error: %v", err)
+		}
+		rollup, err := bindings.NewRollup(derivationCfg.RollupContractAddress, l1Client)
+		if err != nil {
+			return fmt.Errorf("NewRollup error: %v", err)
+		}
+		dvNode, err = derivation.NewDerivationClient(context.Background(), derivationCfg, syncer, store, rollup, l1Client, tmNode, nodeConfig.Logger)
+		if err != nil {
+			return fmt.Errorf("new derivation client error: %v", err)
+		}
+		dvNode.Start()
+		nodeConfig.Logger.Info("derivation started")
+	} else {
+		nodeConfig.Logger.Info("derivation skipped: sequencer mode")
 	}
-	rollup, err := bindings.NewRollup(derivationCfg.RollupContractAddress, l1Client)
-	if err != nil {
-		return fmt.Errorf("NewRollup error: %v", err)
-	}
-	dvNode, err = derivation.NewDerivationClient(context.Background(), derivationCfg, syncer, store, rollup, l1Client, tmNode, haService != nil, nodeConfig.Logger)
-	if err != nil {
-		return fmt.Errorf("new derivation client error: %v", err)
-	}
-	dvNode.Start()
-	nodeConfig.Logger.Info("derivation started")
 
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, []os.Signal{
