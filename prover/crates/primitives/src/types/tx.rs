@@ -16,12 +16,13 @@ fn default_chain_id() -> U64 {
 #[derive(serde::Serialize, serde::Deserialize, Default, Debug, Clone, Hash, PartialEq, Eq)]
 pub struct TransactionTrace {
     /// tx hash
-    #[serde(default, rename = "txHash")]
+    #[serde(default, rename = "txHash", alias = "hash")]
     pub(crate) tx_hash: B256,
     /// tx type (in raw from)
     #[serde(rename = "type")]
     pub(crate) ty: U8,
     /// nonce
+    #[serde(default)]
     pub(crate) nonce: U64,
     /// gas limit
     pub(crate) gas: U64,
@@ -81,10 +82,13 @@ pub struct TransactionTrace {
     #[serde(default)]
     pub(crate) memo: Option<Bytes>,
     /// signature v
+    #[serde(default)]
     pub(crate) v: U64,
     /// signature r
+    #[serde(default)]
     pub(crate) r: U256,
     /// signature s
+    #[serde(default)]
     pub(crate) s: U256,
 }
 
@@ -183,5 +187,41 @@ impl TxTrace for TransactionTrace {
 
     fn morph_tx_memo(&self) -> Option<Bytes> {
         self.memo.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TxTrace;
+
+    #[test]
+    fn deserializes_reth_l1_message_transaction_without_signature_fields() {
+        let tx: TransactionTrace = serde_json::from_value(serde_json::json!({
+            "type": "0x7e",
+            "queueIndex": "0x7",
+            "gas": "0x1e8480",
+            "to": "0x5300000000000000000000000000000000000007",
+            "value": "0x0",
+            "sender": "0xed82366effa760804dcfc3edf87fa2a6f1624415",
+            "from": "0xed82366effa760804dcfc3edf87fa2a6f1624415",
+            "input": "0x8ef1332e",
+            "hash": "0x4c03b51e272570d42b0135d48ac612ef59c670e5759df97971be35b93c6310f9",
+            "gasPrice": "0x0",
+            "blockHash": "0x713e0613ab0c3d330707be3006ddffe15a8b2813b0190b985241f7c992fbb57c",
+            "blockNumber": "0xd1",
+            "blockTimestamp": "0x6715f162",
+            "transactionIndex": "0x0"
+        }))
+        .expect("reth L1 message transaction should deserialize");
+
+        assert_eq!(tx.ty(), 0x7e);
+        assert_eq!(tx.queue_index(), Some(7));
+        assert_eq!(
+            tx.tx_hash(),
+            "0x4c03b51e272570d42b0135d48ac612ef59c670e5759df97971be35b93c6310f9"
+                .parse::<B256>()
+                .unwrap()
+        );
     }
 }
