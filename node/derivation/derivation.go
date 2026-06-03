@@ -94,13 +94,17 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 
 	// First-run startHeight default: when DB has no derivation cursor and no
 	// startHeight was configured (CLI/env or network default), pin to the
-	// current L1 head. Mirrors sync.NewSyncer's `latestSynced == nil` branch.
+	// latest L1 confirmed block under the same confirmations setting that
+	// derivationBlock uses (cfg.L1.Confirmations, set from
+	// --derivation.confirmations / --l1.confirmations). Using the raw L1
+	// head would let StartHeight exceed `latest` on the first poll and
+	// trigger the "latest less than start" no-op until L1 catches up.
 	if db.ReadLatestDerivationL1Height() == nil && cfg.StartHeight == 0 {
-		blockNumber, err := l1Client.BlockNumber(ctx)
+		blockNumber, err := nodecommon.GetLatestConfirmedBlockNumber(ctx, l1Client, cfg.L1.Confirmations)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch L1 block number for default derivation startHeight: %w", err)
+			return nil, fmt.Errorf("failed to fetch L1 confirmed block number for default derivation startHeight: %w", err)
 		}
-		logger.Info("derivation startHeight defaulted to current L1 header", "height", blockNumber)
+		logger.Info("derivation startHeight defaulted to latest L1 confirmed block", "height", blockNumber, "confirmations", cfg.L1.Confirmations)
 		cfg.StartHeight = blockNumber
 	}
 
