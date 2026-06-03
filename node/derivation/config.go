@@ -116,6 +116,10 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		if len(c.RollupContractAddress.Bytes()) == 0 {
 			return errors.New("invalid DerivationDepositContractAddr")
 		}
+	} else if ctx.GlobalBool(flags.MainnetFlag.Name) {
+		c.RollupContractAddress = types.MainnetRollupContractAddress
+	} else if ctx.GlobalBool(flags.HoodiFlag.Name) {
+		c.RollupContractAddress = types.HoodiRollupContractAddress
 	}
 	c.BeaconRpc = ctx.GlobalString(flags.L1BeaconAddr.Name)
 	if c.BeaconRpc == "" {

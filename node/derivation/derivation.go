@@ -91,6 +91,19 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	if l1Client == nil {
 		return nil, errors.New("l1Client cannot be nil")
 	}
+
+	// First-run startHeight default: when DB has no derivation cursor and no
+	// startHeight was configured (CLI/env or network default), pin to the
+	// current L1 head. Mirrors sync.NewSyncer's `latestSynced == nil` branch.
+	if db.ReadLatestDerivationL1Height() == nil && cfg.StartHeight == 0 {
+		blockNumber, err := l1Client.BlockNumber(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch L1 block number for default derivation startHeight: %w", err)
+		}
+		logger.Info("derivation startHeight defaulted to current L1 header", "height", blockNumber)
+		cfg.StartHeight = blockNumber
+	}
+
 	aClient, err := authclient.DialContext(context.Background(), cfg.L2.EngineAddr, cfg.L2.JwtSecret)
 	if err != nil {
 		return nil, err
