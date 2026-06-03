@@ -92,22 +92,6 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		return nil, errors.New("l1Client cannot be nil")
 	}
 
-	// First-run startHeight default: when DB has no derivation cursor and no
-	// startHeight was configured (CLI/env or network default), pin to the
-	// latest L1 confirmed block under the same confirmations setting that
-	// derivationBlock uses (cfg.L1.Confirmations, set from
-	// --derivation.confirmations / --l1.confirmations). Using the raw L1
-	// head would let StartHeight exceed `latest` on the first poll and
-	// trigger the "latest less than start" no-op until L1 catches up.
-	if db.ReadLatestDerivationL1Height() == nil && cfg.StartHeight == 0 {
-		blockNumber, err := nodecommon.GetLatestConfirmedBlockNumber(ctx, l1Client, cfg.L1.Confirmations)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch L1 confirmed block number for default derivation startHeight: %w", err)
-		}
-		logger.Info("derivation startHeight defaulted to latest L1 confirmed block", "height", blockNumber, "confirmations", cfg.L1.Confirmations)
-		cfg.StartHeight = blockNumber
-	}
-
 	aClient, err := authclient.DialContext(context.Background(), cfg.L2.EngineAddr, cfg.L2.JwtSecret)
 	if err != nil {
 		return nil, err
@@ -151,7 +135,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	l2Client := types.NewRetryableClient(aClient, eClient, logger)
 	tagAdv := newTagAdvancer(l2Client, metrics, logger)
 
-	return &Derivation{
+	d := &Derivation{
 		ctx:                   ctx,
 		node:                  node,
 		db:                    db,
@@ -178,7 +162,22 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		metrics:               metrics,
 		l1BeaconClient:        l1BeaconClient,
 		L2ToL1MessagePasser:   msgPasser,
-	}, nil
+	}
+
+	// First-run startHeight default: when DB has no derivation cursor and no
+	// startHeight was configured (CLI/env or network preset), pin to the
+	// latest L1 confirmed block via the same path derivationBlock uses, so
+	// StartHeight can never exceed `latest` on the first poll.
+	if db.ReadLatestDerivationL1Height() == nil && d.startHeight == 0 {
+		blockNumber, err := d.getLatestConfirmedBlockNumber(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch L1 confirmed block number for default derivation startHeight: %w", err)
+		}
+		logger.Info("derivation startHeight defaulted to latest L1 confirmed block", "height", blockNumber, "confirmations", d.confirmations)
+		d.startHeight = blockNumber
+	}
+
+	return d, nil
 }
 
 func (d *Derivation) Start() {
