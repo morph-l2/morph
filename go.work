@@ -7,7 +7,6 @@ use (
 	./node
 	./ops/l2-genesis
 	./ops/tools
-	./oracle
 	./token-price-oracle
 	./tx-submitter
 )

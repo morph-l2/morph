@@ -29,7 +29,6 @@ update_all_mod:
 	@$(MAKE) update_mod MODULE=node
 	@$(MAKE) update_mod MODULE=ops/l2-genesis
 	@$(MAKE) update_mod MODULE=ops/tools
-	@$(MAKE) update_mod MODULE=oracle
 	@$(MAKE) update_mod MODULE=tx-submitter
 	@$(MAKE) update_mod MODULE=token-price-oracle
 
@@ -95,7 +94,6 @@ fmt-go:
 	cd $(PWD)/node/ && go mod tidy
 	cd $(PWD)/ops/l2-genesis/ && go mod tidy
 	cd $(PWD)/ops/tools/ && go mod tidy
-	cd $(PWD)/oracle/ && go mod tidy
 	cd $(PWD)/tx-submitter/ && go mod tidy
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs gofmt -w -s
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs misspell -w
