@@ -65,11 +65,7 @@ impl HostExecutor {
         // Warm up predeployed contract info.
         load_predeployed_contracts(&rpc_db).await?;
         // Build state.
-        let state = State::builder()
-            .with_database_ref(&rpc_db)
-            .with_bundle_update()
-            .without_state_clear()
-            .build();
+        let state = State::builder().with_database_ref(&rpc_db).with_bundle_update().build();
 
         let basefee = block.header.base_fee_per_gas.unwrap_or_default().to::<u64>();
         let block_env = BlockEnv {

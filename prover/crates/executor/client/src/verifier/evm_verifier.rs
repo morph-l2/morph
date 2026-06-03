@@ -84,11 +84,7 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     let witness_block = block_input.clone();
     let trie_db = witness_block.witness_db()?;
     // Build evm state from the execution witness.
-    let state = State::builder()
-        .with_database_ref(&trie_db)
-        .with_bundle_update()
-        .without_state_clear()
-        .build();
+    let state = State::builder().with_database_ref(&trie_db).with_bundle_update().build();
 
     // Build EVM block environment.
     let block_env = BlockEnv {
