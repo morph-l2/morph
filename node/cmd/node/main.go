@@ -169,10 +169,11 @@ func L2NodeMain(ctx *cli.Context) error {
 		// inherits one from tendermint via config.toml's
 		// instrumentation.prometheus_listen_addr. Mirror that behaviour so
 		// derivation/sync metrics stay scrape-able. Tendermint's own series
-		// are absent here by design (no consensus running).
-		if tmCfg.Instrumentation.Prometheus {
-			startMetricsServer(tmCfg.Instrumentation.PrometheusListenAddr, nodeConfig.Logger)
-		}
+		// are absent here by design (no consensus running). The
+		// Instrumentation.Prometheus toggle is intentionally ignored —
+		// it gates a tendermint listener that doesn't exist on this path;
+		// startMetricsServer treats an empty addr as the off-switch.
+		startMetricsServer(tmCfg.Instrumentation.PrometheusListenAddr, nodeConfig.Logger)
 	default:
 		// Convert typed nil (*HAService)(nil) to untyped nil interface to avoid
 		// Go's nil interface gotcha: a typed nil satisfies (ha != nil) checks.
