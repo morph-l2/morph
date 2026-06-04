@@ -159,20 +159,9 @@ func L2NodeMain(ctx *cli.Context) error {
 		}
 		go ms.Start()
 	case derivationCfg.VerifyMode == derivation.VerifyModeLayer1:
-		// Layer1 verify mode: derivation alone reconstructs the chain from
-		// L1 batches/blobs, no local consensus. The flag is a derivation
-		// knob, so combining it with a sequencer signer is a misconfig that
-		// surfaces here as "tendermint never started" rather than being
-		// silently ignored.
 		nodeConfig.Logger.Info("layer1 verify mode: tendermint not started")
-		// Without tmnode, no /metrics endpoint exists — every other mode
-		// inherits one from tendermint via config.toml's
-		// instrumentation.prometheus_listen_addr. Mirror that behaviour so
-		// derivation/sync metrics stay scrape-able. Tendermint's own series
-		// are absent here by design (no consensus running). The
-		// Instrumentation.Prometheus toggle is intentionally ignored —
-		// it gates a tendermint listener that doesn't exist on this path;
-		// startMetricsServer treats an empty addr as the off-switch.
+		// Other modes inherit /metrics from tendermint; layer1 has to bring
+		// its own listener up on the same address.
 		startMetricsServer(tmCfg.Instrumentation.PrometheusListenAddr, nodeConfig.Logger)
 	default:
 		// Convert typed nil (*HAService)(nil) to untyped nil interface to avoid
