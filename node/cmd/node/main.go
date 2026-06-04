@@ -64,6 +64,10 @@ func L2NodeMain(ctx *cli.Context) error {
 	)
 	isMockSequencer := ctx.GlobalBool(flags.MockEnabled.Name)
 
+	if ctx.GlobalBool(flags.MainnetFlag.Name) && ctx.GlobalBool(flags.HoodiFlag.Name) {
+		return fmt.Errorf("--%s and --%s are mutually exclusive", flags.MainnetFlag.Name, flags.HoodiFlag.Name)
+	}
+
 	if err = nodeConfig.SetCliContext(ctx); err != nil {
 		return err
 	}
@@ -289,7 +293,14 @@ func initL1SequencerComponents(
 	if lagThreshold == 0 {
 		lagThreshold = 5 * time.Minute // default
 	}
-	contractAddr := common.HexToAddress(ctx.GlobalString(flags.L1SequencerContractAddr.Name))
+	var contractAddr common.Address
+	if ctx.GlobalIsSet(flags.L1SequencerContractAddr.Name) {
+		contractAddr = common.HexToAddress(ctx.GlobalString(flags.L1SequencerContractAddr.Name))
+	} else if ctx.GlobalBool(flags.MainnetFlag.Name) {
+		contractAddr = types.MainnetL1SequencerContractAddress
+	} else if ctx.GlobalBool(flags.HoodiFlag.Name) {
+		contractAddr = types.HoodiL1SequencerContractAddress
+	}
 	seqPrivKeyHex := ctx.GlobalString(flags.SequencerPrivateKey.Name)
 	enclaveSignerAddr := ctx.GlobalString(flags.SequencerEnclaveSignerAddr.Name)
 

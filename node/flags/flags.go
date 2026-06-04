@@ -275,6 +275,11 @@ var (
 		Usage: "Morph mainnet",
 	}
 
+	HoodiFlag = cli.BoolFlag{
+		Name:  "hoodi",
+		Usage: "Morph Hoodi testnet",
+	}
+
 	DerivationConfirmations = cli.Int64Flag{
 		Name:   "derivation.confirmations",
 		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
@@ -406,6 +411,7 @@ var Flags = []cli.Flag{
 	SequencerHARPCToken,
 
 	MainnetFlag,
+	HoodiFlag,
 
 	// logger
 	LogLevel,
