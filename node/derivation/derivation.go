@@ -170,6 +170,19 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		logger.Info("derivation startHeight defaulted to latest L1 confirmed block", "height", blockNumber, "confirmations", d.confirmations)
 		d.startHeight = blockNumber
 	}
+	// First-run baseHeight default: baseHeight is the L2 height below which
+	// stateRoot checks are skipped (snapshot-imported nodes set this to the
+	// snapshot height). When unset, pin to the current L2 head so derivation
+	// only verifies blocks it actually produces from this point forward —
+	// otherwise it would re-verify historical blocks against an empty rollup
+	// cursor and fail.
+	if d.baseHeight == 0 {
+		l2Number, err := d.l2Client.BlockNumber(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch l2 block number: %w", err)
+		}
+		d.baseHeight = l2Number
+	}
 
 	return d, nil
 }

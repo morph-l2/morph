@@ -21,8 +21,12 @@ import (
 )
 
 const (
-	// DefaultFetchBlockRange is the number of blocks that we collect in a single eth_getLogs query.
-	DefaultFetchBlockRange = uint64(100)
+	// DefaultFetchBlockRange is the number of blocks that we collect in a
+	// single eth_getLogs query. 500 (vs sync.DefaultFetchBlockRange=100)
+	// trades RPC latency budget for fewer round-trips on the derivation
+	// path, where each query is only a CommitBatch event filter and the
+	// response stays small even at 500 blocks.
+	DefaultFetchBlockRange = uint64(500)
 
 	// DefaultPollInterval is the frequency at which we query for new L1 messages.
 	DefaultPollInterval = time.Second * 15
@@ -43,6 +47,11 @@ const (
 	// distance" rule of thumb and provides safety margin if Confirmations is
 	// configured below finalized.
 	DefaultReorgCheckDepth = uint64(64)
+
+	// DefaultConfirmations: rationale lives on the L1.Confirmations field
+	// in DefaultConfig() — fixed-depth (latest-N) paired with the SPEC-005
+	// §4.7.6 reorg detector, not a chain tag.
+	DefaultConfirmations = rpc.BlockNumber(10)
 )
 
 // validateAndDefaultVerifyMode normalises an empty VerifyMode to the default
@@ -83,7 +92,7 @@ func DefaultConfig() *Config {
 			// derivation cursor on hash mismatch so a deeper reorg is recoverable.
 			// Operators wanting strict no-reorg-possible reads can still set
 			// --derivation.confirmations=-3 (rpc.FinalizedBlockNumber).
-			Confirmations: 10,
+			Confirmations: DefaultConfirmations,
 		},
 		PollInterval:        DefaultPollInterval,
 		LogProgressInterval: DefaultLogProgressInterval,
