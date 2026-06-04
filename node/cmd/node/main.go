@@ -370,11 +370,6 @@ func initL1SequencerComponents(
 	return tracker, verifier, signer, nil
 }
 
-// startMetricsServer launches a single /metrics HTTP endpoint backed by
-// prometheus.DefaultGatherer. addr is read from
-// tmCfg.Instrumentation.PrometheusListenAddr; an empty value disables the
-// endpoint. ListenAndServe failures are logged but do not crash the node —
-// metrics are observability, not a control-plane dependency.
 func startMetricsServer(addr string, logger tmlog.Logger) {
 	if addr == "" {
 		logger.Info("metrics server disabled (instrumentation.prometheus_listen_addr is empty)")
