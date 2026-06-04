@@ -119,16 +119,10 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	logger = logger.With("module", "derivation")
+	// Metrics register to prometheus.DefaultRegisterer; the HTTP endpoint
+	// itself is started once at the top level (cmd/node/main.go) so every
+	// verify-mode and sequencer-mode produces exactly one /metrics URL.
 	metrics := PrometheusMetrics("morphnode")
-	if cfg.MetricsServerEnable {
-		go func() {
-			_, err := metrics.Serve(cfg.MetricsHostname, cfg.MetricsPort)
-			if err != nil {
-				panic(fmt.Errorf("metrics server start error:%v", err))
-			}
-		}()
-		logger.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
-	}
 	baseHttp := NewBasicHTTPClient(cfg.BeaconRpc, logger)
 	l1BeaconClient := NewL1BeaconClient(baseHttp)
 
@@ -175,6 +169,19 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		}
 		logger.Info("derivation startHeight defaulted to latest L1 confirmed block", "height", blockNumber, "confirmations", d.confirmations)
 		d.startHeight = blockNumber
+	}
+	// First-run baseHeight default: baseHeight is the L2 height below which
+	// stateRoot checks are skipped (snapshot-imported nodes set this to the
+	// snapshot height). When unset, pin to the current L2 head so derivation
+	// only verifies blocks it actually produces from this point forward —
+	// otherwise it would re-verify historical blocks against an empty rollup
+	// cursor and fail.
+	if d.baseHeight == 0 {
+		l2Number, err := d.l2Client.BlockNumber(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch l2 block number: %w", err)
+		}
+		d.baseHeight = l2Number
 	}
 
 	return d, nil

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	tmnode "github.com/tendermint/tendermint/node"
 	"github.com/tendermint/tendermint/privval"
@@ -143,13 +145,25 @@ func L2NodeMain(ctx *cli.Context) error {
 		return err
 	}
 
-	if isMockSequencer {
+	// ========== Derivation config (loaded early to drive the layer1 branch below) ==========
+	derivationCfg := derivation.DefaultConfig()
+	if err := derivationCfg.SetCliContext(ctx); err != nil {
+		return fmt.Errorf("derivation set cli context error: %v", err)
+	}
+
+	switch {
+	case isMockSequencer:
 		ms, err = mock.NewSequencer(executor)
 		if err != nil {
 			return err
 		}
 		go ms.Start()
-	} else {
+	case derivationCfg.VerifyMode == derivation.VerifyModeLayer1:
+		nodeConfig.Logger.Info("layer1 verify mode: tendermint not started")
+		// Other modes inherit /metrics from tendermint; layer1 has to bring
+		// its own listener up on the same address.
+		startMetricsServer(tmCfg.Instrumentation.PrometheusListenAddr, nodeConfig.Logger)
+	default:
 		// Convert typed nil (*HAService)(nil) to untyped nil interface to avoid
 		// Go's nil interface gotcha: a typed nil satisfies (ha != nil) checks.
 		var ha tmsequencer.SequencerHA
@@ -172,10 +186,6 @@ func L2NodeMain(ctx *cli.Context) error {
 	// is both redundant (it would re-fetch L1 batches it produced) and
 	// unsafe (deriveForce would risk a self-reorg on transient divergence).
 	if signer == nil {
-		derivationCfg := derivation.DefaultConfig()
-		if err := derivationCfg.SetCliContext(ctx); err != nil {
-			return fmt.Errorf("derivation set cli context error: %v", err)
-		}
 		rollup, err := bindings.NewRollup(derivationCfg.RollupContractAddress, l1Client)
 		if err != nil {
 			return fmt.Errorf("NewRollup error: %v", err)
@@ -358,6 +368,22 @@ func initL1SequencerComponents(
 	}
 
 	return tracker, verifier, signer, nil
+}
+
+func startMetricsServer(addr string, logger tmlog.Logger) {
+	if addr == "" {
+		logger.Info("metrics server disabled (instrumentation.prometheus_listen_addr is empty)")
+		return
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	srv := &http.Server{Addr: addr, Handler: mux}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("metrics server", "addr", addr, "err", err)
+		}
+	}()
+	logger.Info("metrics server started", "addr", addr)
 }
 
 func homeDir(ctx *cli.Context) (string, error) {
