@@ -70,12 +70,6 @@ var (
 		EnvVar: prefixEnvVar("L1_ETH_BEACON_RPC"),
 	}
 
-	L1ChainID = cli.Uint64Flag{
-		Name:   "l1.chain-id",
-		Usage:  "L1 Chain ID",
-		EnvVar: prefixEnvVar("L1_CHAIN_ID"),
-	}
-
 	L1Confirmations = cli.Int64Flag{
 		Name:   "l1.confirmations",
 		Usage:  "Number of confirmations on L1 needed for finalization",
@@ -334,31 +328,11 @@ var (
 		Usage:  "Compress determines if the rotated log files should be compressed using gzip. The default is not to perform compression. It is used only when log.filename is provided.",
 		EnvVar: prefixEnvVar("LOG_COMPRESS"),
 	}
-
-	// metrics
-	MetricsServerEnable = cli.BoolFlag{
-		Name:   "metrics-server-enable",
-		Usage:  "Whether or not to run the embedded metrics server",
-		EnvVar: prefixEnvVar("METRICS_SERVER_ENABLE"),
-	}
-	MetricsHostname = cli.StringFlag{
-		Name:   "metrics-hostname",
-		Usage:  "The hostname of the metrics server",
-		Value:  "0.0.0.0",
-		EnvVar: prefixEnvVar("METRICS_HOSTNAME"),
-	}
-	MetricsPort = cli.Uint64Flag{
-		Name:   "metrics-port",
-		Usage:  "The port of the metrics server",
-		Value:  26660,
-		EnvVar: prefixEnvVar("METRICS_PORT"),
-	}
 )
 
 var Flags = []cli.Flag{
 	Home,
 	L1NodeAddr,
-	L1ChainID,
 	L1Confirmations,
 	L2EthAddr,
 	L2EngineAddr,
@@ -420,9 +394,4 @@ var Flags = []cli.Flag{
 	LogFileMaxSize,
 	LogFileMaxAge,
 	LogCompress,
-
-	// metrics
-	MetricsServerEnable,
-	MetricsPort,
-	MetricsHostname,
 }
