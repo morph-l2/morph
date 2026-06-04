@@ -119,16 +119,10 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	logger = logger.With("module", "derivation")
+	// Metrics register to prometheus.DefaultRegisterer; the HTTP endpoint
+	// itself is started once at the top level (cmd/node/main.go) so every
+	// verify-mode and sequencer-mode produces exactly one /metrics URL.
 	metrics := PrometheusMetrics("morphnode")
-	if cfg.MetricsServerEnable {
-		go func() {
-			_, err := metrics.Serve(cfg.MetricsHostname, cfg.MetricsPort)
-			if err != nil {
-				panic(fmt.Errorf("metrics server start error:%v", err))
-			}
-		}()
-		logger.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
-	}
 	baseHttp := NewBasicHTTPClient(cfg.BeaconRpc, logger)
 	l1BeaconClient := NewL1BeaconClient(baseHttp)
 

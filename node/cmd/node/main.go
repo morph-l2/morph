@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	tmnode "github.com/tendermint/tendermint/node"
 	"github.com/tendermint/tendermint/privval"
@@ -116,6 +118,13 @@ func L2NodeMain(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	// The node owns a single Prometheus HTTP endpoint (see metrics-server
+	// block below) backed by prometheus.DefaultGatherer. Tendermint's
+	// metrics still register to the default registry and are served from
+	// that endpoint, but tendermint must not bind its own listener — that
+	// would produce two endpoints (one tm-only on :26660, one node-wide)
+	// returning the same metrics.
+	tmCfg.Instrumentation.Prometheus = false
 	tmVal := privval.LoadOrGenFilePV(tmCfg.PrivValidatorKeyFile(), tmCfg.PrivValidatorStateFile())
 	pubKey, _ := tmVal.GetPubKey()
 
@@ -143,13 +152,25 @@ func L2NodeMain(ctx *cli.Context) error {
 		return err
 	}
 
-	if isMockSequencer {
+	// ========== Derivation config (loaded early to drive the layer1 branch below) ==========
+	derivationCfg := derivation.DefaultConfig()
+	if err := derivationCfg.SetCliContext(ctx); err != nil {
+		return fmt.Errorf("derivation set cli context error: %v", err)
+	}
+
+	switch {
+	case isMockSequencer:
 		ms, err = mock.NewSequencer(executor)
 		if err != nil {
 			return err
 		}
 		go ms.Start()
-	} else {
+	case signer == nil && derivationCfg.VerifyMode == derivation.VerifyModeLayer1:
+		// Fullnode in layer1 verify mode: derivation alone reconstructs the
+		// chain from L1 batches/blobs without local consensus. Skipping
+		// tendermint avoids running a no-op replica behind derivation.
+		nodeConfig.Logger.Info("layer1 verify mode: tendermint not started")
+	default:
 		// Convert typed nil (*HAService)(nil) to untyped nil interface to avoid
 		// Go's nil interface gotcha: a typed nil satisfies (ha != nil) checks.
 		var ha tmsequencer.SequencerHA
@@ -172,10 +193,6 @@ func L2NodeMain(ctx *cli.Context) error {
 	// is both redundant (it would re-fetch L1 batches it produced) and
 	// unsafe (deriveForce would risk a self-reorg on transient divergence).
 	if signer == nil {
-		derivationCfg := derivation.DefaultConfig()
-		if err := derivationCfg.SetCliContext(ctx); err != nil {
-			return fmt.Errorf("derivation set cli context error: %v", err)
-		}
 		rollup, err := bindings.NewRollup(derivationCfg.RollupContractAddress, l1Client)
 		if err != nil {
 			return fmt.Errorf("NewRollup error: %v", err)
@@ -189,6 +206,14 @@ func L2NodeMain(ctx *cli.Context) error {
 	} else {
 		nodeConfig.Logger.Info("derivation skipped: sequencer mode")
 	}
+
+	// ========== Single metrics endpoint ==========
+	// All components (tendermint consensus/p2p/state/proxy, derivation,
+	// sync, executor) register to prometheus.DefaultRegisterer. We serve
+	// DefaultGatherer here so every verify-mode / sequencer-mode produces
+	// exactly one metrics endpoint sourced from config.toml's
+	// instrumentation.prometheus_listen_addr.
+	startMetricsServer(tmCfg.Instrumentation.PrometheusListenAddr, nodeConfig.Logger)
 
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, []os.Signal{
@@ -358,6 +383,27 @@ func initL1SequencerComponents(
 	}
 
 	return tracker, verifier, signer, nil
+}
+
+// startMetricsServer launches a single /metrics HTTP endpoint backed by
+// prometheus.DefaultGatherer. addr is read from
+// tmCfg.Instrumentation.PrometheusListenAddr; an empty value disables the
+// endpoint. ListenAndServe failures are logged but do not crash the node —
+// metrics are observability, not a control-plane dependency.
+func startMetricsServer(addr string, logger tmlog.Logger) {
+	if addr == "" {
+		logger.Info("metrics server disabled (instrumentation.prometheus_listen_addr is empty)")
+		return
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	srv := &http.Server{Addr: addr, Handler: mux}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("metrics server", "addr", addr, "err", err)
+		}
+	}()
+	logger.Info("metrics server started", "addr", addr)
 }
 
 func homeDir(ctx *cli.Context) (string, error) {

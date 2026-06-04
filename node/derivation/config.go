@@ -72,24 +72,18 @@ type Config struct {
 	FetchBlockRange       uint64          `json:"fetch_block_range"`
 	VerifyMode            string          `json:"verify_mode"`
 	ReorgCheckDepth       uint64          `json:"reorg_check_depth"`
-	MetricsPort           uint64          `json:"metrics_port"`
-	MetricsHostname       string          `json:"metrics_hostname"`
-	MetricsServerEnable   bool            `json:"metrics_server_enable"`
 }
 
 func DefaultConfig() *Config {
 	return &Config{
 		L1: &types.L1Config{
-			// Default to L1 safe (~1 epoch / ~6 min lag) rather than finalized
-			// (~2 epochs / ~13 min lag). L1 safe blocks can theoretically be
-			// reorg'd if a Casper FFG slashing condition fires, so this default
-			// is paired with always-on L1 reorg detection (SPEC-005 §4.7.6 in
-			// reorg.go) which rewinds the derivation cursor and resets the tag
-			// advancer when an L1 hash mismatch is observed. Operators wanting
-			// strict no-reorg-possible reads can still set
-			// --derivation.confirmations=-3 (rpc.FinalizedBlockNumber) or
-			// --l1.confirmations=-3 to revert to the previous behavior.
-			Confirmations: rpc.SafeBlockNumber,
+			// Fixed-depth (latest-N) confirmations rather than the SafeBlockNumber
+			// tag: 10 blocks (~2 min on mainnet) keeps lag low, and the always-on
+			// L1 reorg detector (SPEC-005 §4.7.6 in reorg.go) rewinds the
+			// derivation cursor on hash mismatch so a deeper reorg is recoverable.
+			// Operators wanting strict no-reorg-possible reads can still set
+			// --derivation.confirmations=-3 (rpc.FinalizedBlockNumber).
+			Confirmations: 10,
 		},
 		PollInterval:        DefaultPollInterval,
 		LogProgressInterval: DefaultLogProgressInterval,
@@ -102,9 +96,6 @@ func DefaultConfig() *Config {
 
 func (c *Config) SetCliContext(ctx *cli.Context) error {
 	c.L1.Addr = ctx.GlobalString(flags.L1NodeAddr.Name)
-	if ctx.GlobalIsSet(flags.L1Confirmations.Name) {
-		c.L1.Confirmations = rpc.BlockNumber(ctx.GlobalInt64(flags.L1Confirmations.Name))
-	}
 	// The current setting priority is greater than Env L1Confirmations
 	if ctx.GlobalIsSet(flags.DerivationConfirmations.Name) {
 		c.L1.Confirmations = rpc.BlockNumber(ctx.GlobalInt64(flags.DerivationConfirmations.Name))
@@ -197,10 +188,6 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	c.L2.EthAddr = l2EthAddr
 	c.L2.EngineAddr = l2EngineAddr
 	c.L2.JwtSecret = secret
-
-	c.MetricsServerEnable = ctx.GlobalBool(flags.MetricsServerEnable.Name)
-	c.MetricsHostname = ctx.GlobalString(flags.MetricsHostname.Name)
-	c.MetricsPort = ctx.GlobalUint64(flags.MetricsPort.Name)
 
 	return nil
 }
