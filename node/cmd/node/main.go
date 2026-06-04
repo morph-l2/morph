@@ -118,13 +118,24 @@ func L2NodeMain(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	// The node owns a single Prometheus HTTP endpoint (see metrics-server
-	// block below) backed by prometheus.DefaultGatherer. Tendermint's
-	// metrics still register to the default registry and are served from
-	// that endpoint, but tendermint must not bind its own listener — that
-	// would produce two endpoints (one tm-only on :26660, one node-wide)
-	// returning the same metrics.
-	tmCfg.Instrumentation.Prometheus = false
+	// Hand the listen address from tmCfg to our top-level metrics server
+	// (see metrics-server block below) so the node exposes exactly one
+	// /metrics endpoint backed by prometheus.DefaultGatherer.
+	//
+	// Subtlety: tendermint's Instrumentation.Prometheus flag is overloaded —
+	// it gates BOTH (a) whether DefaultMetricsProvider returns real
+	// PrometheusMetrics or NopMetrics and (b) whether node.OnStart binds
+	// :26660. Setting it to false would silently drop all
+	// tendermint_consensus/p2p/state/proxy series from our unified endpoint,
+	// because Nop collectors never register to DefaultRegisterer. Instead,
+	// keep Prometheus=true (so collectors register) and clear the listen
+	// address (so node.OnStart's `Prometheus && addr != ""` guard skips the
+	// HTTP bind).
+	metricsAddr := ""
+	if tmCfg.Instrumentation.Prometheus {
+		metricsAddr = tmCfg.Instrumentation.PrometheusListenAddr
+	}
+	tmCfg.Instrumentation.PrometheusListenAddr = ""
 	tmVal := privval.LoadOrGenFilePV(tmCfg.PrivValidatorKeyFile(), tmCfg.PrivValidatorStateFile())
 	pubKey, _ := tmVal.GetPubKey()
 
@@ -214,8 +225,10 @@ func L2NodeMain(ctx *cli.Context) error {
 	// sync, executor) register to prometheus.DefaultRegisterer. We serve
 	// DefaultGatherer here so every verify-mode / sequencer-mode produces
 	// exactly one metrics endpoint sourced from config.toml's
-	// instrumentation.prometheus_listen_addr.
-	startMetricsServer(tmCfg.Instrumentation.PrometheusListenAddr, nodeConfig.Logger)
+	// instrumentation.prometheus_listen_addr. metricsAddr was captured
+	// before clearing tmCfg.Instrumentation.PrometheusListenAddr above —
+	// see the rationale comment there for why the redirect is needed.
+	startMetricsServer(metricsAddr, nodeConfig.Logger)
 
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, []os.Signal{
