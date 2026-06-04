@@ -2,7 +2,7 @@ module morph-l2/token-price-oracle
 
 go 1.24.0
 
-replace github.com/morph-l2/go-ethereum => github.com/morph-l2/go-ethereum v0.0.0-20260602085100-22da419ae001
+replace github.com/morph-l2/go-ethereum => github.com/morph-l2/go-ethereum v0.0.0-20260603075727-e0a2cd340919
 
 replace (
 	github.com/VictoriaMetrics/fastcache => github.com/VictoriaMetrics/fastcache v1.12.2

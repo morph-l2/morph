@@ -22,11 +22,6 @@ import (
 	"morph-l2/node/types"
 )
 
-var (
-	// L1 Mainnet Contract Addresses
-	MainnetRollupContractAddress = common.HexToAddress("0x759894ced0e6af42c26668076ffa84d02e3cef60")
-)
-
 type Config struct {
 	L2                            *types.L2Config `json:"l2"`
 	L2CrossDomainMessengerAddress common.Address  `json:"cross_domain_messenger_address"`
