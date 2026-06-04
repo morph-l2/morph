@@ -165,10 +165,12 @@ func L2NodeMain(ctx *cli.Context) error {
 			return err
 		}
 		go ms.Start()
-	case signer == nil && derivationCfg.VerifyMode == derivation.VerifyModeLayer1:
-		// Fullnode in layer1 verify mode: derivation alone reconstructs the
-		// chain from L1 batches/blobs without local consensus. Skipping
-		// tendermint avoids running a no-op replica behind derivation.
+	case derivationCfg.VerifyMode == derivation.VerifyModeLayer1:
+		// Layer1 verify mode: derivation alone reconstructs the chain from
+		// L1 batches/blobs, no local consensus. The flag is a derivation
+		// knob, so combining it with a sequencer signer is a misconfig that
+		// surfaces here as "tendermint never started" rather than being
+		// silently ignored.
 		nodeConfig.Logger.Info("layer1 verify mode: tendermint not started")
 	default:
 		// Convert typed nil (*HAService)(nil) to untyped nil interface to avoid
