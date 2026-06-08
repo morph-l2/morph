@@ -4,7 +4,7 @@ go 1.24.0
 
 replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.0.0-20260602085346-ee68e1bcf49a
 
-replace github.com/morph-l2/go-ethereum => github.com/morph-l2/go-ethereum v0.0.0-20260603075727-e0a2cd340919
+replace github.com/morph-l2/go-ethereum => github.com/morph-l2/go-ethereum v0.0.0-20260608072528-fe02cc1f10bc
 
 require (
 	github.com/cenkalti/backoff/v4 v4.1.3
