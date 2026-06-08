@@ -56,8 +56,27 @@ func NewSequencerVerifier(caller *bindings.L1SequencerCaller, logger tmlog.Logge
 	if err := v.syncHistory(); err != nil {
 		v.logger.Error("Failed to load sequencer history from L1", "err", err)
 	}
+	v.logCurrentState()
 	go v.refreshLoop(ctx)
 	return v
+}
+
+// logCurrentState prints a one-line snapshot of the loaded contract state at
+// startup: the active sequencer and the height from which verification applies.
+// Existing logs list every record but not which one is currently in effect.
+func (c *SequencerVerifier) logCurrentState() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.history) == 0 {
+		c.logger.Info("Sequencer contract state: no records loaded; verification inactive until L1 history is available")
+		return
+	}
+	current := c.history[len(c.history)-1]
+	c.logger.Info("Sequencer contract state loaded",
+		"totalRecords", len(c.history),
+		"verificationStartHeight", c.history[0].StartL2Block,
+		"currentSequencer", current.SequencerAddr.Hex(),
+		"currentSequencerStartHeight", current.StartL2Block)
 }
 
 // Stop terminates the background refresh loop.

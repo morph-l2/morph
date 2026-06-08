@@ -190,7 +190,7 @@ func L2NodeMain(ctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("NewRollup error: %v", err)
 		}
-		dvNode, err = derivation.NewDerivationClient(context.Background(), derivationCfg, syncer, store, rollup, l1Client, tmNode, nodeConfig.Logger)
+		dvNode, err = derivation.NewDerivationClient(context.Background(), derivationCfg, syncer, store, rollup, l1Client, tmNode, verifier, nodeConfig.Logger)
 		if err != nil {
 			return fmt.Errorf("new derivation client error: %v", err)
 		}
