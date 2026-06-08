@@ -73,24 +73,19 @@ func (e *Executor) shouldReuseSequencerCache(height uint64, seqHash [32]byte) bo
 		return false
 	}
 
-	return !e.isBlsKeyCheckForkBoundary(height)
-}
-
-func (e *Executor) isBlsKeyCheckForkBoundary(height uint64) bool {
-	return e.blsKeyCheckForkHeight > 0 &&
-		(height == e.blsKeyCheckForkHeight || height == e.blsKeyCheckForkHeight+1)
+	if e.blsKeyCheckForkHeight > 0 &&
+		(height == e.blsKeyCheckForkHeight || height == e.blsKeyCheckForkHeight+1) {
+		return false
+	}
+	return true
 }
 
 func (e *Executor) shouldKeepSequencerAtHeight(height uint64, blsKey []byte) bool {
-	if decodeBlsPubKey(blsKey) == nil {
+	if isValidBlsKey(blsKey) {
 		return true
 	}
 
-	return !e.shouldValidateBlsKeyAtHeight(height)
-}
-
-func (e *Executor) shouldValidateBlsKeyAtHeight(height uint64) bool {
-	return e.blsKeyCheckForkHeight == 0 || height > e.blsKeyCheckForkHeight
+	return e.blsKeyCheckForkHeight > 0 && height <= e.blsKeyCheckForkHeight
 }
 
 func (e *Executor) updateSequencerSet(height uint64) ([][]byte, error) {
@@ -125,7 +120,7 @@ func (e *Executor) updateSequencerSet(height uint64) ([][]byte, error) {
 	return validatorUpdates, nil
 }
 
-func decodeBlsPubKey(in []byte) error {
+func isValidBlsKey(in []byte) bool {
 	_, err := bls12381.NewG2().DecodePoint(in)
-	return err
+	return err == nil
 }
