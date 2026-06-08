@@ -2,6 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
     sync::{Arc, RwLock},
+    time::Duration,
 };
 
 use crate::account_proof::{eip1186_proof_to_account_proof, EIP1186AccountProofResponseCompat};
@@ -16,6 +17,7 @@ use revm::database::BundleState;
 use revm::database::DatabaseRef;
 use revm::primitives::{Address, B256, KECCAK_EMPTY};
 use revm::state::{AccountInfo, Bytecode};
+use tokio::time::sleep;
 
 use crate::error::RpcDbError;
 
@@ -36,6 +38,8 @@ pub struct BasicRpcDb<P, N> {
     pub storage: Arc<RwLock<HashMap<Address, HashMap<U256, U256>>>>,
     /// The oldest block whose header/hash has been requested.
     pub oldest_ancestor: Arc<RwLock<u64>>,
+    /// Whether to use throttle requests with delays.
+    pub throttle_requests: bool,
 
     phantom: PhantomData<N>,
 }
@@ -43,6 +47,9 @@ pub struct BasicRpcDb<P, N> {
 impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
     /// Create a new [`BasicRpcDb`].
     pub fn new(provider: P, chain_id: u64, block_number: u64, state_root: B256) -> Self {
+        let throttle_requests = std::env::var("SHOULD_THROTTLE_REQUESTS")
+            .map(|s| s.parse::<bool>().unwrap_or(true))
+            .unwrap_or(true);
         Self {
             provider,
             chain_id,
@@ -51,6 +58,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
             accounts: Arc::new(RwLock::new(HashMap::with_hasher(Default::default()))),
             storage: Arc::new(RwLock::new(HashMap::with_hasher(Default::default()))),
             oldest_ancestor: Arc::new(RwLock::new(block_number)),
+            throttle_requests,
             phantom: PhantomData,
         }
     }
@@ -58,6 +66,9 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
     /// Fetch the [AccountInfo] for an [Address].
     pub async fn fetch_account_info(&self, address: Address) -> Result<AccountInfo, RpcDbError> {
         log::debug!("fetching account info for address: {}", address);
+        if self.throttle_requests {
+            sleep(Duration::from_millis(50)).await;
+        }
 
         // Fetch the proof for the account.
         let proof = self
@@ -102,6 +113,9 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
         keys: Vec<StorageKey>,
         block_number: u64,
     ) -> Result<alloy_rpc_types::EIP1186AccountProofResponse, RpcDbError> {
+        if self.throttle_requests {
+            sleep(Duration::from_millis(50)).await;
+        }
         let compact_proof: EIP1186AccountProofResponseCompat = self
             .provider
             .raw_request::<(Address, Vec<alloy_primitives::StorageKey>, BlockId), _>(
@@ -121,6 +135,9 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
         index: U256,
     ) -> Result<U256, RpcDbError> {
         log::debug!("fetching storage value at address: {}, index: {}", address, index);
+        if self.throttle_requests {
+            sleep(Duration::from_millis(50)).await;
+        }
 
         // Fetch the storage value.
         let value = self
