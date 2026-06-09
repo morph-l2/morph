@@ -905,6 +905,32 @@ func (d *Derivation) deriveForce(rollupData *BatchInfo, skipNumber uint64) (*eth
 		return nil, fmt.Errorf("invalid firstBlockNumber 0 for batch %d", rollupData.batchIndex)
 	}
 
+	// Race short-circuit: scenario C dispatch is decided before reactors are
+	// quiesced (HeaderByNumber check at derivationBlock vs StopReactors inside
+	// withReactorsQuiesced), so blocksync can backfill past lastBlockNumber in
+	// that small window. When that happens, skipNumber (= localLatest read
+	// after Stop) ends up >= the batch tip. Without this guard the loop below
+	// would `continue` on every block, return header(skipNumber) — a block
+	// past the batch — and then verifyBatchRoots / advanceSafe upstream would
+	// run against the wrong header (false stateException + safe head pushed
+	// past the batch). Returning header(lastBlockNumber) collapses this case
+	// to the same outcome scenario A would have produced if the dispatch had
+	// caught the now-present batch tip.
+	if skipNumber >= rollupData.lastBlockNumber {
+		lastHeader, err := d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(rollupData.lastBlockNumber)))
+		if err != nil {
+			return nil, fmt.Errorf("read batch tip at %d: %w", rollupData.lastBlockNumber, err)
+		}
+		if lastHeader == nil {
+			return nil, fmt.Errorf("batch tip at %d missing", rollupData.lastBlockNumber)
+		}
+		d.logger.Info("deriveForce: P2P caught up past batch tip during scenario-C dispatch window; no-op write",
+			"batchIndex", rollupData.batchIndex,
+			"lastBlockNumber", rollupData.lastBlockNumber,
+			"skipNumber", skipNumber)
+		return lastHeader, nil
+	}
+
 	// Anchor: parent of the first block we will WRITE must exist locally.
 	// scenario B (skipNumber==0): firstNum-1.
 	// scenario C: max(firstNum-1, skipNumber).
