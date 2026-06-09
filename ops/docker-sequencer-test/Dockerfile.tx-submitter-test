@@ -11,7 +11,6 @@ COPY ./morph/node/go.mod ./morph/node/go.sum /polyrepo/morph/node/
 COPY ./morph/common/go.mod ./morph/common/go.sum /polyrepo/morph/common/
 COPY ./morph/bindings/go.mod ./morph/bindings/go.sum /polyrepo/morph/bindings/
 COPY ./morph/contracts/go.mod ./morph/contracts/go.sum /polyrepo/morph/contracts/
-COPY ./morph/oracle/go.mod ./morph/oracle/go.sum /polyrepo/morph/oracle/
 COPY ./morph/tx-submitter/go.mod ./morph/tx-submitter/go.sum /polyrepo/morph/tx-submitter/
 COPY ./morph/ops/l2-genesis/go.mod ./morph/ops/l2-genesis/go.sum /polyrepo/morph/ops/l2-genesis/
 COPY ./morph/ops/tools/go.mod ./morph/ops/tools/go.sum /polyrepo/morph/ops/tools/

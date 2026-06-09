@@ -878,7 +878,7 @@ func (d *Derivation) withReactorsQuiesced(ctx context.Context, batchIndex uint64
 		return err
 	}
 	defer func() {
-		// Use background context so a cancelled parent ctx doesn't
+		// Use background context so a canceled parent ctx doesn't
 		// prevent reactor restart.
 		height := preWrite
 		if cur, readErr := d.l2Client.BlockNumber(context.Background()); readErr == nil {
