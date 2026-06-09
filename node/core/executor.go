@@ -45,6 +45,8 @@ type Executor struct {
 	isSequencer    bool
 	devSequencer   bool
 
+	blsKeyCheckForkHeight uint64
+
 	logger  tmlog.Logger
 	metrics *Metrics
 }
@@ -90,17 +92,18 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		tmPubKeyBytes = tmPubKey.Bytes()
 	}
 	executor := &Executor{
-		l2Client:            l2Client,
-		bc:                  &Version1Converter{},
-		sequencerCaller:     sequencer,
-		l2StakingCaller:     l2Staking,
-		tmPubKey:            tmPubKeyBytes,
-		nextL1MsgIndex:      index,
-		maxL1MsgNumPerBlock: config.MaxL1MessageNumPerBlock,
-		newSyncerFunc:       newSyncFunc,
-		devSequencer:        config.DevSequencer,
-		logger:              logger,
-		metrics:             PrometheusMetrics("morphnode"),
+		l2Client:              l2Client,
+		bc:                    &Version1Converter{},
+		sequencerCaller:       sequencer,
+		l2StakingCaller:       l2Staking,
+		tmPubKey:              tmPubKeyBytes,
+		nextL1MsgIndex:        index,
+		maxL1MsgNumPerBlock:   config.MaxL1MessageNumPerBlock,
+		newSyncerFunc:         newSyncFunc,
+		devSequencer:          config.DevSequencer,
+		blsKeyCheckForkHeight: config.BlsKeyCheckForkHeight,
+		logger:                logger,
+		metrics:               PrometheusMetrics("morphnode"),
 	}
 
 	if config.DevSequencer {
@@ -356,6 +359,10 @@ func (e *Executor) getValidatorsAtHeight(height int64) ([][]byte, error) {
 	}
 	newValidators := make([][]byte, 0, len(addrs))
 	for i := range stakesInfo {
+		if !e.shouldKeepSequencerAtHeight(uint64(height), stakesInfo[i].BlsKey) {
+			e.logger.Error("getValidatorsAtHeight: skip sequencer with invalid bls key", "height", height, "addr", stakesInfo[i].Addr)
+			continue
+		}
 		newValidators = append(newValidators, stakesInfo[i].TmKey[:])
 	}
 	return newValidators, nil

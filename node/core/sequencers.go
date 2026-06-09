@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/crypto/bls12381"
 	"github.com/tendermint/tendermint/crypto/ed25519"
 )
 
@@ -15,7 +16,7 @@ func (e *Executor) sequencerSetUpdates(height uint64) ([][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if e.currentSeqHash != nil && bytes.Equal(e.currentSeqHash[:], seqHash[:]) {
+	if e.shouldReuseSequencerCache(height, seqHash) {
 		return e.nextValidators, nil
 	}
 
@@ -49,6 +50,10 @@ func (e *Executor) sequencerSetUpdates(height uint64) ([][]byte, error) {
 	seqTmKeySet := make(map[[tmKeySize]byte]struct{}, len(stakesInfo))
 	nextValidators := make([][]byte, 0, len(sequencerSet2))
 	for i := range stakesInfo {
+		if !e.shouldKeepSequencerAtHeight(height, stakesInfo[i].BlsKey) {
+			e.logger.Error("sequencerSetUpdates: skip sequencer with invalid bls key", "height", height, "addr", stakesInfo[i].Addr)
+			continue
+		}
 		// sequencerSet2 is the latest updated sequencer set which is considered as the next validator set for tendermint
 		if slices.Contains(sequencerSet2, stakesInfo[i].Addr) {
 			nextValidators = append(nextValidators, stakesInfo[i].TmKey[:])
@@ -61,6 +66,26 @@ func (e *Executor) sequencerSetUpdates(height uint64) ([][]byte, error) {
 	e.nextValidators = nextValidators
 	e.currentSeqHash = &seqHash
 	return nextValidators, nil
+}
+
+func (e *Executor) shouldReuseSequencerCache(height uint64, seqHash [32]byte) bool {
+	if e.currentSeqHash == nil || !bytes.Equal(e.currentSeqHash[:], seqHash[:]) {
+		return false
+	}
+
+	if e.blsKeyCheckForkHeight > 0 &&
+		(height == e.blsKeyCheckForkHeight || height == e.blsKeyCheckForkHeight+1) {
+		return false
+	}
+	return true
+}
+
+func (e *Executor) shouldKeepSequencerAtHeight(height uint64, blsKey []byte) bool {
+	if isValidBlsKey(blsKey) {
+		return true
+	}
+
+	return e.blsKeyCheckForkHeight > 0 && height <= e.blsKeyCheckForkHeight
 }
 
 func (e *Executor) updateSequencerSet(height uint64) ([][]byte, error) {
@@ -93,4 +118,9 @@ func (e *Executor) updateSequencerSet(height uint64) ([][]byte, error) {
 	}
 	e.isSequencer = isSequencer
 	return validatorUpdates, nil
+}
+
+func isValidBlsKey(in []byte) bool {
+	_, err := bls12381.NewG2().DecodePoint(in)
+	return err == nil
 }
