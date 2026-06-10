@@ -70,12 +70,6 @@ var (
 		EnvVar: prefixEnvVar("L1_ETH_BEACON_RPC"),
 	}
 
-	L1ChainID = cli.Uint64Flag{
-		Name:   "l1.chain-id",
-		Usage:  "L1 Chain ID",
-		EnvVar: prefixEnvVar("L1_CHAIN_ID"),
-	}
-
 	L1Confirmations = cli.Int64Flag{
 		Name:   "l1.confirmations",
 		Usage:  "Number of confirmations on L1 needed for finalization",
@@ -162,25 +156,6 @@ var (
 		EnvVar: prefixEnvVar("MOCK_SEQUENCER"),
 	}
 
-	ValidatorEnable = cli.BoolFlag{
-		Name:   "validator",
-		Usage:  "Enable the validator mode",
-		EnvVar: prefixEnvVar("VALIDATOR"),
-	}
-
-	ChallengeEnable = cli.BoolFlag{
-		Name:   "validator.challengeEnable",
-		Usage:  "Enable the validator challenge",
-		EnvVar: prefixEnvVar("VALIDATOR_CHALLENGE_ENABLE"),
-	}
-
-	// validator
-	ValidatorPrivateKey = cli.StringFlag{
-		Name:   "validator.privateKey",
-		Usage:  "Private Key corresponding to SUBSIDY Owner",
-		EnvVar: prefixEnvVar("VALIDATOR_PRIVATE_KEY"),
-	}
-
 	// derivation
 	RollupContractAddress = cli.StringFlag{
 		Name:   "derivation.rollupAddress",
@@ -218,14 +193,6 @@ var (
 		EnvVar: prefixEnvVar("DERIVATION_FETCH_BLOCK_RANGE"),
 	}
 
-	// BlockTag options
-	BlockTagSafeConfirmations = cli.Uint64Flag{
-		Name:   "blocktag.safeConfirmations",
-		Usage:  "Number of L1 blocks to wait before considering a batch as safe",
-		EnvVar: prefixEnvVar("BLOCKTAG_SAFE_CONFIRMATIONS"),
-		Value:  10,
-	}
-
 	// L1 Sequencer options
 	L1SequencerContractAddr = cli.StringFlag{
 		Name:   "l1.sequencerContract",
@@ -247,23 +214,84 @@ var (
 		EnvVar: prefixEnvVar("SEQUENCER_PRIVATE_KEY"),
 	}
 
+	// Vsock address of the Nitro Enclave signer. Accepts both
+	// `CID:port` (legacy) and `vsock:CID:port` (matches ops-cli's
+	// --addr convention so the same string works in either tool).
+	// Mutually exclusive with sequencer.privateKey — with this set,
+	// the node never sees the plaintext key, signing happens via the
+	// enclave. The signer's EVM address is fetched at startup via
+	// GetPubkey.
+	SequencerEnclaveSignerAddr = cli.StringFlag{
+		Name:   "sequencer.enclaveSignerAddr",
+		Usage:  "Vsock address of the enclave signer: `CID:port` or `vsock:CID:port`. Mutually exclusive with sequencer.privateKey.",
+		EnvVar: prefixEnvVar("SEQUENCER_ENCLAVE_SIGNER_ADDR"),
+	}
+
+	// Sequencer HA flags (all prefixed with ha.)
+	SequencerHAEnabled = cli.BoolFlag{
+		Name:   "ha.enabled",
+		Usage:  "Enable sequencer HA mode (overrides config file).",
+		EnvVar: prefixEnvVar("HA_ENABLED"),
+	}
+	SequencerHAConfig = cli.StringFlag{
+		Name:   "ha.config",
+		Usage:  "Path to sequencer HA config file (TOML). If not set, HA is disabled.",
+		EnvVar: prefixEnvVar("HA_CONFIG"),
+	}
+	SequencerHABootstrap = cli.BoolFlag{
+		Name:   "ha.bootstrap",
+		Usage:  "Bootstrap a new Raft cluster as leader (overrides config file).",
+		EnvVar: prefixEnvVar("HA_BOOTSTRAP"),
+	}
+	SequencerHAJoin = cli.StringSliceFlag{
+		Name:   "ha.join",
+		Usage:  "Management RPC addresses of existing cluster nodes to join (comma-separated, overrides config file).",
+		EnvVar: prefixEnvVar("HA_JOIN"),
+	}
+	SequencerHAServerID = cli.StringFlag{
+		Name:   "ha.server-id",
+		Usage:  "Unique server ID for this node (overrides config file; defaults to hostname).",
+		EnvVar: prefixEnvVar("HA_SERVER_ID"),
+	}
+	SequencerHAAdvertisedAddr = cli.StringFlag{
+		Name:   "ha.advertised-addr",
+		Usage:  "Raft advertised address (host:port). Supports hostname (e.g. node-0:9400) or IP. Auto-detected if not set.",
+		EnvVar: prefixEnvVar("HA_ADVERTISED_ADDR"),
+	}
+	SequencerHARPCToken = cli.StringFlag{
+		Name:   "ha.rpc-token",
+		Usage:  "Auth token for HAKeeper RPC write APIs. If empty, auth is disabled.",
+		EnvVar: prefixEnvVar("HA_RPC_TOKEN"),
+	}
+
 	MainnetFlag = cli.BoolFlag{
 		Name:  "mainnet",
 		Usage: "Morph mainnet",
 	}
 
-	// for test
-	ConsensusSwitchHeight = cli.Int64Flag{
-		Name:   "consensus.switchHeight",
-		Usage:  "Block height at which the consensus switches to sequencer mode. Default -1 means upgrade disabled.",
-		EnvVar: prefixEnvVar("CONSENSUS_SWITCH_HEIGHT"),
-		Value:  -1,
+	HoodiFlag = cli.BoolFlag{
+		Name:  "hoodi",
+		Usage: "Morph Hoodi testnet",
 	}
 
 	DerivationConfirmations = cli.Int64Flag{
 		Name:   "derivation.confirmations",
 		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
 		EnvVar: prefixEnvVar("DERIVATION_CONFIRMATIONS"),
+	}
+
+	DerivationVerifyMode = cli.StringFlag{
+		Name:   "derivation.verify-mode",
+		Usage:  `Batch verification mode (SPEC-005 §4.2). "layer1" pulls beacon blob, decodes, and derives blocks via engine. "local" (default) rebuilds blob bytes from local L2 blocks and compares versioned hashes against L1 (no beacon fetch on the happy path); on versioned hash mismatch the verifier is designed to self-heal by pulling the real blob and re-deriving the batch — currently TODO, blocked on EL number-continuity check relaxation in morph-reth/go-ethereum (separate spec). Selected at startup; not switchable at runtime.`,
+		EnvVar: prefixEnvVar("DERIVATION_VERIFY_MODE"),
+		Value:  "local",
+	}
+
+	DerivationReorgCheckDepth = cli.Uint64Flag{
+		Name:   "derivation.reorg-check-depth",
+		Usage:  "Number of recent L1 blocks to check for reorgs (SPEC-005 §4.7.6). The scan is a no-op when --derivation.confirmations=finalized (L1 finalized doesn't reorg) and load-bearing when set lower; the gate is intentionally absent so behavior is uniform across configs. Default 64.",
+		EnvVar: prefixEnvVar("DERIVATION_REORG_CHECK_DEPTH"),
+		Value:  64,
 	}
 	// Logger
 	LogLevel = &cli.StringFlag{
@@ -300,31 +328,11 @@ var (
 		Usage:  "Compress determines if the rotated log files should be compressed using gzip. The default is not to perform compression. It is used only when log.filename is provided.",
 		EnvVar: prefixEnvVar("LOG_COMPRESS"),
 	}
-
-	// metrics
-	MetricsServerEnable = cli.BoolFlag{
-		Name:   "metrics-server-enable",
-		Usage:  "Whether or not to run the embedded metrics server",
-		EnvVar: prefixEnvVar("METRICS_SERVER_ENABLE"),
-	}
-	MetricsHostname = cli.StringFlag{
-		Name:   "metrics-hostname",
-		Usage:  "The hostname of the metrics server",
-		Value:  "0.0.0.0",
-		EnvVar: prefixEnvVar("METRICS_HOSTNAME"),
-	}
-	MetricsPort = cli.Uint64Flag{
-		Name:   "metrics-port",
-		Usage:  "The port of the metrics server",
-		Value:  26660,
-		EnvVar: prefixEnvVar("METRICS_PORT"),
-	}
 )
 
 var Flags = []cli.Flag{
 	Home,
 	L1NodeAddr,
-	L1ChainID,
 	L1Confirmations,
 	L2EthAddr,
 	L2EngineAddr,
@@ -350,11 +358,6 @@ var Flags = []cli.Flag{
 	DevSequencer,
 	TendermintConfigPath,
 	MockEnabled,
-	ValidatorEnable,
-	ChallengeEnable,
-
-	// validator
-	ValidatorPrivateKey,
 
 	// derivation
 	RollupContractAddress,
@@ -364,20 +367,25 @@ var Flags = []cli.Flag{
 	DerivationLogProgressInterval,
 	DerivationFetchBlockRange,
 	DerivationConfirmations,
+	DerivationVerifyMode,
+	DerivationReorgCheckDepth,
 	L1BeaconAddr,
-
-	// blocktag options
-	BlockTagSafeConfirmations,
 
 	// L1 Sequencer options
 	L1SequencerContractAddr,
 	L1SyncLagThreshold,
 	SequencerPrivateKey,
-
-	// consensus
-	ConsensusSwitchHeight,
+	SequencerEnclaveSignerAddr,
+	SequencerHAEnabled,
+	SequencerHAConfig,
+	SequencerHABootstrap,
+	SequencerHAJoin,
+	SequencerHAServerID,
+	SequencerHAAdvertisedAddr,
+	SequencerHARPCToken,
 
 	MainnetFlag,
+	HoodiFlag,
 
 	// logger
 	LogLevel,
@@ -386,9 +394,4 @@ var Flags = []cli.Flag{
 	LogFileMaxSize,
 	LogFileMaxAge,
 	LogCompress,
-
-	// metrics
-	MetricsServerEnable,
-	MetricsPort,
-	MetricsHostname,
 }

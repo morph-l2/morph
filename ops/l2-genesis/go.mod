@@ -2,11 +2,13 @@ module morph-l2/morph-deployer
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.7
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.0.0-20260602085346-ee68e1bcf49a
+
+replace github.com/morph-l2/go-ethereum => github.com/morph-l2/go-ethereum v0.0.0-20260608072528-fe02cc1f10bc
 
 require (
 	github.com/holiman/uint256 v1.2.4
-	github.com/morph-l2/go-ethereum v1.10.14-0.20260529032230-76b52dff186f
+	github.com/morph-l2/go-ethereum v1.10.14-0.20251219060125-03910bc750a2
 	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli v1.22.17
 )

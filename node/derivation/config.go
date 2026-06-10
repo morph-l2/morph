@@ -21,15 +21,53 @@ import (
 )
 
 const (
-	// DefaultFetchBlockRange is the number of blocks that we collect in a single eth_getLogs query.
-	DefaultFetchBlockRange = uint64(100)
+	// DefaultFetchBlockRange is the number of blocks that we collect in a
+	// single eth_getLogs query. 500 (vs sync.DefaultFetchBlockRange=100)
+	// trades RPC latency budget for fewer round-trips on the derivation
+	// path, where each query is only a CommitBatch event filter and the
+	// response stays small even at 500 blocks.
+	DefaultFetchBlockRange = uint64(500)
 
 	// DefaultPollInterval is the frequency at which we query for new L1 messages.
 	DefaultPollInterval = time.Second * 15
 
 	// DefaultLogProgressInterval is the frequency at which we log progress.
 	DefaultLogProgressInterval = time.Second * 10
+
+	VerifyModeLayer1 = "layer1"
+	VerifyModeLocal  = "local"
+
+	// DefaultVerifyMode is "local": rebuild + compare locally on the happy
+	// path, no beacon blob fetch. Operators who need the legacy "always
+	// pull blob" behavior can set --derivation.verify-mode=layer1.
+	DefaultVerifyMode = VerifyModeLocal
+
+	// DefaultReorgCheckDepth is the number of recent L1 blocks to check for
+	// reorgs in SPEC-005 §4.7.6 detection. 64 covers the post-Merge "finality
+	// distance" rule of thumb and provides safety margin if Confirmations is
+	// configured below finalized.
+	DefaultReorgCheckDepth = uint64(64)
+
+	// DefaultConfirmations: rationale lives on the L1.Confirmations field
+	// in DefaultConfig() — fixed-depth (latest-N) paired with the SPEC-005
+	// §4.7.6 reorg detector, not a chain tag.
+	DefaultConfirmations = rpc.BlockNumber(10)
 )
+
+// validateAndDefaultVerifyMode normalises an empty VerifyMode to the default
+// and rejects unknown values. Extracted from SetCliContext so the validation
+// can be unit-tested without building a cli.Context.
+func validateAndDefaultVerifyMode(s string) (string, error) {
+	switch s {
+	case VerifyModeLayer1, VerifyModeLocal:
+		return s, nil
+	case "":
+		return DefaultVerifyMode, nil
+	default:
+		return "", fmt.Errorf("invalid derivation.verify-mode %q (must be %q or %q)",
+			s, VerifyModeLayer1, VerifyModeLocal)
+	}
+}
 
 type Config struct {
 	L1                    *types.L1Config `json:"l1"`
@@ -41,28 +79,32 @@ type Config struct {
 	PollInterval          time.Duration   `json:"poll_interval"`
 	LogProgressInterval   time.Duration   `json:"log_progress_interval"`
 	FetchBlockRange       uint64          `json:"fetch_block_range"`
-	MetricsPort           uint64          `json:"metrics_port"`
-	MetricsHostname       string          `json:"metrics_hostname"`
-	MetricsServerEnable   bool            `json:"metrics_server_enable"`
+	VerifyMode            string          `json:"verify_mode"`
+	ReorgCheckDepth       uint64          `json:"reorg_check_depth"`
 }
 
 func DefaultConfig() *Config {
 	return &Config{
 		L1: &types.L1Config{
-			Confirmations: rpc.FinalizedBlockNumber,
+			// Fixed-depth (latest-N) confirmations rather than the SafeBlockNumber
+			// tag: 10 blocks (~2 min on mainnet) keeps lag low, and the always-on
+			// L1 reorg detector (SPEC-005 §4.7.6 in reorg.go) rewinds the
+			// derivation cursor on hash mismatch so a deeper reorg is recoverable.
+			// Operators wanting strict no-reorg-possible reads can still set
+			// --derivation.confirmations=-3 (rpc.FinalizedBlockNumber).
+			Confirmations: DefaultConfirmations,
 		},
 		PollInterval:        DefaultPollInterval,
 		LogProgressInterval: DefaultLogProgressInterval,
 		FetchBlockRange:     DefaultFetchBlockRange,
+		VerifyMode:          DefaultVerifyMode,
+		ReorgCheckDepth:     DefaultReorgCheckDepth,
 		L2:                  new(types.L2Config),
 	}
 }
 
 func (c *Config) SetCliContext(ctx *cli.Context) error {
 	c.L1.Addr = ctx.GlobalString(flags.L1NodeAddr.Name)
-	if ctx.GlobalIsSet(flags.L1Confirmations.Name) {
-		c.L1.Confirmations = rpc.BlockNumber(ctx.GlobalInt64(flags.L1Confirmations.Name))
-	}
 	// The current setting priority is greater than Env L1Confirmations
 	if ctx.GlobalIsSet(flags.DerivationConfirmations.Name) {
 		c.L1.Confirmations = rpc.BlockNumber(ctx.GlobalInt64(flags.DerivationConfirmations.Name))
@@ -74,6 +116,10 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		if len(c.RollupContractAddress.Bytes()) == 0 {
 			return errors.New("invalid DerivationDepositContractAddr")
 		}
+	} else if ctx.GlobalBool(flags.MainnetFlag.Name) {
+		c.RollupContractAddress = types.MainnetRollupContractAddress
+	} else if ctx.GlobalBool(flags.HoodiFlag.Name) {
+		c.RollupContractAddress = types.HoodiRollupContractAddress
 	}
 	c.BeaconRpc = ctx.GlobalString(flags.L1BeaconAddr.Name)
 	if c.BeaconRpc == "" {
@@ -110,6 +156,22 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		}
 	}
 
+	if ctx.GlobalIsSet(flags.DerivationVerifyMode.Name) {
+		c.VerifyMode = ctx.GlobalString(flags.DerivationVerifyMode.Name)
+	}
+	normalized, err := validateAndDefaultVerifyMode(c.VerifyMode)
+	if err != nil {
+		return err
+	}
+	c.VerifyMode = normalized
+
+	if ctx.GlobalIsSet(flags.DerivationReorgCheckDepth.Name) {
+		c.ReorgCheckDepth = ctx.GlobalUint64(flags.DerivationReorgCheckDepth.Name)
+	}
+	if c.ReorgCheckDepth == 0 {
+		c.ReorgCheckDepth = DefaultReorgCheckDepth
+	}
+
 	l2EthAddr := ctx.GlobalString(flags.L2EthAddr.Name)
 	l2EngineAddr := ctx.GlobalString(flags.L2EngineAddr.Name)
 	fileName := ctx.GlobalString(flags.L2EngineJWTSecret.Name)
@@ -135,10 +197,6 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	c.L2.EthAddr = l2EthAddr
 	c.L2.EngineAddr = l2EngineAddr
 	c.L2.JwtSecret = secret
-
-	c.MetricsServerEnable = ctx.GlobalBool(flags.MetricsServerEnable.Name)
-	c.MetricsHostname = ctx.GlobalString(flags.MetricsHostname.Name)
-	c.MetricsPort = ctx.GlobalUint64(flags.MetricsPort.Name)
 
 	return nil
 }

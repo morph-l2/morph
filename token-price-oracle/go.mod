@@ -2,13 +2,15 @@ module morph-l2/token-price-oracle
 
 go 1.24.0
 
+replace github.com/morph-l2/go-ethereum => github.com/morph-l2/go-ethereum v0.0.0-20260608072528-fe02cc1f10bc
+
 replace (
 	github.com/VictoriaMetrics/fastcache => github.com/VictoriaMetrics/fastcache v1.12.2
 	golang.org/x/sys => golang.org/x/sys v0.30.0
 )
 
 require (
-	github.com/morph-l2/go-ethereum v1.10.14-0.20260529032230-76b52dff186f
+	github.com/morph-l2/go-ethereum v1.10.14-0.20251219060125-03910bc750a2
 	github.com/morph-l2/remote-signer-client/go v0.0.0-20260312080033-d078d86ddbe9
 	github.com/prometheus/client_golang v1.17.0
 	github.com/sirupsen/logrus v1.9.3
