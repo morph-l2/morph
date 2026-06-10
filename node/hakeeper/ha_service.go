@@ -30,13 +30,13 @@ const (
 // HAService implements the SequencerHA interface from tendermint/sequencer.
 // It also satisfies rpc.ConsensusAdapter so it can be passed directly to the RPC server.
 type HAService struct {
-	logger       tmlog.Logger
-	cfg          *Config
+	logger         tmlog.Logger
+	cfg            *Config
 	advertisedAddr string // resolved once in New(), used throughout
-	fsm          *BlockFSM
-	rpcServer    *hakeeperrpc.Server
+	fsm            *BlockFSM
+	rpcServer      *hakeeperrpc.Server
 
-	// Raft internals (initialised in Start)
+	// Raft internals (initialized in Start)
 	r         *raft.Raft
 	transport *raft.NetworkTransport
 
@@ -69,7 +69,7 @@ func (h *HAService) SetOnBlockApplied(fn func(*types.BlockV2) error) {
 
 // ── SequencerHA interface ────────────────────────────────────────────────────
 
-// Start initialises Raft and the management RPC server.
+// Start initializes Raft and the management RPC server.
 // Called by StateV2.OnStart() at upgrade height.
 func (h *HAService) Start() error {
 	if err := h.initRaft(); err != nil {
@@ -271,7 +271,7 @@ func (h *HAService) Addr() string { return h.advertisedAddr }
 // initRaft creates the Raft instance. Called once from Start().
 // On failure, all opened resources are cleaned up via a single deferred closure.
 func (h *HAService) initRaft() (retErr error) {
-	if err := os.MkdirAll(h.cfg.StorageDir, 0o755); err != nil {
+	if err := os.MkdirAll(h.cfg.StorageDir, 0o750); err != nil {
 		return fmt.Errorf("mkdir %q: %w", h.cfg.StorageDir, err)
 	}
 
@@ -287,13 +287,13 @@ func (h *HAService) initRaft() (retErr error) {
 				r.Shutdown()
 			}
 			if transport != nil {
-				transport.Close()
+				_ = transport.Close()
 			}
 			if stableStore != nil {
-				stableStore.Close()
+				_ = stableStore.Close()
 			}
 			if logStore != nil {
-				logStore.Close()
+				_ = logStore.Close()
 			}
 		}
 	}()
@@ -364,7 +364,7 @@ func (h *HAService) initRaft() (retErr error) {
 	h.r = r
 	h.transport = transport
 
-	h.logger.Info("hakeeper: raft initialised", "bind", bindAddr)
+	h.logger.Info("hakeeper: raft initialized", "bind", bindAddr)
 	return nil
 }
 

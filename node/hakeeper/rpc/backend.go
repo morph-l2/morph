@@ -7,6 +7,14 @@ import (
 )
 
 // APIBackend implements API, delegating to a ConsensusAdapter.
+//
+// Every method takes a context.Context to satisfy the go-ethereum JSON-RPC
+// server's handler signature, but intentionally does not propagate it. The
+// ConsensusAdapter wraps hashicorp/raft, whose membership and leadership
+// operations are synchronous and not context-cancellable; those calls already
+// enforce their own bounded deadline (raftTimeout) at the adapter layer, so
+// there is nothing a caller-supplied ctx could cancel mid-operation. This is
+// deliberate, not an oversight — do not "fix" it by threading ctx through.
 type APIBackend struct {
 	log  log.Logger
 	cons ConsensusAdapter

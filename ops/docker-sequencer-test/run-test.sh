@@ -340,7 +340,7 @@ start_l2_test() {
     
     # Start L2 execution nodes
     log_info "Starting L2 execution nodes..."
-    $COMPOSE_CMD up -d morph-el-0 morph-el-1 morph-el-2 morph-el-3 sentry-geth-0
+    $COMPOSE_CMD up -d morph-el-0 morph-el-1 morph-el-2 morph-el-3 sentry-el-0
     
     sleep 5
     

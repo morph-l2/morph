@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	ethrpc "github.com/morph-l2/go-ethereum/rpc"
 	"github.com/pkg/errors"
@@ -40,8 +41,9 @@ func New(log log.Logger, listenAddr string, listenPort int, cons ConsensusAdapte
 
 	addr := fmt.Sprintf("%s:%d", listenAddr, listenPort)
 	httpSrv := &http.Server{
-		Addr:    addr,
-		Handler: mux,
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	return &Server{

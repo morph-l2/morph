@@ -153,7 +153,7 @@ func (f *BlockFSM) Snapshot() (raft.FSMSnapshot, error) {
 // Reads the 8-byte appliedHeight from the snapshot. Does NOT call onApplied --
 // geth state must be recovered independently (Fullnode P2P sync).
 func (f *BlockFSM) Restore(rc io.ReadCloser) error {
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 
 	data, err := io.ReadAll(rc)
 	if err != nil {
@@ -191,7 +191,7 @@ func (s *blockSnapshot) Persist(sink raft.SnapshotSink) error {
 	var buf [8]byte
 	binary.BigEndian.PutUint64(buf[:], s.height)
 	if _, err := sink.Write(buf[:]); err != nil {
-		sink.Cancel()
+		_ = sink.Cancel()
 		return fmt.Errorf("blockSnapshot.Persist: write failed: %w", err)
 	}
 	return sink.Close()
