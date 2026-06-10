@@ -67,10 +67,10 @@ func NewSequencerVerifier(caller *bindings.L1SequencerCaller, logger tmlog.Logge
 		cancel()
 		return nil, fmt.Errorf("refusing to start with UpgradeBlockHeight=-1: initial sequencer history sync from L1 failed: %w", err)
 	}
-	if upgrade.UpgradeBlockHeight < 0 {
-		cancel()
-		return nil, fmt.Errorf("refusing to start with UpgradeBlockHeight=-1: L1 returned empty sequencer history; upgrade height unknown")
-	}
+	//if upgrade.UpgradeBlockHeight < 0 {
+	//	cancel()
+	//	return nil, fmt.Errorf("refusing to start with UpgradeBlockHeight=-1: L1 returned empty sequencer history; upgrade height unknown")
+	//}
 	v.logCurrentState()
 	go v.refreshLoop(ctx)
 	return v, nil
