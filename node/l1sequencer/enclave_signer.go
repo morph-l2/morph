@@ -165,7 +165,7 @@ func (s *EnclaveSigner) probe() error {
 	if err := conn.SetDeadline(time.Now().Add(requestTimeout)); err != nil {
 		return fmt.Errorf("set deadline: %w", err)
 	}
-	defer conn.SetDeadline(time.Time{}) // clear on exit so signOnce can manage its own deadline
+	defer func() { _ = conn.SetDeadline(time.Time{}) }() // clear on exit so signOnce can manage its own deadline
 
 	if _, err := conn.Write([]byte{opGetPubkey}); err != nil {
 		return fmt.Errorf("write GetPubkey: %w", err)
@@ -220,7 +220,7 @@ func (s *EnclaveSigner) signOnce(conn net.Conn, data []byte) ([]byte, error) {
 	if err := conn.SetDeadline(time.Now().Add(requestTimeout)); err != nil {
 		return nil, err
 	}
-	defer conn.SetDeadline(time.Time{})
+	defer func() { _ = conn.SetDeadline(time.Time{}) }()
 
 	req := make([]byte, 1+hashLen)
 	req[0] = opSign

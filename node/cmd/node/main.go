@@ -380,7 +380,7 @@ func startMetricsServer(addr string, logger tmlog.Logger) {
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
-	srv := &http.Server{Addr: addr, Handler: mux}
+	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("metrics server", "addr", addr, "err", err)

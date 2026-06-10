@@ -53,4 +53,3 @@ func (s *LocalSigner) Sign(data []byte) ([]byte, error) {
 func (s *LocalSigner) Address() common.Address {
 	return s.address
 }
-

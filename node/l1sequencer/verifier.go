@@ -34,7 +34,7 @@ type sequencerCursor struct {
 // History is loaded from L1 at construction and refreshed every 5 minutes.
 // All L1 reads use the finalized block tag to avoid ingesting reorged data.
 type SequencerVerifier struct {
-	mu     sync.Mutex
+	mu      sync.Mutex
 	history []bindings.L1SequencerHistoryRecord
 	cursor  sequencerCursor
 
@@ -142,7 +142,7 @@ func (c *SequencerVerifier) syncHistory() error {
 	return nil
 }
 
-// refreshLoop polls L1 until ctx is cancelled.
+// refreshLoop polls L1 until ctx is canceled.
 // Uses exponential backoff (10s -> 20s -> ... -> 5min) while history is empty,
 // then switches to the normal 5-minute interval once loaded.
 func (c *SequencerVerifier) refreshLoop(ctx context.Context) {
