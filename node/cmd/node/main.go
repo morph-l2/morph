@@ -328,7 +328,10 @@ func initL1SequencerComponents(
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to create L1Sequencer caller: %w", err)
 		}
-		verifier = l1sequencer.NewSequencerVerifier(caller, logger)
+		verifier, err = l1sequencer.NewSequencerVerifier(caller, logger)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to initialize sequencer verifier: %w", err)
+		}
 		logger.Info("Sequencer verifier initialized", "contract", contractAddr.Hex())
 	} else {
 		return nil, nil, nil, fmt.Errorf("L1 Sequencer contract address is required, check l1.sequencerContract configuration")

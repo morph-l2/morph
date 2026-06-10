@@ -46,7 +46,17 @@ type SequencerVerifier struct {
 // NewSequencerVerifier creates a new SequencerVerifier, loads the full sequencer
 // history from L1 (finalized), and starts a background refresh goroutine.
 // Call Stop to terminate the background loop.
-func NewSequencerVerifier(caller *bindings.L1SequencerCaller, logger tmlog.Logger) *SequencerVerifier {
+//
+// Startup is fail-fast: if the initial syncHistory() fails or returns empty
+// history, the global upgrade.UpgradeBlockHeight is never set and stays at its
+// -1 sentinel. Running with UpgradeBlockHeight=-1 is unsafe: IsUpgraded()
+// returns false for every height, so the PBFT state machine can run past the
+// true upgrade height, and on a block-synced fullnode restart the handshake's
+// sequencer-mode replay exemption fails (ErrAppBlockHeightTooHigh) while
+// reconstructLastCommit runs against a nil commit and panics. We therefore
+// refuse to start rather than boot into that state; the operator's supervisor
+// restarts us once L1 is reachable.
+func NewSequencerVerifier(caller *bindings.L1SequencerCaller, logger tmlog.Logger) (*SequencerVerifier, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	v := &SequencerVerifier{
 		caller: caller,
@@ -54,11 +64,16 @@ func NewSequencerVerifier(caller *bindings.L1SequencerCaller, logger tmlog.Logge
 		cancel: cancel,
 	}
 	if err := v.syncHistory(); err != nil {
-		v.logger.Error("Failed to load sequencer history from L1", "err", err)
+		cancel()
+		return nil, fmt.Errorf("refusing to start with UpgradeBlockHeight=-1: initial sequencer history sync from L1 failed: %w", err)
+	}
+	if upgrade.UpgradeBlockHeight < 0 {
+		cancel()
+		return nil, fmt.Errorf("refusing to start with UpgradeBlockHeight=-1: L1 returned empty sequencer history; upgrade height unknown")
 	}
 	v.logCurrentState()
 	go v.refreshLoop(ctx)
-	return v
+	return v, nil
 }
 
 // logCurrentState prints a one-line snapshot of the loaded contract state at
