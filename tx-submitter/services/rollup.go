@@ -809,8 +809,12 @@ func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 			batchIndex := utils.ParseFBatchIndex(tx.Data())
 			if batchIndex > 0 {
 				if r.cfg.SealBatch {
-					if delErr := r.batchCache.Delete(batchIndex - 1); delErr != nil {
-						log.Error("failed to delete batch", "batch_index", batchIndex, "tx_hash", tx.Hash().String(), "error", delErr)
+					// Range-based cleanup: the finalize target can jump past batches
+					// finalized by other submitters, which this node never deletes.
+					// Deleting only batchIndex-1 would leave those behind and punch a
+					// hole into the persisted indices, crashing the next restart load.
+					if delErr := r.batchCache.DeleteUntil(batchIndex - 1); delErr != nil {
+						log.Error("failed to delete batches up to index", "batch_index", batchIndex-1, "tx_hash", tx.Hash().String(), "error", delErr)
 					}
 				} else {
 					r.batchCacheLegacy.Delete(batchIndex - 1)

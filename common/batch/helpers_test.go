@@ -43,6 +43,17 @@ func (d *testLevelDB) Delete(key []byte) error {
 	return d.db.Delete(key, nil)
 }
 
+func (d *testLevelDB) WriteBatch(puts []KVPair, deletes [][]byte) error {
+	b := new(leveldb.Batch)
+	for _, kv := range puts {
+		b.Put(kv.Key, kv.Value)
+	}
+	for _, key := range deletes {
+		b.Delete(key)
+	}
+	return d.db.Write(b, nil)
+}
+
 func testLoop(ctx context.Context, d time.Duration, fn func()) {
 	ticker := time.NewTicker(d)
 	defer ticker.Stop()
