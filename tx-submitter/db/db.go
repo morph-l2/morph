@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"sync"
 
+	"morph-l2/common/batch"
 	"morph-l2/tx-submitter/utils"
 
 	"github.com/morph-l2/go-ethereum/ethdb/leveldb"
@@ -89,6 +90,27 @@ func (d *Db) Delete(key []byte) error {
 	d.m.Lock()
 	defer d.m.Unlock()
 	return d.db.Delete(key)
+}
+
+// WriteBatch applies all puts and deletes atomically in a single leveldb batch.
+func (d *Db) WriteBatch(puts []batch.KVPair, deletes [][]byte) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	b := d.db.NewBatch()
+	for _, kv := range puts {
+		if err := b.Put(kv.Key, kv.Value); err != nil {
+			return fmt.Errorf("failed to stage put in write batch: %w", err)
+		}
+	}
+	for _, key := range deletes {
+		if err := b.Delete(key); err != nil {
+			return fmt.Errorf("failed to stage delete in write batch: %w", err)
+		}
+	}
+	if err := b.Write(); err != nil {
+		return fmt.Errorf("failed to commit write batch: %w", err)
+	}
+	return nil
 }
 func (d *Db) Close() error {
 	return d.db.Close()

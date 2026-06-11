@@ -752,13 +752,11 @@ func (bc *BatchCache) SealBatch(sequencerSets []byte, blockTimestamp uint64, rep
 	copy(batchHeaderCopy, batchHeader)
 	bc.sealedBatchHeaders[batchIndex] = &batchHeaderCopy
 
-	err = bc.batchStorage.StoreSealedBatch(batchIndex, sealedBatch)
+	// Persist batch data, header and indices in one atomic write so the stored
+	// snapshot can never be partially updated.
+	err = bc.batchStorage.StoreSealedBatchAndHeader(batchIndex, sealedBatch, &batchHeaderCopy)
 	if err != nil {
-		log.Error("failed to store sealed batch", "err", err)
-	}
-	err = bc.batchStorage.StoreSealedBatchHeader(batchIndex, &batchHeaderCopy)
-	if err != nil {
-		log.Error("failed to store sealed batch header", "err", err)
+		log.Error("failed to store sealed batch and header", "batch_index", batchIndex, "err", err)
 	}
 	// Update parent batch information for next batch
 	bc.parentBatchHeader = &batchHeaderCopy
@@ -1256,6 +1254,28 @@ func (bc *BatchCache) Delete(batchIndex uint64) error {
 		return err
 	}
 	return nil
+}
+
+// DeleteUntil removes every sealed batch and header with index <= maxIndex from
+// both the in-memory maps and persistent storage. Finalize cleanup must use this
+// range-based form: the finalize target can jump (multiple submitters, several
+// batches finalized at once), so deleting a single index leaves stale lower
+// indices behind and punches holes into the persisted indices snapshot, which
+// breaks the contiguity assumption of the startup load path.
+func (bc *BatchCache) DeleteUntil(maxIndex uint64) error {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+	for idx := range bc.sealedBatches {
+		if idx <= maxIndex {
+			delete(bc.sealedBatches, idx)
+		}
+	}
+	for idx := range bc.sealedBatchHeaders {
+		if idx <= maxIndex {
+			delete(bc.sealedBatchHeaders, idx)
+		}
+	}
+	return bc.batchStorage.DeleteSealedBatchesUpTo(maxIndex)
 }
 
 // logSealedBatch logs the details of the sealed batch for debugging purposes.

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 
 	"github.com/morph-l2/go-ethereum/eth"
@@ -34,7 +35,9 @@ func NewBatchStorage(db SealedBatchKV) *BatchStorage {
 }
 
 // StoreSealedBatch stores a single sealed batch to LevelDB
-// Uses JSON encoding for serialization
+// Uses JSON encoding for serialization.
+// Batch data and the indices snapshot are written in one atomic batch so they
+// can never get out of sync; indices update failures are no longer swallowed.
 func (s *BatchStorage) StoreSealedBatch(batchIndex uint64, batch *eth.RPCRollupBatch) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -45,18 +48,45 @@ func (s *BatchStorage) StoreSealedBatch(batchIndex uint64, batch *eth.RPCRollupB
 		return fmt.Errorf("failed to marshal sealed batch %d: %w", batchIndex, err)
 	}
 
-	// Store batch data
-	key := encodeBatchKey(batchIndex)
-	if err := s.db.PutBytes(key, encoded); err != nil {
+	encodedIndices, err := s.indicesSnapshotWith(batchIndex)
+	if err != nil {
+		return fmt.Errorf("failed to update batch indices for batch %d: %w", batchIndex, err)
+	}
+
+	puts := []KVPair{
+		{Key: encodeBatchKey(batchIndex), Value: encoded},
+		{Key: []byte(SealedBatchIndicesKey), Value: encodedIndices},
+	}
+	if err := s.db.WriteBatch(puts, nil); err != nil {
 		return fmt.Errorf("failed to store sealed batch %d: %w", batchIndex, err)
 	}
+	return nil
+}
 
-	// Update indices list
-	if err = s.updateBatchIndices(batchIndex, true); err != nil {
-		log.Warn("Failed to update batch indices", "batch_index", batchIndex, "error", err)
-		// Don't fail the operation if indices update fails
+// StoreSealedBatchAndHeader stores the sealed batch, its header and the updated
+// indices snapshot in a single atomic write.
+func (s *BatchStorage) StoreSealedBatchAndHeader(batchIndex uint64, batch *eth.RPCRollupBatch, header *BatchHeaderBytes) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	encoded, err := json.Marshal(batch)
+	if err != nil {
+		return fmt.Errorf("failed to marshal sealed batch %d: %w", batchIndex, err)
 	}
 
+	encodedIndices, err := s.indicesSnapshotWith(batchIndex)
+	if err != nil {
+		return fmt.Errorf("failed to update batch indices for batch %d: %w", batchIndex, err)
+	}
+
+	puts := []KVPair{
+		{Key: encodeBatchKey(batchIndex), Value: encoded},
+		{Key: encodeBatchHeaderKey(batchIndex), Value: header.Bytes()},
+		{Key: []byte(SealedBatchIndicesKey), Value: encodedIndices},
+	}
+	if err := s.db.WriteBatch(puts, nil); err != nil {
+		return fmt.Errorf("failed to store sealed batch and header %d: %w", batchIndex, err)
+	}
 	return nil
 }
 
@@ -132,12 +162,26 @@ func (s *BatchStorage) LoadAllSealedBatchesAndHeader() (map[uint64]*eth.RPCRollu
 	for i, idx := range indices {
 		batch, err := s.LoadSealedBatch(idx)
 		if err != nil {
-			log.Warn("Failed to load sealed batch, skipping",
+			log.Warn("Failed to load sealed batch, aborting",
 				"batch_index", idx, "error", err)
 			return nil, nil, nil, fmt.Errorf("failed to load batch: %w", err)
 		}
 		if i > 0 {
-			parentBatch := batches[idx-1]
+			// indices is sorted ascending; a hole means some middle batch was
+			// deleted (e.g. by a finalize confirmed while other submitters
+			// advanced the finalize index). Return an error so the caller can
+			// self-heal instead of dereferencing a missing parent batch.
+			prevIdx := indices[i-1]
+			if idx != prevIdx+1 {
+				log.Error("Sealed batch indices are not contiguous",
+					"prev_index", prevIdx, "batch_index", idx)
+				return nil, nil, nil, fmt.Errorf("sealed batch indices not contiguous: %d -> %d", prevIdx, idx)
+			}
+			parentBatch := batches[prevIdx]
+			if parentBatch == nil {
+				log.Error("Parent batch missing", "parent_index", prevIdx, "batch_index", idx)
+				return nil, nil, nil, fmt.Errorf("parent batch %d missing for batch %d", prevIdx, idx)
+			}
 			parentBatchHash, err := BatchHeaderBytes(batch.ParentBatchHeader).Hash()
 			if err != nil {
 				log.Error("Failed to load parent batch header", "batch_index", idx, "error", err)
@@ -179,31 +223,36 @@ func (s *BatchStorage) LoadAllSealedBatchesAndHeader() (map[uint64]*eth.RPCRollu
 	return batches, headers, indices, nil
 }
 
-// DeleteSealedBatch removes a sealed batch from LevelDB
+// DeleteSealedBatch removes a sealed batch (data + header) from LevelDB.
+// Data, header and the indices snapshot are removed in one atomic write;
+// indices update failures are no longer swallowed.
 func (s *BatchStorage) DeleteSealedBatch(batchIndex uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	key := encodeBatchKey(batchIndex)
-	if err := s.db.Delete(key); err != nil {
+	encodedIndices, err := s.indicesSnapshotWithout(batchIndex)
+	if err != nil {
+		return fmt.Errorf("failed to update batch indices for batch %d: %w", batchIndex, err)
+	}
+
+	puts := []KVPair{{Key: []byte(SealedBatchIndicesKey), Value: encodedIndices}}
+	deletes := [][]byte{encodeBatchKey(batchIndex), encodeBatchHeaderKey(batchIndex)}
+	if err := s.db.WriteBatch(puts, deletes); err != nil {
 		return fmt.Errorf("failed to delete sealed batch %d: %w", batchIndex, err)
 	}
-
-	// Update indices list
-	if err := s.updateBatchIndices(batchIndex, false); err != nil {
-		log.Warn("Failed to update batch indices after deletion",
-			"batch_index", batchIndex, "error", err)
-		// Don't fail the operation if indices update fails
-	}
-
 	return nil
 }
 
-func (s *BatchStorage) DeleteAllSealedBatches() error {
-	s.mu.RLock()
-	// Load batch indices
+// DeleteSealedBatchesUpTo removes every sealed batch (data + header) with
+// index <= maxIndex in a single atomic write. Range-based cleanup keeps the
+// surviving indices a contiguous window: single-index deletes punch holes when
+// the finalize target jumps (multiple submitters, finalizing several batches at
+// once), and such holes crash the startup load path.
+func (s *BatchStorage) DeleteSealedBatchesUpTo(maxIndex uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	indices, err := s.loadBatchIndices()
-	s.mu.RUnlock()
 	if err != nil {
 		if isKVNotFound(err) {
 			// No batches stored yet
@@ -212,21 +261,51 @@ func (s *BatchStorage) DeleteAllSealedBatches() error {
 		return fmt.Errorf("failed to load batch indices: %w", err)
 	}
 
+	kept := make([]uint64, 0, len(indices))
+	var deletes [][]byte
 	for _, idx := range indices {
-		err = s.DeleteSealedBatch(idx)
-		if err != nil {
-			log.Error("Failed to delete sealed batch",
-				"batch_index", idx, "error", err)
-			return err
-		}
-		err = s.DeleteSealedBatchHeader(idx)
-		if err != nil {
-			log.Error("Failed to delete sealed batch header",
-				"batch_index", idx, "error", err)
-			return err
+		if idx <= maxIndex {
+			deletes = append(deletes, encodeBatchKey(idx), encodeBatchHeaderKey(idx))
+		} else {
+			kept = append(kept, idx)
 		}
 	}
+	if len(deletes) == 0 {
+		return nil
+	}
 
+	encodedIndices, err := json.Marshal(kept)
+	if err != nil {
+		return fmt.Errorf("failed to marshal batch indices: %w", err)
+	}
+	puts := []KVPair{{Key: []byte(SealedBatchIndicesKey), Value: encodedIndices}}
+	if err := s.db.WriteBatch(puts, deletes); err != nil {
+		return fmt.Errorf("failed to delete sealed batches up to %d: %w", maxIndex, err)
+	}
+	return nil
+}
+
+func (s *BatchStorage) DeleteAllSealedBatches() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	indices, err := s.loadBatchIndices()
+	if err != nil {
+		if isKVNotFound(err) {
+			// No batches stored yet
+			return nil
+		}
+		return fmt.Errorf("failed to load batch indices: %w", err)
+	}
+
+	deletes := make([][]byte, 0, len(indices)*2+1)
+	for _, idx := range indices {
+		deletes = append(deletes, encodeBatchKey(idx), encodeBatchHeaderKey(idx))
+	}
+	deletes = append(deletes, []byte(SealedBatchIndicesKey))
+	if err := s.db.WriteBatch(nil, deletes); err != nil {
+		return fmt.Errorf("failed to delete all sealed batches: %w", err)
+	}
 	return nil
 }
 
@@ -238,45 +317,52 @@ func encodeBatchKey(batchIndex uint64) []byte {
 	return key
 }
 
-// updateBatchIndices updates the list of stored batch indices
-// add: true to add index, false to remove
-func (s *BatchStorage) updateBatchIndices(batchIndex uint64, add bool) error {
+// indicesSnapshotWith returns the marshaled indices snapshot with batchIndex added.
+func (s *BatchStorage) indicesSnapshotWith(batchIndex uint64) ([]byte, error) {
 	indices, err := s.loadBatchIndices()
 	if err != nil {
 		if isKVNotFound(err) {
 			indices = []uint64{}
 		} else {
-			return err
+			return nil, err
 		}
 	}
 
-	if add {
-		// Add index if not already present
-		found := false
-		for _, idx := range indices {
-			if idx == batchIndex {
-				found = true
-				break
-			}
+	found := false
+	for _, idx := range indices {
+		if idx == batchIndex {
+			found = true
+			break
 		}
-		if !found {
-			indices = append(indices, batchIndex)
-		}
-	} else {
-		// Remove index
-		newIndices := make([]uint64, 0, len(indices))
-		for _, idx := range indices {
-			if idx != batchIndex {
-				newIndices = append(newIndices, idx)
-			}
-		}
-		indices = newIndices
 	}
-
-	return s.saveBatchIndices(indices)
+	if !found {
+		indices = append(indices, batchIndex)
+		sort.Slice(indices, func(i, j int) bool { return indices[i] < indices[j] })
+	}
+	return json.Marshal(indices)
 }
 
-// loadBatchIndices loads the list of stored batch indices
+// indicesSnapshotWithout returns the marshaled indices snapshot with batchIndex removed.
+func (s *BatchStorage) indicesSnapshotWithout(batchIndex uint64) ([]byte, error) {
+	indices, err := s.loadBatchIndices()
+	if err != nil {
+		if isKVNotFound(err) {
+			indices = []uint64{}
+		} else {
+			return nil, err
+		}
+	}
+
+	newIndices := make([]uint64, 0, len(indices))
+	for _, idx := range indices {
+		if idx != batchIndex {
+			newIndices = append(newIndices, idx)
+		}
+	}
+	return json.Marshal(newIndices)
+}
+
+// loadBatchIndices loads the list of stored batch indices, sorted ascending.
 func (s *BatchStorage) loadBatchIndices() ([]uint64, error) {
 	encoded, err := s.db.GetBytes([]byte(SealedBatchIndicesKey))
 	if err != nil {
@@ -288,17 +374,9 @@ func (s *BatchStorage) loadBatchIndices() ([]uint64, error) {
 		return nil, fmt.Errorf("failed to unmarshal batch indices: %w", err)
 	}
 
+	// Keep ordering deterministic regardless of how the snapshot was produced.
+	sort.Slice(indices, func(i, j int) bool { return indices[i] < indices[j] })
 	return indices, nil
-}
-
-// saveBatchIndices saves the list of batch indices
-func (s *BatchStorage) saveBatchIndices(indices []uint64) error {
-	encoded, err := json.Marshal(indices)
-	if err != nil {
-		return fmt.Errorf("failed to marshal batch indices: %w", err)
-	}
-
-	return s.db.PutBytes([]byte(SealedBatchIndicesKey), encoded)
 }
 
 // StoreSealedBatchHeader stores a single sealed batch header to LevelDB
