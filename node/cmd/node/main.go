@@ -170,7 +170,7 @@ func L2NodeMain(ctx *cli.Context) error {
 		if haService != nil {
 			ha = haService
 		}
-		tmNode, err = sequencer.SetupNode(tmCfg, tmVal, executor, nodeConfig.Logger, verifier, signer, ha)
+		tmNode, err = sequencer.SetupNode(tmCfg, tmVal, executor, nodeConfig.Logger, verifier, tracker, signer, ha)
 		if err != nil {
 			return fmt.Errorf("failed to setup consensus node: %v", err)
 		}
@@ -314,14 +314,7 @@ func initL1SequencerComponents(
 	seqPrivKeyHex := ctx.GlobalString(flags.SequencerPrivateKey.Name)
 	enclaveSignerAddr := ctx.GlobalString(flags.SequencerEnclaveSignerAddr.Name)
 
-	// Initialize L1 Tracker
-	tracker := l1sequencer.NewL1Tracker(context.Background(), l1Client, lagThreshold, logger)
-	if err := tracker.Start(); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to start L1 tracker: %w", err)
-	}
-	logger.Info("L1 Tracker started", "lagThreshold", lagThreshold)
-
-	// Initialize Sequencer Verifier
+	// Initialize Sequencer Verifier (built before the tracker, which refreshes it on L1 recovery).
 	var verifier *l1sequencer.SequencerVerifier
 	if contractAddr != (common.Address{}) {
 		caller, err := bindings.NewL1SequencerCaller(contractAddr, l1Client)
@@ -336,6 +329,13 @@ func initL1SequencerComponents(
 	} else {
 		return nil, nil, nil, fmt.Errorf("L1 Sequencer contract address is required, check l1.sequencerContract configuration")
 	}
+
+	// Initialize L1 Tracker (health gate: halts production/sync when L1 is stale).
+	tracker := l1sequencer.NewL1Tracker(context.Background(), l1Client, verifier, lagThreshold, logger)
+	if err := tracker.Start(); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to start L1 tracker: %w", err)
+	}
+	logger.Info("L1 Tracker started", "warnLag", lagThreshold)
 
 	// Initialize Signer (optional). Three mutually exclusive modes:
 	//   1) sequencer.privateKey set        → LocalSigner (plaintext key in node memory)

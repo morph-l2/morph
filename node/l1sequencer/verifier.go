@@ -99,6 +99,13 @@ func (c *SequencerVerifier) Stop() {
 	c.cancel()
 }
 
+// refresh forces an immediate sequencer-history resync from L1. The L1 tracker
+// calls it once when L1 recovers, before reopening the gate. Satisfies
+// verifierRefresher.
+func (c *SequencerVerifier) refresh() error {
+	return c.syncHistory()
+}
+
 // syncHistory fetches the full sequencer history from L1 (finalized tag) and
 // replaces the local cache if anything changed.
 func (c *SequencerVerifier) syncHistory() error {
