@@ -2,7 +2,7 @@ module morph-l2/morph-deployer
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.0.0-20260602085346-ee68e1bcf49a
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.8-0.20260612101929-7222401d6577
 
 replace github.com/morph-l2/go-ethereum => github.com/morph-l2/go-ethereum v0.0.0-20260608072528-fe02cc1f10bc
 
