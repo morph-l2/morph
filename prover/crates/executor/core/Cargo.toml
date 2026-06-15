@@ -13,3 +13,4 @@ morph-primitives = { workspace = true }
 morph-chainspec = { workspace = true }
 alloy-evm = { workspace = true }
 alloy-consensus.workspace = true
+morph-evm = { workspace = true }
