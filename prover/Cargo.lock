@@ -167,24 +167,25 @@ dependencies = [
 
 [[package]]
 name = "alloy-contract"
-version = "1.1.0"
+version = "2.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5903097e4c131ad2dd80d87065f23c715ccb9cdb905fa169dffab8e1e798bae"
+checksum = "3ae8b60d71b92824e095b4003ff01fd2bc923017b7568997c5f459240e83499c"
 dependencies = [
- "alloy-consensus 1.7.3",
+ "alloy-consensus 2.0.5",
  "alloy-dyn-abi",
  "alloy-json-abi",
- "alloy-network 1.7.3",
- "alloy-network-primitives 1.7.3",
+ "alloy-network 2.0.5",
+ "alloy-network-primitives 2.0.5",
  "alloy-primitives",
- "alloy-provider 1.7.3",
- "alloy-rpc-types-eth 1.7.3",
+ "alloy-provider",
+ "alloy-rpc-types-eth 2.0.5",
  "alloy-sol-types",
- "alloy-transport 1.7.3",
+ "alloy-transport",
  "futures",
  "futures-util",
  "serde_json",
  "thiserror 2.0.17",
+ "tracing",
 ]
 
 [[package]]
@@ -198,9 +199,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-dyn-abi"
-version = "1.4.1"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fdff496dd4e98a81f4861e66f7eaf5f2488971848bb42d9c892f871730245c8"
+checksum = "a475bb02d9cef2dbb99065c1664ab3fe1f9352e21d6d5ed3f02cdbfc06ed1abc"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -209,7 +210,7 @@ dependencies = [
  "itoa",
  "serde",
  "serde_json",
- "winnow 0.7.14",
+ "winnow 1.0.3",
 ]
 
 [[package]]
@@ -511,45 +512,6 @@ dependencies = [
 
 [[package]]
 name = "alloy-provider"
-version = "1.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d181c8cc7cf4805d7e589bf4074d56d55064fa1a979f005a45a62b047616d870"
-dependencies = [
- "alloy-chains",
- "alloy-consensus 1.7.3",
- "alloy-eips 1.7.3",
- "alloy-json-rpc 1.7.3",
- "alloy-network 1.7.3",
- "alloy-network-primitives 1.7.3",
- "alloy-primitives",
- "alloy-rpc-client 1.7.3",
- "alloy-rpc-types-eth 1.7.3",
- "alloy-signer 1.7.3",
- "alloy-sol-types",
- "alloy-transport 1.7.3",
- "alloy-transport-http 1.7.3",
- "async-stream",
- "async-trait",
- "auto_impl",
- "dashmap",
- "either",
- "futures",
- "futures-utils-wasm",
- "lru 0.16.3",
- "parking_lot",
- "pin-project",
- "reqwest 0.12.15",
- "serde",
- "serde_json",
- "thiserror 2.0.17",
- "tokio",
- "tracing",
- "url",
- "wasmtimer",
-]
-
-[[package]]
-name = "alloy-provider"
 version = "2.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8955ab30418343de57b356de2ea60200f9fb8016a7ea3bc7f5c6176f01a8b1cf"
@@ -561,12 +523,12 @@ dependencies = [
  "alloy-network 2.0.5",
  "alloy-network-primitives 2.0.5",
  "alloy-primitives",
- "alloy-rpc-client 2.0.5",
+ "alloy-rpc-client",
  "alloy-rpc-types-eth 2.0.5",
  "alloy-signer 2.0.5",
  "alloy-sol-types",
- "alloy-transport 2.0.5",
- "alloy-transport-http 2.0.5",
+ "alloy-transport",
+ "alloy-transport-http",
  "async-stream",
  "async-trait",
  "auto_impl",
@@ -611,37 +573,14 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-client"
-version = "1.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2792758a93ae32a32e9047c843d536e1448044f78422d71bf7d7c05149e103f"
-dependencies = [
- "alloy-json-rpc 1.7.3",
- "alloy-primitives",
- "alloy-transport 1.7.3",
- "alloy-transport-http 1.7.3",
- "futures",
- "pin-project",
- "reqwest 0.12.15",
- "serde",
- "serde_json",
- "tokio",
- "tokio-stream",
- "tower 0.5.2",
- "tracing",
- "url",
- "wasmtimer",
-]
-
-[[package]]
-name = "alloy-rpc-client"
 version = "2.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24f461f091dc8f657e73b5dea18fd63d5c7049720cd252f1eade4a7ebed6a7e1"
 dependencies = [
  "alloy-json-rpc 2.0.5",
  "alloy-primitives",
- "alloy-transport 2.0.5",
- "alloy-transport-http 2.0.5",
+ "alloy-transport",
+ "alloy-transport-http",
  "futures",
  "pin-project",
  "reqwest 0.13.4",
@@ -942,29 +881,6 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport"
-version = "1.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa186e560d523d196580c48bf00f1bf62e63041f28ecf276acc22f8b27bb9f53"
-dependencies = [
- "alloy-json-rpc 1.7.3",
- "auto_impl",
- "base64 0.22.1",
- "derive_more 2.1.0",
- "futures",
- "futures-utils-wasm",
- "parking_lot",
- "serde",
- "serde_json",
- "thiserror 2.0.17",
- "tokio",
- "tower 0.5.2",
- "tracing",
- "url",
- "wasmtimer",
-]
-
-[[package]]
-name = "alloy-transport"
 version = "2.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "86052fdcec72d37ca4aa4b66254601e7453c45a6e1c70aa4561033d002fb80cc"
@@ -988,28 +904,12 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport-http"
-version = "1.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa501ad58dd20acddbfebc65b52e60f05ebf97c52fa40d1b35e91f5e2da0ad0e"
-dependencies = [
- "alloy-json-rpc 1.7.3",
- "alloy-transport 1.7.3",
- "itertools 0.14.0",
- "reqwest 0.12.15",
- "serde_json",
- "tower 0.5.2",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "alloy-transport-http"
 version = "2.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b273587487921274f4f5d0ef2c7ef36944dcbb75a4e2318e69eae822bd263f91"
 dependencies = [
  "alloy-json-rpc 2.0.5",
- "alloy-transport 2.0.5",
+ "alloy-transport",
  "itertools 0.14.0",
  "reqwest 0.13.4",
  "serde_json",
@@ -4718,7 +4618,7 @@ dependencies = [
 [[package]]
 name = "morph-chainspec"
 version = "0.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#07525393d493a6c02bf89f0d3b7eb6c1f59d9c08"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#1f146a5150fc25319eb48599abc32e772d1a2b3d"
 dependencies = [
  "alloy-chains",
  "alloy-consensus 2.0.5",
@@ -4740,7 +4640,7 @@ dependencies = [
 [[package]]
 name = "morph-primitives"
 version = "0.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#07525393d493a6c02bf89f0d3b7eb6c1f59d9c08"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#1f146a5150fc25319eb48599abc32e772d1a2b3d"
 dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-eips 2.0.5",
@@ -4757,7 +4657,7 @@ name = "morph-prove"
 version = "0.1.0"
 dependencies = [
  "alloy",
- "alloy-provider 2.0.5",
+ "alloy-provider",
  "anyhow",
  "clap",
  "dotenv",
@@ -4778,7 +4678,7 @@ dependencies = [
 [[package]]
 name = "morph-revm"
 version = "0.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#07525393d493a6c02bf89f0d3b7eb6c1f59d9c08"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#1f146a5150fc25319eb48599abc32e772d1a2b3d"
 dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-eips 2.0.5",
@@ -6030,7 +5930,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-network 2.0.5",
  "alloy-primitives",
- "alloy-provider 2.0.5",
+ "alloy-provider",
  "alloy-rpc-types",
  "alloy-rpc-types-debug",
  "anyhow",
@@ -6083,7 +5983,7 @@ name = "prover-server"
 version = "0.1.0"
 dependencies = [
  "alloy-primitives",
- "alloy-provider 2.0.5",
+ "alloy-provider",
  "anyhow",
  "axum 0.4.8",
  "dotenv",
@@ -6106,10 +6006,10 @@ version = "2.0.0"
 dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-primitives",
- "alloy-provider 2.0.5",
+ "alloy-provider",
  "alloy-rpc-types",
  "alloy-rpc-types-debug",
- "alloy-transport 2.0.5",
+ "alloy-transport",
  "anyhow",
  "async-trait",
  "log",
@@ -6142,7 +6042,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-json-rpc 2.0.5",
  "alloy-network 2.0.5",
- "alloy-provider 2.0.5",
+ "alloy-provider",
  "anyhow",
  "log",
  "serde",
@@ -7774,12 +7674,12 @@ dependencies = [
  "alloy-json-rpc 2.0.5",
  "alloy-network 2.0.5",
  "alloy-primitives",
- "alloy-provider 1.7.3",
+ "alloy-provider",
  "alloy-rpc-types",
  "alloy-signer-local 2.0.5",
  "alloy-sol-types",
- "alloy-transport 2.0.5",
- "alloy-transport-http 2.0.5",
+ "alloy-transport",
+ "alloy-transport-http",
  "anyhow",
  "axum 0.4.8",
  "clap",
@@ -10504,12 +10404,6 @@ checksum = "f593a95398737aeed53e489c785df13f3618e41dbcd6718c6addbf1395aa6876"
 dependencies = [
  "memchr",
 ]
-
-[[package]]
-name = "winnow"
-version = "0.7.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a5364e9d77fcdeeaa6062ced926ee3381faa2ee02d3eb83a5c27a8825540829"
 
 [[package]]
 name = "winnow"
