@@ -25,6 +25,12 @@ const (
 	raftInfiniteTimeout = 0               // wait forever
 	raftMaxConnPool     = 10
 	raftSnapshots       = 1 // snapshot data is trivial (8 bytes); keep 1 for log compaction
+
+	// advertisedAddr may be a hostname whose DNS record is not yet propagated the
+	// instant the pod starts (it resolves a few seconds later). Retry the initial
+	// resolve instead of failing fast on that startup race.
+	advAddrResolveRetries  = 5               // retries after the first attempt (6 resolves total)
+	advAddrResolveInterval = 3 * time.Second // 5 retries × 3s ≈ 15s max wait for DNS to propagate
 )
 
 // HAService implements the SequencerHA interface from tendermint/sequencer.
@@ -259,7 +265,12 @@ func (h *HAService) ClusterMembership() (*hakeeperrpc.ClusterMembership, error) 
 			Suffrage: hakeeperrpc.ServerSuffrage(srv.Suffrage),
 		})
 	}
-	return &hakeeperrpc.ClusterMembership{Servers: servers, Version: future.Index()}, nil
+	_, leaderID := h.r.LeaderWithID()
+	return &hakeeperrpc.ClusterMembership{
+		Servers:  servers,
+		LeaderID: string(leaderID),
+		Version:  future.Index(),
+	}, nil
 }
 
 func (h *HAService) ServerID() string { return h.cfg.ServerID }
@@ -336,9 +347,22 @@ func (h *HAService) initRaft() (retErr error) {
 	// Note: the resolved IP is only used by the transport's LocalAddr(). The ServerAddress
 	// stored in Raft cluster config (BootstrapCluster/AddServerAsVoter) uses the raw
 	// h.advertisedAddr which may be a hostname — Raft's Dial() re-resolves DNS each time.
-	tcpAdvAddr, err := net.ResolveTCPAddr("tcp", h.advertisedAddr)
-	if err != nil {
-		return fmt.Errorf("resolve advertised addr %q: %w", h.advertisedAddr, err)
+	var tcpAdvAddr *net.TCPAddr
+	for attempt := 0; ; attempt++ {
+		tcpAdvAddr, err = net.ResolveTCPAddr("tcp", h.advertisedAddr)
+		if err == nil {
+			break
+		}
+		if attempt >= advAddrResolveRetries {
+			// DNS still hasn't propagated after the full retry budget. Some consensus-switch
+			// paths only log StartSequencerRoutines errors and keep running, which would leave
+			// this node alive but with Raft never started. Panic instead so the process exits
+			// non-zero and the orchestrator (k8s) restarts the pod for another DNS attempt.
+			panic(fmt.Errorf("hakeeper: resolve advertised addr %q after %d retries: %w", h.advertisedAddr, advAddrResolveRetries, err))
+		}
+		h.logger.Info("hakeeper: advertised addr not resolvable yet, retrying",
+			"addr", h.advertisedAddr, "retry", attempt+1, "max", advAddrResolveRetries, "err", err)
+		time.Sleep(advAddrResolveInterval)
 	}
 
 	bindAddr := fmt.Sprintf("%s:%d", h.cfg.Consensus.ListenAddr, h.cfg.Consensus.ListenPort)

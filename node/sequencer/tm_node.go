@@ -61,6 +61,7 @@ func SetupNode(
 	executor *node.Executor,
 	logger tmlog.Logger,
 	verifier *l1sequencer.SequencerVerifier,
+	l1Tracker *l1sequencer.L1Tracker,
 	signer l1sequencer.Signer,
 	ha tmsequencer.SequencerHA,
 ) (*tmnode.Node, error) {
@@ -77,6 +78,12 @@ func SetupNode(
 		tmVerifier = verifier
 	}
 
+	// Adapt the concrete L1 tracker to the tendermint L1Tracker interface.
+	var tmL1Tracker tmsequencer.L1Tracker
+	if l1Tracker != nil {
+		tmL1Tracker = l1Tracker
+	}
+
 	n, err := tmnode.NewNode(
 		tmCfg,
 		executor,
@@ -88,6 +95,7 @@ func SetupNode(
 		tmnode.DefaultMetricsProvider(tmCfg.Instrumentation),
 		nodeLogger,
 		tmVerifier,
+		tmL1Tracker,
 		signer,
 		ha,
 	)
