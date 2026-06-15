@@ -6,10 +6,17 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{PROVER_L2_RPC, PROVER_PROOF_DIR, PROVER_USE_RPC_DB, PROVE_RESULT, PROVE_TIME};
+use crate::{
+    PROVER_L2_RPC, PROVER_PROOF_DIR, PROVER_USE_RPC_DB, PROVE_RESULT,
+    PROVE_TIME,
+};
 use alloy_primitives::Keccak256;
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
-use morph_prove::{evm::EvmProofFixture, execute::execute_batch, BatchProver, DefaultClient};
+use morph_prove::{
+    evm::EvmProofFixture,
+    execute::{execute_batch, InputSource},
+    BatchProver, DefaultClient,
+};
 use prover_executor_client::{types::input::ExecutorInput, BlobVerifier, EVMVerifier};
 
 use prover_primitives::types::BlockTrace;
@@ -142,15 +149,10 @@ async fn gen_client_input(
     batch_version: u8,
 ) -> Result<ExecutorInput, anyhow::Error> {
     // Step1. Get ExecutorInput
-    let executor_input = execute_batch(
-        batch_index,
-        start_block,
-        end_block,
-        provider,
-        *PROVER_USE_RPC_DB,
-        batch_version,
-    )
-    .await?;
+    let input_source = if *PROVER_USE_RPC_DB { InputSource::RpcDb } else { InputSource::Witness };
+    let executor_input =
+        execute_batch(batch_index, start_block, end_block, provider, input_source, batch_version)
+            .await?;
     let proof_dir =
         PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{batch_index}"));
     std::fs::create_dir_all(&proof_dir).expect("failed to create proof path");

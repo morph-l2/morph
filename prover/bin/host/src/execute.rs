@@ -1,20 +1,45 @@
 use alloy_provider::DynProvider;
 use prover_executor_client::{types::input::ExecutorInput, EVMVerifier};
 use prover_executor_host::{
-    blob::{get_blob_infos_from_blocks, get_blob_infos_from_traces},
+    blob::get_blob_infos_from_blocks,
     execute::HostExecutor,
-    trace::trace_to_input,
     utils::{assemble_block_input, query_block, HostExecutorOutput},
     ClientBlockInput,
 };
-use prover_utils::provider::get_block_traces;
 
-/// Execute a single block.
+/// Data-source strategy for building [`ClientBlockInput`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum InputSource {
+    /// Fetch state via per-account `eth_getProof` calls (original behaviour).
+    #[default]
+    RpcDb,
+    /// Fetch state via a single `debug_executionWitness` call (reth).
+    Witness,
+}
+
+/// Execute a single block using per-account `eth_getProof` (original RPC-DB path).
 pub async fn execute(
     block_number: u64,
     provider: &DynProvider,
 ) -> Result<ClientBlockInput, anyhow::Error> {
     let output: HostExecutorOutput = HostExecutor::execute_block(block_number, provider).await?;
+
+    let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
+    let block_input = assemble_block_input(output, prev_block);
+    let _ = EVMVerifier::verify(vec![block_input.clone()])?;
+    Ok(block_input)
+}
+
+/// Execute a single block using a single `debug_executionWitness` RPC call.
+///
+/// This is more efficient than [`execute`] for nodes that support the
+/// `debug_executionWitness` endpoint (e.g. reth, recent geth).
+pub async fn execute_with_witness(
+    block_number: u64,
+    provider: &DynProvider,
+) -> Result<ClientBlockInput, anyhow::Error> {
+    let output: HostExecutorOutput =
+        HostExecutor::execute_block_with_witness(block_number, provider).await?;
 
     let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
     let block_input = assemble_block_input(output, prev_block);
@@ -28,7 +53,7 @@ pub async fn execute_batch(
     start_block: u64,
     end_block: u64,
     provider: &DynProvider,
-    use_rpc_db: bool,
+    source: InputSource,
     batch_version: u8,
 ) -> Result<ExecutorInput, anyhow::Error> {
     assert!(
@@ -36,33 +61,46 @@ pub async fn execute_batch(
         "end_block ({end_block}) must be >= start_block ({start_block})"
     );
     log::info!(
-        "Executing batch {}, blocks {} to {}, use_rpc_db = {}",
+        "Executing batch {}, blocks {} to {}, source = {:?}",
         batch_index,
         start_block,
         end_block,
-        use_rpc_db
+        source,
     );
-    let executor_input = if use_rpc_db {
-        // Use rpc db.
-        let mut block_inputs = vec![];
-        for block_number in start_block..=end_block {
-            block_inputs.push(execute(block_number, provider).await?);
+    let executor_input = match source {
+        InputSource::RpcDb => {
+            // Use per-account eth_getProof RPC calls.
+            let mut block_inputs = vec![];
+            for block_number in start_block..=end_block {
+                block_inputs.push(execute(block_number, provider).await?);
+            }
+            ExecutorInput {
+                block_inputs: block_inputs.clone(),
+                blob_infos: get_blob_infos_from_blocks(
+                    &block_inputs
+                        .iter()
+                        .map(|input| input.current_block.clone())
+                        .collect::<Vec<_>>(),
+                )?,
+                batch_version,
+            }
         }
-        ExecutorInput {
-            block_inputs: block_inputs.clone(),
-            blob_infos: get_blob_infos_from_blocks(
-                &block_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
-            )?,
-            batch_version,
-        }
-    } else {
-        // Use sequencer's trace rpc.
-        let traces = &mut get_block_traces(batch_index, start_block, end_block, provider).await?;
-        let blocks_inputs = traces.iter().map(trace_to_input).collect::<Vec<_>>();
-        ExecutorInput {
-            block_inputs: blocks_inputs,
-            blob_infos: get_blob_infos_from_traces(traces)?,
-            batch_version,
+        InputSource::Witness => {
+            // Use a single debug_executionWitness call per block (reth / geth).
+            let mut block_inputs = vec![];
+            for block_number in start_block..=end_block {
+                block_inputs.push(execute_with_witness(block_number, provider).await?);
+            }
+            ExecutorInput {
+                block_inputs: block_inputs.clone(),
+                blob_infos: get_blob_infos_from_blocks(
+                    &block_inputs
+                        .iter()
+                        .map(|input| input.current_block.clone())
+                        .collect::<Vec<_>>(),
+                )?,
+                batch_version,
+            }
         }
     };
 

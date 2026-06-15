@@ -6007,6 +6007,7 @@ dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-primitives",
  "alloy-provider",
+ "alloy-rlp",
  "alloy-rpc-types",
  "alloy-rpc-types-debug",
  "alloy-transport",
