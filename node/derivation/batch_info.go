@@ -177,13 +177,24 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 		txsData = batchBytes
 	} else {
 		// Block contexts are at the head of the decompressed stream,
-		// immediately followed by the tx payload bytes.
-		bcLen := blockCount * 60
-		if uint64(len(batchBytes)) < bcLen {
-			return fmt.Errorf("decompressed batch too short for block contexts: have %d, need %d", len(batchBytes), bcLen)
+		// immediately followed by the tx payload bytes. Bound blockCount by
+		// the payload length using division so blockCount*60 cannot overflow
+		// uint64 and bypass the length guard (a wrapped-small bcLen would
+		// otherwise drive a huge make([]*BlockContext) below).
+		if blockCount > uint64(len(batchBytes))/60 {
+			return fmt.Errorf("decompressed batch too short for block contexts: have %d, need %d blocks", len(batchBytes), blockCount)
 		}
+		bcLen := blockCount * 60
 		rawBlockContexts = batchBytes[:bcLen]
 		txsData = batchBytes[bcLen:]
+	}
+
+	// A batch must contain at least one block; zero-block batches are not
+	// supported. blockCount == 0 (e.g. a batch whose lastBlockNumber equals the
+	// parent's, or a zero block-count prefix) would yield empty blockContexts
+	// and a nil header downstream during derivation. Reject it here.
+	if blockCount == 0 {
+		return fmt.Errorf("invalid batch: zero block count")
 	}
 
 	data, err := commonbatch.DecodeTxsFromBytes(txsData)
