@@ -675,6 +675,124 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
             memory proof = hex"ffea2d2e0a0f124b2bc411325821f76e40978468a0892f57f7de20c99a4fe762dbbdfbc929f5b68b89bdecd40143f36782957e6b818fb761be749d283b16daab432f249b0ddb5537d6b7a8275505a9213eb15db1ddb095bada27a03b6f9c4edb5fd8f7110c7438abff87fed406080f3a103ad45c41fdf89542ff037adfe314a39e5688931da3a1f52f19a3a942cd36dace89340bcff9a18420596f6a06e5d14e5230baba07d1fb0a5bd20beb246875f3ad238dc040c347b10795fff4d6a92ac057c61d672f1d17bbab356c0ade3c419fb1d991f879c2d4fa02b8c4c6ad2d78a8338e9c101e7ea8eb9f1fe61a698598959eed8a33919226a623aa1cd5881d2db0d7f1811921abbb34d035056eea6a70c6079d13de1f67ccf4b2c54398a30cbbf490c2206c111c5e8734d5ef6574d1520f0e68acf482d40f11ac18a8316cb524b3b4a8adb8178e4333eb170bc3a0abfe3d69ced1c5f5b781be739ad2c45b8971455681bcd625348a050a4c5ebc469bf5f8ddb95d541baea4b71e9430452e37c084b2d0ab3c104dfe6dfab22413bf9ea4b2009b5248ec471432ab7464546ffe15033df99dba08077a60ae40633c2a5511faba9e00683497059265ab8114546729007d1e50670dc0a2cecf23cbe58417b2cf51afbf3fd8da63d936d8a92b6e9203c89665a3f40447bc5f08016739567287e5e824c164dc0c7dea8e95eddda27c4966c4d6674516d1cf84241a61b7fadbc432ce6253be085ab86771bf573aa6e506b4c98254d0192a1924297c2e29dfa5b19d99a8ff4ca3975803020f6f46c3200e09d2fb47282f5ced534b0301e5f7501aa56dc77d534c25849d7165efdba546883dda634db60f2d4a9ab608827d63a37020466318f704e30ba4223106a8092f052926714a7a2819a9afb7fb970a9a6d3058cb01ecd4d82e2e20f8996b0995818ae9c3ca815008fd01cdf42f187f723e6965c3c5ee972c9bbef7e7633776cf1af533460565bb256c5c9c6c1c50b63785daabe702d838308659e02c338ba5b47cd0508000eb4426bc76e4760d380bf9d1eb28e1dbcc9cd3a562a6b35ead2d434bce87657ab0ab2cfac2e3c410132c4bef39559dc853bfbf8319447dd365d0a6f52277046b1fdf284f27e626f4f86165eaea9b41bd4bf348325975bf3685a041c4740d300a4222063a6038b5da62c56052c5ddd1d845b51ae2782cec83fcae3966d7f4692d34fe00000000000000000000000000000000000000000000000000000000";
         rollup.proveCommittedBatchState(batchHeader1, proof);
     }
+
+    /// @dev Build the exact 257-byte V1 batch header that _commitBatchWithBatchData
+    ///      produces, so it can be replayed as a committed parent / proof header.
+    function _createMatchingBatchHeaderV1(
+        uint64 batchIndex,
+        uint64 lastBlockNumber,
+        uint16 numL1Messages,
+        uint64 totalL1MessagePopped,
+        bytes32 prevStateRoot,
+        bytes32 postStateRoot,
+        bytes32 withdrawalRoot,
+        bytes32 parentBatchHash
+    ) internal view returns (bytes memory batchHeader) {
+        batchHeader = new bytes(BatchHeaderCodecV1.BATCH_HEADER_LENGTH);
+        bytes32 dataHash = _computeDataHash(lastBlockNumber, numL1Messages);
+        bytes32 sequencerSetVerifyHash = _getSequencerSetVerifyHash();
+        assembly {
+            let ptr := add(batchHeader, 0x20)
+            mstore(ptr, shl(248, 1)) // version = 1
+            mstore(add(ptr, 1), shl(192, batchIndex)) // batchIndex
+            mstore(add(ptr, 9), shl(192, numL1Messages)) // l1MessagePopped
+            mstore(add(ptr, 17), shl(192, totalL1MessagePopped)) // totalL1MessagePopped
+            mstore(add(ptr, 25), dataHash) // dataHash
+            mstore(add(ptr, 57), ZERO_VERSIONED_HASH) // blobVersionedHash (no blob in test)
+            mstore(add(ptr, 89), prevStateRoot) // prevStateHash
+            mstore(add(ptr, 121), postStateRoot) // postStateHash
+            mstore(add(ptr, 153), withdrawalRoot) // withdrawRootHash
+            mstore(add(ptr, 185), sequencerSetVerifyHash) // sequencerSetVerifyHash
+            mstore(add(ptr, 217), parentBatchHash) // parentBatchHash
+            mstore(add(ptr, 249), shl(192, lastBlockNumber)) // lastBlockNumber (V1 field)
+        }
+    }
+
+    /// @dev Commit batch 1 as a V1 batch on top of the V0 genesis (parent version 0,
+    ///      so the new empty-span guard does not apply here) and return its header
+    ///      and post state root for use as a V1 parent in the span tests below.
+    function _commitFirstV1Batch(uint64 lastBlockNumber)
+        internal
+        returns (bytes memory batch1Header, bytes32 postStateRoot)
+    {
+        _mockVerifierCall();
+        _mockMessageQueueStalled();
+        hevm.warp(block.timestamp + 7200);
+
+        bytes32 prevStateRoot = bytes32(uint256(1));
+        postStateRoot = bytes32(uint256(2));
+        bytes32 withdrawalRoot = getTreeRoot();
+
+        IRollup.BatchDataInput memory input = IRollup.BatchDataInput({
+            version: 1,
+            parentBatchHeader: batchHeader0,
+            lastBlockNumber: lastBlockNumber,
+            numL1Messages: 0,
+            prevStateRoot: prevStateRoot,
+            postStateRoot: postStateRoot,
+            withdrawalRoot: withdrawalRoot
+        });
+        batch1Header = _createMatchingBatchHeaderV1(
+            1, lastBlockNumber, 0, 0, prevStateRoot, postStateRoot, withdrawalRoot, batchHash0
+        );
+
+        hevm.prank(alice);
+        rollup.commitBatchWithProof(input, batchSignatureInput, batch1Header, hex"deadbeef");
+        assertEq(rollup.lastCommittedBatchIndex(), 1);
+    }
+
+    /// @notice A batch whose lastBlockNumber equals the parent's (blockCount == 0)
+    ///         is rejected at the source (issue #996). Without this guard the value
+    ///         is accepted on-chain and crashes / stalls layer1-verify nodes.
+    function test_commitBatchWithProof_reverts_on_empty_block_span() public {
+        (bytes memory batch1Header, bytes32 batch1PostState) = _commitFirstV1Batch(100);
+
+        hevm.warp(block.timestamp + 7200);
+        IRollup.BatchDataInput memory input = IRollup.BatchDataInput({
+            version: 1,
+            parentBatchHeader: batch1Header,
+            lastBlockNumber: 100, // == parent => blockCount 0
+            numL1Messages: 0,
+            prevStateRoot: batch1PostState,
+            postStateRoot: bytes32(uint256(3)),
+            withdrawalRoot: getTreeRoot()
+        });
+
+        hevm.prank(alice);
+        hevm.expectRevert("empty block span");
+        rollup.commitBatchWithProof(
+            input,
+            batchSignatureInput,
+            new bytes(BatchHeaderCodecV1.BATCH_HEADER_LENGTH),
+            hex"deadbeef"
+        );
+    }
+
+    /// @notice A strictly increasing lastBlockNumber (blockCount >= 1) still commits:
+    ///         the guard must not reject valid monotonic V1 batches.
+    function test_commitBatchWithProof_allows_monotonic_block_span() public {
+        (bytes memory batch1Header, bytes32 batch1PostState) = _commitFirstV1Batch(100);
+
+        hevm.warp(block.timestamp + 7200);
+        bytes32 b2Post = bytes32(uint256(3));
+        bytes32 b2Withdraw = getTreeRoot();
+        IRollup.BatchDataInput memory input = IRollup.BatchDataInput({
+            version: 1,
+            parentBatchHeader: batch1Header,
+            lastBlockNumber: 200, // > parent => blockCount 100
+            numL1Messages: 0,
+            prevStateRoot: batch1PostState,
+            postStateRoot: b2Post,
+            withdrawalRoot: b2Withdraw
+        });
+        bytes memory batch2Header = _createMatchingBatchHeaderV1(
+            2, 200, 0, 0, batch1PostState, b2Post, b2Withdraw, rollup.committedBatches(1)
+        );
+
+        hevm.prank(alice);
+        rollup.commitBatchWithProof(input, batchSignatureInput, batch2Header, hex"deadbeef");
+        assertEq(rollup.lastCommittedBatchIndex(), 2);
+    }
 }
 
 contract RollupCommitBatchTest is L1MessageBaseTest {
