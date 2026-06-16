@@ -1,7 +1,7 @@
 use crate::utils::{beneficiary_by_chain_id, query_block, HostExecutorOutput};
 use alloy_provider::{DynProvider, Provider};
 use anyhow::{bail, Context};
-use prover_executor_core::MorphExecutor;
+use prover_executor_core::{build_morph_block, MorphExecutor};
 use prover_primitives::{
     predeployed::l2_to_l1_message::{
         SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT, WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT,
@@ -13,7 +13,6 @@ use prover_storage_rpc::{
     witness_rpc_db::ExecutionWitnessRpcDb,
 };
 use reth_trie::{HashedPostState, KeccakKeyHasher};
-use revm::{context::BlockEnv, database::State};
 
 /// An executor that fetches data from a [Provider] to execute blocks in the [ClientExecutor].
 #[derive(Debug, Clone)]
@@ -67,30 +66,18 @@ impl HostExecutor {
 
         // Warm up predeployed contract info.
         load_predeployed_contracts(&rpc_db).await?;
-        // Build state.
-        let state = State::builder().with_database_ref(&rpc_db).with_bundle_update().build();
-
-        let basefee = block.header.base_fee_per_gas.unwrap_or_default().to::<u64>();
-        let block_env = BlockEnv {
-            number: block.header.number,
-            timestamp: block.header.timestamp,
-            basefee,
-            gas_limit: block.header.gas_limit.to::<u64>(),
-            beneficiary,
-            ..Default::default()
-        };
 
         let txns = block
             .transactions
             .iter()
             .map(|tx_trace| tx_trace.try_build_tx_envelope())
             .collect::<Result<Vec<_>, _>>()?;
+        let morph_block = build_morph_block(&block.header, beneficiary, txns);
 
-        // Build EVM.
-        let mut core_executor = MorphExecutor::with_hardfork(state, block_env, chain_id);
-        // Execute block.
+        // Execute the whole block via reth's BasicBlockExecutor.
+        let core_executor = MorphExecutor::new_ref(&rpc_db, chain_id);
         let bundle_state = core_executor
-            .execute_block(&txns)
+            .execute_block(morph_block)
             .with_context(|| format!("failed to execute block {block_number}"))?;
 
         // Populate state by fetching missing trie nodes/accounts from provider.
@@ -164,34 +151,26 @@ impl HostExecutor {
 
         // Build the witness-backed DB.  This issues a single `debug_executionWitness` RPC call
         // and pre-populates the entire pre-state trie in memory.
-        let witness_db =
-            ExecutionWitnessRpcDb::new(provider.clone(), chain_id, prev_block_number, prev_state_root)
-                .await
-                .context("failed to build ExecutionWitnessRpcDb")?;
-
-        // Build state on top of the witness DB.
-        let state = State::builder().with_database_ref(&witness_db).with_bundle_update().build();
-
-        let basefee = block.header.base_fee_per_gas.unwrap_or_default().to::<u64>();
-        let block_env = BlockEnv {
-            number: block.header.number,
-            timestamp: block.header.timestamp,
-            basefee,
-            gas_limit: block.header.gas_limit.to::<u64>(),
-            beneficiary,
-            ..Default::default()
-        };
+        let witness_db = ExecutionWitnessRpcDb::new(
+            provider.clone(),
+            chain_id,
+            prev_block_number,
+            prev_state_root,
+        )
+        .await
+        .context("failed to build ExecutionWitnessRpcDb")?;
 
         let txns = block
             .transactions
             .iter()
             .map(|tx_trace| tx_trace.try_build_tx_envelope())
             .collect::<Result<Vec<_>, _>>()?;
+        let morph_block = build_morph_block(&block.header, beneficiary, txns);
 
-        // Execute block.
-        let mut core_executor = MorphExecutor::with_hardfork(state, block_env, chain_id);
+        // Execute the whole block via reth's BasicBlockExecutor.
+        let core_executor = MorphExecutor::new_ref(&witness_db, chain_id);
         let bundle_state = core_executor
-            .execute_block(&txns)
+            .execute_block(morph_block)
             .with_context(|| format!("failed to execute block {block_number}"))?;
 
         // Verify post state root by applying the bundle diff to the pre-state.
@@ -209,9 +188,7 @@ impl HostExecutor {
             );
         }
 
-        log::debug!(
-            "success execute block_{block_num} in host (witness), txns.len: {tx_count}"
-        );
+        log::debug!("success execute block_{block_num} in host (witness), txns.len: {tx_count}");
 
         // Return the pre-state (parent_state) so the client can re-execute and verify.
         // Extract codes before consuming witness_db.state.

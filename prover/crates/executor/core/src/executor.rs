@@ -1,145 +1,134 @@
-use alloy_consensus::transaction::SignerRecoverable;
-use alloy_consensus::Transaction;
-use alloy_evm::{revm::Context as EvmContext, Database, EvmEnv};
-use anyhow::Context;
+use alloy_consensus::{BlockBody, Header};
+use alloy_primitives::Bloom;
 use anyhow::Result;
-use morph_chainspec::hardfork::MorphHardfork;
-use morph_chainspec::hardfork::MorphHardforks;
-use morph_chainspec::MORPH_HOODI;
-use morph_chainspec::MORPH_MAINNET;
-use morph_primitives::MorphTxEnvelope;
-use morph_revm::L1BlockInfo;
-use morph_revm::MorphBlockEnv;
-use morph_revm::MorphEvm;
-use revm::MainContext;
+use morph_chainspec::{hardfork::MorphHardfork, MorphChainSpec, MORPH_HOODI, MORPH_MAINNET};
+use morph_evm::MorphEvmConfig;
+use morph_primitives::{Block as MorphBlock, MorphHeader, MorphReceipt};
+use reth_evm::execute::{BasicBlockExecutor, Executor};
+use reth_execution_types::BlockExecutionResult;
+use reth_primitives_traits::RecoveredBlock;
+use revm::database::{BundleState, State, WrapDatabaseRef};
+use revm::Database;
 
 use std::sync::Arc;
 
-use morph_revm::MorphTxEnv;
-use revm::context::BlockEnv;
-use revm::database::BundleState;
-use revm::inspector::NoOpInspector;
-use revm::{
-    database::{states::bundle_state::BundleRetention, State},
-    ExecuteCommitEvm,
-};
-
 use crate::{DEVNET_CHAIN_ID, MAINNET_CHAIN_ID, TESTNET_CHAIN_ID};
-/// An Morph executor wrapper based on `revm`.
-pub struct MorphExecutor<DB: Database, I = NoOpInspector> {
-    pub inner: morph_revm::MorphEvm<State<DB>, I>,
+
+/// An Morph executor wrapper based on reth's block executor.
+pub struct MorphExecutor<DB: Database> {
+    inner: BasicBlockExecutor<MorphEvmConfig, DB>,
 }
 
-impl<DB: Database> MorphExecutor<DB> {
-    /// Create a new [`MorphEvm`] instance.
-    pub fn new(db: State<DB>, input: EvmEnv<MorphHardfork, MorphBlockEnv>) -> Self {
-        let ctx = EvmContext::mainnet()
-            .with_db(db)
-            .with_block(input.block_env)
-            .with_cfg(input.cfg_env)
-            .with_tx(Default::default())
-            .with_chain(L1BlockInfo::default());
-
-        let evm = MorphEvm::new(ctx, NoOpInspector {});
-        Self { inner: evm }
-    }
-    pub fn with_hardfork(db: State<DB>, block_env: BlockEnv, chain_id: u64) -> Self {
-        let mut env: EvmEnv<MorphHardfork, MorphBlockEnv> =
-            EvmEnv::default().with_timestamp(block_env.timestamp);
-
-        let hardfork = match chain_id {
-            // mainnet
-            MAINNET_CHAIN_ID => {
-                let mut spec = MORPH_MAINNET.clone();
-                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Morph203, 1747029600u64);
-                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Viridian, 1762149600u64);
-                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Emerald, 1767765600u64);
-                spec.morph_hardfork_at(
-                    block_env.number.to::<u64>(),
-                    block_env.timestamp.to::<u64>(),
-                )
-            }
-            // hoodi testnet
-            TESTNET_CHAIN_ID => {
-                let mut spec = MORPH_HOODI.clone();
-                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Morph203, 0u64);
-                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Viridian, 1761544800u64);
-                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Emerald, 1766988000u64);
-                spec.morph_hardfork_at(
-                    block_env.number.to::<u64>(),
-                    block_env.timestamp.to::<u64>(),
-                )
-            }
-            // devnet
-            DEVNET_CHAIN_ID => MorphHardfork::Emerald,
-            _ => MorphHardfork::Emerald,
-        };
-        env.cfg_env = env.cfg_env.with_spec_and_mainnet_gas_params(hardfork);
-        env.cfg_env.chain_id = chain_id;
-        env.cfg_env.tx_gas_limit_cap = Some(block_env.gas_limit);
-        env.cfg_env.disable_eip7623 = true;
-        env.block_env = MorphBlockEnv { inner: block_env };
-        Self::new(db, env)
+impl<DB> MorphExecutor<DB>
+where
+    DB: Database + std::fmt::Debug,
+{
+    /// Create a new [`MorphExecutor`] instance.
+    pub fn new(db: DB, chain_id: u64) -> Self {
+        let evm_config = MorphEvmConfig::new_with_default_factory(chain_spec_by_chain_id(chain_id));
+        let inner = BasicBlockExecutor::new(evm_config, db);
+        Self { inner }
     }
 
-    pub fn execute_block(&mut self, txns: &[MorphTxEnvelope]) -> Result<BundleState> {
-        // Execute transactions in block.
-        for (tx_index, tx) in txns.iter().enumerate() {
-            let basefee = self.inner.ctx.block.basefee;
-            let caller = SignerRecoverable::recover_signer(tx)?;
+    /// Execute a full recovered block via [`BasicBlockExecutor::execute`].
+    pub fn execute_recovered_block(
+        self,
+        block: &RecoveredBlock<MorphBlock>,
+    ) -> Result<(BundleState, BlockExecutionResult<MorphReceipt>)> {
+        let execution_output = self.inner.execute(block)?;
+        let mut bundle_state = execution_output.state;
+        retain_changed_accounts(&mut bundle_state);
+        Ok((bundle_state, execution_output.result))
+    }
 
-            let mut morph_tx = MorphTxEnv::from_recovered_tx(tx, caller);
-            morph_tx.gas_price = tx.effective_gas_price(Some(basefee));
-
-            self.inner
-                .transact_commit(morph_tx)
-                .with_context(|| format!("tx[{tx_index}] transact_commit error"))?;
-        }
-        // Merge transitions and build hashed post-state.
-        self.inner.ctx.journaled_state.database.merge_transitions(BundleRetention::Reverts);
-        // Collect values that got changed.
-        let mut bundle_state = self.inner.ctx.journaled_state.database.take_bundle();
-        // If current account_info is not exists and original_info is None,
-        // It means that it has not been changed, account can be filtered out
-        bundle_state.state.retain(|_, acc| {
-            let exists = acc.info.as_ref().map(|info| info.exists()).unwrap_or(false);
-            exists || acc.original_info.is_some()
-        });
+    /// Execute a full block by first recovering transaction senders.
+    pub fn execute_block(self, block: MorphBlock) -> Result<BundleState> {
+        let recovered_block = RecoveredBlock::try_recover(block)?;
+        let (bundle_state, _) = self.execute_recovered_block(&recovered_block)?;
         Ok(bundle_state)
     }
+
+}
+
+impl<DB> MorphExecutor<State<DB>>
+where
+    DB: Database + std::fmt::Debug,
+{
+    /// Compatibility constructor for callers that still build a [`State`] manually.
+    pub fn with_hardfork(db: State<DB>, _block_env: revm::context::BlockEnv, chain_id: u64) -> Self {
+        Self::new(db, chain_id)
+    }
+}
+
+impl<DB> MorphExecutor<WrapDatabaseRef<DB>>
+where
+    DB: revm::DatabaseRef + std::fmt::Debug,
+{
+    /// Create a new executor from a read-only database reference.
+    pub fn new_ref(db: DB, chain_id: u64) -> Self {
+        Self::new(WrapDatabaseRef(db), chain_id)
+    }
+}
+
+/// Builds a Morph block from prover block fields.
+pub fn build_morph_block(
+    header: &prover_primitives::types::BlockHeader,
+    beneficiary: alloy_primitives::Address,
+    transactions: Vec<morph_primitives::MorphTxEnvelope>,
+) -> MorphBlock {
+    let inner = Header {
+        state_root: header.state_root,
+        beneficiary,
+        number: header.number.to::<u64>(),
+        gas_limit: header.gas_limit.to::<u64>(),
+        timestamp: header.timestamp.to::<u64>(),
+        difficulty: header.difficulty,
+        mix_hash: header.mix_hash.unwrap_or_default(),
+        base_fee_per_gas: header.base_fee_per_gas.map(|fee| fee.to::<u64>()),
+        logs_bloom: Bloom::default(),
+        ..Default::default()
+    };
+
+    let header = MorphHeader { next_l1_msg_index: header.next_l1_msg_index.to::<u64>(), inner };
+    MorphBlock::new(header, BlockBody { transactions, ..Default::default() })
+}
+
+fn chain_spec_by_chain_id(chain_id: u64) -> Arc<MorphChainSpec> {
+    match chain_id {
+        MAINNET_CHAIN_ID => MORPH_MAINNET.clone(),
+        TESTNET_CHAIN_ID => MORPH_HOODI.clone(),
+        DEVNET_CHAIN_ID => devnet_chain_spec(chain_id),
+        _ => devnet_chain_spec(chain_id),
+    }
+}
+
+fn devnet_chain_spec(chain_id: u64) -> Arc<MorphChainSpec> {
+    let mut spec = MORPH_HOODI.clone();
+    let spec_mut = Arc::make_mut(&mut spec);
+    spec_mut.inner.chain = chain_id.into();
+    spec_mut.info.morph_chain_info.fee_vault_address = None;
+    spec_mut.set_hardfork(MorphHardfork::Morph203, 0);
+    spec_mut.set_hardfork(MorphHardfork::Viridian, 0);
+    spec_mut.set_hardfork(MorphHardfork::Emerald, 0);
+    spec
+}
+
+fn retain_changed_accounts(bundle_state: &mut BundleState) {
+    // If current account_info does not exist and original_info is None, it means that it has not
+    // been changed and the account can be filtered out.
+    bundle_state.state.retain(|_, acc| {
+        let exists = acc.info.as_ref().map(|info| info.exists()).unwrap_or(false);
+        exists || acc.original_info.is_some()
+    });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use morph_revm::MorphTxEnv;
-    use revm::context::TxEnv;
-    use revm::database::{CacheDB, EmptyDB, State};
-    use revm::primitives::{Address, U256};
-    use revm::ExecuteEvm;
+    use revm::database::{CacheDB, EmptyDB};
 
     #[test]
-    fn test_main_context() {
-        let state: State<CacheDB<EmptyDB>> =
-            State::builder().with_database(CacheDB::default()).build();
-
-        let mut env = EvmEnv::default().with_timestamp(U256::ZERO);
-        env.cfg_env = env.cfg_env.with_spec_and_mainnet_gas_params(MorphHardfork::Viridian);
-
-        let mut evm = MorphExecutor::new(state, env);
-        let tx = TxEnv {
-            nonce: 0,
-            gas_price: 1_000_000_000,
-            gas_limit: 21_000,
-            kind: revm::primitives::TxKind::Call(Address::default()),
-            value: U256::from(1_000_000u64),
-            data: revm::primitives::Bytes::new(),
-            ..Default::default()
-        };
-        let morph_tx =
-            MorphTxEnv { inner: tx, rlp_bytes: Default::default(), ..Default::default() };
-        let _rt = evm.inner.transact_one(morph_tx);
-        let _state = evm.inner.finalize();
-        let _db = evm.inner.journaled_state.database.take_bundle();
+    fn test_create_executor() {
+        let _evm = MorphExecutor::new(CacheDB::<EmptyDB>::default(), TESTNET_CHAIN_ID);
     }
 }

@@ -5984,11 +5984,16 @@ version = "0.1.0"
 dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-evm",
+ "alloy-primitives",
  "anyhow",
  "morph-chainspec",
  "morph-evm",
  "morph-primitives",
  "morph-revm",
+ "prover-primitives",
+ "reth-evm",
+ "reth-execution-types",
+ "reth-primitives-traits",
  "revm",
  "thiserror 2.0.17",
 ]

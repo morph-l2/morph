@@ -1,13 +1,11 @@
 use crate::types::batch::BatchInfo;
 use crate::types::error::ClientError;
 use crate::types::input::BlockInput;
-use prover_executor_core::MorphExecutor;
+use prover_executor_core::{build_morph_block, MorphExecutor};
 use prover_primitives::predeployed::l2_to_l1_message::{
     SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT, WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT,
 };
 use reth_trie::{HashedPostState, KeccakKeyHasher};
-use revm::context::BlockEnv;
-use revm::database::State;
 
 // use Verifier;
 pub struct EVMVerifier;
@@ -83,23 +81,12 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     // Build DB, this will internally verify the correctness of mpt.
     let witness_block = block_input.clone();
     let trie_db = witness_block.witness_db()?;
-    // Build evm state from the execution witness.
-    let state = State::builder().with_database_ref(&trie_db).with_bundle_update().build();
+    let morph_block = build_morph_block(&block.header, block.coinbase, block.transactions.clone());
 
-    // Build EVM block environment.
-    let block_env = BlockEnv {
-        number: header.number,
-        timestamp: header.timestamp,
-        basefee: header.base_fee_per_gas.unwrap_or_default().to::<u64>(),
-        gas_limit: header.gas_limit.to::<u64>(),
-        beneficiary: block.coinbase,
-        ..Default::default()
-    };
-
-    let mut core_executor = MorphExecutor::with_hardfork(state, block_env, chain_id);
-    // Execute block.
+    // Execute the whole block via reth's BasicBlockExecutor.
+    let core_executor = MorphExecutor::new_ref(trie_db, chain_id);
     let bundle_state = core_executor
-        .execute_block(&block.transactions)
+        .execute_block(morph_block)
         .map_err(|e| ClientError::BlockExecutionError(format!("{e:#}")))?;
     // Verify the post-state root by applying the block's transition set to the parent (pre-block) state.
     let computed_state_root = {

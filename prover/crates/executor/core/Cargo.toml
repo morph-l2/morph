@@ -13,4 +13,9 @@ morph-primitives = { workspace = true }
 morph-chainspec = { workspace = true }
 alloy-evm = { workspace = true }
 alloy-consensus.workspace = true
+alloy-primitives = { workspace = true }
 morph-evm = { workspace = true }
+prover-primitives = { workspace = true }
+reth-evm = { workspace = true }
+reth-execution-types = { workspace = true }
+reth-primitives-traits = { workspace = true }

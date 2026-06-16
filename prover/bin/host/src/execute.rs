@@ -184,7 +184,7 @@ mod tests {
     // Examples:
     //   cargo test -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture
     //   cargo test -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture -- --trace ../../testdata/mpt/mainnet_19720219.json
-    //   cargo test --ignore-rust-version -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture -- --trace ../../testdata/mpt
+    //   cargo test -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture -- --trace ../../testdata/mpt
     #[test]
     fn test_execute_local_traces() {
         use prover_executor_client::EVMVerifier;
