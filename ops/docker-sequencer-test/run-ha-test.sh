@@ -105,23 +105,23 @@ record_test() {
     if [ "$result" = "PASS" ]; then
         PASS=$((PASS + 1))
         log_success "[$tc_id] $tc_name"
-        REPORT_LINES+=("### $tc_id: $tc_name\n\n**状态**: ✅ PASS\n")
+        REPORT_LINES+=("### $tc_id: $tc_name\n\n**Status**: ✅ PASS\n")
     elif [ "$result" = "FAIL" ]; then
         FAIL=$((FAIL + 1))
         log_error "[$tc_id] $tc_name"
         FAILED_TESTS+=("$tc_id: $tc_name")
-        REPORT_LINES+=("### $tc_id: $tc_name\n\n**状态**: ❌ FAIL\n")
+        REPORT_LINES+=("### $tc_id: $tc_name\n\n**Status**: ❌ FAIL\n")
     else
         SKIP=$((SKIP + 1))
         log_warn "[$tc_id] $tc_name (SKIPPED: $notes)"
-        REPORT_LINES+=("### $tc_id: $tc_name\n\n**状态**: ⏭️ SKIP — $notes\n")
+        REPORT_LINES+=("### $tc_id: $tc_name\n\n**Status**: ⏭️ SKIP — $notes\n")
     fi
 
     if [ -n "$evidence" ]; then
-        REPORT_LINES+=("**校验证据**:\n\`\`\`\n$evidence\n\`\`\`\n")
+        REPORT_LINES+=("**Evidence**:\n\`\`\`\n$evidence\n\`\`\`\n")
     fi
     if [ -n "$notes" ] && [ "$result" != "SKIP" ]; then
-        REPORT_LINES+=("**备注**: $notes\n")
+        REPORT_LINES+=("**Notes**: $notes\n")
     fi
     REPORT_LINES+=("---\n")
 }
@@ -516,21 +516,21 @@ start_ha_cluster() {
 # ─── Category 1: Config Tests ─────────────────────────────────────────────────
 
 run_config_tests() {
-    log_section "Category 1: 配置验证 (Config Tests)"
+    log_section "Category 1: Config validation (Config Tests)"
 
     # Wait for the timestamp upgrade to actually fire + HA formation before running config tests.
     wait_for_upgrade || log_warn "Proceeding despite upgrade-detection timeout"
     log_info "Waiting ${HA_FORM_WAIT}s for Raft cluster to form..."
     sleep "$HA_FORM_WAIT"
 
-    # TC-CFG-01: bootstrap flag 生效
-    log_info "--- TC-CFG-01: bootstrap flag 生效 ---"
+    # TC-CFG-01: bootstrap flag takes effect
+    log_info "--- TC-CFG-01: bootstrap flag takes effect ---"
     local node0_leader
     node0_leader=$(is_ha_leader "$HA_RPC_NODE0")
     local resp_cfg01
     resp_cfg01=$(ha_call "$HA_RPC_NODE0" "ha_leader" "[]")
     if [ "$node0_leader" -ge 1 ]; then
-        record_test "TC-CFG-01" "bootstrap flag 生效" "PASS" \
+        record_test "TC-CFG-01" "bootstrap flag takes effect" "PASS" \
             "ha_leader on ha-node-0: $resp_cfg01"
     else
         # ha-node-0 bootstrapped but Raft may have re-elected after restarts; as long as
@@ -540,16 +540,16 @@ run_config_tests() {
         if [ -n "$any_leader_rpc" ]; then
             local current_leader
             current_leader=$(rpc_to_container "$any_leader_rpc")
-            record_test "TC-CFG-01" "bootstrap flag 生效" "PASS" \
+            record_test "TC-CFG-01" "bootstrap flag takes effect" "PASS" \
                 "Current leader=$current_leader (ha-node-0 bootstrapped the cluster, Raft re-elected after restart)\nha-node-0 response: $resp_cfg01"
         else
-            record_test "TC-CFG-01" "bootstrap flag 生效" "FAIL" \
+            record_test "TC-CFG-01" "bootstrap flag takes effect" "FAIL" \
                 "ha_leader on ha-node-0: $resp_cfg01\nNo leader found in cluster — bootstrap may have failed"
         fi
     fi
 
-    # TC-CFG-02: join flag 生效 (3-node cluster formed)
-    log_info "--- TC-CFG-02: join flag 生效 ---"
+    # TC-CFG-02: join flag takes effect (3-node cluster formed)
+    log_info "--- TC-CFG-02: join flag takes effect ---"
     local leader_rpc
     leader_rpc=$(find_leader_rpc)
     local voter_count=0
@@ -559,15 +559,15 @@ run_config_tests() {
         voter_count=$(count_voters "$leader_rpc")
     fi
     if [ "$voter_count" -eq 3 ]; then
-        record_test "TC-CFG-02" "join flag 生效 — 3节点集群组建" "PASS" \
+        record_test "TC-CFG-02" "join flag takes effect — 3-node cluster formed" "PASS" \
             "voter_count=$voter_count\nmembership=$membership_resp"
     else
-        record_test "TC-CFG-02" "join flag 生效 — 3节点集群组建" "FAIL" \
+        record_test "TC-CFG-02" "join flag takes effect — 3-node cluster formed" "FAIL" \
             "voter_count=$voter_count (expected 3)\nmembership=$membership_resp"
     fi
 
-    # TC-CFG-03: server-id flag 生效
-    log_info "--- TC-CFG-03: server-id flag 生效 ---"
+    # TC-CFG-03: server-id flag takes effect
+    log_info "--- TC-CFG-03: server-id flag takes effect ---"
     local server_ids=""
     if [ -n "$leader_rpc" ]; then
         server_ids=$(get_server_ids "$leader_rpc")
@@ -575,27 +575,27 @@ run_config_tests() {
     if echo "$server_ids" | grep -q "ha-node-0" && \
        echo "$server_ids" | grep -q "ha-node-1" && \
        echo "$server_ids" | grep -q "ha-node-2"; then
-        record_test "TC-CFG-03" "server-id flag 生效" "PASS" \
+        record_test "TC-CFG-03" "server-id flag takes effect" "PASS" \
             "server_ids: $server_ids"
     else
-        record_test "TC-CFG-03" "server-id flag 生效" "FAIL" \
+        record_test "TC-CFG-03" "server-id flag takes effect" "FAIL" \
             "server_ids: $server_ids (expected ha-node-0, ha-node-1, ha-node-2)"
     fi
 
-    # TC-CFG-04: 纯 flag 模式（无配置文件）
-    log_info "--- TC-CFG-04: 纯flag模式（无配置文件）---"
+    # TC-CFG-04: pure flag mode (no config file)
+    log_info "--- TC-CFG-04: pure flag mode (no config file) ---"
     # Verify HA works without ha.toml config file.
     # If cluster formed and leader elected, pure-flag mode works.
     if [ -n "$leader_rpc" ] && [ "$voter_count" -ge 2 ]; then
-        record_test "TC-CFG-04" "纯flag模式（无配置文件）" "PASS" \
+        record_test "TC-CFG-04" "pure flag mode (no config file)" "PASS" \
             "HA cluster formed with only env var flags (no --ha.config file)\nleader=$leader_rpc voter_count=$voter_count"
     else
-        record_test "TC-CFG-04" "纯flag模式（无配置文件）" "FAIL" \
+        record_test "TC-CFG-04" "pure flag mode (no config file)" "FAIL" \
             "Cluster did not form — flag-only mode may not work\nleader_rpc='$leader_rpc' voter_count=$voter_count"
     fi
 
-    # TC-CFG-05: advertised_addr 自动检测（非 0.0.0.0）
-    log_info "--- TC-CFG-05: advertised_addr 自动检测 ---"
+    # TC-CFG-05: advertised_addr auto-detection (non-0.0.0.0)
+    log_info "--- TC-CFG-05: advertised_addr auto-detection ---"
     local addrs=""
     if [ -n "$leader_rpc" ]; then
         addrs=$(get_server_addrs "$leader_rpc")
@@ -608,10 +608,10 @@ run_config_tests() {
         fi
     done
     if [ -n "$addrs" ] && [ "$bad_addr" -eq 0 ]; then
-        record_test "TC-CFG-05" "advertised_addr 自动检测（非0.0.0.0）" "PASS" \
+        record_test "TC-CFG-05" "advertised_addr auto-detection (non-0.0.0.0)" "PASS" \
             "server addrs: $addrs\nAll addrs are non-wildcard IPs"
     else
-        record_test "TC-CFG-05" "advertised_addr 自动检测（非0.0.0.0）" "FAIL" \
+        record_test "TC-CFG-05" "advertised_addr auto-detection (non-0.0.0.0)" "FAIL" \
             "server addrs: $addrs\nbad_addr=$bad_addr (found 0.0.0.0 or empty)"
     fi
 }
@@ -619,36 +619,36 @@ run_config_tests() {
 # ─── Category 2: Cluster Formation Tests ─────────────────────────────────────
 
 run_cluster_tests() {
-    log_section "Category 2: 集群组建 (Cluster Tests)"
+    log_section "Category 2: Cluster formation (Cluster Tests)"
 
     local leader_rpc
     leader_rpc=$(find_leader_rpc)
 
-    # TC-CLU-01: ha-node-0 成为第一个 leader（bootstrap 节点）
-    log_info "--- TC-CLU-01: ha-node-0 成为初始leader ---"
+    # TC-CLU-01: ha-node-0 becomes the first leader (bootstrap node)
+    log_info "--- TC-CLU-01: ha-node-0 becomes initial leader ---"
     cd "$DOCKER_DIR"
     local node0_leader_log
     node0_leader_log=$($COMPOSE_HA logs ha-node-0 2>/dev/null | grep -i "leaderReady\|hakeeper: raft\|leader" | tail -5 || true)
     local node0_is_leader
     node0_is_leader=$(is_ha_leader "$HA_RPC_NODE0")
     if [ "$node0_is_leader" -ge 1 ]; then
-        record_test "TC-CLU-01" "ha-node-0成为初始leader（bootstrap节点）" "PASS" \
+        record_test "TC-CLU-01" "ha-node-0 becomes initial leader (bootstrap node)" "PASS" \
             "ha_leader on ha-node-0=true\nlog: $node0_leader_log"
     else
         # ha-node-0 might have transferred leadership; check if any node is leader
         if [ -n "$leader_rpc" ]; then
             local leader_node
             leader_node=$(rpc_to_container "$leader_rpc")
-            record_test "TC-CLU-01" "ha-node-0成为初始leader（bootstrap节点）" "PASS" \
+            record_test "TC-CLU-01" "ha-node-0 becomes initial leader (bootstrap node)" "PASS" \
                 "Current leader=$leader_node (ha-node-0 bootstrapped, may have transferred)\nha-node-0 log: $node0_leader_log"
         else
-            record_test "TC-CLU-01" "ha-node-0成为初始leader（bootstrap节点）" "FAIL" \
+            record_test "TC-CLU-01" "ha-node-0 becomes initial leader (bootstrap node)" "FAIL" \
                 "No leader found. ha-node-0 logs: $node0_leader_log"
         fi
     fi
 
-    # TC-CLU-02: 3节点集群完整组建 — all 3 as Voter
-    log_info "--- TC-CLU-02: 3节点集群完整组建 ---"
+    # TC-CLU-02: full 3-node cluster formed — all 3 as Voter
+    log_info "--- TC-CLU-02: full 3-node cluster formed ---"
     local membership_resp voter_count server_ids
     if [ -n "$leader_rpc" ]; then
         membership_resp=$(get_membership "$leader_rpc")
@@ -658,35 +658,35 @@ run_cluster_tests() {
         voter_count=0; server_ids=""; membership_resp="no leader"
     fi
     if [ "$voter_count" -eq 3 ]; then
-        record_test "TC-CLU-02" "3节点集群完整组建（3 Voter）" "PASS" \
+        record_test "TC-CLU-02" "full 3-node cluster formed (3 Voters)" "PASS" \
             "voter_count=$voter_count\nservers=$server_ids\nmembership=$membership_resp"
     else
-        record_test "TC-CLU-02" "3节点集群完整组建（3 Voter）" "FAIL" \
+        record_test "TC-CLU-02" "full 3-node cluster formed (3 Voters)" "FAIL" \
             "voter_count=$voter_count (expected 3)\nservers=$server_ids"
     fi
 
-    # TC-CLU-03: joinLoop 重试机制（通过日志验证）
-    log_info "--- TC-CLU-03: joinLoop重试机制 ---"
+    # TC-CLU-03: joinLoop retry mechanism (verified via logs)
+    log_info "--- TC-CLU-03: joinLoop retry mechanism ---"
     cd "$DOCKER_DIR"
     local join_logs
     join_logs=$($COMPOSE_HA logs ha-node-1 ha-node-2 2>/dev/null | \
         grep -i "joined cluster\|join attempt\|joining cluster\|hakeeper.*join" | head -10 || true)
     if echo "$join_logs" | grep -qi "joined"; then
-        record_test "TC-CLU-03" "joinLoop重试机制" "PASS" \
+        record_test "TC-CLU-03" "joinLoop retry mechanism" "PASS" \
             "Join log evidence:\n$join_logs"
     else
         # If membership is 3-node, join succeeded even if log message differs
         if [ "$voter_count" -eq 3 ]; then
-            record_test "TC-CLU-03" "joinLoop重试机制" "PASS" \
+            record_test "TC-CLU-03" "joinLoop retry mechanism" "PASS" \
                 "3-node cluster formed (join succeeded); specific retry log not captured\nJoin-related logs: $join_logs"
         else
-            record_test "TC-CLU-03" "joinLoop重试机制" "FAIL" \
+            record_test "TC-CLU-03" "joinLoop retry mechanism" "FAIL" \
                 "No join success logs found and cluster is not 3-node\nLogs: $join_logs"
         fi
     fi
 
-    # TC-CLU-04: 重复 bootstrap 无害 (ErrCantBootstrap ignored)
-    log_info "--- TC-CLU-04: 重复bootstrap无害（ErrCantBootstrap忽略）---"
+    # TC-CLU-04: repeated bootstrap is harmless (ErrCantBootstrap ignored)
+    log_info "--- TC-CLU-04: repeated bootstrap is harmless (ErrCantBootstrap ignored) ---"
     cd "$DOCKER_DIR"
     local bootstrap_logs
     bootstrap_logs=$($COMPOSE_HA logs ha-node-0 2>/dev/null | \
@@ -697,10 +697,10 @@ run_cluster_tests() {
     fatal_bootstrap_err=$($COMPOSE_HA logs ha-node-0 2>/dev/null | \
         grep -i "bootstrap.*error\|fatal.*bootstrap" | grep -v "ErrCantBootstrap" | head -3 || true)
     if [ -z "$fatal_bootstrap_err" ]; then
-        record_test "TC-CLU-04" "重复bootstrap无害" "PASS" \
+        record_test "TC-CLU-04" "repeated bootstrap is harmless" "PASS" \
             "No fatal bootstrap error in logs\nBootstrap-related logs:\n$bootstrap_logs"
     else
-        record_test "TC-CLU-04" "重复bootstrap无害" "FAIL" \
+        record_test "TC-CLU-04" "repeated bootstrap is harmless" "FAIL" \
             "Fatal bootstrap error found:\n$fatal_bootstrap_err"
     fi
 }
@@ -708,7 +708,7 @@ run_cluster_tests() {
 # ─── Category 3: Block Production Tests ───────────────────────────────────────
 
 run_block_tests() {
-    log_section "Category 3: 出块验证 (Block Production Tests)"
+    log_section "Category 3: Block production (Block Production Tests)"
 
     # Ensure blocks are flowing post-upgrade (a handful of fresh blocks past the current head).
     local current
@@ -720,22 +720,22 @@ run_block_tests() {
     local leader_rpc
     leader_rpc=$(find_leader_rpc)
 
-    # TC-BLK-01: 升级后 leader 出块
-    log_info "--- TC-BLK-01: leader出块 ---"
+    # TC-BLK-01: leader produces blocks after upgrade
+    log_info "--- TC-BLK-01: leader produces blocks ---"
     local h1 h2
     h1=$(get_block_number "$L2_RPC_NODE0")
     sleep 10
     h2=$(get_block_number "$L2_RPC_NODE0")
     if [ "$h2" -gt "$h1" ]; then
-        record_test "TC-BLK-01" "升级后leader出块" "PASS" \
+        record_test "TC-BLK-01" "leader produces blocks after upgrade" "PASS" \
             "Block height increased: $h1 → $h2 (delta=$((h2-h1)) in 10s)"
     else
-        record_test "TC-BLK-01" "升级后leader出块" "FAIL" \
+        record_test "TC-BLK-01" "leader produces blocks after upgrade" "FAIL" \
             "Block height stuck: $h1 → $h2"
     fi
 
-    # TC-BLK-02: follower 不出块（只有 leader 调用 produceBlock）
-    log_info "--- TC-BLK-02: follower不出块 ---"
+    # TC-BLK-02: follower does not produce blocks (only leader calls produceBlock)
+    log_info "--- TC-BLK-02: follower does not produce blocks ---"
     cd "$DOCKER_DIR"
     # Check non-leader HA cluster nodes
     local follower_produce_logs=""
@@ -754,7 +754,7 @@ run_block_tests() {
         fi
     done
     if [ -z "$follower_produce_logs" ]; then
-        record_test "TC-BLK-02" "follower不出块" "PASS" \
+        record_test "TC-BLK-02" "follower does not produce blocks" "PASS" \
             "No 'Producing block' or 'Block produced' log found on follower nodes"
     else
         # Note: "Block committed via HA" may appear on leader after Commit() returns
@@ -762,17 +762,17 @@ run_block_tests() {
         local real_fail
         real_fail=$(echo -e "$follower_produce_logs" | grep "Producing block" || true)
         if [ -z "$real_fail" ]; then
-            record_test "TC-BLK-02" "follower不出块" "PASS" \
+            record_test "TC-BLK-02" "follower does not produce blocks" "PASS" \
                 "Follower produces no blocks (some commit logs are expected on leader path)\nLogs: $follower_produce_logs"
         else
-            record_test "TC-BLK-02" "follower不出块" "FAIL" \
+            record_test "TC-BLK-02" "follower does not produce blocks" "FAIL" \
                 "Follower 'Producing block' log found (should only be on leader):\n$real_fail"
         fi
     fi
 
-    # TC-BLK-03: follower 同步 — geth heights match across all L2 nodes
+    # TC-BLK-03: follower sync — geth heights match across all L2 nodes
     # (PBFT nodes node-0..3, HA cluster ha-node-0..2 via ha-geth-0..2)
-    log_info "--- TC-BLK-03: follower同步 ---"
+    log_info "--- TC-BLK-03: follower sync ---"
     sleep 5  # allow sync to settle
     local bn0 bn1 bn2 bn3 h0 h1 h2
     bn0=$(get_block_number "$L2_RPC_NODE0")
@@ -791,13 +791,13 @@ run_block_tests() {
     done
     local evidence="PBFT: node-0=$bn0 node-1=$bn1 node-2=$bn2 node-3=$bn3\nHA:   ha-node-0=$h0 ha-node-1=$h1 ha-node-2=$h2\nMax diff allowed: $max_diff"
     if [ "$all_ok" -eq 1 ]; then
-        record_test "TC-BLK-03" "follower同步（PBFT + HA 全部齐头）" "PASS" "$evidence"
+        record_test "TC-BLK-03" "follower sync (PBFT + HA all in lockstep)" "PASS" "$evidence"
     else
-        record_test "TC-BLK-03" "follower同步（PBFT + HA 全部齐头）" "FAIL" "$evidence"
+        record_test "TC-BLK-03" "follower sync (PBFT + HA all in lockstep)" "FAIL" "$evidence"
     fi
 
-    # TC-BLK-04: 已存在 block 幂等跳过（ApplyBlock idempotent）
-    log_info "--- TC-BLK-04: 已存在block幂等跳过 ---"
+    # TC-BLK-04: existing block idempotently skipped (ApplyBlock idempotent)
+    log_info "--- TC-BLK-04: existing block idempotently skipped ---"
     cd "$DOCKER_DIR"
     # Check no "duplicate block" or reorg error logs on HA followers
     local dup_errors
@@ -808,10 +808,10 @@ run_block_tests() {
     apply_errors=$($COMPOSE_HA logs ha-node-1 ha-node-2 2>/dev/null | \
         grep -i "FSM apply.*error\|ApplyBlock.*error" | head -3 || true)
     if [ -z "$apply_errors" ]; then
-        record_test "TC-BLK-04" "已存在block幂等跳过" "PASS" \
+        record_test "TC-BLK-04" "existing block idempotently skipped" "PASS" \
             "No FSMApplyError logs on followers\nIdempotent skip messages: ${dup_errors:-none}"
     else
-        record_test "TC-BLK-04" "已存在block幂等跳过" "FAIL" \
+        record_test "TC-BLK-04" "existing block idempotently skipped" "FAIL" \
             "FSM apply errors found on followers:\n$apply_errors"
     fi
 }
@@ -819,18 +819,18 @@ run_block_tests() {
 # ─── Category 4: HA Failover Tests ────────────────────────────────────────────
 
 run_failover_tests() {
-    log_section "Category 4: Leader故障转移 (HA Failover Tests)"
+    log_section "Category 4: Leader failover (HA Failover Tests)"
 
     # Record current leader before failover
     local leader_rpc
     leader_rpc=$(find_leader_rpc)
     if [ -z "$leader_rpc" ]; then
         log_error "No leader found — skipping failover tests"
-        record_test "TC-HA-01" "kill leader → 自动选举" "SKIP" "" "No leader found before test"
-        record_test "TC-HA-02" "新leader出块" "SKIP" "" "No leader found before test"
-        record_test "TC-HA-03" "故障转移出块间隔" "SKIP" "" "No leader found before test"
-        record_test "TC-HA-04" "旧leader重新加入" "SKIP" "" "No leader found before test"
-        record_test "TC-HA-05" "二次故障转移" "SKIP" "" "No leader found before test"
+        record_test "TC-HA-01" "kill leader → auto re-election" "SKIP" "" "No leader found before test"
+        record_test "TC-HA-02" "new leader produces blocks" "SKIP" "" "No leader found before test"
+        record_test "TC-HA-03" "failover block interval" "SKIP" "" "No leader found before test"
+        record_test "TC-HA-04" "old leader rejoins" "SKIP" "" "No leader found before test"
+        record_test "TC-HA-05" "second failover" "SKIP" "" "No leader found before test"
         return
     fi
     local leader_node
@@ -840,8 +840,8 @@ run_failover_tests() {
 
     log_info "Current leader: $leader_node ($leader_rpc)"
 
-    # TC-HA-01: kill leader → 自动选举
-    log_info "--- TC-HA-01: kill leader → 自动选举 ---"
+    # TC-HA-01: kill leader → auto re-election
+    log_info "--- TC-HA-01: kill leader → auto re-election ---"
     local pre_kill_height
     pre_kill_height=$(get_block_number "$leader_geth_rpc")
     local kill_time
@@ -873,16 +873,16 @@ run_failover_tests() {
     if [ -n "$new_leader_rpc" ]; then
         local new_leader_node
         new_leader_node=$(rpc_to_container "$new_leader_rpc")
-        record_test "TC-HA-01" "kill leader → 自动选举" "PASS" \
+        record_test "TC-HA-01" "kill leader → auto re-election" "PASS" \
             "Killed: $leader_node\nNew leader: $new_leader_node ($new_leader_rpc)\nElection time: ${election_time}s"
     else
-        record_test "TC-HA-01" "kill leader → 自动选举" "FAIL" \
+        record_test "TC-HA-01" "kill leader → auto re-election" "FAIL" \
             "No new leader elected after 30s\nKilled: $leader_node"
         # Skip remaining failover tests
-        record_test "TC-HA-02" "新leader出块" "SKIP" "" "No new leader elected"
-        record_test "TC-HA-03" "故障转移出块间隔" "SKIP" "" "No new leader elected"
-        record_test "TC-HA-04" "旧leader重新加入" "SKIP" "" "No new leader elected"
-        record_test "TC-HA-05" "二次故障转移" "SKIP" "" "No new leader elected"
+        record_test "TC-HA-02" "new leader produces blocks" "SKIP" "" "No new leader elected"
+        record_test "TC-HA-03" "failover block interval" "SKIP" "" "No new leader elected"
+        record_test "TC-HA-04" "old leader rejoins" "SKIP" "" "No new leader elected"
+        record_test "TC-HA-05" "second failover" "SKIP" "" "No new leader elected"
         return
     fi
     local new_leader_node
@@ -890,33 +890,33 @@ run_failover_tests() {
     local new_leader_geth
     new_leader_geth=$(ha_rpc_to_geth_rpc "$new_leader_rpc")
 
-    # TC-HA-02: 新 leader 出块
-    log_info "--- TC-HA-02: 新leader出块 ---"
+    # TC-HA-02: new leader produces blocks
+    log_info "--- TC-HA-02: new leader produces blocks ---"
     local h1 h2
     h1=$(get_block_number "$new_leader_geth")
     log_info "Waiting 15s for new leader ($new_leader_node) to produce blocks..."
     sleep 15
     h2=$(get_block_number "$new_leader_geth")
     if [ "$h2" -gt "$h1" ]; then
-        record_test "TC-HA-02" "新leader出块" "PASS" \
+        record_test "TC-HA-02" "new leader produces blocks" "PASS" \
             "New leader ($new_leader_node) produced blocks: $h1 → $h2 (+$((h2-h1)) in 15s)"
     else
-        record_test "TC-HA-02" "新leader出块" "FAIL" \
+        record_test "TC-HA-02" "new leader produces blocks" "FAIL" \
             "New leader ($new_leader_node) not producing blocks: $h1 → $h2"
     fi
 
-    # TC-HA-03: 故障转移出块间隔 (< 10s)
-    log_info "--- TC-HA-03: 故障转移出块间隔 ---"
+    # TC-HA-03: failover block interval (< 10s)
+    log_info "--- TC-HA-03: failover block interval ---"
     if [ "$election_time" -le 10 ]; then
-        record_test "TC-HA-03" "故障转移出块间隔（目标<10s）" "PASS" \
+        record_test "TC-HA-03" "failover block interval (target <10s)" "PASS" \
             "Kill to new leader detected: ${election_time}s (≤ 10s target)"
     else
-        record_test "TC-HA-03" "故障转移出块间隔（目标<10s）" "FAIL" \
+        record_test "TC-HA-03" "failover block interval (target <10s)" "FAIL" \
             "Kill to new leader detected: ${election_time}s (> 10s target)\nNote: actual first block may come later due to Barrier"
     fi
 
-    # TC-HA-04: 旧 leader 重新加入（以 follower 身份）
-    log_info "--- TC-HA-04: 旧leader重新加入 ---"
+    # TC-HA-04: old leader rejoins (as a follower)
+    log_info "--- TC-HA-04: old leader rejoins ---"
     log_info "Restarting old leader ($leader_node)..."
     cd "$DOCKER_DIR"
     $COMPOSE_HA start "$leader_node" 2>/dev/null || $COMPOSE_HA up -d "$leader_node"
@@ -940,22 +940,22 @@ run_failover_tests() {
     new_voter_count=$(count_voters "$new_leader_rpc")
 
     if [ "$old_leader_is_follower" -eq 1 ] && [ "$new_voter_count" -eq 3 ]; then
-        record_test "TC-HA-04" "旧leader重新加入（follower身份）" "PASS" \
+        record_test "TC-HA-04" "old leader rejoins (as follower)" "PASS" \
             "Old leader ($leader_node) is now follower (leader=false)\nCluster size: $new_voter_count voters\nHeight sync: old=$old_height, new=$new_height, diff=$rejoin_diff"
     elif [ "$old_leader_is_follower" -eq 1 ]; then
-        record_test "TC-HA-04" "旧leader重新加入（follower身份）" "PASS" \
+        record_test "TC-HA-04" "old leader rejoins (as follower)" "PASS" \
             "Old leader ($leader_node) is follower (leader=false)\nCluster may still be re-forming (voter_count=$new_voter_count)"
     else
-        record_test "TC-HA-04" "旧leader重新加入（follower身份）" "FAIL" \
+        record_test "TC-HA-04" "old leader rejoins (as follower)" "FAIL" \
             "Old leader ($leader_node) still reports as leader OR HA RPC not reachable\nha_leader=$(ha_call "$old_leader_rpc" "ha_leader" "[]")\nvoter_count=$new_voter_count"
     fi
 
-    # TC-HA-05: 二次故障转移 — kill new leader, 第三个节点接管
-    log_info "--- TC-HA-05: 二次故障转移 ---"
+    # TC-HA-05: second failover — kill new leader, third node takes over
+    log_info "--- TC-HA-05: second failover ---"
     local current_leader_rpc
     current_leader_rpc=$(find_leader_rpc)
     if [ -z "$current_leader_rpc" ]; then
-        record_test "TC-HA-05" "二次故障转移" "SKIP" "" "Could not find current leader for 2nd failover"
+        record_test "TC-HA-05" "second failover" "SKIP" "" "Could not find current leader for 2nd failover"
         return
     fi
     local current_leader_node
@@ -998,14 +998,14 @@ run_failover_tests() {
         sleep 10
         h3b=$(get_block_number "$third_geth")
         if [ "$h3b" -gt "$h3a" ]; then
-            record_test "TC-HA-05" "二次故障转移" "PASS" \
+            record_test "TC-HA-05" "second failover" "PASS" \
                 "2nd leader killed: $current_leader_node\n3rd leader: $third_leader_node, election: ${failover2_time}s\nBlocks: $h3a → $h3b"
         else
-            record_test "TC-HA-05" "二次故障转移" "FAIL" \
+            record_test "TC-HA-05" "second failover" "FAIL" \
                 "3rd leader ($third_leader_node) not producing blocks: $h3a → $h3b"
         fi
     else
-        record_test "TC-HA-05" "二次故障转移" "FAIL" \
+        record_test "TC-HA-05" "second failover" "FAIL" \
             "No 3rd leader elected after 30s (killed: $current_leader_node)"
     fi
 
@@ -1020,7 +1020,7 @@ run_failover_tests() {
 # ─── Category 5: Admin API Tests ──────────────────────────────────────────────
 
 run_api_tests() {
-    log_section "Category 5: Admin API 测试 (8 endpoints)"
+    log_section "Category 5: Admin API tests (8 endpoints)"
 
     local leader_rpc
     leader_rpc=$(find_leader_rpc)
@@ -1228,8 +1228,8 @@ run_api_tests() {
         record_test "TC-API-07" "ha_transferLeaderToServer" "SKIP" "" "No leader available"
     fi
 
-    # TC-API-08: 乐观锁版本校验 — old version rejected
-    log_info "--- TC-API-08: 乐观锁版本校验 ---"
+    # TC-API-08: optimistic-lock version check — old version rejected
+    log_info "--- TC-API-08: optimistic-lock version check ---"
     leader_rpc=$(find_leader_rpc)
     if [ -n "$leader_rpc" ]; then
         wait_for_ha_leader 15 || true
@@ -1245,32 +1245,32 @@ run_api_tests() {
         resp08=$(ha_call "$leader_rpc" "ha_addServerAsVoter" "[\"fake-node\",\"1.2.3.4:9400\",$stale_version_high]")
         # Should return error (wrong index / mismatch)
         if echo "$resp08" | grep -q '"error"'; then
-            record_test "TC-API-08" "乐观锁版本校验（旧版本被拒）" "PASS" \
+            record_test "TC-API-08" "optimistic-lock version check (stale version rejected)" "PASS" \
                 "Used stale version=$stale_version_high (current=$current_version)\nResponse: $resp08 (contains error as expected)"
         else
             # Some Raft implementations may accept future versions; check if member was actually added
             local post_version
             post_version=$(get_membership_version "$leader_rpc")
             if echo "$resp08" | grep -q '"result":null'; then
-                record_test "TC-API-08" "乐观锁版本校验（旧版本被拒）" "FAIL" \
+                record_test "TC-API-08" "optimistic-lock version check (stale version rejected)" "FAIL" \
                     "Stale version not rejected! version=$stale_version_high response=$resp08"
             else
-                record_test "TC-API-08" "乐观锁版本校验（旧版本被拒）" "PASS" \
+                record_test "TC-API-08" "optimistic-lock version check (stale version rejected)" "PASS" \
                     "Response: $resp08\nNote: hashicorp/raft uses index as 'prevIndex'; future version may still work in some cases"
             fi
         fi
     else
-        record_test "TC-API-08" "乐观锁版本校验" "SKIP" "" "No leader available"
+        record_test "TC-API-08" "optimistic-lock version check" "SKIP" "" "No leader available"
     fi
 }
 
 # ─── Category 6: Lifecycle Tests ──────────────────────────────────────────────
 
 run_lifecycle_tests() {
-    log_section "Category 6: 生命周期 (Lifecycle Tests)"
+    log_section "Category 6: Lifecycle (Lifecycle Tests)"
 
-    # TC-LIF-01: follower Stop/Start 循环
-    log_info "--- TC-LIF-01: follower Stop/Start循环 ---"
+    # TC-LIF-01: follower Stop/Start cycle
+    log_info "--- TC-LIF-01: follower Stop/Start cycle ---"
     # Find a non-leader follower
     local follower_rpc=""
     local follower_node=""
@@ -1283,7 +1283,7 @@ run_lifecycle_tests() {
     done
 
     if [ -z "$follower_node" ]; then
-        record_test "TC-LIF-01" "follower Stop/Start循环" "SKIP" "" "No non-leader follower found"
+        record_test "TC-LIF-01" "follower Stop/Start cycle" "SKIP" "" "No non-leader follower found"
     else
         cd "$DOCKER_DIR"
         log_info "Stopping follower: $follower_node"
@@ -1319,16 +1319,16 @@ run_lifecycle_tests() {
         local height_diff=$((leader_height - follower_height)); height_diff=${height_diff#-}
 
         if [ "$still_producing" -eq 1 ] && [ "$rejoin_voter_count" -eq 3 ]; then
-            record_test "TC-LIF-01" "follower Stop/Start循环" "PASS" \
+            record_test "TC-LIF-01" "follower Stop/Start cycle" "PASS" \
                 "Stopped: $follower_node; cluster continued producing (quorum OK)\nAfter rejoin: voter_count=$rejoin_voter_count, height_diff=$height_diff"
         else
-            record_test "TC-LIF-01" "follower Stop/Start循环" "FAIL" \
+            record_test "TC-LIF-01" "follower Stop/Start cycle" "FAIL" \
                 "still_producing=$still_producing voter_count_after_rejoin=$rejoin_voter_count"
         fi
     fi
 
-    # TC-LIF-02: 全集群重启
-    log_info "--- TC-LIF-02: 全集群重启 ---"
+    # TC-LIF-02: full cluster restart
+    log_info "--- TC-LIF-02: full cluster restart ---"
     cd "$DOCKER_DIR"
     log_info "Stopping all HA nodes..."
     $COMPOSE_HA stop ha-node-0 ha-node-1 ha-node-2 2>/dev/null || true
@@ -1353,19 +1353,19 @@ run_lifecycle_tests() {
         sleep 10
         h2=$(get_block_number "$new_geth")
         if [ "$h2" -gt "$h1" ]; then
-            record_test "TC-LIF-02" "全集群重启后恢复" "PASS" \
+            record_test "TC-LIF-02" "recovery after full cluster restart" "PASS" \
                 "New leader after restart: $new_leader\nBlocks: $h1 → $h2"
         else
-            record_test "TC-LIF-02" "全集群重启后恢复" "FAIL" \
+            record_test "TC-LIF-02" "recovery after full cluster restart" "FAIL" \
                 "Leader elected ($new_leader) but not producing blocks: $h1 → $h2"
         fi
     else
-        record_test "TC-LIF-02" "全集群重启后恢复" "FAIL" \
+        record_test "TC-LIF-02" "recovery after full cluster restart" "FAIL" \
             "No leader elected within 45s after full cluster restart"
     fi
 
-    # TC-LIF-03: Barrier 机制 — leader ready 延迟验证
-    log_info "--- TC-LIF-03: Barrier机制（日志验证）---"
+    # TC-LIF-03: Barrier mechanism — leader-ready delay verification
+    log_info "--- TC-LIF-03: Barrier mechanism (log verification) ---"
     cd "$DOCKER_DIR"
     # After the full restart above, check logs for HA startup sequence
     local ha_start_logs
@@ -1374,10 +1374,10 @@ run_lifecycle_tests() {
         tail -10 || true)
     # Check that HA startup log appears (including 'became leader', 'Barrier', 'leader ready')
     if echo "$ha_start_logs" | grep -qi "hakeeper"; then
-        record_test "TC-LIF-03" "Barrier机制" "PASS" \
+        record_test "TC-LIF-03" "Barrier mechanism" "PASS" \
             "HA logs confirm Barrier flow:\n$ha_start_logs\nKey messages: 'became leader, running Barrier' → 'leader ready'"
     else
-        record_test "TC-LIF-03" "Barrier机制" "FAIL" \
+        record_test "TC-LIF-03" "Barrier mechanism" "FAIL" \
             "No HA startup logs found — hakeeper may not have started\nLogs: $ha_start_logs"
     fi
 }
@@ -1392,25 +1392,25 @@ generate_report() {
     timestamp=$(date "+%Y-%m-%d %H:%M:%S")
 
     {
-        echo "# Sequencer HA V2 集成测试报告"
+        echo "# Sequencer HA V2 Integration Test Report"
         echo ""
-        echo "> 生成时间: $timestamp"
-        echo "> 升级时间(ms): ${SEQUENCER_UPGRADE_TIME:-unset}"
-        echo "> 环境: docker-sequencer-test (3节点 Raft HA 集群)"
+        echo "> Generated at: $timestamp"
+        echo "> Upgrade time (ms): ${SEQUENCER_UPGRADE_TIME:-unset}"
+        echo "> Environment: docker-sequencer-test (3-node Raft HA cluster)"
         echo ""
         echo "---"
         echo ""
-        echo "## 总览"
+        echo "## Overview"
         echo ""
-        echo "| 状态 | 数量 |"
+        echo "| Status | Count |"
         echo "|------|------|"
-        echo "| ✅ 通过 | $PASS |"
-        echo "| ❌ 失败 | $FAIL |"
-        echo "| ⏭️ 跳过 | $SKIP |"
-        echo "| **总计** | **$total** |"
+        echo "| ✅ Passed | $PASS |"
+        echo "| ❌ Failed | $FAIL |"
+        echo "| ⏭️ Skipped | $SKIP |"
+        echo "| **Total** | **$total** |"
         echo ""
         if [ ${#FAILED_TESTS[@]} -gt 0 ]; then
-            echo "## 失败用例"
+            echo "## Failed cases"
             echo ""
             for t in "${FAILED_TESTS[@]}"; do
                 echo "- ❌ $t"
@@ -1419,28 +1419,28 @@ generate_report() {
         fi
         echo "---"
         echo ""
-        echo "## 测试矩阵"
+        echo "## Test matrix"
         echo ""
-        echo "| ID | 类别 | 测试项 | 状态 |"
+        echo "| ID | Category | Test item | Status |"
         echo "|-----|------|-------|------|"
-        echo "| TC-CFG-01 | 配置验证 | bootstrap flag 生效 | - |"
-        echo "| TC-CFG-02 | 配置验证 | join flag 生效 | - |"
-        echo "| TC-CFG-03 | 配置验证 | server-id flag 生效 | - |"
-        echo "| TC-CFG-04 | 配置验证 | 纯flag模式（无配置文件） | - |"
-        echo "| TC-CFG-05 | 配置验证 | advertised_addr 自动检测 | - |"
-        echo "| TC-CLU-01 | 集群组建 | ha-node-0 成为初始 leader | - |"
-        echo "| TC-CLU-02 | 集群组建 | 3节点集群完整组建 | - |"
-        echo "| TC-CLU-03 | 集群组建 | joinLoop 重试机制 | - |"
-        echo "| TC-CLU-04 | 集群组建 | 重复 bootstrap 无害 | - |"
-        echo "| TC-BLK-01 | 出块验证 | 升级后 leader 出块 | - |"
-        echo "| TC-BLK-02 | 出块验证 | follower 不出块 | - |"
-        echo "| TC-BLK-03 | 出块验证 | follower 同步 | - |"
-        echo "| TC-BLK-04 | 出块验证 | 已存在 block 幂等跳过 | - |"
-        echo "| TC-HA-01  | 故障转移 | kill leader → 自动选举 | - |"
-        echo "| TC-HA-02  | 故障转移 | 新 leader 出块 | - |"
-        echo "| TC-HA-03  | 故障转移 | 故障转移出块间隔（<10s） | - |"
-        echo "| TC-HA-04  | 故障转移 | 旧 leader 重新加入 | - |"
-        echo "| TC-HA-05  | 故障转移 | 二次故障转移 | - |"
+        echo "| TC-CFG-01 | Config validation | bootstrap flag takes effect | - |"
+        echo "| TC-CFG-02 | Config validation | join flag takes effect | - |"
+        echo "| TC-CFG-03 | Config validation | server-id flag takes effect | - |"
+        echo "| TC-CFG-04 | Config validation | pure flag mode (no config file) | - |"
+        echo "| TC-CFG-05 | Config validation | advertised_addr auto-detection | - |"
+        echo "| TC-CLU-01 | Cluster formation | ha-node-0 becomes initial leader | - |"
+        echo "| TC-CLU-02 | Cluster formation | full 3-node cluster formed | - |"
+        echo "| TC-CLU-03 | Cluster formation | joinLoop retry mechanism | - |"
+        echo "| TC-CLU-04 | Cluster formation | repeated bootstrap is harmless | - |"
+        echo "| TC-BLK-01 | Block production | leader produces blocks after upgrade | - |"
+        echo "| TC-BLK-02 | Block production | follower does not produce blocks | - |"
+        echo "| TC-BLK-03 | Block production | follower sync | - |"
+        echo "| TC-BLK-04 | Block production | existing block idempotently skipped | - |"
+        echo "| TC-HA-01  | Failover | kill leader → auto re-election | - |"
+        echo "| TC-HA-02  | Failover | new leader produces blocks | - |"
+        echo "| TC-HA-03  | Failover | failover block interval (<10s) | - |"
+        echo "| TC-HA-04  | Failover | old leader rejoins | - |"
+        echo "| TC-HA-05  | Failover | second failover | - |"
         echo "| TC-API-01 | Admin API | ha_leader | - |"
         echo "| TC-API-02 | Admin API | ha_leaderWithID | - |"
         echo "| TC-API-03 | Admin API | ha_clusterMembership | - |"
@@ -1448,14 +1448,14 @@ generate_report() {
         echo "| TC-API-05 | Admin API | ha_removeServer | - |"
         echo "| TC-API-06 | Admin API | ha_transferLeader | - |"
         echo "| TC-API-07 | Admin API | ha_transferLeaderToServer | - |"
-        echo "| TC-API-08 | Admin API | 乐观锁版本校验 | - |"
-        echo "| TC-LIF-01 | 生命周期 | follower Stop/Start 循环 | - |"
-        echo "| TC-LIF-02 | 生命周期 | 全集群重启后恢复 | - |"
-        echo "| TC-LIF-03 | 生命周期 | Barrier 机制日志验证 | - |"
+        echo "| TC-API-08 | Admin API | optimistic-lock version check | - |"
+        echo "| TC-LIF-01 | Lifecycle | follower Stop/Start cycle | - |"
+        echo "| TC-LIF-02 | Lifecycle | recovery after full cluster restart | - |"
+        echo "| TC-LIF-03 | Lifecycle | Barrier mechanism log verification | - |"
         echo ""
         echo "---"
         echo ""
-        echo "## 详细结果"
+        echo "## Detailed results"
         echo ""
         for line in "${REPORT_LINES[@]}"; do
             echo -e "$line"
@@ -1493,10 +1493,10 @@ run_p2p_opt_tests() {
     local follower_delta=$((follower_height_after - follower_height_before))
     local gap=$((leader_height_after - follower_height_after))
     if [ "$follower_delta" -ge 1 ] && [ "$gap" -lt 10 ]; then
-        record_test "TC-P2P-01" "fullnode通过P2P同步块" "PASS" \
+        record_test "TC-P2P-01" "fullnode syncs blocks via P2P" "PASS" \
             "Fullnode(node-0) advanced $follower_delta blocks in 10s, gap to leader=$gap"
     else
-        record_test "TC-P2P-01" "fullnode通过P2P同步块" "FAIL" \
+        record_test "TC-P2P-01" "fullnode syncs blocks via P2P" "FAIL" \
             "Fullnode delta=$follower_delta, gap=$gap (expected delta>=1, gap<10)"
     fi
 
@@ -1510,10 +1510,10 @@ run_p2p_opt_tests() {
     apply_log=$($COMPOSE_HA logs --tail 2000 node-0 2>&1 | \
         grep -c "Starting block apply routine" || true)
     if [ "$apply_log" -ge 1 ]; then
-        record_test "TC-P2P-02" "fullnode启动apply routine" "PASS" \
+        record_test "TC-P2P-02" "fullnode starts apply routine" "PASS" \
             "Found 'Starting block apply routine' log on node-0"
     else
-        record_test "TC-P2P-02" "fullnode启动apply routine" "FAIL" \
+        record_test "TC-P2P-02" "fullnode starts apply routine" "FAIL" \
             "No apply routine startup log found on node-0"
     fi
 
@@ -1525,10 +1525,10 @@ run_p2p_opt_tests() {
     applied_count=$($COMPOSE_HA logs --tail 5000 node-0 2>&1 | \
         grep -c "Applied block" || true)
     if [ "$applied_count" -ge 1 ]; then
-        record_test "TC-P2P-03" "fullnode成功apply块" "PASS" \
+        record_test "TC-P2P-03" "fullnode successfully applies blocks" "PASS" \
             "Found $applied_count 'Applied block' entries in node-0 logs"
     else
-        record_test "TC-P2P-03" "fullnode成功apply块" "FAIL" \
+        record_test "TC-P2P-03" "fullnode successfully applies blocks" "FAIL" \
             "No 'Applied block' logs on node-0 (sync path may be broken)"
     fi
 
@@ -1542,10 +1542,10 @@ run_p2p_opt_tests() {
         grep -c "Unsolicited sync response" || true)
     # Allow a small number due to race conditions at startup; require < 5.
     if [ "$unsolicited_count" -lt 5 ]; then
-        record_test "TC-P2P-04" "无误报unsolicited响应" "PASS" \
+        record_test "TC-P2P-04" "no spurious unsolicited responses" "PASS" \
             "Unsolicited response count: $unsolicited_count (threshold <5)"
     else
-        record_test "TC-P2P-04" "无误报unsolicited响应" "FAIL" \
+        record_test "TC-P2P-04" "no spurious unsolicited responses" "FAIL" \
             "Too many unsolicited response errors: $unsolicited_count"
     fi
 
@@ -1556,10 +1556,10 @@ run_p2p_opt_tests() {
     ban_count=$($COMPOSE_HA logs --tail 5000 node-0 node-1 node-2 node-3 sentry-node-0 2>&1 | \
         grep -c "Banning peer" || true)
     if [ "$ban_count" -eq 0 ]; then
-        record_test "TC-P2P-05" "正常运行无误ban" "PASS" \
+        record_test "TC-P2P-05" "no false-positive bans in normal operation" "PASS" \
             "No 'Banning peer' logs in normal operation"
     else
-        record_test "TC-P2P-05" "正常运行无误ban" "FAIL" \
+        record_test "TC-P2P-05" "no false-positive bans in normal operation" "FAIL" \
             "Unexpected bans in normal operation: $ban_count entries"
     fi
 
@@ -1571,10 +1571,10 @@ run_p2p_opt_tests() {
     rl_count=$($COMPOSE_HA logs --tail 5000 node-0 node-1 node-2 node-3 sentry-node-0 ha-node-0 ha-node-1 ha-node-2 2>&1 | \
         grep -c "BlockRequest rate limited" || true)
     if [ "$rl_count" -eq 0 ]; then
-        record_test "TC-P2P-06" "正常流量无误限流" "PASS" \
+        record_test "TC-P2P-06" "no false-positive rate limiting" "PASS" \
             "No rate-limit hits during normal sync"
     else
-        record_test "TC-P2P-06" "正常流量无误限流" "FAIL" \
+        record_test "TC-P2P-06" "no false-positive rate limiting" "FAIL" \
             "Legitimate peers tripped rate limit: $rl_count entries"
     fi
 }
