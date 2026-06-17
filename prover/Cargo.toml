@@ -122,10 +122,10 @@ reth-evm = { git = "https://github.com/paradigmxyz/reth", tag = "v2.2.0", defaul
 reth-execution-types = { git = "https://github.com/paradigmxyz/reth", tag = "v2.2.0", default-features = false }
 reth-storage-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v2.2.0", default-features = false }
 reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v2.2.0", default-features = false }
-morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
-morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
-morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
-morph-evm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
+morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "fix/payload-types-reth-codec-feature" }
+morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", branch = "fix/payload-types-reth-codec-feature" }
+morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", branch = "fix/payload-types-reth-codec-feature" }
+morph-evm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "fix/payload-types-reth-codec-feature" }
 
 # ZK / SP1
 sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", tag = "v6.2.0" }

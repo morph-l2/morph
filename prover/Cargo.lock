@@ -4639,7 +4639,7 @@ dependencies = [
 [[package]]
 name = "morph-chainspec"
 version = "0.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#db1f38821707a364b962f6efecb63c7c6021f3cb"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#893ecbf78689aca8c2ff51125c8e049d99612192"
 dependencies = [
  "alloy-chains",
  "alloy-consensus 2.0.5",
@@ -4661,7 +4661,7 @@ dependencies = [
 [[package]]
 name = "morph-evm"
 version = "0.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#db1f38821707a364b962f6efecb63c7c6021f3cb"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#893ecbf78689aca8c2ff51125c8e049d99612192"
 dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-evm",
@@ -4684,7 +4684,7 @@ dependencies = [
 [[package]]
 name = "morph-payload-types"
 version = "0.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#db1f38821707a364b962f6efecb63c7c6021f3cb"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#893ecbf78689aca8c2ff51125c8e049d99612192"
 dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-eips 2.0.5",
@@ -4703,20 +4703,15 @@ dependencies = [
 [[package]]
 name = "morph-primitives"
 version = "0.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#db1f38821707a364b962f6efecb63c7c6021f3cb"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#893ecbf78689aca8c2ff51125c8e049d99612192"
 dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-eips 2.0.5",
  "alloy-primitives",
  "alloy-rlp",
  "alloy-serde 2.0.5",
- "bytes",
- "modular-bitfield",
- "reth-codecs",
- "reth-db-api",
  "reth-ethereum-primitives",
  "reth-primitives-traits",
- "reth-zstd-compressors",
  "serde",
 ]
 
@@ -4746,7 +4741,7 @@ dependencies = [
 [[package]]
 name = "morph-revm"
 version = "0.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=main#db1f38821707a364b962f6efecb63c7c6021f3cb"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#893ecbf78689aca8c2ff51125c8e049d99612192"
 dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-eips 2.0.5",
@@ -6596,30 +6591,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "reth-db-api"
-version = "2.2.0"
-source = "git+https://github.com/paradigmxyz/reth?tag=v2.2.0#88505c7fcbfdebfd3b56d88c86b62e950043c6c4"
-dependencies = [
- "alloy-consensus 2.0.5",
- "alloy-primitives",
- "arrayvec",
- "bytes",
- "derive_more 2.1.0",
- "metrics",
- "modular-bitfield",
- "reth-codecs",
- "reth-db-models",
- "reth-ethereum-primitives",
- "reth-primitives-traits",
- "reth-prune-types",
- "reth-stages-types",
- "reth-storage-errors",
- "reth-trie-common",
- "roaring",
- "serde",
-]
-
-[[package]]
 name = "reth-db-models"
 version = "2.2.0"
 source = "git+https://github.com/paradigmxyz/reth?tag=v2.2.0#88505c7fcbfdebfd3b56d88c86b62e950043c6c4"
@@ -6627,7 +6598,6 @@ dependencies = [
  "alloy-eips 2.0.5",
  "alloy-primitives",
  "bytes",
- "modular-bitfield",
  "reth-codecs",
  "reth-primitives-traits",
  "serde",
@@ -6784,11 +6754,9 @@ dependencies = [
  "alloy-rlp",
  "alloy-rpc-types-eth 2.0.5",
  "alloy-trie",
- "byteorder",
  "bytes",
  "dashmap",
  "derive_more 2.1.0",
- "modular-bitfield",
  "once_cell",
  "reth-codecs",
  "revm-bytecode",
@@ -6806,7 +6774,6 @@ source = "git+https://github.com/paradigmxyz/reth?tag=v2.2.0#88505c7fcbfdebfd3b5
 dependencies = [
  "alloy-primitives",
  "derive_more 2.1.0",
- "modular-bitfield",
  "reth-codecs",
  "serde",
  "strum",
@@ -6834,7 +6801,6 @@ source = "git+https://github.com/paradigmxyz/reth?tag=v2.2.0#88505c7fcbfdebfd3b5
 dependencies = [
  "alloy-primitives",
  "bytes",
- "modular-bitfield",
  "reth-codecs",
  "reth-trie-common",
  "serde",
@@ -7227,16 +7193,6 @@ dependencies = [
  "libc",
  "rustversion",
  "svgbobdoc",
-]
-
-[[package]]
-name = "roaring"
-version = "0.11.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1dedc5658c6ecb3bdb5ef5f3295bb9253f42dcf3fd1402c03f6b1f7659c3c4a9"
-dependencies = [
- "bytemuck",
- "byteorder",
 ]
 
 [[package]]
