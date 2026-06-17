@@ -19,6 +19,7 @@ import (
 	tmnode "github.com/tendermint/tendermint/node"
 	"github.com/tendermint/tendermint/privval"
 	tmsequencer "github.com/tendermint/tendermint/sequencer"
+	"github.com/tendermint/tendermint/upgrade"
 	"github.com/urfave/cli"
 
 	"morph-l2/bindings/bindings"
@@ -73,6 +74,18 @@ func L2NodeMain(ctx *cli.Context) error {
 	if err = nodeConfig.SetCliContext(ctx); err != nil {
 		return err
 	}
+
+	// Wire the centralized-sequencer upgrade time into the consensus upgrade package before any
+	// consensus / blocksync routine runs. A user-provided --sequencerUpgradeTime wins. If it is
+	// absent, --mainnet / --hoodi selects the corresponding network default. With no network and no
+	// flag, leave the upgrade package's existing default untouched.
+	if upgradeTime, ok := selectSequencerUpgradeTime(ctx); ok {
+		upgrade.SetUpgradeBlockTime(upgradeTime)
+	}
+	nodeConfig.Logger.Info("centralized sequencer upgrade time set",
+		"network", sequencerUpgradeNetwork(ctx),
+		"upgradeTimeMs", upgrade.UpgradeBlockTime())
+
 	home, err := homeDir(ctx)
 	if err != nil {
 		return err
@@ -190,7 +203,7 @@ func L2NodeMain(ctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("NewRollup error: %v", err)
 		}
-		dvNode, err = derivation.NewDerivationClient(context.Background(), derivationCfg, syncer, store, rollup, l1Client, tmNode, verifier, nodeConfig.Logger)
+		dvNode, err = derivation.NewDerivationClient(context.Background(), derivationCfg, syncer, store, rollup, l1Client, tmNode, nodeConfig.Logger)
 		if err != nil {
 			return fmt.Errorf("new derivation client error: %v", err)
 		}
@@ -283,6 +296,29 @@ func initHAService(ctx *cli.Context, home string, logger tmlog.Logger) (*hakeepe
 
 	cfg.LogEffectiveConfig(logger)
 	return hakeeper.New(cfg, logger.With("module", "hakeeper"))
+}
+
+func selectSequencerUpgradeTime(ctx *cli.Context) (int64, bool) {
+	if ctx.GlobalIsSet(flags.SequencerUpgradeTime.Name) {
+		return ctx.GlobalInt64(flags.SequencerUpgradeTime.Name), true
+	}
+	if ctx.GlobalBool(flags.MainnetFlag.Name) {
+		return types.MainnetCentralizedSequencerUpgradeTime, true
+	}
+	if ctx.GlobalBool(flags.HoodiFlag.Name) {
+		return types.HoodiCentralizedSequencerUpgradeTime, true
+	}
+	return 0, false
+}
+
+func sequencerUpgradeNetwork(ctx *cli.Context) string {
+	if ctx.GlobalBool(flags.MainnetFlag.Name) {
+		return "mainnet"
+	}
+	if ctx.GlobalBool(flags.HoodiFlag.Name) {
+		return "hoodi"
+	}
+	return "dev"
 }
 
 // initL1SequencerComponents initializes all L1 sequencer related components:

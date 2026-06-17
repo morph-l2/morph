@@ -22,65 +22,70 @@ contract L1SequencerTest is L1SequencerBaseTest {
         impl.initialize(address(0));
     }
 
-    // ============ initializeHistory ============
+    // ============ setFirstSequencer ============
+    // The first sequencer is always registered at L2 block 0 (identity from
+    // genesis); the upgrade height is no longer stored on-chain.
 
-    function test_initializeHistory_success() public {
-        _initHistory(sequencerA, UPGRADE_HEIGHT);
+    function test_setFirstSequencer_success() public {
+        _setFirstSequencer(sequencerA);
 
-        assertEq(l1Sequencer.activeHeight(), UPGRADE_HEIGHT);
         assertEq(l1Sequencer.getSequencerHistoryLength(), 1);
         assertEq(l1Sequencer.getSequencer(), sequencerA);
-        assertEq(l1Sequencer.getSequencerAt(UPGRADE_HEIGHT), sequencerA);
+        assertEq(l1Sequencer.getSequencerAt(0), sequencerA);
+
+        L1Sequencer.HistoryRecord[] memory history = l1Sequencer.getSequencerHistory();
+        assertEq(history[0].startL2Block, 0);
+        assertEq(history[0].sequencerAddr, sequencerA);
     }
 
-    function test_initializeHistory_emitsEvent() public {
+    function test_setFirstSequencer_emitsEvent() public {
         vm.expectEmit(true, true, false, true);
-        emit L1Sequencer.SequencerUpdated(address(0), sequencerA, UPGRADE_HEIGHT);
+        emit L1Sequencer.SequencerUpdated(address(0), sequencerA, 0);
 
         vm.prank(owner);
-        l1Sequencer.initializeHistory(sequencerA, UPGRADE_HEIGHT);
+        l1Sequencer.setFirstSequencer(sequencerA);
     }
 
-    function test_initializeHistory_revertOnSecondCall() public {
-        _initHistory(sequencerA, UPGRADE_HEIGHT);
+    function test_setFirstSequencer_revertOnSecondCall() public {
+        _setFirstSequencer(sequencerA);
 
         vm.expectRevert("already initialized");
         vm.prank(owner);
-        l1Sequencer.initializeHistory(sequencerB, UPGRADE_HEIGHT + 100);
+        l1Sequencer.setFirstSequencer(sequencerB);
     }
 
-    function test_initializeHistory_revertOnZeroAddress() public {
+    function test_setFirstSequencer_revertOnZeroAddress() public {
         vm.expectRevert("invalid address");
         vm.prank(owner);
-        l1Sequencer.initializeHistory(address(0), UPGRADE_HEIGHT);
+        l1Sequencer.setFirstSequencer(address(0));
     }
 
-    function test_initializeHistory_revertNonOwner() public {
+    function test_setFirstSequencer_revertNonOwner() public {
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(nonOwner);
-        l1Sequencer.initializeHistory(sequencerA, UPGRADE_HEIGHT);
+        l1Sequencer.setFirstSequencer(sequencerA);
     }
 
     // ============ updateSequencer ============
 
     function test_updateSequencer_success() public {
-        _initHistory(sequencerA, UPGRADE_HEIGHT);
+        _setFirstSequencer(sequencerA);
 
         vm.prank(owner);
-        l1Sequencer.updateSequencer(sequencerB, UPGRADE_HEIGHT + 100);
+        l1Sequencer.updateSequencer(sequencerB, UPGRADE_HEIGHT);
 
         assertEq(l1Sequencer.getSequencerHistoryLength(), 2);
         assertEq(l1Sequencer.getSequencer(), sequencerB);
     }
 
     function test_updateSequencer_emitsEvent() public {
-        _initHistory(sequencerA, UPGRADE_HEIGHT);
+        _setFirstSequencer(sequencerA);
 
         vm.expectEmit(true, true, false, true);
-        emit L1Sequencer.SequencerUpdated(sequencerA, sequencerB, UPGRADE_HEIGHT + 100);
+        emit L1Sequencer.SequencerUpdated(sequencerA, sequencerB, UPGRADE_HEIGHT);
 
         vm.prank(owner);
-        l1Sequencer.updateSequencer(sequencerB, UPGRADE_HEIGHT + 100);
+        l1Sequencer.updateSequencer(sequencerB, UPGRADE_HEIGHT);
     }
 
     function test_updateSequencer_revertNotInitialized() public {
@@ -90,58 +95,54 @@ contract L1SequencerTest is L1SequencerBaseTest {
     }
 
     function test_updateSequencer_revertZeroAddress() public {
-        _initHistory(sequencerA, UPGRADE_HEIGHT);
+        _setFirstSequencer(sequencerA);
 
         vm.expectRevert("invalid address");
         vm.prank(owner);
-        l1Sequencer.updateSequencer(address(0), UPGRADE_HEIGHT + 100);
+        l1Sequencer.updateSequencer(address(0), UPGRADE_HEIGHT);
     }
 
     function test_updateSequencer_revertStartBlockNotGreater() public {
-        _initHistory(sequencerA, UPGRADE_HEIGHT);
+        _setFirstSequencer(sequencerA); // first record at block 0
 
         vm.expectRevert("startL2Block must be greater than last record");
         vm.prank(owner);
-        l1Sequencer.updateSequencer(sequencerB, UPGRADE_HEIGHT); // equal, not greater
+        l1Sequencer.updateSequencer(sequencerB, 0); // equal to last (0), not greater
     }
 
     function test_updateSequencer_revertStartBlockLessThanLast() public {
-        _initHistory(sequencerA, UPGRADE_HEIGHT);
+        _setFirstSequencer(sequencerA);
+
+        vm.prank(owner);
+        l1Sequencer.updateSequencer(sequencerB, UPGRADE_HEIGHT); // last = 100
 
         vm.expectRevert("startL2Block must be greater than last record");
         vm.prank(owner);
-        l1Sequencer.updateSequencer(sequencerB, UPGRADE_HEIGHT - 1);
+        l1Sequencer.updateSequencer(sequencerC, UPGRADE_HEIGHT - 1); // 99 < 100
     }
 
     function test_updateSequencer_revertNonOwner() public {
-        _initHistory(sequencerA, UPGRADE_HEIGHT);
+        _setFirstSequencer(sequencerA);
 
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(nonOwner);
-        l1Sequencer.updateSequencer(sequencerB, UPGRADE_HEIGHT + 100);
+        l1Sequencer.updateSequencer(sequencerB, UPGRADE_HEIGHT);
     }
 
     // ============ getSequencerAt (binary search) ============
 
-    function test_getSequencerAt_singleRecord_exactHeight() public {
-        _initHistory(sequencerA, UPGRADE_HEIGHT);
-        assertEq(l1Sequencer.getSequencerAt(UPGRADE_HEIGHT), sequencerA);
+    function test_getSequencerAt_singleRecord_atZero() public {
+        _setFirstSequencer(sequencerA);
+        assertEq(l1Sequencer.getSequencerAt(0), sequencerA);
     }
 
-    function test_getSequencerAt_singleRecord_aboveHeight() public {
-        _initHistory(sequencerA, UPGRADE_HEIGHT);
-        assertEq(l1Sequencer.getSequencerAt(UPGRADE_HEIGHT + 9999), sequencerA);
-    }
-
-    function test_getSequencerAt_singleRecord_revertBelowHeight() public {
-        _initHistory(sequencerA, UPGRADE_HEIGHT);
-
-        vm.expectRevert("no sequencer at height");
-        l1Sequencer.getSequencerAt(UPGRADE_HEIGHT - 1);
+    function test_getSequencerAt_singleRecord_aboveZero() public {
+        _setFirstSequencer(sequencerA);
+        assertEq(l1Sequencer.getSequencerAt(9999), sequencerA);
     }
 
     function test_getSequencerAt_multipleRecords() public {
-        _initHistory(sequencerA, 100);
+        _setFirstSequencer(sequencerA); // start 0
 
         vm.prank(owner);
         l1Sequencer.updateSequencer(sequencerB, 200);
@@ -149,18 +150,15 @@ contract L1SequencerTest is L1SequencerBaseTest {
         vm.prank(owner);
         l1Sequencer.updateSequencer(sequencerC, 300);
 
-        // Before first record
-        vm.expectRevert("no sequencer at height");
-        l1Sequencer.getSequencerAt(99);
+        // First record covers from block 0
+        assertEq(l1Sequencer.getSequencerAt(0), sequencerA);
+        assertEq(l1Sequencer.getSequencerAt(199), sequencerA);
 
         // Exact boundaries
-        assertEq(l1Sequencer.getSequencerAt(100), sequencerA);
         assertEq(l1Sequencer.getSequencerAt(200), sequencerB);
         assertEq(l1Sequencer.getSequencerAt(300), sequencerC);
 
         // Between records
-        assertEq(l1Sequencer.getSequencerAt(150), sequencerA);
-        assertEq(l1Sequencer.getSequencerAt(199), sequencerA);
         assertEq(l1Sequencer.getSequencerAt(250), sequencerB);
         assertEq(l1Sequencer.getSequencerAt(299), sequencerB);
 
@@ -169,32 +167,33 @@ contract L1SequencerTest is L1SequencerBaseTest {
     }
 
     function test_getSequencerAt_twoRecords_boundary() public {
-        _initHistory(sequencerA, 100);
+        _setFirstSequencer(sequencerA); // start 0
 
         vm.prank(owner);
         l1Sequencer.updateSequencer(sequencerB, 101);
 
+        assertEq(l1Sequencer.getSequencerAt(0), sequencerA);
         assertEq(l1Sequencer.getSequencerAt(100), sequencerA);
         assertEq(l1Sequencer.getSequencerAt(101), sequencerB);
     }
 
     function test_getSequencerAt_manyRecords_binarySearchStress() public {
-        _initHistory(sequencerA, 10);
+        _setFirstSequencer(sequencerA); // start 0
 
-        // Add 9 more records (10 total)
+        // Add 9 more records (10 total) at 100, 200, ... 900
         for (uint64 i = 1; i < 10; i++) {
             address seq = address(uint160(0xA000 + i));
             vm.prank(owner);
-            l1Sequencer.updateSequencer(seq, 10 + i * 100);
+            l1Sequencer.updateSequencer(seq, i * 100);
         }
 
         assertEq(l1Sequencer.getSequencerHistoryLength(), 10);
 
         // Query each boundary
-        assertEq(l1Sequencer.getSequencerAt(10), sequencerA);
+        assertEq(l1Sequencer.getSequencerAt(0), sequencerA);
         assertEq(l1Sequencer.getSequencerAt(99), sequencerA);
-        assertEq(l1Sequencer.getSequencerAt(110), address(uint160(0xA001)));
-        assertEq(l1Sequencer.getSequencerAt(910), address(uint160(0xA009)));
+        assertEq(l1Sequencer.getSequencerAt(100), address(uint160(0xA001)));
+        assertEq(l1Sequencer.getSequencerAt(900), address(uint160(0xA009)));
         assertEq(l1Sequencer.getSequencerAt(99999), address(uint160(0xA009)));
     }
 
@@ -211,10 +210,10 @@ contract L1SequencerTest is L1SequencerBaseTest {
     }
 
     function test_getSequencer_returnsLatest() public {
-        _initHistory(sequencerA, UPGRADE_HEIGHT);
+        _setFirstSequencer(sequencerA);
 
         vm.prank(owner);
-        l1Sequencer.updateSequencer(sequencerB, UPGRADE_HEIGHT + 100);
+        l1Sequencer.updateSequencer(sequencerB, UPGRADE_HEIGHT);
 
         assertEq(l1Sequencer.getSequencer(), sequencerB);
     }
@@ -222,14 +221,14 @@ contract L1SequencerTest is L1SequencerBaseTest {
     // ============ getSequencerHistory ============
 
     function test_getSequencerHistory_returnsAll() public {
-        _initHistory(sequencerA, 100);
+        _setFirstSequencer(sequencerA); // start 0
 
         vm.prank(owner);
         l1Sequencer.updateSequencer(sequencerB, 200);
 
         L1Sequencer.HistoryRecord[] memory history = l1Sequencer.getSequencerHistory();
         assertEq(history.length, 2);
-        assertEq(history[0].startL2Block, 100);
+        assertEq(history[0].startL2Block, 0);
         assertEq(history[0].sequencerAddr, sequencerA);
         assertEq(history[1].startL2Block, 200);
         assertEq(history[1].sequencerAddr, sequencerB);
@@ -244,7 +243,7 @@ contract L1SequencerTest is L1SequencerBaseTest {
 
         // New owner can now call admin functions
         vm.prank(nonOwner);
-        l1Sequencer.initializeHistory(sequencerA, UPGRADE_HEIGHT);
+        l1Sequencer.setFirstSequencer(sequencerA);
         assertEq(l1Sequencer.getSequencerHistoryLength(), 1);
     }
 
@@ -255,6 +254,6 @@ contract L1SequencerTest is L1SequencerBaseTest {
 
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(owner);
-        l1Sequencer.initializeHistory(sequencerA, UPGRADE_HEIGHT);
+        l1Sequencer.setFirstSequencer(sequencerA);
     }
 }

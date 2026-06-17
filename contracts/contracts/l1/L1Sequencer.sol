@@ -17,12 +17,11 @@ contract L1Sequencer is OwnableUpgradeable {
     // ============ Storage ============
 
     /// @notice Ordered array of sequencer records (by startL2Block ascending).
-    ///         sequencerHistory[0] is the first sequencer after PBFT → single-sequencer upgrade.
+    ///         sequencerHistory[0] is the first sequencer, active from L2 block 0.
+    ///         This contract only answers "who is the sequencer at height N" (identity);
+    ///         the PBFT → single-sequencer upgrade boundary is decided off-chain by block
+    ///         timestamp, not stored here.
     HistoryRecord[] public sequencerHistory;
-
-    /// @notice The L2 block height at which single-sequencer mode activates.
-    ///         Set by initializeHistory(). Nodes read this to know when to switch consensus.
-    uint64 public activeHeight;
 
     // ============ Events ============
 
@@ -44,23 +43,22 @@ contract L1Sequencer is OwnableUpgradeable {
 
     // ============ Admin Functions ============
 
-    /// @notice Initialize sequencer history (called once before the L2 upgrade).
-    /// @param firstSequencer  The first sequencer address after the upgrade.
-    /// @param upgradeL2Block  The L2 block height where single-sequencer mode activates.
-    function initializeHistory(
-        address firstSequencer,
-        uint64 upgradeL2Block
+    /// @notice Set the first sequencer (called once). The sequencer is active from L2 block 0;
+    ///         the upgrade height is no longer specified here — the PBFT → single-sequencer
+    ///         switch is triggered off-chain by block timestamp.
+    /// @param firstSequencer  The first sequencer address.
+    function setFirstSequencer(
+        address firstSequencer
     ) external onlyOwner {
         require(sequencerHistory.length == 0, "already initialized");
         require(firstSequencer != address(0), "invalid address");
 
         sequencerHistory.push(HistoryRecord({
-            startL2Block: upgradeL2Block,
+            startL2Block: 0,
             sequencerAddr: firstSequencer
         }));
-        activeHeight = upgradeL2Block;
 
-        emit SequencerUpdated(address(0), firstSequencer, upgradeL2Block);
+        emit SequencerUpdated(address(0), firstSequencer, 0);
     }
 
     /// @notice Register a sequencer change at a future L2 block height.

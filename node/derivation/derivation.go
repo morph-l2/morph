@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"morph-l2/node/l1sequencer"
 	"time"
 
 	"github.com/morph-l2/go-ethereum"
@@ -23,6 +22,7 @@ import (
 	"github.com/morph-l2/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	tmnode "github.com/tendermint/tendermint/node"
+	"github.com/tendermint/tendermint/upgrade"
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
@@ -75,8 +75,6 @@ type Derivation struct {
 
 	tagAdvancer *tagAdvancer
 
-	l1SequencerVerifier *l1sequencer.SequencerVerifier
-
 	stop chan struct{}
 }
 
@@ -90,7 +88,7 @@ type DeployContractBackend interface {
 // NewDerivationClient takes a shared l1Client owned by main.go. See
 // sync.NewSyncer for rationale — every L1-touching component in this
 // process shares one connection pool / retry / metrics surface.
-func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, db Database, rollup *bindings.Rollup, l1Client *ethclient.Client, node *tmnode.Node, verifier *l1sequencer.SequencerVerifier, logger tmlog.Logger) (*Derivation, error) {
+func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, db Database, rollup *bindings.Rollup, l1Client *ethclient.Client, node *tmnode.Node, logger tmlog.Logger) (*Derivation, error) {
 	if l1Client == nil {
 		return nil, errors.New("l1Client cannot be nil")
 	}
@@ -159,7 +157,6 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		metrics:               metrics,
 		l1BeaconClient:        l1BeaconClient,
 		L2ToL1MessagePasser:   msgPasser,
-		l1SequencerVerifier:   verifier,
 	}
 
 	// First-run startHeight default: when DB has no derivation cursor and no
@@ -342,16 +339,17 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				// at the node layer, so reconstructing them via L1 fill-gap derive
 				// would diverge geth's height from the node's on restart. When such
 				// a block is missing locally we wait for P2P/blocksync to backfill
-				// instead of deriving. VerificationStartHeight() returns MaxUint64
-				// while the verifier history is still empty, so until it loads every
-				// missing block is treated as pre-upgrade and we wait -- the safe
-				// default before the upgrade height is known.
-				if batchInfo.firstBlockNumber < d.l1SequencerVerifier.VerificationStartHeight() {
-					d.logger.Info("local verify: batch firstBlockNumber below verificationStartHeight (pre-upgrade); "+
+				// instead of deriving. The upgrade boundary is timestamp-driven and
+				// persisted in the upgrade package: while it is not yet known
+				// (UpgradeBlockHeight < 0) IsUpgraded() returns false for every
+				// height, so every missing block is treated as pre-upgrade and we
+				// wait -- the safe default before the boundary is known.
+				if !upgrade.IsUpgraded(int64(batchInfo.firstBlockNumber)) {
+					d.logger.Info("local verify: batch firstBlockNumber is pre-upgrade; "+
 						"waiting for P2P backfill instead of L1 derivation",
 						"batchIndex", batchInfo.batchIndex,
 						"firstBlockNumber", batchInfo.firstBlockNumber,
-						"verificationStartHeight", d.l1SequencerVerifier.VerificationStartHeight())
+						"upgradeBlockHeight", upgrade.UpgradeBlockHeight())
 					return
 				}
 				if l2Grew {

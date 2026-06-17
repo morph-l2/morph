@@ -17,3 +17,11 @@ var (
 	HoodiSyncDepositContractAddress = common.HexToAddress("0xd7f39d837f4790b215ba67e0ab63665912648dbe")
 	HoodiL1SequencerContractAddress = common.HexToAddress("")
 )
+
+// Network-specific default block timestamps (Unix milliseconds) at which consensus switches to
+// centralized sequencer mode. They are used when --mainnet / --hoodi is selected and the generic
+// sequencerUpgradeTime flag is unset. A value <= 0 disables timestamp-triggered upgrade.
+var (
+	MainnetCentralizedSequencerUpgradeTime int64 = 0 // ms
+	HoodiCentralizedSequencerUpgradeTime   int64 = 0 // ms
+)

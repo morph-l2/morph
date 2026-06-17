@@ -22,7 +22,8 @@
 #   failover  - Run failover tests only (cluster must be running)
 #
 # Environment Variables:
-#   UPGRADE_HEIGHT   - Block height for consensus switch (default: 20)
+#   UPGRADE_OFFSET_S - Seconds after cluster start to fire the timestamp upgrade (default: 120)
+#   UPGRADE_WAIT_S   - Max seconds to wait for the upgrade to actually fire (default: 240)
 #   HA_FORM_WAIT     - Seconds to wait for Raft cluster formation (default: 30)
 #   REPORT_OUTPUT    - Where to write test report (default: docs/ha/ha-test-report.md)
 
@@ -36,9 +37,18 @@ DOCKER_DIR="$OPS_DIR/docker"
 DOCS_DIR="$BITGET_ROOT/docs/ha"
 
 # ─── Configuration ────────────────────────────────────────────────────────────
-UPGRADE_HEIGHT=${UPGRADE_HEIGHT:-20}
-HA_FORM_WAIT=${HA_FORM_WAIT:-30}  # seconds after upgrade to wait for cluster formation
+# Upgrade is timestamp-driven (not height). UPGRADE_OFFSET_S sets how many seconds after the
+# cluster starts the PBFT->sequencer switch fires; start_ha_cluster turns it into an absolute
+# SEQUENCER_UPGRADE_TIME (Unix ms) injected into every node. A pre-set SEQUENCER_UPGRADE_TIME
+# (absolute ms) takes precedence over the offset.
+UPGRADE_OFFSET_S=${UPGRADE_OFFSET_S:-120}
+UPGRADE_WAIT_S=${UPGRADE_WAIT_S:-240}   # max seconds to wait for the upgrade to actually fire
+HA_FORM_WAIT=${HA_FORM_WAIT:-30}        # seconds after upgrade to wait for cluster formation
 REPORT_OUTPUT="${REPORT_OUTPUT:-$DOCS_DIR/ha-test-report.md}"
+
+# Absolute upgrade timestamp (ms) persisted by start_ha_cluster and reused by the `test` phase so
+# recreating ha-node-* keeps the same boundary instead of falling back to 0 (= upgrade disabled).
+UPGRADE_TIME_FILE="$DOCKER_DIR/.devnet/.sequencer_upgrade_time_ms"
 
 # L2 Geth RPC endpoints for the PBFT nodes (non-HA, pre-upgrade consensus)
 L2_RPC_NODE0="http://127.0.0.1:8545"
@@ -155,6 +165,62 @@ wait_for_block() {
         sleep 3
     done
     echo ""
+}
+
+# ─── Upgrade-time Helpers (timestamp-driven upgrade) ──────────────────────────
+
+# Persist the absolute upgrade timestamp (ms) so a later, separate invocation (e.g. `test`)
+# recreates containers with the SAME boundary instead of the compose default of 0 (= disabled).
+persist_upgrade_time() {
+    mkdir -p "$(dirname "$UPGRADE_TIME_FILE")"
+    echo "${SEQUENCER_UPGRADE_TIME:-0}" > "$UPGRADE_TIME_FILE"
+}
+
+# Resolve SEQUENCER_UPGRADE_TIME and export it so every subsequent `docker compose up` recreates
+# nodes with the correct upgrade boundary. Resolution order:
+#   1. already-set env (>0)   2. persisted file   3. value baked into running ha-node-0
+load_upgrade_time() {
+    if [ "${SEQUENCER_UPGRADE_TIME:-0}" -gt 0 ] 2>/dev/null; then
+        export SEQUENCER_UPGRADE_TIME
+        return 0
+    fi
+    if [ -f "$UPGRADE_TIME_FILE" ]; then
+        SEQUENCER_UPGRADE_TIME=$(cat "$UPGRADE_TIME_FILE" 2>/dev/null | tr -dc '0-9')
+    fi
+    if [ "${SEQUENCER_UPGRADE_TIME:-0}" -le 0 ] 2>/dev/null; then
+        SEQUENCER_UPGRADE_TIME=$(docker inspect ha-node-0 \
+            --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
+            | grep '^MORPH_NODE_SEQUENCER_UPGRADE_TIME=' | cut -d= -f2 | tr -dc '0-9' || true)
+    fi
+    if [ "${SEQUENCER_UPGRADE_TIME:-0}" -gt 0 ] 2>/dev/null; then
+        export SEQUENCER_UPGRADE_TIME
+        log_info "Using SEQUENCER_UPGRADE_TIME=$SEQUENCER_UPGRADE_TIME ms"
+    else
+        export SEQUENCER_UPGRADE_TIME=0
+        log_warn "SEQUENCER_UPGRADE_TIME unknown — run 'start' first, else container recreation disables the upgrade."
+    fi
+}
+
+# Wait until the PBFT->sequencer upgrade actually fires, detected via the consensus log on the
+# always-present PBFT nodes (node-0..3). Fully decoupled from block height.
+wait_for_upgrade() {
+    local max_wait="${UPGRADE_WAIT_S:-240}"
+    local waited=0
+    cd "$DOCKER_DIR"
+    log_info "Waiting for timestamp upgrade to fire (max ${max_wait}s)..."
+    while [ "$waited" -lt "$max_wait" ]; do
+        if $COMPOSE_HA logs --tail=3000 node-0 node-1 node-2 node-3 2>/dev/null \
+            | grep -q "switching to sequencer mode"; then
+            log_success "Upgrade fired (timestamp boundary crossed) after ~${waited}s"
+            return 0
+        fi
+        echo -ne "\r  waiting for upgrade... ${waited}s/${max_wait}s"
+        sleep 5
+        waited=$((waited + 5))
+    done
+    echo ""
+    log_error "Upgrade did not fire within ${max_wait}s"
+    return 1
 }
 
 # ─── HA-Specific Helpers ──────────────────────────────────────────────────────
@@ -426,6 +492,18 @@ start_ha_cluster() {
     #   - node-0/1/2/3: PBFT validators (baseline), no HA config.
     #   - ha-node-0 bootstrap, ha-node-1/2 join — isolated Raft cluster.
     #   - sentry-node-0: non-HA V2 fullnode after upgrade.
+    # Timestamp-driven upgrade (block.Time ~= wall clock): fire the PBFT->sequencer switch
+    # UPGRADE_OFFSET_S seconds after start. The absolute timestamp is injected into every node via
+    # the overrides and persisted so the `test` phase reuses the identical boundary.
+    if [ "${SEQUENCER_UPGRADE_TIME:-0}" -gt 0 ] 2>/dev/null; then
+        export SEQUENCER_UPGRADE_TIME
+        log_info "Using pre-set SEQUENCER_UPGRADE_TIME=$SEQUENCER_UPGRADE_TIME ms"
+    else
+        export SEQUENCER_UPGRADE_TIME=$(( ($(date +%s) + UPGRADE_OFFSET_S) * 1000 ))
+        log_info "Sequencer upgrade time set to $SEQUENCER_UPGRADE_TIME ms (now + ${UPGRADE_OFFSET_S}s)"
+    fi
+    persist_upgrade_time
+
     log_info "Starting tendermint nodes (node-0..3 PBFT, ha-node-0 bootstrap, ha-node-1/2 join)..."
     $COMPOSE_HA up -d node-0 node-1 node-2 node-3 ha-node-0 ha-node-1 ha-node-2 sentry-node-0
 
@@ -440,9 +518,8 @@ start_ha_cluster() {
 run_config_tests() {
     log_section "Category 1: 配置验证 (Config Tests)"
 
-    # Wait for upgrade height + HA formation before running config tests
-    log_info "Waiting for upgrade height ($UPGRADE_HEIGHT)..."
-    wait_for_block "$UPGRADE_HEIGHT" "$L2_RPC_NODE0"
+    # Wait for the timestamp upgrade to actually fire + HA formation before running config tests.
+    wait_for_upgrade || log_warn "Proceeding despite upgrade-detection timeout"
     log_info "Waiting ${HA_FORM_WAIT}s for Raft cluster to form..."
     sleep "$HA_FORM_WAIT"
 
@@ -633,14 +710,12 @@ run_cluster_tests() {
 run_block_tests() {
     log_section "Category 3: 出块验证 (Block Production Tests)"
 
-    # Ensure we are past upgrade height with blocks flowing
+    # Ensure blocks are flowing post-upgrade (a handful of fresh blocks past the current head).
     local current
     current=$(get_block_number "$L2_RPC_NODE0")
-    local target=$((UPGRADE_HEIGHT + 15))
-    if [ "$current" -lt "$target" ]; then
-        log_info "Waiting for block $target (current: $current)..."
-        wait_for_block "$target" "$L2_RPC_NODE0"
-    fi
+    local target=$((current + 5))
+    log_info "Waiting for a few post-upgrade blocks (target $target, current: $current)..."
+    wait_for_block "$target" "$L2_RPC_NODE0"
 
     local leader_rpc
     leader_rpc=$(find_leader_rpc)
@@ -1320,7 +1395,7 @@ generate_report() {
         echo "# Sequencer HA V2 集成测试报告"
         echo ""
         echo "> 生成时间: $timestamp"
-        echo "> 升级高度: $UPGRADE_HEIGHT"
+        echo "> 升级时间(ms): ${SEQUENCER_UPGRADE_TIME:-unset}"
         echo "> 环境: docker-sequencer-test (3节点 Raft HA 集群)"
         echo ""
         echo "---"
@@ -1524,7 +1599,11 @@ print_summary() {
 
 run_full_ha_test() {
     log_section "Sequencer HA V2 Integration Test"
-    log_info "UPGRADE_HEIGHT=$UPGRADE_HEIGHT  HA_FORM_WAIT=${HA_FORM_WAIT}s"
+
+    # Recover the upgrade timestamp set by `start` so the cluster reset below recreates ha-node-*
+    # with the SAME boundary (an unset value resolves to 0 = upgrade disabled).
+    load_upgrade_time
+    log_info "SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-unset}  HA_FORM_WAIT=${HA_FORM_WAIT}s"
 
     # Reset HA cluster (ha-node-0/1/2) for clean state — makes the test idempotent.
     log_info "Resetting isolated HA cluster for clean test state..."
@@ -1546,7 +1625,7 @@ run_full_ha_test() {
     # Init report
     mkdir -p "$DOCS_DIR"
     REPORT_LINES=()
-    REPORT_LINES+=("## Environment\n\n- Upgrade Height: $UPGRADE_HEIGHT\n- HA Form Wait: ${HA_FORM_WAIT}s\n- PBFT nodes (pre-upgrade validators, post-upgrade V2 fullnodes): node-0/1/2/3\n- Isolated HA cluster (post-upgrade sequencer): ha-node-0 (bootstrap), ha-node-1 (join), ha-node-2 (join)\n- sentry-node-0: non-HA V2 fullnode\n\n---\n")
+    REPORT_LINES+=("## Environment\n\n- Upgrade Time (ms): ${SEQUENCER_UPGRADE_TIME:-unset}\n- HA Form Wait: ${HA_FORM_WAIT}s\n- PBFT nodes (pre-upgrade validators, post-upgrade V2 fullnodes): node-0/1/2/3\n- Isolated HA cluster (post-upgrade sequencer): ha-node-0 (bootstrap), ha-node-1 (join), ha-node-2 (join)\n- sentry-node-0: non-HA V2 fullnode\n\n---\n")
 
     run_config_tests
     run_cluster_tests
@@ -1603,7 +1682,7 @@ case "${1:-}" in
         ;;
     setup)
         log_info "Setting up devnet (delegating to run-test.sh)..."
-        UPGRADE_HEIGHT=$UPGRADE_HEIGHT "$SCRIPT_DIR/run-test.sh" setup
+        "$SCRIPT_DIR/run-test.sh" setup
         ;;
     start)
         start_ha_cluster
@@ -1665,12 +1744,13 @@ Commands:
   failover  Run failover tests only (cluster must be running)
 
 Environment Variables:
-  UPGRADE_HEIGHT   Block height for V2 mode switch (default: 20)
+  UPGRADE_OFFSET_S Seconds after start to fire the timestamp upgrade (default: 120)
+  UPGRADE_WAIT_S   Max seconds to wait for the upgrade to fire (default: 240)
   HA_FORM_WAIT     Seconds to wait for Raft cluster formation (default: 30)
   REPORT_OUTPUT    Path for test report markdown file
 
 Node Roles:
-  node-0/1/2/3   PBFT validators (pre-upgrade). After UPGRADE_HEIGHT they
+  node-0/1/2/3   PBFT validators (pre-upgrade). After the upgrade time they
                  become V2 fullnodes (no sequencer key → hasSigner=false).
   ha-node-0      Isolated HA cluster: bootstrap leader candidate
                  (MORPH_NODE_HA_BOOTSTRAP=true, SEQUENCER_PRIVATE_KEY set)
@@ -1685,8 +1765,8 @@ Host Ports:
 
 Quick Start:
   ./run-ha-test.sh build
-  UPGRADE_HEIGHT=20 ./run-ha-test.sh setup
-  ./run-ha-test.sh start
+  ./run-ha-test.sh setup
+  UPGRADE_OFFSET_S=120 ./run-ha-test.sh start
   ./run-ha-test.sh test
 EOF
         ;;
