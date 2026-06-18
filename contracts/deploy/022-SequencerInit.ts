@@ -36,7 +36,7 @@ export const SequencerInit = async (
         const owner = await deployer.getAddress()
 
         // Upgrade and initialize the proxy with owner only.
-        // Sequencer history is initialized separately via initializeHistory().
+        // The first sequencer is registered separately via setFirstSequencer(address).
         await IL1SequencerProxy.upgradeToAndCall(
             L1SequencerImplAddress,
             L1SequencerFactory.interface.encodeFunctionData('initialize', [owner])

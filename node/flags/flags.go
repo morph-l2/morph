@@ -200,6 +200,16 @@ var (
 		EnvVar: prefixEnvVar("L1_SEQUENCER_CONTRACT"),
 	}
 
+	// SequencerUpgradeTime overrides the PBFT->single-sequencer upgrade timestamp.
+	// Unit: Unix milliseconds (matches block.Time.UnixMilli()). If unset, --mainnet / --hoodi
+	// selects the corresponding built-in network default; without a network flag, the upgrade
+	// package's existing default is left unchanged.
+	SequencerUpgradeTime = cli.Int64Flag{
+		Name:   "sequencerUpgradeTime",
+		Usage:  "Unix timestamp (milliseconds) at which consensus switches to sequencer mode",
+		EnvVar: prefixEnvVar("SEQUENCER_UPGRADE_TIME"),
+	}
+
 	L1SyncLagThreshold = cli.DurationFlag{
 		Name:   "l1.syncLagThreshold",
 		Usage:  "L1 sync lag threshold for warning logs",
@@ -374,6 +384,7 @@ var Flags = []cli.Flag{
 	// L1 Sequencer options
 	L1SequencerContractAddr,
 	L1SyncLagThreshold,
+	SequencerUpgradeTime,
 	SequencerPrivateKey,
 	SequencerEnclaveSignerAddr,
 	SequencerHAEnabled,

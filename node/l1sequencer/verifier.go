@@ -13,7 +13,6 @@ import (
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
-	"github.com/tendermint/tendermint/upgrade"
 
 	"morph-l2/bindings/bindings"
 )
@@ -44,18 +43,16 @@ type SequencerVerifier struct {
 }
 
 // NewSequencerVerifier creates a new SequencerVerifier, loads the full sequencer
-// history from L1 (finalized), and starts a background refresh goroutine.
+// identity history from L1 (finalized), and starts a background refresh goroutine.
 // Call Stop to terminate the background loop.
 //
-// Startup is fail-fast: if the initial syncHistory() fails or returns empty
-// history, the global upgrade.UpgradeBlockHeight is never set and stays at its
-// -1 sentinel. Running with UpgradeBlockHeight=-1 is unsafe: IsUpgraded()
-// returns false for every height, so the PBFT state machine can run past the
-// true upgrade height, and on a block-synced fullnode restart the handshake's
-// sequencer-mode replay exemption fails (ErrAppBlockHeightTooHigh) while
-// reconstructLastCommit runs against a nil commit and panics. We therefore
-// refuse to start rather than boot into that state; the operator's supervisor
-// restarts us once L1 is reachable.
+// This verifier answers "who is the sequencer at L2 height N" for V2 block
+// signature verification; it does NOT decide the PBFT → single-sequencer upgrade
+// boundary (that is timestamp-driven and persisted in the upgrade package).
+//
+// Startup is fail-fast: if the initial syncHistory() fails, we refuse to start
+// rather than run without a sequencer identity table — IsSequencerAt would then
+// reject every V2 block. The operator's supervisor restarts us once L1 is reachable.
 func NewSequencerVerifier(caller *bindings.L1SequencerCaller, logger tmlog.Logger) (*SequencerVerifier, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	v := &SequencerVerifier{
@@ -65,12 +62,8 @@ func NewSequencerVerifier(caller *bindings.L1SequencerCaller, logger tmlog.Logge
 	}
 	if err := v.syncHistory(); err != nil {
 		cancel()
-		return nil, fmt.Errorf("refusing to start with UpgradeBlockHeight=-1: initial sequencer history sync from L1 failed: %w", err)
+		return nil, fmt.Errorf("refusing to start: initial sequencer history sync from L1 failed: %w", err)
 	}
-	//if upgrade.UpgradeBlockHeight < 0 {
-	//	cancel()
-	//	return nil, fmt.Errorf("refusing to start with UpgradeBlockHeight=-1: L1 returned empty sequencer history; upgrade height unknown")
-	//}
 	v.logCurrentState()
 	go v.refreshLoop(ctx)
 	return v, nil
@@ -89,7 +82,6 @@ func (c *SequencerVerifier) logCurrentState() {
 	current := c.history[len(c.history)-1]
 	c.logger.Info("Sequencer contract state loaded",
 		"totalRecords", len(c.history),
-		"verificationStartHeight", c.history[0].StartL2Block,
 		"currentSequencer", current.SequencerAddr.Hex(),
 		"currentSequencerStartHeight", current.StartL2Block)
 }
@@ -137,12 +129,6 @@ func (c *SequencerVerifier) syncHistory() error {
 		c.logger.Info("Sequencer record",
 			"startL2Block", c.history[i].StartL2Block,
 			"address", c.history[i].SequencerAddr.Hex())
-	}
-	// Set upgrade height from L1 contract on first successful load
-	if prev == 0 && len(c.history) > 0 {
-		height := int64(c.history[0].StartL2Block)
-		upgrade.SetUpgradeBlockHeight(height)
-		c.logger.Info("Upgrade height set from L1 contract", "height", height)
 	}
 
 	c.logger.Info("Sequencer history synced", "total", len(c.history), "new", len(c.history)-prev)
@@ -235,15 +221,4 @@ func (c *SequencerVerifier) IsSequencerAt(addr common.Address, l2Height uint64) 
 		return false, fmt.Errorf("no sequencer record for height %d", l2Height)
 	}
 	return addr == histAddr, nil
-}
-
-// VerificationStartHeight returns history[0].StartL2Block (= contract activeHeight).
-// Returns math.MaxUint64 if history is empty.
-func (c *SequencerVerifier) VerificationStartHeight() uint64 {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if len(c.history) == 0 {
-		return math.MaxUint64
-	}
-	return c.history[0].StartL2Block
 }

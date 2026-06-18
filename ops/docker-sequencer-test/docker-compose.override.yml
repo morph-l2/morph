@@ -24,20 +24,25 @@ services:
       context: ../..
       dockerfile: ops/docker-sequencer-test/Dockerfile.l2-node-test
     environment:
-      # Sequencer PK intentionally NOT set on node-0 in isolated-HA-cluster test design.
-      # After upgrade, node-0 should become a V2 fullnode (hasSigner=false). The sequencer
-      # private key lives ONLY on ha-node-0/1/2 (see docker-compose.ha-override.yml).
+      # Sequencer PK intentionally NOT set on node-0: after upgrade node-0 becomes a V2
+      # fullnode (hasSigner=false). The single sequencer is node-1 (see below).
       - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
       - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      # Timestamp-driven PBFT->sequencer upgrade (Unix ms). Same value on every node so all
+      # agree on the boundary. Computed at start time (now+offset) in run-test.sh start_l2_test.
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
 
 
   node-1:
     image: morph-node-test:latest
     environment:
-      # - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0x0890c388c3bf5e04fee1d8f3c117e5f44f435ced7baf7bfd66c10e1f3a3f4b10
+      # node-1 holds the sequencer signing key -> becomes the single sequencer after upgrade.
+      # Its address must match what setFirstSequencer registered (HA_SEQUENCER_ADDR in run-test.sh).
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=${SEQUENCER_PRIVATE_KEY}
       - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
       - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
 
 
   node-2:
@@ -46,6 +51,7 @@ services:
       - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
       - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
 
 
   node-3:
@@ -54,6 +60,7 @@ services:
       - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
       - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
 
 
   sentry-el-0:
@@ -65,6 +72,7 @@ services:
       - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
       - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
 
   # ========== Malicious Node (P2P security test) ==========
   # Uses morph-node-malicious:latest built from test/p2p-security branch.
@@ -107,4 +115,3 @@ services:
 
 volumes:
   malicious_geth_data:
-

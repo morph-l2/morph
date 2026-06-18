@@ -24,7 +24,9 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Configuration
-UPGRADE_HEIGHT=${UPGRADE_HEIGHT:-10}
+# Upgrade is timestamp-driven (not height): UPGRADE_OFFSET_S controls how many seconds after L2
+# start the PBFT->sequencer switch fires (see start_l2_test, default 120s).
+UPGRADE_OFFSET_S=${UPGRADE_OFFSET_S:-120}
 L2_RPC="http://127.0.0.1:8545"
 L2_RPC_NODE1="http://127.0.0.1:8645"
 
@@ -121,7 +123,7 @@ setup_devnet() {
     log_info "Running devnet setup..."
     cd "$MORPH_ROOT"
     
-    # Note: upgrade height should already be set before build_test_images
+    # Note: the timestamp upgrade (SEQUENCER_UPGRADE_TIME) is configured at start, not at setup.
     
     # Step 1: Start L1 and setup tendermint nodes
     # Note: main.py calls setup_devnet_nodes() before devnet.main()
@@ -204,29 +206,30 @@ for i in range(4):
                  '--private-key', deploy_config['l2StakingPks'][i]
                  ])
 
-# Initialize L1Sequencer history for V2 mode
-# Register the first sequencer (node-0's staking address) at upgrade height
+# Initialize L1Sequencer for V2 mode
+# Register the first sequencer (node-0's staking address). The sequencer is
+# active from L2 block 0; the PBFT->single-sequencer switch is triggered by
+# block timestamp (network-specific sequencerUpgradeTime flag), not by an on-chain height.
 l1_sequencer_addr = addresses.get('Proxy__L1Sequencer', '')
 if l1_sequencer_addr:
-    upgrade_height = os.environ.get('UPGRADE_HEIGHT', '10')
     # Override for whitelist integration test: register the HA cluster's
     # signer key (0xAb70...) so that ha-node-X can produce blocks after the
     # PBFT->HA upgrade. Without this, isSequencerAt() always returns false
     # for the HA leader and no blocks are produced.
     sequencer_addr = os.environ.get('HA_SEQUENCER_ADDR', deploy_config['l2StakingAddresses'][0])
     deployer_pk = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
-    log.info(f'Initializing L1Sequencer history: sequencer={sequencer_addr}, startL2Block={upgrade_height}')
+    log.info(f'Setting first L1Sequencer: sequencer={sequencer_addr} (active from block 0)')
     try:
         run_command([
             'cast', 'send', l1_sequencer_addr,
-            'initializeHistory(address,uint64)',
-            sequencer_addr, str(upgrade_height),
+            'setFirstSequencer(address)',
+            sequencer_addr,
             '--rpc-url', 'http://127.0.0.1:9545',
             '--private-key', deployer_pk
         ])
-        log.info('L1Sequencer history initialized successfully')
+        log.info('L1Sequencer first sequencer set successfully')
     except Exception as e:
-        log.info(f'L1Sequencer initializeHistory failed (may already be initialized): {e}')
+        log.info(f'L1Sequencer setFirstSequencer failed (may already be initialized): {e}')
 
 # Update .env file
 log.info('Updating .env file...')
@@ -275,7 +278,7 @@ remove_override() {
 }
 
 # Wait for L1 finalized block to reach at least the given height.
-# This ensures contract data (e.g., initializeHistory) is visible via
+# This ensures contract data (e.g., setFirstSequencer) is visible via
 # the finalized block tag when L2 nodes start their verifier sync.
 wait_for_l1_finalized() {
     local min_block=${1:-1}
@@ -320,7 +323,7 @@ start_l2_test() {
 
     # Wait for L1 to finalize past the contract deployment block.
     # The verifier reads history via finalized tag; if L1 hasn't finalized
-    # the initializeHistory tx yet, the initial sync will miss it.
+    # the setFirstSequencer tx yet, the initial sync will miss it.
     local l1_latest
     l1_latest=$(curl -s -X POST -H "Content-Type: application/json" \
         --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
@@ -344,6 +347,13 @@ start_l2_test() {
     
     sleep 5
     
+    # Timestamp-driven upgrade: tendermint block.Time ~= wall clock, so set the upgrade time
+    # to (now + offset) ms. The chain runs PBFT for ~offset seconds, then the first block whose
+    # time crosses this value becomes the last PBFT block and node-1 takes over as sequencer.
+    local upgrade_offset_s=${UPGRADE_OFFSET_S:-120}
+    export SEQUENCER_UPGRADE_TIME=$(( ($(date +%s) + upgrade_offset_s) * 1000 ))
+    log_info "Sequencer upgrade time set to $SEQUENCER_UPGRADE_TIME ms (now + ${upgrade_offset_s}s)"
+
     # Start L2 tendermint nodes
     log_info "Starting L2 tendermint nodes..."
     $COMPOSE_CMD up -d node-0 node-1 node-2 node-3 sentry-node-0
@@ -378,16 +388,33 @@ test_pbft_mode() {
 }
 
 test_upgrade() {
-    log_info "========== Phase 2: Waiting for Upgrade =========="
-    log_info "Upgrade height: $UPGRADE_HEIGHT"
-    
-    wait_for_block $UPGRADE_HEIGHT
+    log_info "========== Phase 2: Waiting for timestamp-driven Upgrade =========="
+    cd "$DOCKER_DIR"
+
+    # Upgrade is triggered by block timestamp, not height: poll node logs for the consensus
+    # switch instead of waiting for a fixed height.
+    local max_wait=${UPGRADE_WAIT_S:-240}
+    local waited=0
+    while [ $waited -lt $max_wait ]; do
+        if $COMPOSE_CMD logs --tail=3000 node-0 node-1 node-2 node-3 2>/dev/null \
+            | grep -q "switching to sequencer mode"; then
+            log_success "Upgrade triggered (timestamp boundary crossed) after ${waited}s"
+            break
+        fi
+        echo -ne "\r  waiting for upgrade... ${waited}s/${max_wait}s"
+        sleep 5
+        waited=$((waited + 5))
+    done
+    if [ $waited -ge $max_wait ]; then
+        log_error "Upgrade did not trigger within ${max_wait}s"
+        return 1
+    fi
+
     sleep 10
-    
-    # Verify network continues
+    # Verify network continues producing after upgrade (V2 blocks from node-1)
     local post_upgrade=$(get_block_number)
     wait_for_block $((post_upgrade + 5))
-    
+
     log_success "Upgrade completed! Network continues producing blocks."
 }
 
@@ -485,11 +512,15 @@ cleanup() {
 
 run_full_test() {
     log_info "=========================================="
-    log_info "  Sequencer Upgrade Test"
-    log_info "  Upgrade Height: $UPGRADE_HEIGHT"
+    log_info "  Sequencer Upgrade Test (timestamp-driven)"
     log_info "=========================================="
-    
+
     trap cleanup EXIT
+
+    # Single sequencer after upgrade = node-1, signing with this key. setFirstSequencer must
+    # register this key's address so V2 blocks verify. 0xac09..ff80 -> 0xf39Fd6..2266 (anvil #0).
+    export SEQUENCER_PRIVATE_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+    export HA_SEQUENCER_ADDR="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
     
     # Build test images
     build_test_images
@@ -655,9 +686,12 @@ test_p2p_security() {
     local height
     height=$(get_block_number "$L2_RPC")
 
-    # Check 1: chain must be past upgrade height (read from L1 contract via verifier)
-    if [ "$height" -le "$UPGRADE_HEIGHT" ]; then
-        log_error "Chain height ($height) <= UPGRADE_HEIGHT ($UPGRADE_HEIGHT). V2 not active."
+    # Check 1: the timestamp-driven upgrade must have occurred (a node switched to sequencer mode).
+    # The boundary is decided by block timestamp, not a fixed height, so check the consensus log.
+    local upgraded
+    upgraded=$($COMPOSE_CMD logs node-0 node-1 node-2 node-3 2>/dev/null | grep -c "switching to sequencer mode" || true)
+    if [ "$upgraded" -lt 1 ]; then
+        log_error "Upgrade not triggered yet (no 'switching to sequencer mode' in logs). V2 not active."
         return 1
     fi
 
@@ -665,7 +699,7 @@ test_p2p_security() {
     local node0_v2
     node0_v2=$($COMPOSE_CMD logs node-0 2>/dev/null | grep -c "StateV2 initialized.*hasSigner=true" || true)
     if [ "$node0_v2" -lt 1 ]; then
-        log_error "node-0 not in V2 mode with signer. Check SEQUENCER_PRIVATE_KEY and L1 initializeHistory."
+        log_error "node-0 not in V2 mode with signer. Check SEQUENCER_PRIVATE_KEY and L1 setFirstSequencer."
         return 1
     fi
 
@@ -673,11 +707,11 @@ test_p2p_security() {
     local sentry_v2
     sentry_v2=$($COMPOSE_CMD logs sentry-node-0 2>/dev/null | grep -c "Starting block apply routine" || true)
     if [ "$sentry_v2" -lt 1 ]; then
-        log_error "sentry-node-0 not in V2 path. Check L1 contract initializeHistory."
+        log_error "sentry-node-0 not in V2 path. Check L1 contract setFirstSequencer."
         return 1
     fi
 
-    log_info "Preconditions OK: height=$height, upgradeHeight=$UPGRADE_HEIGHT, V2 active"
+    log_info "Preconditions OK: height=$height, upgrade triggered, V2 active"
 
     local pass=0
     local fail=0
@@ -919,7 +953,7 @@ case "${1:-}" in
         echo "  status            - Show current block numbers"
         echo ""
         echo "Environment Variables:"
-        echo "  UPGRADE_HEIGHT    - Block height for consensus switch (default: 10)"
+        echo "  UPGRADE_OFFSET_S  - Seconds after L2 start to trigger the timestamp upgrade (default: 120)"
         echo "  TX_INTERVAL       - Seconds between txs (default: 5)"
         echo "  MALICIOUS_MODE    - Attack mode for p2p-test (default: all)"
         echo ""
@@ -931,6 +965,6 @@ case "${1:-}" in
         echo "  5. p2p-test       - Run P2P security tests (requires build-malicious)"
         echo ""
         echo "Quick Start:"
-        echo "  UPGRADE_HEIGHT=10 $0 test"
+        echo "  UPGRADE_OFFSET_S=120 $0 test"
         ;;
 esac

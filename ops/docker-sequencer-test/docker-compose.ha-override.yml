@@ -10,10 +10,10 @@ version: '3.8'
 #     up -d
 #
 # DESIGN:
-# - PBFT phase (height 0 → UPGRADE_HEIGHT-1): node-0/1/2/3 run 4-node tendermint
+# - PBFT phase (before the upgrade time): node-0/1/2/3 run 4-node tendermint
 #   PBFT consensus exactly as in the baseline override. ha-node-0/1/2 join the
 #   P2P network as V1 fullnodes (BlockSync only, no block production).
-# - After UPGRADE_HEIGHT: V2 activates. Only ha-node-0/1/2 hold the sequencer
+# - After the upgrade time (SEQUENCER_UPGRADE_TIME): V2 activates. Only ha-node-0/1/2 hold the sequencer
 #   private key registered in the L1Sequencer contract, so they form a Raft
 #   cluster (ha-node-0 bootstrap, ha-node-1/2 join) and produce blocks.
 #   node-0/1/2/3 become V2 fullnodes (hasSigner=false).
@@ -131,7 +131,8 @@ services:
       # Sequencer private key — only ha-node-0/1/2 hold this.
       # Rotated to new key for sequencer migration test (2026-05-11)
       # New address: 0xAb70B9eAF487d6cfFD3AD420785BE389D5B28390
-      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0x4c60870f2eda2dbb0d8af6d33f3eb1fab4c0171387d784ff7423b4e529980f3c
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
       - MORPH_NODE_L2_ETH_RPC=http://ha-geth-0:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-0:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
@@ -174,7 +175,8 @@ services:
     environment:
       # Rotated to new key for sequencer migration test (2026-05-11)
       # New address: 0xAb70B9eAF487d6cfFD3AD420785BE389D5B28390
-      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0x4c60870f2eda2dbb0d8af6d33f3eb1fab4c0171387d784ff7423b4e529980f3c
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
       - MORPH_NODE_L2_ETH_RPC=http://ha-geth-1:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-1:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
@@ -216,7 +218,8 @@ services:
     environment:
       # Rotated to new key for sequencer migration test (2026-05-11)
       # New address: 0xAb70B9eAF487d6cfFD3AD420785BE389D5B28390
-      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0x4c60870f2eda2dbb0d8af6d33f3eb1fab4c0171387d784ff7423b4e529980f3c
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
       - MORPH_NODE_L2_ETH_RPC=http://ha-geth-2:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-2:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}

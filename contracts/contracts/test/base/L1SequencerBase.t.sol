@@ -35,8 +35,8 @@ contract L1SequencerBaseTest is Test {
         vm.stopPrank();
     }
 
-    function _initHistory(address seq, uint64 upgradeHeight) internal {
+    function _setFirstSequencer(address seq) internal {
         vm.prank(owner);
-        l1Sequencer.initializeHistory(seq, upgradeHeight);
+        l1Sequencer.setFirstSequencer(seq);
     }
 }
