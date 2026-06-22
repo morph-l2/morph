@@ -2,7 +2,7 @@ module morph-l2/tx-submitter
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.8-0.20260622055959-eed7fed8ce2e
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.8-0.20260622082553-4abd48c31b4d
 
 replace github.com/morph-l2/go-ethereum => github.com/morph-l2/go-ethereum v1.10.14-0.20260622034103-0d7e79c95a68
 
