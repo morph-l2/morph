@@ -100,7 +100,16 @@ func (f *FallbackPriceFeed) GetBatchTokenPrices(ctx context.Context, tokenIDs []
 		if err == nil {
 			// Validate all returned prices to prevent nil pointer panics
 			hasInvalidPrice := false
-			for tokenID, price := range prices {
+			for _, tokenID := range tokenIDs {
+				price, exists := prices[tokenID]
+				if !exists {
+					f.log.Warn("Feed did not return price for requested token, treating as failure",
+						"token_id", tokenID,
+						"feed", feedName,
+						"priority", i)
+					hasInvalidPrice = true
+					break
+				}
 				if price == nil || price.TokenPriceUSD == nil || price.EthPriceUSD == nil {
 					f.log.Warn("Feed returned nil price or components for token, treating as failure",
 						"token_id", tokenID,
@@ -134,4 +143,3 @@ func (f *FallbackPriceFeed) GetBatchTokenPrices(ctx context.Context, tokenIDs []
 
 	return nil, lastErr
 }
-

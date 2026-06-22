@@ -52,7 +52,7 @@ var (
 
 	PriceFeedPriorityFlag = cli.StringFlag{
 		Name:   "price-feed-priority",
-		Usage:  "Comma-separated list of price feed types in priority order (e.g. \"bitget,binance\")",
+		Usage:  "Comma-separated list of price feed types in priority order (e.g. \"chainlink,bitget\")",
 		Value:  "bitget",
 		EnvVar: prefixEnvVar("PRICE_FEED_PRIORITY"),
 	}
@@ -71,6 +71,13 @@ var (
 		EnvVar: prefixEnvVar("TOKEN_MAPPING_BINANCE"),
 	}
 
+	TokenMappingChainlinkFlag = cli.StringFlag{
+		Name:   "token-mapping-chainlink",
+		Usage:  "Token ID to Chainlink AggregatorV3 feed address mapping (e.g. \"1:0x...,2:0x...\")",
+		Value:  "",
+		EnvVar: prefixEnvVar("TOKEN_MAPPING_CHAINLINK"),
+	}
+
 	BitgetAPIBaseURLFlag = cli.StringFlag{
 		Name:   "bitget-api-base-url",
 		Usage:  "Bitget API base URL (required if bitget feed is enabled)",
@@ -83,6 +90,27 @@ var (
 		Usage:  "Binance API base URL (required if binance feed is enabled)",
 		Value:  "",
 		EnvVar: prefixEnvVar("BINANCE_API_BASE_URL"),
+	}
+
+	ChainlinkRPCFlag = cli.StringFlag{
+		Name:   "chainlink-rpc",
+		Usage:  "RPC endpoint used to read Chainlink AggregatorV3 feeds",
+		Value:  "",
+		EnvVar: prefixEnvVar("CHAINLINK_RPC"),
+	}
+
+	ChainlinkETHUSDFeedFlag = cli.StringFlag{
+		Name:   "chainlink-eth-usd-feed",
+		Usage:  "Chainlink AggregatorV3 ETH/USD feed address",
+		Value:  "",
+		EnvVar: prefixEnvVar("CHAINLINK_ETH_USD_FEED"),
+	}
+
+	ChainlinkMaxStalenessFlag = cli.DurationFlag{
+		Name:   "chainlink-max-staleness",
+		Usage:  "Maximum allowed age for Chainlink feed rounds",
+		Value:  1 * time.Hour,
+		EnvVar: prefixEnvVar("CHAINLINK_MAX_STALENESS"),
 	}
 
 	// Logging flags
@@ -203,8 +231,12 @@ var optionalFlags = []cli.Flag{
 	PriceFeedPriorityFlag,
 	TokenMappingBitgetFlag,
 	TokenMappingBinanceFlag,
+	TokenMappingChainlinkFlag,
 	BitgetAPIBaseURLFlag,
 	BinanceAPIBaseURLFlag,
+	ChainlinkRPCFlag,
+	ChainlinkETHUSDFeedFlag,
+	ChainlinkMaxStalenessFlag,
 
 	LogLevelFlag,
 	LogFilenameFlag,

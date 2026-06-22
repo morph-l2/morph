@@ -21,13 +21,15 @@ const (
 type PriceFeedType string
 
 const (
-	PriceFeedTypeBitget  PriceFeedType = "bitget"
-	PriceFeedTypeBinance PriceFeedType = "binance"
+	PriceFeedTypeBitget    PriceFeedType = "bitget"
+	PriceFeedTypeBinance   PriceFeedType = "binance"
+	PriceFeedTypeChainlink PriceFeedType = "chainlink"
 )
 
 // ValidPriceFeedTypes returns all valid price feed types
 func ValidPriceFeedTypes() []PriceFeedType {
 	return []PriceFeedType{
+		PriceFeedTypeChainlink,
 		PriceFeedTypeBitget,
 		// PriceFeedTypeBinance,  // TODO: Add back when Binance price feed is implemented
 	}
@@ -58,12 +60,15 @@ type Config struct {
 	// Private key
 	PrivateKey string
 	// Price update parameters
-	PriceUpdateInterval time.Duration                       // Price update interval
-	PriceThreshold      uint64                              // Price change threshold percentage to trigger update
-	PriceFeedPriority   []PriceFeedType                     // Price feed types in priority order (fallback mechanism)
-	TokenMappings       map[PriceFeedType]map[uint16]string // Token ID to trading pair mappings for each price feed type
-	BitgetAPIBaseURL    string                              // Bitget API base URL
-	BinanceAPIBaseURL   string                              // Binance API base URL
+	PriceUpdateInterval   time.Duration                       // Price update interval
+	PriceThreshold        uint64                              // Price change threshold percentage to trigger update
+	PriceFeedPriority     []PriceFeedType                     // Price feed types in priority order (fallback mechanism)
+	TokenMappings         map[PriceFeedType]map[uint16]string // Token ID to trading pair mappings for each price feed type
+	BitgetAPIBaseURL      string                              // Bitget API base URL
+	BinanceAPIBaseURL     string                              // Binance API base URL
+	ChainlinkRPC          string                              // RPC URL used for Chainlink feeds
+	ChainlinkETHUSDFeed   common.Address                      // ETH/USD AggregatorV3 feed address
+	ChainlinkMaxStaleness time.Duration                       // Maximum accepted age for Chainlink feed rounds
 
 	// External sign
 	ExternalSign        bool
@@ -141,7 +146,7 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 
 	// Validate price threshold is reasonable (basis points should be 0-MaxPriceThresholdBPS)
 	if cfg.PriceThreshold > MaxPriceThresholdBPS {
-		return nil, fmt.Errorf("price threshold %d is too large (should be 0-%d basis points, where %d bps = 100%%)", 
+		return nil, fmt.Errorf("price threshold %d is too large (should be 0-%d basis points, where %d bps = 100%%)",
 			cfg.PriceThreshold, MaxPriceThresholdBPS, MaxPriceThresholdBPS)
 	}
 
@@ -224,13 +229,44 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 		cfg.TokenMappings[PriceFeedTypeBinance] = binanceMapping
 	}
 
+	chainlinkMapping, err := parseTokenMapping(ctx.String(flags.TokenMappingChainlinkFlag.Name))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse chainlink token mapping: %w", err)
+	}
+	if len(chainlinkMapping) > 0 {
+		cfg.TokenMappings[PriceFeedTypeChainlink] = chainlinkMapping
+	}
+
 	// Parse API base URLs
 	cfg.BitgetAPIBaseURL = ctx.String(flags.BitgetAPIBaseURLFlag.Name)
 	cfg.BinanceAPIBaseURL = ctx.String(flags.BinanceAPIBaseURLFlag.Name)
+	cfg.ChainlinkRPC = ctx.String(flags.ChainlinkRPCFlag.Name)
+	cfg.ChainlinkMaxStaleness = ctx.Duration(flags.ChainlinkMaxStalenessFlag.Name)
+	chainlinkETHUSDFeed := strings.TrimSpace(ctx.String(flags.ChainlinkETHUSDFeedFlag.Name))
+	if chainlinkETHUSDFeed != "" {
+		if !common.IsHexAddress(chainlinkETHUSDFeed) {
+			return nil, fmt.Errorf("invalid chainlink ETH/USD feed address: %s", chainlinkETHUSDFeed)
+		}
+		cfg.ChainlinkETHUSDFeed = common.HexToAddress(chainlinkETHUSDFeed)
+	}
 
 	// Validate API URLs for configured feeds (non-empty check only)
 	for _, feedType := range cfg.PriceFeedPriority {
 		switch feedType {
+		case PriceFeedTypeChainlink:
+			if cfg.ChainlinkRPC == "" {
+				return nil, fmt.Errorf("chainlink feed is configured but --chainlink-rpc is not set")
+			}
+			if cfg.ChainlinkETHUSDFeed == (common.Address{}) {
+				return nil, fmt.Errorf("chainlink feed is configured but --chainlink-eth-usd-feed is not set")
+			}
+			if cfg.ChainlinkMaxStaleness <= 0 {
+				return nil, fmt.Errorf("chainlink max staleness must be positive")
+			}
+			if len(cfg.TokenMappings[PriceFeedTypeChainlink]) == 0 {
+				return nil, fmt.Errorf("chainlink feed is configured but --token-mapping-chainlink is not set")
+			}
+
 		case PriceFeedTypeBitget:
 			if cfg.BitgetAPIBaseURL == "" {
 				return nil, fmt.Errorf("bitget feed is configured but --bitget-api-base-url is not set")

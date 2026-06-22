@@ -4,7 +4,7 @@ Token Price Oracle service monitors token prices and updates the price ratio bet
 
 ## Features
 
-- **Real-time Price Monitoring**: Fetches token USD prices from exchange APIs (Bitget)
+- **Real-time Price Monitoring**: Fetches token USD prices from Chainlink feeds and exchange APIs (Bitget)
 - **Price Ratio Calculation**: Computes price ratio between tokens and ETH
 - **Threshold-based Updates**: Only updates on-chain when price change exceeds threshold, saving Gas
 - **Batch Updates**: Updates multiple token prices in a single `batchUpdatePrices` transaction
@@ -22,6 +22,13 @@ export TOKEN_PRICE_ORACLE_L2_ETH_RPC="https://rpc.morphl2.io"
 export TOKEN_PRICE_ORACLE_PRIVATE_KEY="0x..."  # Required for local signing only
 export TOKEN_PRICE_ORACLE_BITGET_API_BASE_URL="https://api.bitget.com"
 export TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BITGET="1:BTCUSDT,2:ETHUSDT"
+
+# Optional: prefer Chainlink first, fallback to Bitget
+export TOKEN_PRICE_ORACLE_PRICE_FEED_PRIORITY="chainlink,bitget"
+export TOKEN_PRICE_ORACLE_CHAINLINK_RPC="https://ethereum-rpc.publicnode.com"
+export TOKEN_PRICE_ORACLE_CHAINLINK_ETH_USD_FEED="0x..."
+export TOKEN_PRICE_ORACLE_CHAINLINK_MAX_STALENESS="1h"
+export TOKEN_PRICE_ORACLE_TOKEN_MAPPING_CHAINLINK="1:0x...,2:0x..."
 
 # Optional
 export TOKEN_PRICE_ORACLE_PRICE_UPDATE_INTERVAL="1m"
@@ -59,8 +66,8 @@ docker run -d \
 | Environment Variable | Description |
 |---------------------|-------------|
 | `TOKEN_PRICE_ORACLE_L2_ETH_RPC` | L2 node RPC endpoint |
-| `TOKEN_PRICE_ORACLE_BITGET_API_BASE_URL` | Bitget API base URL |
-| `TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BITGET` | TokenID to trading pair mapping |
+| `TOKEN_PRICE_ORACLE_BITGET_API_BASE_URL` | Bitget API base URL, required when Bitget is enabled |
+| `TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BITGET` | TokenID to trading pair mapping, required when Bitget is enabled |
 
 ### Required (Local Signing Mode Only)
 
@@ -80,6 +87,22 @@ docker run -d \
 | `TOKEN_PRICE_ORACLE_METRICS_PORT` | `6060` | Metrics server port |
 | `TOKEN_PRICE_ORACLE_LOG_LEVEL` | `info` | Log level |
 | `TOKEN_PRICE_ORACLE_LOG_FILENAME` | - | Log file path |
+
+### Chainlink Feed
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `TOKEN_PRICE_ORACLE_CHAINLINK_RPC` | - | RPC endpoint used to read Chainlink AggregatorV3 feeds |
+| `TOKEN_PRICE_ORACLE_CHAINLINK_ETH_USD_FEED` | - | Chainlink ETH/USD AggregatorV3 feed address |
+| `TOKEN_PRICE_ORACLE_CHAINLINK_MAX_STALENESS` | `1h` | Maximum accepted age of Chainlink rounds |
+| `TOKEN_PRICE_ORACLE_TOKEN_MAPPING_CHAINLINK` | - | TokenID to token/USD AggregatorV3 feed mapping |
+
+Example priority with Chainlink as primary and Bitget as fallback:
+
+```bash
+TOKEN_PRICE_ORACLE_PRICE_FEED_PRIORITY=chainlink,bitget
+TOKEN_PRICE_ORACLE_TOKEN_MAPPING_CHAINLINK=1:0x...,2:0x...
+```
 
 ### External Signing (Recommended for Production)
 
@@ -154,11 +177,12 @@ token-price-oracle/
 ├── cmd/              # Entry point
 ├── flags/            # CLI flags definition
 ├── config/           # Configuration loading
-├── client/           # Client wrappers
-│   ├── l2_client.go  # L2 chain client
-│   ├── price_feed.go # Price feed interface
-│   ├── bitget_sdk.go # Bitget API client
-│   └── sign.go       # External signing
+├── client/             # Client wrappers
+│   ├── l2_client.go    # L2 chain client
+│   ├── price_feed.go   # Price feed interface
+│   ├── bitget_sdk.go   # Bitget API client
+│   ├── chainlink_feed.go # Chainlink AggregatorV3 client
+│   └── sign.go         # External signing
 ├── updater/          # Update logic
 │   ├── token_price.go # Price updater
 │   ├── tx_manager.go  # Transaction manager

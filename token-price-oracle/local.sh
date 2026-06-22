@@ -21,3 +21,10 @@
 #   - Stablecoins:    tokenID:$PRICE (e.g., 3:$1.0 for USDT pegged to $1 USD)
 # Note: Use \$ in bash to escape the dollar sign
 
+# Chainlink example:
+#   --price-feed-priority chainlink,bitget \
+#   --chainlink-rpc https://ethereum-rpc.publicnode.com \
+#   --chainlink-eth-usd-feed 0x... \
+#   --chainlink-max-staleness 1h \
+#   --token-mapping-chainlink "1:0x...,2:0x..." \
+

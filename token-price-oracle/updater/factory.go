@@ -106,6 +106,23 @@ func createFallbackPriceFeed(cfg *config.Config) (client.PriceFeed, error) {
 // createSinglePriceFeed creates a single price feed instance
 func createSinglePriceFeed(feedType config.PriceFeedType, cfg *config.Config) (client.PriceFeed, string, error) {
 	switch feedType {
+	case config.PriceFeedTypeChainlink:
+		mapping, exists := cfg.TokenMappings[config.PriceFeedTypeChainlink]
+		if !exists || len(mapping) == 0 {
+			return nil, "", fmt.Errorf("chainlink price feed requires token mapping, please configure --token-mapping-chainlink")
+		}
+		feed, err := client.NewChainlinkPriceFeed(mapping, cfg.ChainlinkRPC, cfg.ChainlinkETHUSDFeed, cfg.ChainlinkMaxStaleness)
+		if err != nil {
+			return nil, "", err
+		}
+		log.Info("Chainlink price feed created",
+			"type", "chainlink",
+			"rpc", cfg.ChainlinkRPC,
+			"eth_usd_feed", cfg.ChainlinkETHUSDFeed.Hex(),
+			"max_staleness", cfg.ChainlinkMaxStaleness,
+			"mapping", mapping)
+		return feed, "chainlink", nil
+
 	case config.PriceFeedTypeBitget:
 		mapping, exists := cfg.TokenMappings[config.PriceFeedTypeBitget]
 		if !exists || len(mapping) == 0 {
