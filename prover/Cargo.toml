@@ -48,7 +48,7 @@ serde_with = "3.9"
 # Async & Networking
 axum = "0.4.3"
 futures = "0.3"
-reqwest = "0.12"
+reqwest = "0.13"
 tokio = { version = "1.51.1", default-features = false, features = [
     "rt",
     "rt-multi-thread",
@@ -62,9 +62,11 @@ prometheus-client = "0.22"
 # zstd decompression, the pure Rust implementation used in riscv client.
 ruzstd = { git = "https://github.com/KillingSpark/zstd-rs.git", branch = "master" }
 # zstd compression, the C implementation used in host.
-zstd = { git = "https://github.com/morph-l2/zstd-rs.git", branch = "zstd-dev", features = [
-    "experimental",
-] }
+# zstd = { git = "https://github.com/morph-l2/zstd-rs.git", branch = "zstd-dev", features = [
+#     "experimental",
+# ] }
+
+zstd = "0.13.3"
 
 
 # Crypto
@@ -89,7 +91,6 @@ alloy-json-rpc = { version = "2.0.4", default-features = false }
 alloy-network = { version = "2.0.4", default-features = false }
 alloy-primitives = { version = "1.5.6", default-features = false, features = [
     "sha3-keccak",
-    "map-hashbrown",
 ] }
 alloy-provider = { version = "2.0.4", default-features = false, features = [
     "reqwest",
@@ -126,6 +127,7 @@ morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "fix
 morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", branch = "fix/payload-types-reth-codec-feature" }
 morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", branch = "fix/payload-types-reth-codec-feature" }
 morph-evm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "fix/payload-types-reth-codec-feature" }
+morph-rpc = { git = "https://github.com/morph-l2/morph-reth.git", branch = "fix/payload-types-reth-codec-feature", default-features = false }
 
 # ZK / SP1
 sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", tag = "v6.2.0" }
@@ -156,4 +158,4 @@ p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p2
 # Use the same local zstd implementation for transitive users (notably sp1-sdk)
 # to avoid multiple libzstd C implementations with different experimental
 # parameter numbers being linked into the same binary.
-zstd = { git = "https://github.com/morph-l2/zstd-rs.git", branch = "zstd-dev" }
+# zstd = { git = "https://github.com/morph-l2/zstd-rs.git", branch = "zstd-dev" }

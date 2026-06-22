@@ -1,7 +1,8 @@
 use crate::ClientBlockInput;
 use alloy_primitives::hex::FromHex;
 use alloy_primitives::{Address, B256};
-use alloy_provider::{DynProvider, Provider};
+use alloy_provider::{DynProvider, EthGetBlock, Provider};
+use alloy_rpc_types::{BlockNumberOrTag, Header as RpcHeader};
 use anyhow::Context;
 use prover_mpt::EthereumState;
 use prover_primitives::types::block::L2Block;
@@ -30,6 +31,17 @@ pub static DEFAULT_COINBASE: LazyLock<Address> =
 pub fn beneficiary_by_chain_id(chain_id: u64) -> Address {
     *CHAIN_COINBASE.get(&chain_id).unwrap_or(&DEFAULT_COINBASE)
 }
+
+/// Morph-compatible RPC block returned by `eth_getBlockByNumber`.
+///
+/// The default Alloy Ethereum network binds block transactions to Ethereum's
+/// `TxEnvelope`, which cannot deserialize Morph's custom transaction types.
+/// This alias keeps the normal RPC block shape, but swaps in Morph's header and
+/// transaction envelope types from `morph-reth`.
+pub type MorphRpcBlock = alloy_rpc_types::Block<
+    morph_rpc::MorphRpcTransaction,
+    RpcHeader<morph_primitives::MorphHeader>,
+>;
 
 /// Block structure returned by the prover RPC.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -94,16 +106,65 @@ pub fn assemble_block_input(
     ClientBlockInput { current_block: l2_block, parent_state: state, bytecodes: codes }
 }
 
+/// Queries the Morph RPC block at a given block number.
+///
+/// This intentionally uses [`MorphRpcBlock`] as the response type instead of the
+/// provider network's default block type. For example,
+/// `ProviderBuilder::new().connect_http(...).erased()` creates an Ethereum
+/// provider whose `get_block(...).full()` decodes transactions as Ethereum
+/// envelopes and fails on Morph-specific transaction types. `EthGetBlock` lets
+/// us reuse the provider's RPC client while choosing a Morph-aware response
+/// type.
+pub async fn query_morph_rpc_block(
+    block_number: u64,
+    provider: &DynProvider,
+) -> Result<MorphRpcBlock, anyhow::Error> {
+    EthGetBlock::<MorphRpcBlock>::by_number(
+        BlockNumberOrTag::Number(block_number),
+        provider.client(),
+    )
+    .full()
+    .await
+    .with_context(|| format!("eth_getBlockByNumber failed for block {block_number}"))?
+    .with_context(|| format!("block {block_number} not found"))
+}
+
 /// Queries the block at a given block number.
 pub async fn query_block(
     block_number: u64,
     provider: &DynProvider,
 ) -> Result<ProverBlock, anyhow::Error> {
-    provider
-        .raw_request::<_, ProverBlock>(
-            "eth_getBlockByNumber".into(),
-            (format!("{block_number:#x}"), true),
-        )
-        .await
-        .context("eth_getBlockByNumber error")
+    let block = query_morph_rpc_block(block_number, provider).await?;
+    let value = serde_json::to_value(block)
+        .with_context(|| format!("failed to serialize Morph RPC block {block_number}"))?;
+    serde_json::from_value(value).with_context(|| {
+        format!("failed to convert Morph RPC block {block_number} into ProverBlock")
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::query_morph_rpc_block;
+    use alloy_provider::{Provider, ProviderBuilder};
+
+    #[tokio::test]
+    #[ignore = "requires public Morph RPC access"]
+    async fn query_morph_block_test() {
+        let rpc = "https://rpc-quicknode.morphl2.io";
+
+        // Provider construction is independent from the response type used for
+        // `eth_getBlockByNumber`: `query_morph_rpc_block` reuses the provider
+        // client but decodes into `MorphRpcBlock`.
+        // let root_provider: RootProvider<_> = RootProvider::new_http(rpc.parse().unwrap());
+        // let block = query_morph_rpc_block(19720290, &root_provider).await.unwrap();
+        // println!("block via RootProvider: {:?}", serde_json::to_string(&block));
+
+        // The same Morph-aware request also works with a ProviderBuilder-created
+        // provider; avoid `.get_block(...).full()` here because that method is
+        // bound to the provider network's default Ethereum block response type.
+        let builder_provider =
+            ProviderBuilder::default().connect_http(rpc.parse().unwrap()).erased();
+        let block = query_morph_rpc_block(19720290, &builder_provider).await.unwrap();
+        println!("block via ProviderBuilder: {:?}", &block);
+    }
 }

@@ -16,7 +16,6 @@ alloy-eips = { workspace = true }
 alloy-rlp = { workspace = true }
 alloy-primitives = { workspace = true, features = [
     "sha3-keccak",
-    "map-hashbrown",
     "rayon",
 ] }
 revm = { workspace = true }

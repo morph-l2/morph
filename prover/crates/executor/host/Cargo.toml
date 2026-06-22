@@ -23,6 +23,8 @@ reth-trie.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 log = { workspace = true }
+morph-rpc = { workspace = true }
+morph-primitives.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true }
