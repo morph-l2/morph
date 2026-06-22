@@ -151,6 +151,8 @@ func (p *PythHermesPriceFeed) GetBatchTokenPrices(ctx context.Context, tokenIDs 
 
 func (p *PythHermesPriceFeed) fetchPrices(ctx context.Context, priceIDs []string) (map[string]pythPrice, error) {
 	values := url.Values{}
+	values.Set("parsed", "true")
+	values.Set("encoding", "hex")
 	seen := make(map[string]struct{}, len(priceIDs))
 	for _, priceID := range priceIDs {
 		priceID = normalizePythPriceID(priceID)

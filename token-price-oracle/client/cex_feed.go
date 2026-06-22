@@ -227,6 +227,10 @@ func getJSONWithHeaders(ctx context.Context, httpClient *http.Client, requestURL
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("HTTP status %d: %s", resp.StatusCode, string(body))
 	}
+	contentType := resp.Header.Get("Content-Type")
+	if contentType != "" && !strings.Contains(strings.ToLower(contentType), "json") {
+		return nil, fmt.Errorf("unexpected content type %q: %s", contentType, string(body))
+	}
 	return body, nil
 }
 

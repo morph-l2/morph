@@ -16,6 +16,7 @@ func TestFetchBinancePrice(t *testing.T) {
 		if r.URL.Query().Get("symbol") != "BTCUSDT" {
 			t.Fatalf("unexpected symbol: %s", r.URL.Query().Get("symbol"))
 		}
+		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"symbol":"BTCUSDT","price":"64385.12"}`))
 	}))
 	defer server.Close()
@@ -37,6 +38,7 @@ func TestFetchOKXPrice(t *testing.T) {
 		if r.URL.Query().Get("instId") != "BTC-USDT" {
 			t.Fatalf("unexpected instId: %s", r.URL.Query().Get("instId"))
 		}
+		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"code":"0","msg":"","data":[{"instId":"BTC-USDT","last":"64386.45"}]}`))
 	}))
 	defer server.Close()
