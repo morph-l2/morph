@@ -19,7 +19,9 @@ type FSMDecodeError struct{ Err error }
 func (e *FSMDecodeError) Error() string { return fmt.Sprintf("FSM decode: %v", e.Err) }
 func (e *FSMDecodeError) Unwrap() error { return e.Err }
 
-// FSMApplyError is returned when the business callback (geth applyBlock / saveSignature) fails.
+// FSMApplyError is the panic value raised when the business callback
+// (geth applyBlock / saveSignature) fails. FSM apply must not fail silently;
+// see BlockFSM.Apply for why this is fatal rather than a returned error.
 type FSMApplyError struct {
 	Height uint64
 	Err    error
@@ -77,10 +79,12 @@ func (f *BlockFSM) SetOnBlockApplied(fn func(*types.BlockV2) error) {
 //   - Decode failure → returns FSMDecodeError. For the leader this propagates via
 //     Future.Response() and triggers a panic (invariant violation). For followers
 //     it is logged by Raft.
-//   - onApplied failure → returns FSMApplyError. For the leader this triggers a
-//     panic via Commit(). For followers, the block is NOT delivered to blockCh
-//     and appliedHeight is NOT advanced; the follower becomes degraded and
-//     requires manual resync.
+//   - onApplied failure → panics with FSMApplyError. Raft applies each committed
+//     entry exactly once and never retries, and a follower's Apply return value
+//     is discarded, so logging-and-skipping would strand geth at height-1
+//     forever (the next block's parent never lands) — a silent gap. Panicking
+//     fails the node fast (leader and follower alike) so process supervision /
+//     alerting catches it instead of the node silently diverging.
 //   - Success → block is delivered to blockCh (for P2P broadcast) and
 //     appliedHeight is advanced (for snapshot/log compaction).
 func (f *BlockFSM) Apply(l *raft.Log) interface{} {
@@ -105,7 +109,12 @@ func (f *BlockFSM) Apply(l *raft.Log) interface{} {
 	if fn != nil {
 		t1 := time.Now()
 		if err := fn(block); err != nil {
-			return &FSMApplyError{Height: block.Number, Err: err}
+			// Fail-fast: Raft applies each committed entry exactly once and does
+			// not retry, and a follower's Apply return value is discarded. A
+			// silent skip would strand geth at height-1 forever (the next
+			// block's parent never lands). Panic so leader and follower alike
+			// crash loudly and get caught by process supervision / alerting.
+			panic(&FSMApplyError{Height: block.Number, Err: err})
 		}
 		onAppliedDur = time.Since(t1)
 	} else {

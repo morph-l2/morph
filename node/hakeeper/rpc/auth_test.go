@@ -117,3 +117,47 @@ func TestAuthMiddleware_BodyReadable(t *testing.T) {
 		t.Fatalf("body not restored: got %q", captured)
 	}
 }
+
+// --- parser-mismatch / fail-closed regression tests ---
+
+// A trailing byte after a valid object: the downstream streaming decoder ignores
+// it and still executes the write method, so the middleware must require a token.
+func TestAuthMiddleware_TrailingGarbageAfterWrite_NoToken_Returns401(t *testing.T) {
+	h := authMiddleware("secret", okHandler)
+	body := `{"jsonrpc":"2.0","method":"ha_removeServer","params":["node-2",1],"id":1}X`
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for trailing-garbage write request, got %d", rr.Code)
+	}
+}
+
+// A non-object leading element makes a strict whole-batch unmarshal fail, but the
+// server decodes batch elements independently and would run the write method.
+func TestAuthMiddleware_BatchInvalidElementThenWrite_NoToken_Returns401(t *testing.T) {
+	h := authMiddleware("secret", okHandler)
+	body := `[123,{"jsonrpc":"2.0","method":"ha_removeServer","params":["node-2",1],"id":1}]`
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for batch with invalid element + write method, got %d", rr.Code)
+	}
+}
+
+// Fail-closed: a body that cannot be proven read-only must require a token.
+func TestAuthMiddleware_UnparseableBody_NoToken_Returns401(t *testing.T) {
+	h := authMiddleware("secret", okHandler)
+	for _, body := range []string{"", "   ", "not-json", "123"} {
+		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != http.StatusUnauthorized {
+			t.Fatalf("expected 401 for unparseable body %q, got %d", body, rr.Code)
+		}
+	}
+}

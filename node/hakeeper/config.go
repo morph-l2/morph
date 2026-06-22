@@ -207,6 +207,26 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid rpc.listen_port: %d", c.RPC.ListenPort)
 	}
 
+	// Raft timing sanity. A non-positive heartbeat disables liveness; a leader
+	// lease >= heartbeat destabilizes leadership (hashicorp/raft also requires
+	// LeaderLeaseTimeout <= HeartbeatTimeout).
+	if c.Timeout.Heartbeat <= 0 {
+		return fmt.Errorf("timeout.heartbeat must be > 0, got %s", c.Timeout.Heartbeat)
+	}
+	if c.Timeout.LeaderLease <= 0 {
+		return fmt.Errorf("timeout.leader_lease must be > 0, got %s", c.Timeout.LeaderLease)
+	}
+	if c.Timeout.LeaderLease >= c.Timeout.Heartbeat {
+		return fmt.Errorf("timeout.leader_lease (%s) must be less than timeout.heartbeat (%s)",
+			c.Timeout.LeaderLease, c.Timeout.Heartbeat)
+	}
+
+	// TrailingLogs must be positive: snapshotting with 0 trailing logs truncates
+	// entries a lagging follower still needs, breaking catch-up.
+	if c.Snapshot.TrailingLogs == 0 {
+		return fmt.Errorf("snapshot.trailing_logs must be > 0")
+	}
+
 	// AdvertisedAddr must be a routable address (IP or hostname) after Resolve().
 	if c.Consensus.AdvertisedAddr != "" {
 		host, _, err := net.SplitHostPort(c.Consensus.AdvertisedAddr)
