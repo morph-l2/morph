@@ -99,7 +99,7 @@ func (s *BatchStorage) LoadSealedBatch(batchIndex uint64) (*eth.RPCRollupBatch, 
 	encoded, err := s.db.GetBytes(key)
 	if err != nil {
 		if isKVNotFound(err) {
-			return nil, fmt.Errorf("sealed batch %d not found", batchIndex)
+			return nil, fmt.Errorf("sealed batch %d not found: %w", batchIndex, ErrKeyNotFound)
 		}
 		return nil, fmt.Errorf("failed to get sealed batch %d: %w", batchIndex, err)
 	}
@@ -278,7 +278,12 @@ func (s *BatchStorage) DeleteSealedBatchesUpTo(maxIndex uint64) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal batch indices: %w", err)
 	}
-	puts := []KVPair{{Key: []byte(SealedBatchIndicesKey), Value: encodedIndices}}
+	var puts []KVPair
+	if len(kept) == 0 {
+		deletes = append(deletes, []byte(SealedBatchIndicesKey))
+	} else {
+		puts = []KVPair{{Key: []byte(SealedBatchIndicesKey), Value: encodedIndices}}
+	}
 	if err := s.db.WriteBatch(puts, deletes); err != nil {
 		return fmt.Errorf("failed to delete sealed batches up to %d: %w", maxIndex, err)
 	}
@@ -402,7 +407,7 @@ func (s *BatchStorage) LoadSealedBatchHeader(batchIndex uint64) (*BatchHeaderByt
 	headerBytes, err := s.db.GetBytes(key)
 	if err != nil {
 		if isKVNotFound(err) {
-			return nil, fmt.Errorf("sealed batch header %d not found", batchIndex)
+			return nil, fmt.Errorf("sealed batch header %d not found: %w", batchIndex, ErrKeyNotFound)
 		}
 		return nil, fmt.Errorf("failed to get sealed batch header %d: %w", batchIndex, err)
 	}

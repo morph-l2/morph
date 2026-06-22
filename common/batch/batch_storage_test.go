@@ -79,9 +79,9 @@ func TestDeleteSealedBatchesUpTo(t *testing.T) {
 
 	for idx := uint64(100); idx <= 103; idx++ {
 		_, err := s.LoadSealedBatch(idx)
-		require.Error(t, err, "batch %d should be deleted", idx)
+		require.True(t, isKVNotFound(err), "batch %d should be deleted, got: %v", idx, err)
 		_, err = s.LoadSealedBatchHeader(idx)
-		require.Error(t, err, "header %d should be deleted", idx)
+		require.True(t, isKVNotFound(err), "header %d should be deleted, got: %v", idx, err)
 	}
 	for idx := uint64(104); idx <= 105; idx++ {
 		_, err := s.LoadSealedBatch(idx)
@@ -101,6 +101,20 @@ func TestDeleteSealedBatchesUpTo(t *testing.T) {
 	indices, err = s.loadBatchIndices()
 	require.NoError(t, err)
 	require.Equal(t, []uint64{104, 105}, indices)
+
+	// Delete exactly at the boundary.
+	s2 := NewBatchStorage(openTestKV(t))
+	storeTestChain(t, s2, []uint64{100, 101})
+	require.NoError(t, s2.DeleteSealedBatchesUpTo(101))
+	_, err = s2.loadBatchIndices()
+	require.True(t, isKVNotFound(err), "all indices should be deleted, got: %v", err)
+
+	// Delete beyond the window.
+	s3 := NewBatchStorage(openTestKV(t))
+	storeTestChain(t, s3, []uint64{100, 101})
+	require.NoError(t, s3.DeleteSealedBatchesUpTo(200))
+	_, err = s3.loadBatchIndices()
+	require.True(t, isKVNotFound(err), "all indices should be deleted, got: %v", err)
 }
 
 // Legacy snapshots may have been persisted unsorted; loading must normalize.
@@ -126,9 +140,9 @@ func TestDeleteAllSealedBatches(t *testing.T) {
 	_, err := s.loadBatchIndices()
 	require.True(t, isKVNotFound(err))
 	_, err = s.LoadSealedBatch(100)
-	require.Error(t, err)
+	require.True(t, isKVNotFound(err), "batch should be deleted, got: %v", err)
 	_, err = s.LoadSealedBatchHeader(100)
-	require.Error(t, err)
+	require.True(t, isKVNotFound(err), "header should be deleted, got: %v", err)
 
 	// Idempotent on empty storage.
 	require.NoError(t, s.DeleteAllSealedBatches())
@@ -165,4 +179,93 @@ func TestStoreSealedBatchPropagatesIndicesError(t *testing.T) {
 
 	err = s.DeleteSealedBatch(100)
 	require.ErrorIs(t, err, errIndicesUnavailable)
+
+	err = s.DeleteSealedBatchesUpTo(100)
+	require.ErrorIs(t, err, errIndicesUnavailable)
+
+	err = s.DeleteAllSealedBatches()
+	require.ErrorIs(t, err, errIndicesUnavailable)
+}
+
+type failingWriteBatchKV struct {
+	SealedBatchKV
+	fail bool
+	err  error
+}
+
+var errWriteBatchUnavailable = errors.New("write batch unavailable")
+
+func (f *failingWriteBatchKV) WriteBatch(puts []KVPair, deletes [][]byte) error {
+	if f.fail {
+		return f.err
+	}
+	return f.SealedBatchKV.WriteBatch(puts, deletes)
+}
+
+func TestSealBatchPropagatesStoreErrorAndKeepsState(t *testing.T) {
+	kv := &failingWriteBatchKV{
+		SealedBatchKV: openTestKV(t),
+		fail:          true,
+		err:           errWriteBatchUnavailable,
+	}
+	parentHeader := makeTestHeader(1)
+	bc := &BatchCache{
+		batchStorage:         NewBatchStorage(kv),
+		sealedBatches:        make(map[uint64]*eth.RPCRollupBatch),
+		sealedBatchHeaders:   make(map[uint64]*BatchHeaderBytes),
+		parentBatchHeader:    &parentHeader,
+		batchData:            NewBatchData(),
+		maxBlobCount:         1,
+		isBatchUpgraded:      func(uint64) bool { return false },
+		isBatchV2Upgraded:    func(uint64) bool { return false },
+		totalL1MessagePopped: 0,
+	}
+	bc.batchData.Append(make([]byte, 60), []byte{1, 2, 3}, nil)
+	originalBatchData := bc.batchData
+	originalParent := bc.parentBatchHeader
+
+	_, _, _, err := bc.SealBatch([]byte{1}, 1, nil)
+	require.ErrorIs(t, err, errWriteBatchUnavailable)
+	require.Empty(t, bc.sealedBatches)
+	require.Empty(t, bc.sealedBatchHeaders)
+	require.Same(t, originalBatchData, bc.batchData)
+	require.False(t, bc.batchData.IsEmpty())
+	require.Same(t, originalParent, bc.parentBatchHeader)
+}
+
+func TestDeleteUntilKeepsMemoryWhenStorageDeleteFails(t *testing.T) {
+	kv := &failingWriteBatchKV{
+		SealedBatchKV: openTestKV(t),
+		err:           errWriteBatchUnavailable,
+	}
+	s := NewBatchStorage(kv)
+	storeTestChain(t, s, []uint64{100, 101, 102})
+
+	sealedBatches := make(map[uint64]*eth.RPCRollupBatch)
+	sealedBatchHeaders := make(map[uint64]*BatchHeaderBytes)
+	for _, idx := range []uint64{100, 101, 102} {
+		header := makeTestHeader(idx)
+		hash, err := header.Hash()
+		require.NoError(t, err)
+		sealedBatches[idx] = &eth.RPCRollupBatch{Hash: hash}
+		sealedBatchHeaders[idx] = &header
+	}
+	bc := &BatchCache{
+		batchStorage:       s,
+		sealedBatches:      sealedBatches,
+		sealedBatchHeaders: sealedBatchHeaders,
+	}
+
+	kv.fail = true
+	err := bc.DeleteUntil(101)
+	require.ErrorIs(t, err, errWriteBatchUnavailable)
+	require.Contains(t, bc.sealedBatches, uint64(100))
+	require.Contains(t, bc.sealedBatches, uint64(101))
+	require.Contains(t, bc.sealedBatchHeaders, uint64(100))
+	require.Contains(t, bc.sealedBatchHeaders, uint64(101))
+
+	kv.fail = false
+	indices, err := s.loadBatchIndices()
+	require.NoError(t, err)
+	require.Equal(t, []uint64{100, 101, 102}, indices)
 }
