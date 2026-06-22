@@ -52,7 +52,7 @@ var (
 
 	PriceFeedPriorityFlag = cli.StringFlag{
 		Name:   "price-feed-priority",
-		Usage:  "Comma-separated list of price feed types in priority order (e.g. \"chainlink,bitget\")",
+		Usage:  "Comma-separated list of price feed types in priority order (e.g. \"chainlink,pyth,bitget,binance,okx\")",
 		Value:  "bitget",
 		EnvVar: prefixEnvVar("PRICE_FEED_PRIORITY"),
 	}
@@ -71,11 +71,25 @@ var (
 		EnvVar: prefixEnvVar("TOKEN_MAPPING_BINANCE"),
 	}
 
+	TokenMappingOKXFlag = cli.StringFlag{
+		Name:   "token-mapping-okx",
+		Usage:  "Token ID to OKX instrument mapping (e.g. \"1:BTC-USDT,2:ETH-USDT\")",
+		Value:  "",
+		EnvVar: prefixEnvVar("TOKEN_MAPPING_OKX"),
+	}
+
 	TokenMappingChainlinkFlag = cli.StringFlag{
 		Name:   "token-mapping-chainlink",
 		Usage:  "Token ID to Chainlink AggregatorV3 feed address mapping (e.g. \"1:0x...,2:0x...\")",
 		Value:  "",
 		EnvVar: prefixEnvVar("TOKEN_MAPPING_CHAINLINK"),
+	}
+
+	TokenMappingPythFlag = cli.StringFlag{
+		Name:   "token-mapping-pyth",
+		Usage:  "Token ID to Pyth price ID mapping (e.g. \"1:0x...,2:0x...\")",
+		Value:  "",
+		EnvVar: prefixEnvVar("TOKEN_MAPPING_PYTH"),
 	}
 
 	BitgetAPIBaseURLFlag = cli.StringFlag{
@@ -88,8 +102,15 @@ var (
 	BinanceAPIBaseURLFlag = cli.StringFlag{
 		Name:   "binance-api-base-url",
 		Usage:  "Binance API base URL (required if binance feed is enabled)",
-		Value:  "",
+		Value:  "https://api.binance.com",
 		EnvVar: prefixEnvVar("BINANCE_API_BASE_URL"),
+	}
+
+	OKXAPIBaseURLFlag = cli.StringFlag{
+		Name:   "okx-api-base-url",
+		Usage:  "OKX API base URL (required if okx feed is enabled)",
+		Value:  "https://www.okx.com",
+		EnvVar: prefixEnvVar("OKX_API_BASE_URL"),
 	}
 
 	ChainlinkRPCFlag = cli.StringFlag{
@@ -111,6 +132,41 @@ var (
 		Usage:  "Maximum allowed age for Chainlink feed rounds",
 		Value:  1 * time.Hour,
 		EnvVar: prefixEnvVar("CHAINLINK_MAX_STALENESS"),
+	}
+
+	PythHermesBaseURLFlag = cli.StringFlag{
+		Name:   "pyth-hermes-base-url",
+		Usage:  "Pyth Hermes API base URL (required if pyth feed is enabled)",
+		Value:  "https://hermes.pyth.network",
+		EnvVar: prefixEnvVar("PYTH_HERMES_BASE_URL"),
+	}
+
+	PythAPIKeyFlag = cli.StringFlag{
+		Name:   "pyth-api-key",
+		Usage:  "Pyth Hermes API key for authenticated requests",
+		Value:  "",
+		EnvVar: prefixEnvVar("PYTH_API_KEY"),
+	}
+
+	PythETHUSDPriceIDFlag = cli.StringFlag{
+		Name:   "pyth-eth-usd-price-id",
+		Usage:  "Pyth ETH/USD price ID",
+		Value:  "",
+		EnvVar: prefixEnvVar("PYTH_ETH_USD_PRICE_ID"),
+	}
+
+	PythMaxStalenessFlag = cli.DurationFlag{
+		Name:   "pyth-max-staleness",
+		Usage:  "Maximum allowed age for Pyth price publish time",
+		Value:  1 * time.Hour,
+		EnvVar: prefixEnvVar("PYTH_MAX_STALENESS"),
+	}
+
+	PythMaxConfidenceBPSFlag = cli.Uint64Flag{
+		Name:   "pyth-max-confidence-bps",
+		Usage:  "Maximum allowed Pyth confidence interval in basis points relative to price (0 disables confidence check)",
+		Value:  0,
+		EnvVar: prefixEnvVar("PYTH_MAX_CONFIDENCE_BPS"),
 	}
 
 	// Logging flags
@@ -231,12 +287,20 @@ var optionalFlags = []cli.Flag{
 	PriceFeedPriorityFlag,
 	TokenMappingBitgetFlag,
 	TokenMappingBinanceFlag,
+	TokenMappingOKXFlag,
 	TokenMappingChainlinkFlag,
+	TokenMappingPythFlag,
 	BitgetAPIBaseURLFlag,
 	BinanceAPIBaseURLFlag,
+	OKXAPIBaseURLFlag,
 	ChainlinkRPCFlag,
 	ChainlinkETHUSDFeedFlag,
 	ChainlinkMaxStalenessFlag,
+	PythHermesBaseURLFlag,
+	PythAPIKeyFlag,
+	PythETHUSDPriceIDFlag,
+	PythMaxStalenessFlag,
+	PythMaxConfidenceBPSFlag,
 
 	LogLevelFlag,
 	LogFilenameFlag,
