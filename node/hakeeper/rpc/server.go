@@ -41,9 +41,20 @@ func New(log log.Logger, listenAddr string, listenPort int, cons ConsensusAdapte
 
 	addr := fmt.Sprintf("%s:%d", listenAddr, listenPort)
 	httpSrv := &http.Server{
-		Addr:              addr,
-		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
+		Addr:    addr,
+		Handler: mux,
+		// Bound every phase so a slow client cannot pin a goroutine/connection
+		// indefinitely (slowloris). Requests/responses are tiny control-plane
+		// JSON-RPC, so the read side is kept tight. WriteTimeout is the handler
+		// execution budget: a write method runs a Raft membership op that waits up
+		// to raftTimeout (5s, see ha_service.go) before returning a clean error,
+		// so this must stay above 5s; otherwise the connection is cut mid-op while
+		// the Raft op keeps running server-side (WriteTimeout does not cancel the
+		// handler). 10s = 5s raft budget + margin for JSON/scheduling.
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	return &Server{
