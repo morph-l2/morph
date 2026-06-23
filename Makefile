@@ -1,7 +1,7 @@
 ################## update dependencies ####################
-ETHEREUM_SUBMODULE_COMMIT_OR_TAG := 0d7e79c95a682b0c0e7069736ed2b57aa118dbb4
-ETHEREUM_TARGET_VERSION := v1.10.14-0.20260622034103-0d7e79c95a68
-TENDERMINT_TARGET_VERSION := v0.3.8-0.20260622082553-4abd48c31b4d
+ETHEREUM_SUBMODULE_COMMIT_OR_TAG := bb0b3067eb62eeffa3b73a7b9daf34a870d80493
+ETHEREUM_TARGET_VERSION := v1.10.14-0.20260623033834-bb0b3067eb62
+TENDERMINT_TARGET_VERSION := v0.3.8-0.20260623033856-a213c3ffdb4c
 
 
 ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum
@@ -25,6 +25,7 @@ update_mod:
 .PHONY: update_all_mod
 update_all_mod:
 	@$(MAKE) update_mod MODULE=bindings
+	@$(MAKE) update_mod MODULE=common
 	@$(MAKE) update_mod MODULE=contracts
 	@$(MAKE) update_mod MODULE=node
 	@$(MAKE) update_mod MODULE=ops/l2-genesis
