@@ -2,6 +2,7 @@ package derivation
 
 import (
 	"crypto/rand"
+	"math"
 	"math/big"
 	"testing"
 
@@ -223,4 +224,51 @@ func TestParseBatchMultiBlobConcatDecompressInvariant(t *testing.T) {
 		require.NotEqual(t, pad, out,
 			"reversed-blob decompression unexpectedly matched payload")
 	}
+}
+
+// TestParseBatchBlockCountBounds covers the blockCount guards hardened in
+// issue #994, both of which would otherwise panic and crash layer1-verify
+// nodes. A zero count (lastBlockNumber == parent) yielded empty blockContexts
+// and a nil-header deref during derivation; zero-block batches are unsupported
+// and must be rejected. A huge count let blockCount*60 overflow uint64, bypass
+// the length guard, and drive an out-of-range make([]*BlockContext); it must
+// likewise be rejected. ParseBatch must return an error, not panic.
+func TestParseBatchBlockCountBounds(t *testing.T) {
+	const (
+		parentIndex = 7
+		startBlock  = 1_000
+	)
+	// Minimal valid payload (one block context + empty tx-stream terminator)
+	// so ParseBatch decompresses cleanly and reaches blockCount validation.
+	payload := append(buildBlockContexts(startBlock, 1), 0x00)
+	compressed, err := zstd.CompressBatchBytes(payload)
+	require.NoError(t, err)
+	blobs := splitCompressedIntoBlobs(t, compressed)
+
+	parentHeader := buildV1ParentHeader(parentIndex, startBlock) // parent.LastBlockNumber == startBlock-1
+
+	t.Run("zero block count is rejected", func(t *testing.T) {
+		batch := geth.RPCRollupBatch{
+			Version:           1,
+			ParentBatchHeader: parentHeader,
+			LastBlockNumber:   startBlock - 1, // == parent => blockCount 0
+			Sidecar:           eth.BlobTxSidecar{Blobs: blobs},
+		}
+		var bi BatchInfo
+		require.ErrorContains(t, bi.ParseBatch(batch), "zero block count")
+	})
+
+	t.Run("overflowing block count is rejected", func(t *testing.T) {
+		batch := geth.RPCRollupBatch{
+			Version:           1,
+			ParentBatchHeader: parentHeader,
+			// blockCount = LastBlockNumber - (startBlock-1) chosen so that
+			// blockCount*60 wraps uint64; the division-based guard rejects it
+			// before the multiply.
+			LastBlockNumber: (startBlock - 1) + (math.MaxUint64/60 + 2),
+			Sidecar:         eth.BlobTxSidecar{Blobs: blobs},
+		}
+		var bi BatchInfo
+		require.Error(t, bi.ParseBatch(batch))
+	})
 }
