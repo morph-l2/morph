@@ -156,11 +156,18 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		}
 	}
 
-	if ctx.GlobalBool(flags.LegacyValidatorMode.Name) {
+	legacyValidatorMode := ctx.GlobalBool(flags.LegacyValidatorMode.Name)
+	if legacyValidatorMode {
+		log.Warn("--validator is deprecated; use --derivation.verify-mode=layer1")
 		c.VerifyMode = VerifyModeLayer1
 	}
 	if ctx.GlobalIsSet(flags.DerivationVerifyMode.Name) {
-		c.VerifyMode = ctx.GlobalString(flags.DerivationVerifyMode.Name)
+		verifyMode := ctx.GlobalString(flags.DerivationVerifyMode.Name)
+		if legacyValidatorMode && verifyMode != VerifyModeLayer1 {
+			log.Warn("--validator ignored because derivation.verify-mode is explicitly set",
+				"derivation.verify-mode", verifyMode)
+		}
+		c.VerifyMode = verifyMode
 	}
 	normalized, err := validateAndDefaultVerifyMode(c.VerifyMode)
 	if err != nil {
