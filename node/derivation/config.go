@@ -69,17 +69,6 @@ func validateAndDefaultVerifyMode(s string) (string, error) {
 	}
 }
 
-func resolveVerifyMode(current string, verifyModeSet bool, verifyMode string, legacyValidator bool) (string, error) {
-	switch {
-	case verifyModeSet:
-		return validateAndDefaultVerifyMode(verifyMode)
-	case legacyValidator:
-		return VerifyModeLayer1, nil
-	default:
-		return validateAndDefaultVerifyMode(current)
-	}
-}
-
 type Config struct {
 	L1                    *types.L1Config `json:"l1"`
 	L2                    *types.L2Config `json:"l2"`
@@ -167,12 +156,13 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		}
 	}
 
-	normalized, err := resolveVerifyMode(
-		c.VerifyMode,
-		ctx.GlobalIsSet(flags.DerivationVerifyMode.Name),
-		ctx.GlobalString(flags.DerivationVerifyMode.Name),
-		ctx.GlobalBool(flags.LegacyValidatorMode.Name),
-	)
+	if ctx.GlobalBool(flags.LegacyValidatorMode.Name) {
+		c.VerifyMode = VerifyModeLayer1
+	}
+	if ctx.GlobalIsSet(flags.DerivationVerifyMode.Name) {
+		c.VerifyMode = ctx.GlobalString(flags.DerivationVerifyMode.Name)
+	}
+	normalized, err := validateAndDefaultVerifyMode(c.VerifyMode)
 	if err != nil {
 		return err
 	}

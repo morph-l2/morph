@@ -1,8 +1,14 @@
 package derivation
 
 import (
+	"flag"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/urfave/cli"
+
+	"morph-l2/node/flags"
 )
 
 // SPEC-005 section 4.2 + 5.1 verify-mode dispatch tests. The mode is bound at
@@ -36,22 +42,27 @@ func TestVerifyMode_AcceptsExplicitModes(t *testing.T) {
 }
 
 func TestVerifyMode_LegacyValidatorAlias(t *testing.T) {
-	got, err := resolveVerifyMode(DefaultVerifyMode, false, "", true)
-	if err != nil {
+	cfg := DefaultConfig()
+	if err := cfg.SetCliContext(newVerifyModeTestContext(t, map[string]string{
+		flags.LegacyValidatorMode.Name: "true",
+	})); err != nil {
 		t.Fatalf("legacy validator alias rejected: %v", err)
 	}
-	if got != VerifyModeLayer1 {
-		t.Fatalf("legacy validator alias resolved to %q, want %q", got, VerifyModeLayer1)
+	if cfg.VerifyMode != VerifyModeLayer1 {
+		t.Fatalf("legacy validator alias resolved to %q, want %q", cfg.VerifyMode, VerifyModeLayer1)
 	}
 }
 
 func TestVerifyMode_ExplicitModeOverridesLegacyValidatorAlias(t *testing.T) {
-	got, err := resolveVerifyMode(DefaultVerifyMode, true, VerifyModeLocal, true)
-	if err != nil {
+	cfg := DefaultConfig()
+	if err := cfg.SetCliContext(newVerifyModeTestContext(t, map[string]string{
+		flags.LegacyValidatorMode.Name:  "true",
+		flags.DerivationVerifyMode.Name: VerifyModeLocal,
+	})); err != nil {
 		t.Fatalf("explicit verify-mode rejected: %v", err)
 	}
-	if got != VerifyModeLocal {
-		t.Fatalf("explicit verify-mode resolved to %q, want %q", got, VerifyModeLocal)
+	if cfg.VerifyMode != VerifyModeLocal {
+		t.Fatalf("explicit verify-mode resolved to %q, want %q", cfg.VerifyMode, VerifyModeLocal)
 	}
 }
 
@@ -85,4 +96,35 @@ func validateAndDefaultVerifyModeErr(t *testing.T, s string) error {
 		t.Fatalf("expected error on verify-mode %q, got nil", s)
 	}
 	return err
+}
+
+func newVerifyModeTestContext(t *testing.T, values map[string]string) *cli.Context {
+	t.Helper()
+
+	flagSet := flag.NewFlagSet(t.Name(), flag.ContinueOnError)
+	for _, f := range []cli.Flag{
+		flags.LegacyValidatorMode,
+		flags.DerivationVerifyMode,
+		flags.L1BeaconAddr,
+		flags.L2EngineJWTSecret,
+	} {
+		f.Apply(flagSet)
+	}
+
+	defaults := map[string]string{
+		flags.L1BeaconAddr.Name:      "http://beacon.example",
+		flags.L2EngineJWTSecret.Name: filepath.Join(t.TempDir(), "jwt.hex"),
+	}
+	for name, value := range defaults {
+		if err := flagSet.Set(name, value); err != nil {
+			t.Fatalf("set default flag %s: %v", name, err)
+		}
+	}
+	for name, value := range values {
+		if err := flagSet.Set(name, value); err != nil {
+			t.Fatalf("set flag %s: %v", name, err)
+		}
+	}
+
+	return cli.NewContext(cli.NewApp(), flagSet, nil)
 }
