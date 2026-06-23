@@ -2,9 +2,9 @@ module morph-l2/bindings
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.7
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.8-0.20260623033856-a213c3ffdb4c
 
-require github.com/morph-l2/go-ethereum v1.10.14-0.20260529032230-76b52dff186f
+require github.com/morph-l2/go-ethereum v1.10.14-0.20260623033834-bb0b3067eb62
 
 require (
 	github.com/VictoriaMetrics/fastcache v1.12.2 // indirect

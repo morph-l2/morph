@@ -1,0 +1,249 @@
+version: '3.8'
+# ============================================================================
+# Isolated HA cluster test override for Sequencer HA V2.
+#
+# Stack with:
+#   docker compose \
+#     -f docker-compose-4nodes.yml \
+#     -f docker-compose.override.yml \
+#     -f docker-compose.ha-override.yml \
+#     up -d
+#
+# DESIGN:
+# - PBFT phase (before the upgrade time): node-0/1/2/3 run 4-node tendermint
+#   PBFT consensus exactly as in the baseline override. ha-node-0/1/2 join the
+#   P2P network as V1 fullnodes (BlockSync only, no block production).
+# - After the upgrade time (SEQUENCER_UPGRADE_TIME): V2 activates. Only ha-node-0/1/2 hold the sequencer
+#   private key registered in the L1Sequencer contract, so they form a Raft
+#   cluster (ha-node-0 bootstrap, ha-node-1/2 join) and produce blocks.
+#   node-0/1/2/3 become V2 fullnodes (hasSigner=false).
+#
+# KEY DIFFERENCES FROM PREVIOUS DESIGN:
+# - Previously node-0/1/2 were reused as Raft replicas after upgrade.
+#   Now they stay as PBFT-only / V2 fullnodes.
+# - New services: ha-geth-{0,1,2} + ha-node-{0,1,2}, each with its own
+#   geth + tendermint + volumes.
+# - HA admin RPC host ports 9501/9601/9701 are now mapped to the new
+#   ha-node-* (previously on node-0/1/2), so run-ha-test.sh constants
+#   HA_RPC_NODE0/1/2 remain unchanged.
+#
+# HOST PORTS:
+#   ha-geth-0  L2 RPC:        9145 → 8545
+#   ha-geth-1  L2 RPC:        9245 → 8545
+#   ha-geth-2  L2 RPC:        9345 → 8545
+#   ha-node-0  TM RPC:       27657 → 26657
+#   ha-node-0  HA Admin RPC:  9501 → 9401   (moved from original node-0)
+#   ha-node-1  TM RPC:       27757 → 26657
+#   ha-node-1  HA Admin RPC:  9601 → 9401
+#   ha-node-2  TM RPC:       27857 → 26657
+#   ha-node-2  HA Admin RPC:  9701 → 9401
+# ============================================================================
+
+services:
+  # ─── ha-geth-0/1/2 ────────────────────────────────────────────────────────
+  # Independent execution clients for the HA cluster. They join the existing
+  # L2 P2P mesh via static-nodes.json and sync blocks from morph-geth-0/1/2/3.
+  ha-geth-0:
+    image: morph-geth:feat
+    pull_policy: never
+    container_name: ha-geth-0
+    depends_on:
+      morph-el-0:
+        condition: service_started
+    restart: unless-stopped
+    ports:
+      - "9145:8545"
+      - "9146:8546"
+    volumes:
+      - "ha_morph_data_0:/db"
+      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
+      - "${PWD}/ha-nodekey0:/db/geth/nodekey"
+    environment:
+      - RUST_LOG=${RUST_LOG}
+    entrypoint:
+      - "/bin/bash"
+      - "/entrypoint.sh"
+
+  ha-geth-1:
+    image: morph-geth:feat
+    pull_policy: never
+    container_name: ha-geth-1
+    depends_on:
+      morph-el-0:
+        condition: service_started
+    restart: unless-stopped
+    ports:
+      - "9245:8545"
+      - "9246:8546"
+    volumes:
+      - "ha_morph_data_1:/db"
+      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
+      - "${PWD}/ha-nodekey1:/db/geth/nodekey"
+    environment:
+      - RUST_LOG=${RUST_LOG}
+    entrypoint:
+      - "/bin/bash"
+      - "/entrypoint.sh"
+
+  ha-geth-2:
+    image: morph-geth:feat
+    pull_policy: never
+    container_name: ha-geth-2
+    depends_on:
+      morph-el-0:
+        condition: service_started
+    restart: unless-stopped
+    ports:
+      - "9345:8545"
+      - "9346:8546"
+    volumes:
+      - "ha_morph_data_2:/db"
+      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
+      - "${PWD}/ha-nodekey2:/db/geth/nodekey"
+    environment:
+      - RUST_LOG=${RUST_LOG}
+    entrypoint:
+      - "/bin/bash"
+      - "/entrypoint.sh"
+
+  # ─── ha-node-0: Raft bootstrap leader candidate ────────────────────────────
+  ha-node-0:
+    image: morph-node:feat
+    pull_policy: never
+    container_name: ha-node-0
+    depends_on:
+      ha-geth-0:
+        condition: service_started
+    restart: unless-stopped
+    ports:
+      - "26656"
+      - "27657:26657"
+      - "26658"
+      - "26660"
+      - "9501:9401"   # HA Admin RPC (host port moved from node-0)
+    environment:
+      # Sequencer private key — only ha-node-0/1/2 hold this.
+      # Rotated to new key for sequencer migration test (2026-05-11)
+      # New address: 0xAb70B9eAF487d6cfFD3AD420785BE389D5B28390
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
+      - MORPH_NODE_L2_ETH_RPC=http://ha-geth-0:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-0:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_L1_ETH_BEACON_RPC=http://layer1-cl:4000
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_L1_CONFIRMATIONS=0
+      - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
+      - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
+      # HA config — bootstrap
+      - MORPH_NODE_HA_ENABLED=true
+      - MORPH_NODE_HA_BOOTSTRAP=true
+      - MORPH_NODE_HA_SERVER_ID=ha-node-0
+      - MORPH_NODE_HA_ADVERTISED_ADDR=ha-node-0:9400
+      - MORPH_NODE_LOG_LEVEL=info
+    volumes:
+      - ".devnet/ha-node0:${NODE_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --home $NODE_DATA_DIR
+
+  # ─── ha-node-1: Raft follower ─────────────────────────────────────────────
+  ha-node-1:
+    image: morph-node:feat
+    pull_policy: never
+    container_name: ha-node-1
+    depends_on:
+      ha-node-0:
+        condition: service_started
+    restart: unless-stopped
+    ports:
+      - "26656"
+      - "27757:26657"
+      - "26658"
+      - "26660"
+      - "9601:9401"
+    environment:
+      # Rotated to new key for sequencer migration test (2026-05-11)
+      # New address: 0xAb70B9eAF487d6cfFD3AD420785BE389D5B28390
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
+      - MORPH_NODE_L2_ETH_RPC=http://ha-geth-1:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-1:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_L1_ETH_BEACON_RPC=http://layer1-cl:4000
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_L1_CONFIRMATIONS=0
+      - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
+      - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
+      - MORPH_NODE_HA_ENABLED=true
+      - MORPH_NODE_HA_JOIN=ha-node-0:9401
+      - MORPH_NODE_HA_SERVER_ID=ha-node-1
+      - MORPH_NODE_HA_ADVERTISED_ADDR=ha-node-1:9400
+      - MORPH_NODE_LOG_LEVEL=info
+    volumes:
+      - ".devnet/ha-node1:${NODE_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --home $NODE_DATA_DIR
+
+  # ─── ha-node-2: Raft follower ─────────────────────────────────────────────
+  ha-node-2:
+    image: morph-node:feat
+    pull_policy: never
+    container_name: ha-node-2
+    depends_on:
+      ha-node-0:
+        condition: service_started
+    restart: unless-stopped
+    ports:
+      - "26656"
+      - "27857:26657"
+      - "26658"
+      - "26660"
+      - "9701:9401"
+    environment:
+      # Rotated to new key for sequencer migration test (2026-05-11)
+      # New address: 0xAb70B9eAF487d6cfFD3AD420785BE389D5B28390
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
+      - MORPH_NODE_L2_ETH_RPC=http://ha-geth-2:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-2:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_L1_ETH_BEACON_RPC=http://layer1-cl:4000
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_L1_CONFIRMATIONS=0
+      - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
+      - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
+      - MORPH_NODE_HA_ENABLED=true
+      - MORPH_NODE_HA_JOIN=ha-node-0:9401
+      - MORPH_NODE_HA_SERVER_ID=ha-node-2
+      - MORPH_NODE_HA_ADVERTISED_ADDR=ha-node-2:9400
+      - MORPH_NODE_LOG_LEVEL=info
+    volumes:
+      - ".devnet/ha-node2:${NODE_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --home $NODE_DATA_DIR
+
+volumes:
+  ha_morph_data_0:
+  ha_morph_data_1:
+  ha_morph_data_2:

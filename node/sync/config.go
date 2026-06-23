@@ -55,6 +55,12 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		if len(c.L1MessageQueueAddress.Bytes()) == 0 {
 			return errors.New("invalid SyncDepositContractAddr")
 		}
+	} else if ctx.GlobalBool(flags.MainnetFlag.Name) {
+		addr := types.MainnetSyncDepositContractAddress
+		c.L1MessageQueueAddress = &addr
+	} else if ctx.GlobalBool(flags.HoodiFlag.Name) {
+		addr := types.HoodiSyncDepositContractAddress
+		c.L1MessageQueueAddress = &addr
 	}
 
 	if ctx.GlobalIsSet(flags.SyncStartHeight.Name) {

@@ -11,8 +11,15 @@ import (
 )
 
 const (
-	genesisBatchVersion      = uint8(0)
-	genesisBatchHeaderLength = 249
+	// V2 genesis header — same 257-byte layout as V1, adds the trailing
+	// lastBlockNumber field (=0 at genesis). Imported via Rollup.sol's
+	// importGenesisBatch, which dispatches on the version byte to the
+	// V1 codec for length validation; field reads (V0 codec offsets
+	// 0-249) work because V0/V1/V2 share the leading layout. Bumping
+	// this makes every committed batch in storage use the 257-byte
+	// format consistently — no V0 outlier at index 0.
+	genesisBatchVersion      = uint8(2)
+	genesisBatchHeaderLength = 257
 )
 
 // emptyBlobVersionedHash is the KZG versioned hash of an empty blob.
@@ -38,11 +45,11 @@ func GenesisBatchHeader(genesisHeader *ethtypes.Header) ([]byte, error) {
 	// keccak256(blockContext[:58]). The last 2 bytes (numL1Messages) are excluded.
 	dataHash := crypto.Keccak256Hash(blockContext[:58])
 
-	// V0 batch header layout (249 bytes):
+	// V2 batch header layout (257 bytes; same as V1):
 	// version(1) | batchIndex(8) | l1MsgPopped(8) | totalL1MsgPopped(8) |
 	// dataHash(32) | blobVersionedHash(32) | prevStateRoot(32) |
 	// postStateRoot(32) | withdrawalRoot(32) | sequencerSetVerifyHash(32) |
-	// parentBatchHash(32)
+	// parentBatchHash(32) | lastBlockNumber(8)
 	header := make([]byte, genesisBatchHeaderLength)
 	header[0] = genesisBatchVersion
 	binary.BigEndian.PutUint64(header[1:], 0)  // batchIndex
@@ -55,5 +62,6 @@ func GenesisBatchHeader(genesisHeader *ethtypes.Header) ([]byte, error) {
 	// withdrawalRoot (153:185) — zero for genesis
 	// sequencerSetVerifyHash (185:217) — zero for genesis
 	// parentBatchHash (217:249) — zero for genesis
+	binary.BigEndian.PutUint64(header[249:], genesisHeader.Number.Uint64()) // lastBlockNumber (= 0 for fresh genesis)
 	return header, nil
 }
