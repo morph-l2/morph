@@ -156,6 +156,12 @@ var (
 		EnvVar: prefixEnvVar("MOCK_SEQUENCER"),
 	}
 
+	LegacyValidatorMode = cli.BoolFlag{
+		Name:   "validator",
+		Usage:  "Deprecated compatibility alias for --derivation.verify-mode=layer1",
+		EnvVar: prefixEnvVar("VALIDATOR"),
+	}
+
 	// derivation
 	RollupContractAddress = cli.StringFlag{
 		Name:   "derivation.rollupAddress",
@@ -368,6 +374,7 @@ var Flags = []cli.Flag{
 	DevSequencer,
 	TendermintConfigPath,
 	MockEnabled,
+	LegacyValidatorMode,
 
 	// derivation
 	RollupContractAddress,

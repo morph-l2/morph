@@ -35,6 +35,26 @@ func TestVerifyMode_AcceptsExplicitModes(t *testing.T) {
 	}
 }
 
+func TestVerifyMode_LegacyValidatorAlias(t *testing.T) {
+	got, err := resolveVerifyMode(DefaultVerifyMode, false, "", true)
+	if err != nil {
+		t.Fatalf("legacy validator alias rejected: %v", err)
+	}
+	if got != VerifyModeLayer1 {
+		t.Fatalf("legacy validator alias resolved to %q, want %q", got, VerifyModeLayer1)
+	}
+}
+
+func TestVerifyMode_ExplicitModeOverridesLegacyValidatorAlias(t *testing.T) {
+	got, err := resolveVerifyMode(DefaultVerifyMode, true, VerifyModeLocal, true)
+	if err != nil {
+		t.Fatalf("explicit verify-mode rejected: %v", err)
+	}
+	if got != VerifyModeLocal {
+		t.Fatalf("explicit verify-mode resolved to %q, want %q", got, VerifyModeLocal)
+	}
+}
+
 func TestVerifyMode_RejectsUnknown(t *testing.T) {
 	// "hybrid" was the old default; ensure post-removal it's rejected so
 	// stale operator configs fail loud rather than silently falling back to
