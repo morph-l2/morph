@@ -23,6 +23,8 @@ import (
 )
 
 var (
+	MainnetBlsKeyCheckForkHeight uint64 = 18409547
+
 	// L1 Mainnet Contract Addresses
 	MainnetRollupContractAddress = common.HexToAddress("0x759894ced0e6af42c26668076ffa84d02e3cef60")
 )
@@ -33,6 +35,7 @@ type Config struct {
 	SequencerAddress              common.Address  `json:"sequencer_address"`
 	L2StakingAddress              common.Address  `json:"l2staking_address"`
 	MaxL1MessageNumPerBlock       uint64          `json:"max_l1_message_num_per_block"`
+	BlsKeyCheckForkHeight         uint64          `json:"bls_key_check_fork_height"`
 	DevSequencer                  bool            `json:"dev_sequencer"`
 	Logger                        tmlog.Logger    `json:"logger"`
 }
@@ -144,6 +147,11 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 
 	if ctx.GlobalIsSet(flags.DevSequencer.Name) {
 		c.DevSequencer = ctx.GlobalBool(flags.DevSequencer.Name)
+	}
+
+	if ctx.GlobalIsSet(flags.MainnetFlag.Name) {
+		c.BlsKeyCheckForkHeight = MainnetBlsKeyCheckForkHeight
+		logger.Info("mainnet historical validator compatibility enabled", "BlsKeyCheckForkHeight", c.BlsKeyCheckForkHeight)
 	}
 
 	return nil
