@@ -162,12 +162,7 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		c.VerifyMode = VerifyModeLayer1
 	}
 	if ctx.GlobalIsSet(flags.DerivationVerifyMode.Name) {
-		verifyMode := ctx.GlobalString(flags.DerivationVerifyMode.Name)
-		if legacyValidatorMode && verifyMode != VerifyModeLayer1 {
-			log.Warn("--validator ignored because derivation.verify-mode is explicitly set",
-				"derivation.verify-mode", verifyMode)
-		}
-		c.VerifyMode = verifyMode
+		c.VerifyMode = ctx.GlobalString(flags.DerivationVerifyMode.Name)
 	}
 	normalized, err := validateAndDefaultVerifyMode(c.VerifyMode)
 	if err != nil {
