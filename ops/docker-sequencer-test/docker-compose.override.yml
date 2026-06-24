@@ -24,19 +24,25 @@ services:
       context: ../..
       dockerfile: ops/docker-sequencer-test/Dockerfile.l2-node-test
     environment:
-      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+      # Sequencer PK intentionally NOT set on node-0: after upgrade node-0 becomes a V2
+      # fullnode (hasSigner=false). The single sequencer is node-1 (see below).
       - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
       - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - MORPH_NODE_CONSENSUS_SWITCH_HEIGHT=${CONSENSUS_SWITCH_HEIGHT:-10}
+      # Timestamp-driven PBFT->sequencer upgrade (Unix ms). Same value on every node so all
+      # agree on the boundary. Computed at start time (now+offset) in run-test.sh start_l2_test.
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
 
 
   node-1:
     image: morph-node-test:latest
     environment:
-      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=0x0890c388c3bf5e04fee1d8f3c117e5f44f435ced7baf7bfd66c10e1f3a3f4b10
+      # node-1 holds the sequencer signing key -> becomes the single sequencer after upgrade.
+      # Its address must match what setFirstSequencer registered (HA_SEQUENCER_ADDR in run-test.sh).
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=${SEQUENCER_PRIVATE_KEY}
       - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
       - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - MORPH_NODE_CONSENSUS_SWITCH_HEIGHT=${CONSENSUS_SWITCH_HEIGHT:-10}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
 
 
   node-2:
@@ -44,7 +50,8 @@ services:
     environment:
       - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
       - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - MORPH_NODE_CONSENSUS_SWITCH_HEIGHT=${CONSENSUS_SWITCH_HEIGHT:-10}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
 
 
   node-3:
@@ -52,7 +59,8 @@ services:
     environment:
       - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
       - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - MORPH_NODE_CONSENSUS_SWITCH_HEIGHT=${CONSENSUS_SWITCH_HEIGHT:-10}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
 
 
   sentry-el-0:
@@ -61,5 +69,49 @@ services:
   sentry-node-0:
     image: morph-node-test:latest
     environment:
-      - MORPH_NODE_CONSENSUS_SWITCH_HEIGHT=${CONSENSUS_SWITCH_HEIGHT:-10}
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
 
+  # ========== Malicious Node (P2P security test) ==========
+  # Uses morph-node-malicious:latest built from test/p2p-security branch.
+  # No SEQUENCER_PRIVATE_KEY -> fullnode mode. Attack via MALICIOUS_MODE env.
+  malicious-geth-0:
+    image: morph-geth-test:latest
+    volumes:
+      - malicious_geth_data:/db
+      - ../l2-genesis/.devnet/genesis-l2.json:/genesis.json
+      - ./jwt-secret.txt:/jwt-secret.txt
+      - ./static-nodes.json:/db/geth/static-nodes.json
+    entrypoint:
+      - "/bin/sh"
+      - "/entrypoint.sh"
+    ports:
+      - "9045:8545"
+
+  malicious-node-0:
+    image: morph-node-malicious:latest
+    depends_on:
+      malicious-geth-0:
+        condition: service_started
+    environment:
+      - MALICIOUS_MODE=${MALICIOUS_MODE:-}
+      - EMPTY_BLOCK_DELAY=true
+      - MORPH_NODE_L2_ETH_RPC=http://malicious-geth-0:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://malicious-geth-0:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_L1_CONFIRMATIONS=0
+    volumes:
+      - .devnet/malicious-node-0:${NODE_DATA_DIR}
+      - ${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}
+    command: >
+      morphnode
+      --home $NODE_DATA_DIR
+
+volumes:
+  malicious_geth_data:
