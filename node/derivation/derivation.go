@@ -75,6 +75,15 @@ type Derivation struct {
 
 	tagAdvancer *tagAdvancer
 
+	// forceReorgDone gates the QA-only reorg test hook: it forces the local-
+	// verify self-heal path (deriveForce on a whole batch — the real reorg
+	// mechanism) to fire exactly once, on the first committed batch this
+	// process derives, so we can observe reorg handling (EL SetCanonical +
+	// reactor quiesce/restart) on a live node without re-reorging every batch.
+	// This hook only exists on the test/derivation-force-reorg branch and
+	// must never be merged to main.
+	forceReorgDone bool
+
 	stop chan struct{}
 }
 
@@ -415,35 +424,71 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				d.logger.Error("local verify local last-header fetch failed", "batchIndex", batchInfo.batchIndex, "error", err)
 				return
 			}
+			// QA-only (test branch): force the self-heal reorg path on the
+			// first batch this process derives, so the real batch-granular
+			// reorg mechanism (deriveForce → EL SetCanonical, wrapped in
+			// reactor quiesce/restart) runs on a live node regardless of
+			// whether the local blobs actually diverge. Off after one batch.
+			forceReorg := !d.forceReorgDone
+			mismatchIdx := -1
 			for i := range rebuilt {
 				if rebuilt[i] != batchInfo.blobHashes[i] {
+					mismatchIdx = i
+					break
+				}
+			}
+			if forceReorg || mismatchIdx >= 0 {
+				if forceReorg {
+					d.forceReorgDone = true
+					d.logger.Info("FORCE-REORG test: forcing self-heal reorg on this batch (QA only, test branch)",
+						"batchIndex", batchInfo.batchIndex,
+						"firstBlockNumber", batchInfo.firstBlockNumber,
+						"lastBlockNumber", batchInfo.lastBlockNumber)
+				} else {
 					d.logger.Info("blob hash mismatch; triggering self-heal reorg",
 						"batchIndex", batchInfo.batchIndex,
-						"expected", batchInfo.blobHashes[i].Hex(),
-						"rebuilt", rebuilt[i].Hex())
+						"expected", batchInfo.blobHashes[mismatchIdx].Hex(),
+						"rebuilt", rebuilt[mismatchIdx].Hex())
+				}
 
-					batchInfoFull, fetchErr := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
-					if fetchErr != nil {
-						d.logger.Error("local verify self-heal: fetch real batch failed",
-							"batchIndex", batchInfo.batchIndex, "error", fetchErr)
-						return
-					}
+				batchInfoFull, fetchErr := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
+				if fetchErr != nil {
+					d.logger.Error("local verify self-heal: fetch real batch failed",
+						"batchIndex", batchInfo.batchIndex, "error", fetchErr)
+					return
+				}
 
-					// Quiesce blocksync + broadcast reactors via withReactorsQuiesced
-					// so the deferred Start runs whether deriveForce succeeds
-					// or fails — without it, a deriveForce error would leave
-					// reactors stopped indefinitely.
-					err = d.withReactorsQuiesced(ctx, batchInfo.batchIndex, func() error {
-						var derErr error
-						lastHeader, derErr = d.deriveForce(batchInfoFull, 0)
-						return derErr
-					})
-					if err != nil {
-						d.logger.Error("local verify self-heal: derive failed",
-							"batchIndex", batchInfo.batchIndex, "error", err)
-						return
-					}
-					break
+				// Log L2 head before the forced reorg so the before/after
+				// transition is visible alongside geth's "Chain reorg detected".
+				if headBefore, hErr := d.l2Client.BlockByNumber(ctx, nil); hErr == nil {
+					d.logger.Info("self-heal reorg: L2 head BEFORE",
+						"batchIndex", batchInfo.batchIndex,
+						"headNumber", headBefore.NumberU64(),
+						"headHash", headBefore.Hash().Hex(),
+						"headParent", headBefore.ParentHash().Hex())
+				}
+
+				// Quiesce blocksync + broadcast reactors via withReactorsQuiesced
+				// so the deferred Start runs whether deriveForce succeeds
+				// or fails — without it, a deriveForce error would leave
+				// reactors stopped indefinitely.
+				err = d.withReactorsQuiesced(ctx, batchInfo.batchIndex, func() error {
+					var derErr error
+					lastHeader, derErr = d.deriveForce(batchInfoFull, 0)
+					return derErr
+				})
+				if err != nil {
+					d.logger.Error("local verify self-heal: derive failed",
+						"batchIndex", batchInfo.batchIndex, "error", err)
+					return
+				}
+
+				if headAfter, hErr := d.l2Client.BlockByNumber(ctx, nil); hErr == nil {
+					d.logger.Info("self-heal reorg: L2 head AFTER",
+						"batchIndex", batchInfo.batchIndex,
+						"headNumber", headAfter.NumberU64(),
+						"headHash", headAfter.Hash().Hex(),
+						"headParent", headAfter.ParentHash().Hex())
 				}
 			}
 
