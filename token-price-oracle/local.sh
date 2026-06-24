@@ -21,3 +21,18 @@
 #   - Stablecoins:    tokenID:$PRICE (e.g., 3:$1.0 for USDT pegged to $1 USD)
 # Note: Use \$ in bash to escape the dollar sign
 
+# Chainlink example:
+#   --price-feed-priority chainlink,pyth,bitget,binance,okx \
+#   --chainlink-rpc https://ethereum-rpc.publicnode.com \
+#   --chainlink-eth-usd-feed 0x... \
+#   --chainlink-max-staleness 1h \
+#   --token-mapping-chainlink "1:0x...,2:0x..." \
+#   --pyth-hermes-base-url https://hermes.pyth.network \
+#   --pyth-api-key "$PYTH_API_KEY" \
+#   --pyth-eth-usd-price-id 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace \
+#   --pyth-max-staleness 1h \
+#   --pyth-max-confidence-bps 0 \
+#   --token-mapping-pyth "1:0x...,2:0x..." \
+#   --token-mapping-binance "1:BTCUSDT,2:ETHUSDT" \
+#   --token-mapping-okx "1:BTC-USDT,2:ETH-USDT" \
+

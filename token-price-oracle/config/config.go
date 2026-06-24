@@ -21,15 +21,21 @@ const (
 type PriceFeedType string
 
 const (
-	PriceFeedTypeBitget  PriceFeedType = "bitget"
-	PriceFeedTypeBinance PriceFeedType = "binance"
+	PriceFeedTypeBitget    PriceFeedType = "bitget"
+	PriceFeedTypeBinance   PriceFeedType = "binance"
+	PriceFeedTypeChainlink PriceFeedType = "chainlink"
+	PriceFeedTypeOKX       PriceFeedType = "okx"
+	PriceFeedTypePyth      PriceFeedType = "pyth"
 )
 
 // ValidPriceFeedTypes returns all valid price feed types
 func ValidPriceFeedTypes() []PriceFeedType {
 	return []PriceFeedType{
+		PriceFeedTypeChainlink,
+		PriceFeedTypePyth,
 		PriceFeedTypeBitget,
-		// PriceFeedTypeBinance,  // TODO: Add back when Binance price feed is implemented
+		PriceFeedTypeBinance,
+		PriceFeedTypeOKX,
 	}
 }
 
@@ -58,12 +64,21 @@ type Config struct {
 	// Private key
 	PrivateKey string
 	// Price update parameters
-	PriceUpdateInterval time.Duration                       // Price update interval
-	PriceThreshold      uint64                              // Price change threshold percentage to trigger update
-	PriceFeedPriority   []PriceFeedType                     // Price feed types in priority order (fallback mechanism)
-	TokenMappings       map[PriceFeedType]map[uint16]string // Token ID to trading pair mappings for each price feed type
-	BitgetAPIBaseURL    string                              // Bitget API base URL
-	BinanceAPIBaseURL   string                              // Binance API base URL
+	PriceUpdateInterval   time.Duration                       // Price update interval
+	PriceThreshold        uint64                              // Price change threshold percentage to trigger update
+	PriceFeedPriority     []PriceFeedType                     // Price feed types in priority order (fallback mechanism)
+	TokenMappings         map[PriceFeedType]map[uint16]string // Token ID to trading pair mappings for each price feed type
+	BitgetAPIBaseURL      string                              // Bitget API base URL
+	BinanceAPIBaseURL     string                              // Binance API base URL
+	OKXAPIBaseURL         string                              // OKX API base URL
+	ChainlinkRPC          string                              // RPC URL used for Chainlink feeds
+	ChainlinkETHUSDFeed   common.Address                      // ETH/USD AggregatorV3 feed address
+	ChainlinkMaxStaleness time.Duration                       // Maximum accepted age for Chainlink feed rounds
+	PythHermesBaseURL     string                              // Pyth Hermes API base URL
+	PythAPIKey            string                              // Optional Pyth Hermes API key
+	PythETHUSDPriceID     string                              // Pyth ETH/USD price ID
+	PythMaxStaleness      time.Duration                       // Maximum accepted age for Pyth prices
+	PythMaxConfidenceBPS  uint64                              // Maximum accepted Pyth confidence interval in BPS (0 disables)
 
 	// External sign
 	ExternalSign        bool
@@ -141,7 +156,7 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 
 	// Validate price threshold is reasonable (basis points should be 0-MaxPriceThresholdBPS)
 	if cfg.PriceThreshold > MaxPriceThresholdBPS {
-		return nil, fmt.Errorf("price threshold %d is too large (should be 0-%d basis points, where %d bps = 100%%)", 
+		return nil, fmt.Errorf("price threshold %d is too large (should be 0-%d basis points, where %d bps = 100%%)",
 			cfg.PriceThreshold, MaxPriceThresholdBPS, MaxPriceThresholdBPS)
 	}
 
@@ -224,13 +239,80 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 		cfg.TokenMappings[PriceFeedTypeBinance] = binanceMapping
 	}
 
+	okxMapping, err := parseTokenMapping(ctx.String(flags.TokenMappingOKXFlag.Name))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse okx token mapping: %w", err)
+	}
+	if len(okxMapping) > 0 {
+		cfg.TokenMappings[PriceFeedTypeOKX] = okxMapping
+	}
+
+	chainlinkMapping, err := parseTokenMapping(ctx.String(flags.TokenMappingChainlinkFlag.Name))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse chainlink token mapping: %w", err)
+	}
+	if len(chainlinkMapping) > 0 {
+		cfg.TokenMappings[PriceFeedTypeChainlink] = chainlinkMapping
+	}
+
+	pythMapping, err := parseTokenMapping(ctx.String(flags.TokenMappingPythFlag.Name))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse pyth token mapping: %w", err)
+	}
+	if len(pythMapping) > 0 {
+		cfg.TokenMappings[PriceFeedTypePyth] = pythMapping
+	}
+
 	// Parse API base URLs
 	cfg.BitgetAPIBaseURL = ctx.String(flags.BitgetAPIBaseURLFlag.Name)
 	cfg.BinanceAPIBaseURL = ctx.String(flags.BinanceAPIBaseURLFlag.Name)
+	cfg.OKXAPIBaseURL = ctx.String(flags.OKXAPIBaseURLFlag.Name)
+	cfg.ChainlinkRPC = ctx.String(flags.ChainlinkRPCFlag.Name)
+	cfg.ChainlinkMaxStaleness = ctx.Duration(flags.ChainlinkMaxStalenessFlag.Name)
+	cfg.PythHermesBaseURL = ctx.String(flags.PythHermesBaseURLFlag.Name)
+	cfg.PythAPIKey = strings.TrimSpace(ctx.String(flags.PythAPIKeyFlag.Name))
+	cfg.PythETHUSDPriceID = strings.TrimSpace(ctx.String(flags.PythETHUSDPriceIDFlag.Name))
+	cfg.PythMaxStaleness = ctx.Duration(flags.PythMaxStalenessFlag.Name)
+	cfg.PythMaxConfidenceBPS = ctx.Uint64(flags.PythMaxConfidenceBPSFlag.Name)
+	chainlinkETHUSDFeed := strings.TrimSpace(ctx.String(flags.ChainlinkETHUSDFeedFlag.Name))
+	if chainlinkETHUSDFeed != "" {
+		if !common.IsHexAddress(chainlinkETHUSDFeed) {
+			return nil, fmt.Errorf("invalid chainlink ETH/USD feed address: %s", chainlinkETHUSDFeed)
+		}
+		cfg.ChainlinkETHUSDFeed = common.HexToAddress(chainlinkETHUSDFeed)
+	}
 
 	// Validate API URLs for configured feeds (non-empty check only)
 	for _, feedType := range cfg.PriceFeedPriority {
 		switch feedType {
+		case PriceFeedTypeChainlink:
+			if cfg.ChainlinkRPC == "" {
+				return nil, fmt.Errorf("chainlink feed is configured but --chainlink-rpc is not set")
+			}
+			if cfg.ChainlinkETHUSDFeed == (common.Address{}) {
+				return nil, fmt.Errorf("chainlink feed is configured but --chainlink-eth-usd-feed is not set")
+			}
+			if cfg.ChainlinkMaxStaleness <= 0 {
+				return nil, fmt.Errorf("chainlink max staleness must be positive")
+			}
+			if len(cfg.TokenMappings[PriceFeedTypeChainlink]) == 0 {
+				return nil, fmt.Errorf("chainlink feed is configured but --token-mapping-chainlink is not set")
+			}
+
+		case PriceFeedTypePyth:
+			if cfg.PythHermesBaseURL == "" {
+				return nil, fmt.Errorf("pyth feed is configured but --pyth-hermes-base-url is not set")
+			}
+			if cfg.PythETHUSDPriceID == "" {
+				return nil, fmt.Errorf("pyth feed is configured but --pyth-eth-usd-price-id is not set")
+			}
+			if cfg.PythMaxStaleness <= 0 {
+				return nil, fmt.Errorf("pyth max staleness must be positive")
+			}
+			if len(cfg.TokenMappings[PriceFeedTypePyth]) == 0 {
+				return nil, fmt.Errorf("pyth feed is configured but --token-mapping-pyth is not set")
+			}
+
 		case PriceFeedTypeBitget:
 			if cfg.BitgetAPIBaseURL == "" {
 				return nil, fmt.Errorf("bitget feed is configured but --bitget-api-base-url is not set")
@@ -239,6 +321,17 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 		case PriceFeedTypeBinance:
 			if cfg.BinanceAPIBaseURL == "" {
 				return nil, fmt.Errorf("binance feed is configured but --binance-api-base-url is not set")
+			}
+			if len(cfg.TokenMappings[PriceFeedTypeBinance]) == 0 {
+				return nil, fmt.Errorf("binance feed is configured but --token-mapping-binance is not set")
+			}
+
+		case PriceFeedTypeOKX:
+			if cfg.OKXAPIBaseURL == "" {
+				return nil, fmt.Errorf("okx feed is configured but --okx-api-base-url is not set")
+			}
+			if len(cfg.TokenMappings[PriceFeedTypeOKX]) == 0 {
+				return nil, fmt.Errorf("okx feed is configured but --token-mapping-okx is not set")
 			}
 		}
 	}

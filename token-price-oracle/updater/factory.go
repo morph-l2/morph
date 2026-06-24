@@ -106,6 +106,41 @@ func createFallbackPriceFeed(cfg *config.Config) (client.PriceFeed, error) {
 // createSinglePriceFeed creates a single price feed instance
 func createSinglePriceFeed(feedType config.PriceFeedType, cfg *config.Config) (client.PriceFeed, string, error) {
 	switch feedType {
+	case config.PriceFeedTypeChainlink:
+		mapping, exists := cfg.TokenMappings[config.PriceFeedTypeChainlink]
+		if !exists || len(mapping) == 0 {
+			return nil, "", fmt.Errorf("chainlink price feed requires token mapping, please configure --token-mapping-chainlink")
+		}
+		feed, err := client.NewChainlinkPriceFeed(mapping, cfg.ChainlinkRPC, cfg.ChainlinkETHUSDFeed, cfg.ChainlinkMaxStaleness)
+		if err != nil {
+			return nil, "", err
+		}
+		log.Info("Chainlink price feed created",
+			"type", "chainlink",
+			"rpc", cfg.ChainlinkRPC,
+			"eth_usd_feed", cfg.ChainlinkETHUSDFeed.Hex(),
+			"max_staleness", cfg.ChainlinkMaxStaleness,
+			"mapping", mapping)
+		return feed, "chainlink", nil
+
+	case config.PriceFeedTypePyth:
+		mapping, exists := cfg.TokenMappings[config.PriceFeedTypePyth]
+		if !exists || len(mapping) == 0 {
+			return nil, "", fmt.Errorf("pyth price feed requires token mapping, please configure --token-mapping-pyth")
+		}
+		feed, err := client.NewPythHermesPriceFeed(mapping, cfg.PythHermesBaseURL, cfg.PythAPIKey, cfg.PythETHUSDPriceID, cfg.PythMaxStaleness, cfg.PythMaxConfidenceBPS)
+		if err != nil {
+			return nil, "", err
+		}
+		log.Info("Pyth price feed created",
+			"type", "pyth",
+			"base_url", cfg.PythHermesBaseURL,
+			"eth_usd_price_id", cfg.PythETHUSDPriceID,
+			"max_staleness", cfg.PythMaxStaleness,
+			"max_confidence_bps", cfg.PythMaxConfidenceBPS,
+			"mapping", mapping)
+		return feed, "pyth", nil
+
 	case config.PriceFeedTypeBitget:
 		mapping, exists := cfg.TokenMappings[config.PriceFeedTypeBitget]
 		if !exists || len(mapping) == 0 {
@@ -119,9 +154,28 @@ func createSinglePriceFeed(feedType config.PriceFeedType, cfg *config.Config) (c
 		return feed, "bitget", nil
 
 	case config.PriceFeedTypeBinance:
-		// Binance price feed is not yet implemented
-		// This case should not be reached since Binance is not in ValidPriceFeedTypes
-		return nil, "", fmt.Errorf("binance price feed is not supported yet")
+		mapping, exists := cfg.TokenMappings[config.PriceFeedTypeBinance]
+		if !exists || len(mapping) == 0 {
+			return nil, "", fmt.Errorf("binance price feed requires token mapping, please configure --token-mapping-binance")
+		}
+		feed := client.NewBinancePriceFeed(mapping, cfg.BinanceAPIBaseURL)
+		log.Info("Binance price feed created",
+			"type", "binance",
+			"base_url", cfg.BinanceAPIBaseURL,
+			"mapping", mapping)
+		return feed, "binance", nil
+
+	case config.PriceFeedTypeOKX:
+		mapping, exists := cfg.TokenMappings[config.PriceFeedTypeOKX]
+		if !exists || len(mapping) == 0 {
+			return nil, "", fmt.Errorf("okx price feed requires token mapping, please configure --token-mapping-okx")
+		}
+		feed := client.NewOKXPriceFeed(mapping, cfg.OKXAPIBaseURL)
+		log.Info("OKX price feed created",
+			"type", "okx",
+			"base_url", cfg.OKXAPIBaseURL,
+			"mapping", mapping)
+		return feed, "okx", nil
 
 	default:
 		return nil, "", fmt.Errorf("unsupported price feed type: %s", feedType)
