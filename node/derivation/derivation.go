@@ -956,6 +956,33 @@ func (d *Derivation) deriveForce(rollupData *BatchInfo, skipNumber uint64) (*eth
 		return nil, fmt.Errorf("parent header at %d missing", parentNum)
 	}
 
+	// Reorg observability: snapshot the canonical hashes of the blocks we are
+	// about to rewrite (read now, before any write, so they are still intact)
+	// and the EL head before the rewrite. Pairing these with the per-block and
+	// post-rewrite logs below makes the reorg visible end-to-end: the EL head
+	// drops from the batch tip down to the pinned parent and then climbs back.
+	oldHashes := make(map[uint64]common.Hash, len(rollupData.blockContexts))
+	for _, bd := range rollupData.blockContexts {
+		n := bd.SafeL2Data.Number
+		if n <= skipNumber {
+			continue
+		}
+		if h, e := d.l2Client.HeaderByNumber(d.ctx, big.NewInt(int64(n))); e == nil && h != nil {
+			oldHashes[n] = h.Hash()
+		}
+	}
+	if elHeadBefore, e := d.l2Client.BlockByNumber(d.ctx, nil); e == nil {
+		d.logger.Info("deriveForce: REORG begin — rewriting batch on pinned parent",
+			"batchIndex", rollupData.batchIndex,
+			"rewriteFrom", parentNum+1,
+			"rewriteTo", rollupData.lastBlockNumber,
+			"pinnedParentNumber", parentNum,
+			"pinnedParentHash", lastHeader.Hash().Hex(),
+			"elHeadNumberBefore", elHeadBefore.NumberU64(),
+			"elHeadHashBefore", elHeadBefore.Hash().Hex(),
+		)
+	}
+
 	for _, blockData := range rollupData.blockContexts {
 		// Skip blocks already present locally (scenario C). For scenario B
 		// skipNumber == 0 means this branch is never taken.
@@ -995,10 +1022,30 @@ func (d *Derivation) deriveForce(rollupData *BatchInfo, skipNumber uint64) (*eth
 			return nil, fmt.Errorf("apply block %d: %w", safeData.Number, err)
 		}
 
+		// Read the live EL head right after the write. On the first rewritten
+		// block this is the proof of reorg: the head has dropped from the old
+		// batch tip down to this freshly-applied block (SetCanonical switched
+		// the canonical chain); subsequent blocks climb it back up.
+		var elHeadNum uint64
+		if h, e := d.l2Client.BlockNumber(d.ctx); e == nil {
+			elHeadNum = h
+		}
+		oldHash := oldHashes[safeData.Number]
 		d.logger.Info("block written via NewSafeL2Block",
 			"batchIndex", rollupData.batchIndex,
 			"blockNumber", safeData.Number,
-			"hash", lastHeader.Hash().Hex(),
+			"oldHash", oldHash.Hex(),
+			"newHash", lastHeader.Hash().Hex(),
+			"hashChanged", oldHash != lastHeader.Hash(),
+			"elHeadAfterWrite", elHeadNum,
+		)
+	}
+
+	if elHeadAfter, e := d.l2Client.BlockByNumber(d.ctx, nil); e == nil {
+		d.logger.Info("deriveForce: REORG complete — batch reapplied",
+			"batchIndex", rollupData.batchIndex,
+			"elHeadNumberAfter", elHeadAfter.NumberU64(),
+			"elHeadHashAfter", elHeadAfter.Hash().Hex(),
 		)
 	}
 	return lastHeader, nil
