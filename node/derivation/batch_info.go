@@ -1,6 +1,7 @@
 package derivation
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math/big"
@@ -252,6 +253,46 @@ func encodeTransactions(txs []*eth.Transaction) [][]byte {
 		enc[i], _ = tx.MarshalBinary()
 	}
 	return enc
+}
+
+// blockContentMatches reports whether a local L2 block carries the same
+// content the batch committed for that height: timestamp, gas limit, base
+// fee and the ordered tx list (L1 messages then L2 txs, by binary encoding).
+// The batch has no parent hashes, so this is content-only; deriveForce pairs
+// it with a canonical anchor to conclude a block is canonical.
+func blockContentMatches(local *eth.Block, sd *catalyst.SafeL2Data) bool {
+	h := local.Header()
+	if h.Time != sd.Timestamp {
+		return false
+	}
+	if h.GasLimit != sd.GasLimit {
+		return false
+	}
+	if !baseFeeEqual(h.BaseFee, sd.BaseFee) {
+		return false
+	}
+	txs := local.Transactions()
+	if len(txs) != len(sd.Transactions) {
+		return false
+	}
+	for i, tx := range txs {
+		enc, err := tx.MarshalBinary()
+		if err != nil || !bytes.Equal(enc, sd.Transactions[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// baseFeeEqual treats nil and zero as equal — ParseBatch normalises a zero
+// base fee to nil, while a local header may carry an explicit zero.
+func baseFeeEqual(a, b *big.Int) bool {
+	az := a == nil || a.Sign() == 0
+	bz := b == nil || b.Sign() == 0
+	if az || bz {
+		return az && bz
+	}
+	return a.Cmp(b) == 0
 }
 
 type txQueue struct {
