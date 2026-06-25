@@ -88,6 +88,9 @@ def setup_devnet_nodes():
         if i < 4:
             content = content.replace('pex = true', 'pex = false')
 
+        # Enable prometheus metrics for all nodes
+        content = content.replace('prometheus = false', 'prometheus = true')
+
         with open(config_file, "w") as f:
             f.write(content)
 

@@ -39,8 +39,9 @@ var _ raft.FSM = (*BlockFSM)(nil)
 // it stores only the applied block height (for log compaction) and delivers decoded
 // blocks to subscribers via a buffered channel.
 type BlockFSM struct {
-	logger tmlog.Logger
-	mu     sync.RWMutex
+	logger  tmlog.Logger
+	metrics *Metrics
+	mu      sync.RWMutex
 
 	// appliedHeight is the block number of the most recently applied log entry.
 	// Used exclusively by Snapshot for log compaction; NOT a full block reference.
@@ -55,9 +56,13 @@ type BlockFSM struct {
 }
 
 // NewBlockFSM creates a new BlockFSM.
-func NewBlockFSM(logger tmlog.Logger) *BlockFSM {
+func NewBlockFSM(logger tmlog.Logger, metrics *Metrics) *BlockFSM {
+	if metrics == nil {
+		metrics = NopMetrics()
+	}
 	return &BlockFSM{
 		logger:  logger,
+		metrics: metrics,
 		blockCh: make(chan *types.BlockV2, 1000),
 	}
 }
@@ -117,6 +122,7 @@ func (f *BlockFSM) Apply(l *raft.Log) interface{} {
 			panic(&FSMApplyError{Height: block.Number, Err: err})
 		}
 		onAppliedDur = time.Since(t1)
+		f.metrics.ObserveFSMApplyDuration(onAppliedDur)
 	} else {
 		panic(fmt.Sprintf("BlockFSM.Apply: onApplied is nil at height %d, "+
 			"this is a programmer error", block.Number))
@@ -136,6 +142,7 @@ func (f *BlockFSM) Apply(l *raft.Log) interface{} {
 	select {
 	case f.blockCh <- block:
 	default:
+		f.metrics.IncFSMBlockChannelDrops()
 		f.logger.Error("BlockFSM: blockCh full, subscriber too slow", "height", block.Number)
 	}
 

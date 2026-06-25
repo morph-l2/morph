@@ -2,7 +2,7 @@ module morph-l2/contract
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.8-0.20260623033856-a213c3ffdb4c
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.8-0.20260625105428-a5de063445a3
 
 require (
 	github.com/iden3/go-iden3-crypto v0.0.16

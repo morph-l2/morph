@@ -22,6 +22,7 @@ func newTrackerForTest() (*L1Tracker, *fakeRefresher) {
 		lagThreshold: 5 * time.Minute,
 		haltLag:      30 * time.Minute,
 		logger:       tmlog.NewNopLogger(),
+		metrics:      NopMetrics(),
 	}
 	t.healthy.Store(true)
 	return t, f
