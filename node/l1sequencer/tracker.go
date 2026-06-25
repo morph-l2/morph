@@ -39,6 +39,7 @@ type L1Tracker struct {
 	haltLag      time.Duration // halt threshold
 	logger       tmlog.Logger
 	stop         chan struct{}
+	metrics      *Metrics
 
 	// State below is only mutated from the single loop goroutine (and tests).
 	healthy  atomic.Bool // read concurrently by gate consumers
@@ -64,6 +65,7 @@ func NewL1Tracker(
 		haltLag:      defaultHaltLag,
 		logger:       logger.With("module", "l1tracker"),
 		stop:         make(chan struct{}),
+		metrics:      PrometheusMetrics("morphnode"),
 	}
 	t.healthy.Store(true)   // start allowed
 	t.lastSeen = time.Now() // grace: tolerate initial RPC failures for haltLag
@@ -133,7 +135,11 @@ func (t *L1Tracker) update(headTime time.Time, ok bool, now time.Time) {
 		t.lastSeen = now
 	}
 
-	if now.Sub(t.lastSeen) > t.haltLag {
+	// Report lag every poll (single goroutine, so lastSeen reads are safe).
+	lag := now.Sub(t.lastSeen)
+	t.metrics.SetLag(lag)
+
+	if lag > t.haltLag {
 		if t.healthy.CompareAndSwap(true, false) {
 			t.logger.Error("L1 health gate TRIPPED: L1 too stale, halting block production and sync", "haltLag", t.haltLag)
 		}

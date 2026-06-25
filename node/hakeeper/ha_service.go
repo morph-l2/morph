@@ -41,10 +41,12 @@ type HAService struct {
 	advertisedAddr string // resolved once in New(), used throughout
 	fsm            *BlockFSM
 	rpcServer      *hakeeperrpc.Server
+	metrics        *Metrics
 
 	// Raft internals (initialized in Start)
-	r         *raft.Raft
-	transport *raft.NetworkTransport
+	r            *raft.Raft
+	transport    *raft.NetworkTransport
+	raftObserver *raft.Observer
 
 	leaderReady int32 // atomic: 1 = can produce blocks
 	stopCh      chan struct{}
@@ -58,11 +60,15 @@ var _ hakeeperrpc.ConsensusAdapter = (*HAService)(nil)
 // Expects cfg to be fully resolved (Resolve + Validate already called).
 // Call SetOnBlockApplied before Start().
 func New(cfg *Config, logger tmlog.Logger) (*HAService, error) {
+	// Register HA metrics on the default registry, tagged with this node's id
+	// (matches the morphnode_* namespace used by the executor/syncer metrics).
+	m := PrometheusMetrics("morphnode", "server_id", cfg.ServerID)
 	return &HAService{
 		logger:         logger,
 		cfg:            cfg,
 		advertisedAddr: cfg.Consensus.AdvertisedAddr, // already resolved
-		fsm:            NewBlockFSM(logger),
+		fsm:            NewBlockFSM(logger, m),
+		metrics:        m,
 		stopCh:         make(chan struct{}),
 	}, nil
 }
@@ -93,6 +99,13 @@ func (h *HAService) Start() error {
 	}
 	h.rpcServer = rpcSrv
 
+	// Subscribe before taking the initial snapshot: any state change that
+	// happens between the two is then captured by the observer rather than
+	// lost in the gap (which would leave raft_state stale until the next
+	// event or the minute-interval safety net).
+	h.startRaftMetricsObserver()
+	h.refreshRaftMetrics()
+
 	h.wg.Add(1)
 	go h.leaderMonitor()
 
@@ -109,6 +122,9 @@ func (h *HAService) Start() error {
 // Order: close stopCh → shutdown Raft (unblocks Barrier) → wg.Wait → stop RPC.
 func (h *HAService) Stop() {
 	close(h.stopCh)
+	if h.raftObserver != nil && h.r != nil {
+		h.r.DeregisterObserver(h.raftObserver)
+	}
 	h.shutdownRaft()
 	h.wg.Wait()
 	if h.rpcServer != nil {
@@ -163,7 +179,11 @@ func (h *HAService) tryJoin(addr string) error {
 		}
 	}
 
-	return client.AddServerAsVoter(ctx, h.cfg.ServerID, h.advertisedAddr, membership.Version)
+	if err := client.AddServerAsVoter(ctx, h.cfg.ServerID, h.advertisedAddr, membership.Version); err != nil {
+		return err
+	}
+	h.refreshClusterMembers()
+	return nil
 }
 
 // Commit replicates a signed block via Raft.
@@ -176,6 +196,7 @@ func (h *HAService) Commit(block *types.BlockV2) error {
 		return fmt.Errorf("Commit: encode: %w", err)
 	}
 	encodeDur := time.Since(t0)
+	h.metrics.ObserveCommitDuration("encode", encodeDur)
 
 	t1 := time.Now()
 	f := h.r.Apply(data, raftInfiniteTimeout)
@@ -183,6 +204,7 @@ func (h *HAService) Commit(block *types.BlockV2) error {
 		return err
 	}
 	raftDur := time.Since(t1)
+	h.metrics.ObserveCommitDuration("raft", raftDur)
 
 	if resp := f.Response(); resp != nil {
 		if err, ok := resp.(error); ok {
@@ -226,19 +248,35 @@ func (h *HAService) LeaderWithID() *hakeeperrpc.ServerInfo {
 }
 
 func (h *HAService) AddVoter(id, addr string, version uint64) error {
-	return h.r.AddVoter(raft.ServerID(id), raft.ServerAddress(addr), version, raftTimeout).Error()
+	if err := h.r.AddVoter(raft.ServerID(id), raft.ServerAddress(addr), version, raftTimeout).Error(); err != nil {
+		return err
+	}
+	h.refreshClusterMembers()
+	return nil
 }
 
 func (h *HAService) AddNonVoter(id, addr string, version uint64) error {
-	return h.r.AddNonvoter(raft.ServerID(id), raft.ServerAddress(addr), version, raftTimeout).Error()
+	if err := h.r.AddNonvoter(raft.ServerID(id), raft.ServerAddress(addr), version, raftTimeout).Error(); err != nil {
+		return err
+	}
+	h.refreshClusterMembers()
+	return nil
 }
 
 func (h *HAService) DemoteVoter(id string, version uint64) error {
-	return h.r.DemoteVoter(raft.ServerID(id), version, raftTimeout).Error()
+	if err := h.r.DemoteVoter(raft.ServerID(id), version, raftTimeout).Error(); err != nil {
+		return err
+	}
+	h.refreshClusterMembers()
+	return nil
 }
 
 func (h *HAService) RemoveServer(id string, version uint64) error {
-	return h.r.RemoveServer(raft.ServerID(id), version, raftTimeout).Error()
+	if err := h.r.RemoveServer(raft.ServerID(id), version, raftTimeout).Error(); err != nil {
+		return err
+	}
+	h.refreshClusterMembers()
+	return nil
 }
 
 func (h *HAService) TransferLeader() error {
@@ -417,6 +455,7 @@ func (h *HAService) joinLoop() {
 				continue
 			}
 			h.logger.Info("hakeeper: joined cluster")
+			h.refreshClusterMembers()
 			return
 		}
 	}
