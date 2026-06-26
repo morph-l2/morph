@@ -235,4 +235,5 @@ func (m *Metrics) UnregisterMetrics() {
 	prometheus.Unregister(m.HasPendingFinalizeBatch)
 	prometheus.Unregister(m.reorgs)
 	prometheus.Unregister(m.confirmedTxs)
+	prometheus.Unregister(m.batchCleanupFailures)
 }
