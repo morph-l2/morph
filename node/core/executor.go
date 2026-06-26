@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	syncos "sync"
+	"time"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
@@ -128,6 +129,61 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 	}
 
 	return executor, nil
+}
+
+// QA TEST BRANCH ONLY (test/fullnode-fork-selfheal).
+//
+// This node forks the chain CONTINUOUSLY: for every canonical block delivered at
+// the tip, instead of applying it we assemble our OWN block at the same height
+// (timestamp pinned to the parent's, valid post-Emerald, so the hash is guaranteed
+// to differ from the canonical sibling) and apply that. tendermint's StateV2 still
+// advances using the canonical block it handed us, so geth runs a private fork
+// chain at the unsafe tip while StateV2 tracks canonical heights.
+//
+// Recovery is the REAL self-heal path: as each L1 batch covering the forked range
+// is derived, local-verify finds a blob mismatch and runs deriveForce (wrapped in
+// withReactorsQuiesced -> SetCanonical -> StartReactorsAfterReorg), rewriting that
+// batch back onto canonical and re-syncing StateV2 from geth. The tip then forks
+// again -> the node is permanently "always forking, always reorging". No reorg
+// logic is modified; this only swaps the applied block + adds logs.
+//
+// SAFETY:
+//   - MUST run only on a dedicated fullnode. Never on a sequencer or in production.
+//   - StateV2 stores the block signature keyed by the CANONICAL hash, but geth
+//     holds the fork block at that height, so this node has no valid signature for
+//     its own unsafe (fork) blocks. Never let any peer use this node as a P2P data
+//     source for the unsafe range -- they will reject the signature / disconnect.
+
+// injectForkBlockLocked assembles this node's own block on the given geth head
+// (timestamp pinned to the parent's, guaranteed distinct from the canonical
+// sibling) and applies it, extending the local fork by one block. The canonical
+// block is intentionally dropped, so this skips updateNextL1MessageIndex -- safe
+// ONLY because a fullnode never produces blocks (that index is read only on the
+// sequencer's RequestBlockDataV2 path). Caller must hold e.mu.
+//
+// Edge case: if canonical produced an empty block in the same second (so it too
+// has time == parent.Time and identical empty content), the assembled fork would
+// hash-collide with canonical and not actually diverge -- harmless, just no [1/3].
+func (e *Executor) injectForkBlockLocked(head *eth.Block, canonicalNumber uint64) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	forkTimestamp := head.Time()
+	l2Block, err := e.l2Client.AssembleL2BlockV2WithTimestamp(ctx, head.Hash(), forkTimestamp, nil)
+	if err != nil {
+		return false, fmt.Errorf("FORK-INJECT: assemble fork block: %w", err)
+	}
+	if _, err := e.l2Client.NewL2BlockV2(context.Background(), l2Block); err != nil {
+		return false, fmt.Errorf("FORK-INJECT: apply fork block: %w", err)
+	}
+	e.metrics.Height.Set(float64(l2Block.Number))
+	e.logger.Info("########## REORG-TEST [1/3] FORKED — replaced canonical block with own fork ##########",
+		"forkNumber", l2Block.Number,
+		"forkHash", l2Block.Hash.Hex(),
+		"parentHash", head.Hash().Hex(),
+		"forkTimestamp", l2Block.Timestamp,
+		"droppedCanonicalNumber", canonicalNumber)
+	return true, nil
 }
 
 var _ l2node.L2Node = (*Executor)(nil)
@@ -454,27 +510,30 @@ func (e *Executor) RequestBlockDataV2(parentHashBytes []byte) (*l2node.BlockV2, 
 func (e *Executor) ApplyBlockV2(block *l2node.BlockV2) (applied bool, err error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	execBlock := blockV2ToExecutableL2Data(block)
 
-	// Reorg / idempotent detection: only check when incoming block height
-	// is at or below the current geth head (normal sequential blocks skip this).
-	currentHeight, chkErr := e.l2Client.BlockNumber(context.Background())
-	if chkErr == nil && block.Number <= currentHeight {
-		existing, exErr := e.l2Client.BlockByNumber(context.Background(), big.NewInt(int64(block.Number)))
-		if exErr == nil && existing != nil {
-			if existing.Hash() == execBlock.Hash {
-				e.logger.Debug("ApplyBlockV2: idempotent skip", "number", execBlock.Number)
-				return false, nil
-			}
-			e.logger.Info("ApplyBlockV2: REORG detected",
-				"targetHeight", execBlock.Number,
-				"newHash", execBlock.Hash.Hex(),
-				"existingHash", existing.Hash().Hex(),
-				"currentHead", currentHeight,
-			)
+	// QA TEST BRANCH ONLY (test/fullnode-fork-selfheal): continuously fork the
+	// tip. When the incoming canonical block extends our current head (number ==
+	// head+1) we apply our OWN divergent block at that height instead. StateV2
+	// still advances on the canonical block, so geth keeps a private fork at the
+	// unsafe tip until each L1 batch is derived and deriveForce reorgs it back
+	// (see derivation [2/3]/[3/3]). Only blocks that do NOT extend the tip fall
+	// through to the normal apply: idempotent re-applies (number <= head) and gaps
+	// (number > head+1). Note a catch-up block IS number == head+1, so it is forked
+	// too -- that is exactly how the tip re-diverges after each deriveForce reorg.
+	if head, hErr := e.l2Client.BlockByNumber(context.Background(), nil); hErr == nil && head != nil && block.Number == head.NumberU64()+1 {
+		// On assemble/apply failure there is no graceful fallback in the forked
+		// steady state: geth has no canonical parent (canonical N was never landed),
+		// so the canonical apply below errors and blocksync simply retries this
+		// height until assemble recovers. assemble rarely fails, so this is mostly
+		// a theoretical path.
+		if forked, fErr := e.injectForkBlockLocked(head, block.Number); fErr == nil {
+			return forked, nil
+		} else {
+			e.logger.Error("FORK-INJECT failed; this height will error and be retried by blocksync", "number", block.Number, "err", fErr)
 		}
 	}
 
+	execBlock := blockV2ToExecutableL2Data(block)
 	if _, err := e.l2Client.NewL2BlockV2(context.Background(), execBlock); err != nil {
 		e.logger.Error("failed to apply block v2",
 			"number", execBlock.Number,

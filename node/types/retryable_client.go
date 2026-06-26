@@ -305,7 +305,13 @@ func retryableError(err error) bool {
 
 // AssembleL2BlockV2 assembles a L2 block based on parent hash.
 func (rc *RetryableClient) AssembleL2BlockV2(ctx context.Context, parentHash common.Hash, transactions eth.Transactions) (ret *catalyst.ExecutableL2Data, err error) {
-	timestamp := uint64(time.Now().Unix())
+	return rc.AssembleL2BlockV2WithTimestamp(ctx, parentHash, uint64(time.Now().Unix()), transactions)
+}
+
+// AssembleL2BlockV2WithTimestamp assembles a L2 block on parentHash with an
+// explicit timestamp. Used by the QA fork-injection test to deterministically
+// diverge from the sequencer's canonical block (which uses time.Now()).
+func (rc *RetryableClient) AssembleL2BlockV2WithTimestamp(ctx context.Context, parentHash common.Hash, timestamp uint64, transactions eth.Transactions) (ret *catalyst.ExecutableL2Data, err error) {
 	if retryErr := backoff.Retry(func() error {
 		resp, respErr := rc.authClient.AssembleL2BlockV2(ctx, parentHash, &timestamp, transactions)
 		if respErr != nil {
