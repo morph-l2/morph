@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/syndtr/goleveldb/leveldb"
 	ldberrors "github.com/syndtr/goleveldb/leveldb/errors"
+	ldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
 type testLevelDB struct {
@@ -52,6 +53,18 @@ func (d *testLevelDB) WriteBatch(puts []KVPair, deletes [][]byte) error {
 		b.Delete(key)
 	}
 	return d.db.Write(b, nil)
+}
+
+func (d *testLevelDB) IteratePrefixKeys(prefix []byte) ([][]byte, error) {
+	it := d.db.NewIterator(ldbutil.BytesPrefix(prefix), nil)
+	defer it.Release()
+	var keys [][]byte
+	for it.Next() {
+		k := make([]byte, len(it.Key()))
+		copy(k, it.Key())
+		keys = append(keys, k)
+	}
+	return keys, it.Error()
 }
 
 func testLoop(ctx context.Context, d time.Duration, fn func()) {

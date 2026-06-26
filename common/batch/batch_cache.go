@@ -1278,8 +1278,11 @@ func (bc *BatchCache) Get(batchIndex uint64) (*eth.RPCRollupBatch, error) {
 	return batch, nil
 }
 
-// Delete deletes a sealed batch from the cache by batch index
-// Returns a boolean indicating if the batch was found and deleted
+// Delete removes a single sealed batch (data + header) from the cache and storage.
+//
+// Must NOT be used for finalize cleanup: it delegates to BatchStorage.DeleteSealedBatch,
+// which rejects interior-index deletes because they punch holes into the persisted
+// indices and crash the next restart load. Finalize cleanup must use DeleteUntil.
 func (bc *BatchCache) Delete(batchIndex uint64) error {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
@@ -1587,9 +1590,15 @@ func (bc *BatchCache) DeleteBatchStorageAndInitFromRollup() error {
 
 func (bc *BatchCache) deleteBatchStorageAndInitFromRollupLocked() error {
 	// should delete invalid batch data and batch header bytes
-	err := bc.batchStorage.DeleteAllSealedBatches()
-	if err != nil {
-		return err
+	if err := bc.batchStorage.DeleteAllSealedBatches(); err != nil {
+		// DeleteAllSealedBatches relies on a parseable sealed_batch_indices to
+		// enumerate keys. When that snapshot itself is corrupt the normal wipe
+		// can never succeed and self-heal would loop forever, so fall back to a
+		// prefix-scan force wipe that does not depend on the indices snapshot.
+		log.Warn("normal sealed-batch wipe failed during self-heal, falling back to force wipe", "error", err)
+		if ferr := bc.batchStorage.ForceDeleteAllSealedBatches(); ferr != nil {
+			return fmt.Errorf("force wipe sealed batches failed (after normal wipe error: %v): %w", err, ferr)
+		}
 	}
 	// batch not contiguous or batch is invalid
 	return bc.initAndSyncFromRollupLocked()

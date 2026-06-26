@@ -814,6 +814,7 @@ func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 					// Deleting only batchIndex-1 would leave those behind and punch a
 					// hole into the persisted indices, crashing the next restart load.
 					if delErr := r.batchCache.DeleteUntil(batchIndex - 1); delErr != nil {
+						r.metrics.IncBatchCleanupFailures()
 						log.Error("failed to delete batches up to index", "batch_index", batchIndex-1, "tx_hash", tx.Hash().String(), "error", delErr)
 					}
 				} else {

@@ -58,7 +58,16 @@ func TestLoadAllSealedBatchesAndHeaderContiguous(t *testing.T) {
 func TestLoadAllSealedBatchesAndHeaderHoleReturnsError(t *testing.T) {
 	s := NewBatchStorage(openTestKV(t))
 	storeTestChain(t, s, []uint64{100, 101, 102, 103})
-	require.NoError(t, s.DeleteSealedBatch(102))
+
+	// Inject a hole directly at the KV layer: production DeleteSealedBatch now
+	// refuses interior deletes, but a legacy binary or a crash could still leave
+	// a gap, so the load path must reject it rather than panic on a nil parent.
+	holed, err := json.Marshal([]uint64{100, 101, 103})
+	require.NoError(t, err)
+	require.NoError(t, s.db.WriteBatch(
+		[]KVPair{{Key: []byte(SealedBatchIndicesKey), Value: holed}},
+		[][]byte{encodeBatchKey(102), encodeBatchHeaderKey(102)},
+	))
 
 	require.NotPanics(t, func() {
 		_, _, _, err := s.LoadAllSealedBatchesAndHeader()
@@ -268,4 +277,63 @@ func TestDeleteUntilKeepsMemoryWhenStorageDeleteFails(t *testing.T) {
 	indices, err := s.loadBatchIndices()
 	require.NoError(t, err)
 	require.Equal(t, []uint64{100, 101, 102}, indices)
+}
+
+// Single-index deletes may only remove a window boundary; an interior delete
+// would punch a hole into sealed_batch_indices and crash the next restart load,
+// so it must be refused. Finalize cleanup uses the range-based DeleteSealedBatchesUpTo.
+func TestDeleteSealedBatchRejectsInteriorIndex(t *testing.T) {
+	s := NewBatchStorage(openTestKV(t))
+	storeTestChain(t, s, []uint64{100, 101, 102})
+
+	// Interior index is refused and storage is left unchanged.
+	err := s.DeleteSealedBatch(101)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "interior")
+	indices, err := s.loadBatchIndices()
+	require.NoError(t, err)
+	require.Equal(t, []uint64{100, 101, 102}, indices)
+
+	// Boundaries (lowest, then highest) are allowed and keep the window contiguous.
+	require.NoError(t, s.DeleteSealedBatch(100))
+	require.NoError(t, s.DeleteSealedBatch(102))
+	indices, err = s.loadBatchIndices()
+	require.NoError(t, err)
+	require.Equal(t, []uint64{101}, indices)
+
+	// The final remaining index can be removed (single-delete leaves an empty snapshot).
+	require.NoError(t, s.DeleteSealedBatch(101))
+	indices, err = s.loadBatchIndices()
+	require.NoError(t, err)
+	require.Empty(t, indices)
+}
+
+// When sealed_batch_indices is corrupt the normal wipe cannot enumerate keys, so
+// self-heal would stall forever. The prefix-scan force wipe must still clear data,
+// header and the indices key so the node can rebuild from rollup.
+func TestForceDeleteAllSealedBatchesWipesCorruptIndices(t *testing.T) {
+	kv := openTestKV(t)
+	s := NewBatchStorage(kv)
+	storeTestChain(t, s, []uint64{100, 101, 102})
+
+	// Corrupt the indices snapshot.
+	require.NoError(t, kv.PutBytes([]byte(SealedBatchIndicesKey), []byte("{not json")))
+
+	// Normal wipe can no longer enumerate which keys to delete.
+	require.Error(t, s.DeleteAllSealedBatches())
+
+	// Force wipe scans the shared prefix and removes everything.
+	require.NoError(t, s.ForceDeleteAllSealedBatches())
+
+	keys, err := kv.IteratePrefixKeys([]byte(SealedBatchKeyPrefix))
+	require.NoError(t, err)
+	require.Empty(t, keys)
+
+	for _, idx := range []uint64{100, 101, 102} {
+		_, err := s.LoadSealedBatch(idx)
+		require.True(t, isKVNotFound(err), "batch %d should be wiped, got: %v", idx, err)
+	}
+
+	// Idempotent on empty storage.
+	require.NoError(t, s.ForceDeleteAllSealedBatches())
 }

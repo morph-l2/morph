@@ -112,6 +112,23 @@ func (d *Db) WriteBatch(puts []batch.KVPair, deletes [][]byte) error {
 	}
 	return nil
 }
+
+// IteratePrefixKeys returns every key currently stored under prefix. Keys are
+// copied because the underlying iterator reuses its buffers between steps.
+func (d *Db) IteratePrefixKeys(prefix []byte) ([][]byte, error) {
+	d.m.Lock()
+	defer d.m.Unlock()
+	it := d.db.NewIterator(prefix, nil)
+	defer it.Release()
+	var keys [][]byte
+	for it.Next() {
+		k := make([]byte, len(it.Key()))
+		copy(k, it.Key())
+		keys = append(keys, k)
+	}
+	return keys, it.Error()
+}
+
 func (d *Db) Close() error {
 	return d.db.Close()
 }

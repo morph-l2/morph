@@ -30,6 +30,10 @@ type SealedBatchKV interface {
 	// batch data, batch header and the indices snapshot can never get out of sync
 	// with each other on crash or partial failure.
 	WriteBatch(puts []KVPair, deletes [][]byte) error
+	// IteratePrefixKeys returns every key currently stored under prefix. It backs
+	// the force-wipe self-heal path, which must remove orphaned sealed batch data
+	// and header keys even when the indices snapshot is corrupt or unreadable.
+	IteratePrefixKeys(prefix []byte) ([][]byte, error)
 }
 
 // L1HeaderClient is the L1 RPC surface required to recover batch headers from events.

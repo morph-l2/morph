@@ -223,12 +223,22 @@ func (s *BatchStorage) LoadAllSealedBatchesAndHeader() (map[uint64]*eth.RPCRollu
 	return batches, headers, indices, nil
 }
 
-// DeleteSealedBatch removes a sealed batch (data + header) from LevelDB.
+// DeleteSealedBatch removes a single sealed batch (data + header) from LevelDB.
 // Data, header and the indices snapshot are removed in one atomic write;
 // indices update failures are no longer swallowed.
+//
+// Must NOT be used for finalize cleanup: deleting an interior index punches a
+// hole into sealed_batch_indices, which crashes the startup load path. This call
+// only permits removing a window boundary (the lowest or highest stored index);
+// interior deletes are rejected. Finalize cleanup must use the range-based
+// DeleteSealedBatchesUpTo / BatchCache.DeleteUntil.
 func (s *BatchStorage) DeleteSealedBatch(batchIndex uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if err := s.ensureBoundaryDelete(batchIndex); err != nil {
+		return err
+	}
 
 	encodedIndices, err := s.indicesSnapshotWithout(batchIndex)
 	if err != nil {
@@ -239,6 +249,31 @@ func (s *BatchStorage) DeleteSealedBatch(batchIndex uint64) error {
 	deletes := [][]byte{encodeBatchKey(batchIndex), encodeBatchHeaderKey(batchIndex)}
 	if err := s.db.WriteBatch(puts, deletes); err != nil {
 		return fmt.Errorf("failed to delete sealed batch %d: %w", batchIndex, err)
+	}
+	return nil
+}
+
+// ensureBoundaryDelete rejects single-index deletes that would leave a gap in
+// sealed_batch_indices. Removing the lowest or highest stored index keeps the
+// surviving indices contiguous and is allowed; removing an interior index would
+// punch a hole that crashes the next restart load, so it is refused here. Callers
+// hold s.mu; loadBatchIndices does not lock.
+func (s *BatchStorage) ensureBoundaryDelete(batchIndex uint64) error {
+	indices, err := s.loadBatchIndices()
+	if err != nil {
+		if isKVNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to load batch indices: %w", err)
+	}
+	if len(indices) <= 1 {
+		return nil
+	}
+	min, max := indices[0], indices[len(indices)-1]
+	for _, idx := range indices {
+		if idx == batchIndex && idx != min && idx != max {
+			return fmt.Errorf("refusing to delete interior sealed batch index %d (stored window [%d,%d]): would create a hole; use DeleteSealedBatchesUpTo", batchIndex, min, max)
+		}
 	}
 	return nil
 }
@@ -314,6 +349,31 @@ func (s *BatchStorage) DeleteAllSealedBatches() error {
 	return nil
 }
 
+// ForceDeleteAllSealedBatches removes every sealed-batch key by scanning the
+// storage prefix directly, without reading the indices snapshot. DeleteAllSealedBatches
+// needs a parseable sealed_batch_indices to know what to delete; when that snapshot
+// is corrupt or unreadable it can no longer enumerate keys and self-heal stalls.
+// This force-wipe scans the shared "sealed_batch_" prefix (which covers data,
+// header and the indices key) and removes everything in one atomic write so the
+// node can rebuild from rollup. It is a recovery-only path; the normal cleanup
+// path is DeleteSealedBatchesUpTo.
+func (s *BatchStorage) ForceDeleteAllSealedBatches() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	keys, err := s.db.IteratePrefixKeys([]byte(SealedBatchKeyPrefix))
+	if err != nil {
+		return fmt.Errorf("failed to scan sealed batch keys: %w", err)
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	if err := s.db.WriteBatch(nil, keys); err != nil {
+		return fmt.Errorf("failed to force delete sealed batches: %w", err)
+	}
+	return nil
+}
+
 // encodeBatchKey encodes batch index to a byte key
 func encodeBatchKey(batchIndex uint64) []byte {
 	key := make([]byte, len(SealedBatchKeyPrefix)+8)
@@ -384,7 +444,9 @@ func (s *BatchStorage) loadBatchIndices() ([]uint64, error) {
 	return indices, nil
 }
 
-// StoreSealedBatchHeader stores a single sealed batch header to LevelDB
+// StoreSealedBatchHeader stores a single sealed batch header to LevelDB.
+// Standalone single-key helper; the seal path uses StoreSealedBatchAndHeader to
+// keep data, header and the indices snapshot atomic. Not for finalize cleanup.
 func (s *BatchStorage) StoreSealedBatchHeader(batchIndex uint64, header *BatchHeaderBytes) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -446,7 +508,10 @@ func (s *BatchStorage) LoadAllSealedBatchHeaders() (map[uint64]*BatchHeaderBytes
 	return headers, nil
 }
 
-// DeleteSealedBatchHeader removes a sealed batch header from LevelDB
+// DeleteSealedBatchHeader removes a sealed batch header from LevelDB.
+// Standalone single-key helper; not for finalize cleanup. Deleting a header
+// without its data leaves a data/header mismatch that fails the startup load
+// hash check. Finalize cleanup must use DeleteSealedBatchesUpTo.
 func (s *BatchStorage) DeleteSealedBatchHeader(batchIndex uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
