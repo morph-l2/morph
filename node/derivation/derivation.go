@@ -365,11 +365,16 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 						"l2Latest", currentL2Latest)
 					return
 				}
-				// Scenario C: sequencer stopped → L1 blob fill-gap.
-				d.logger.Info("local verify: lastBlock missing and L2 head flat across polls; fallback to L1 blob fill-gap (scenario C)",
+				// Scenario C: sequencer stopped → L1 blob fill-gap. For a forked
+				// node stuck below the batch end this is also the recovery path:
+				// the local head is a fork lower than lastBlockNumber, so deriveForce
+				// rewrites/fills the batch from L1 back onto canonical.
+				preReorgHead, _ := d.l2Client.BlockNumber(ctx)
+				d.logger.Info("########## REORG-TEST [2/3] REORG DETECTED — local head below L1 batch end; triggering deriveForce fill-gap ##########",
 					"batchIndex", batchInfo.batchIndex,
-					"lastBlockNumber", batchInfo.lastBlockNumber,
-					"l2Latest", currentL2Latest)
+					"localHead", preReorgHead,
+					"firstL2Block", batchInfo.firstBlockNumber,
+					"lastL2Block", batchInfo.lastBlockNumber)
 				batchInfoFull, fetchErr := d.fetchRollupDataByTxHash(lg.TxHash, lg.BlockNumber)
 				if fetchErr != nil {
 					if errors.Is(fetchErr, types.ErrNotCommitBatchTx) {
@@ -399,6 +404,10 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 						"batchIndex", batchInfo.batchIndex, "error", err)
 					return
 				}
+				d.logger.Info("########## REORG-TEST [3/3] RECOVERED — deriveForce fill-gap rewrote batch onto canonical ##########",
+					"batchIndex", batchInfo.batchIndex,
+					"preReorgHead", preReorgHead,
+					"reorgedToBlock", lastHeader.Number.Uint64())
 
 				d.metrics.SetL2DeriveHeight(lastHeader.Number.Uint64())
 				d.metrics.SetSyncedBatchIndex(batchInfo.batchIndex)
@@ -417,8 +426,11 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 			}
 			for i := range rebuilt {
 				if rebuilt[i] != batchInfo.blobHashes[i] {
-					d.logger.Info("blob hash mismatch; triggering self-heal reorg",
+					d.logger.Info("########## REORG-TEST [2/3] REORG DETECTED — local blob mismatch vs L1 batch; triggering deriveForce self-heal ##########",
 						"batchIndex", batchInfo.batchIndex,
+						"firstL2Block", batchInfo.firstBlockNumber,
+						"lastL2Block", batchInfo.lastBlockNumber,
+						"mismatchAtBlob", i,
 						"expected", batchInfo.blobHashes[i].Hex(),
 						"rebuilt", rebuilt[i].Hex())
 
@@ -427,6 +439,14 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 						d.logger.Error("local verify self-heal: fetch real batch failed",
 							"batchIndex", batchInfo.batchIndex, "error", fetchErr)
 						return
+					}
+
+					// Snapshot the local head before reorg so the [3/3] log can
+					// show roughly how many blocks were rolled back / rewritten.
+					preReorgHead, _ := d.l2Client.BlockNumber(ctx)
+					depthApprox := uint64(0)
+					if preReorgHead >= batchInfo.firstBlockNumber {
+						depthApprox = preReorgHead - batchInfo.firstBlockNumber + 1
 					}
 
 					// Quiesce blocksync + broadcast reactors via withReactorsQuiesced
@@ -443,6 +463,12 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 							"batchIndex", batchInfo.batchIndex, "error", err)
 						return
 					}
+					d.logger.Info("########## REORG-TEST [3/3] RECOVERED — deriveForce rewrote batch onto canonical ##########",
+						"batchIndex", batchInfo.batchIndex,
+						"preReorgHead", preReorgHead,
+						"reorgedFromBlock", batchInfo.firstBlockNumber,
+						"reorgedToBlock", lastHeader.Number.Uint64(),
+						"depthApprox", depthApprox)
 					break
 				}
 			}
