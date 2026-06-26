@@ -1,12 +1,15 @@
-use crate::utils::{beneficiary_by_chain_id, query_block, HostExecutorOutput};
+use crate::utils::{
+    beneficiary_by_chain_id, query_block, query_morph_rpc_block, HostExecutorOutput,
+};
 use alloy_provider::{DynProvider, Provider};
 use anyhow::{bail, Context};
-use prover_executor_core::{build_morph_block, MorphExecutor};
+use morph_primitives::MorphHeader;
+use prover_executor_core::MorphExecutor;
 use prover_primitives::{
+    alloy_consensus::BlockHeader,
     predeployed::l2_to_l1_message::{
         SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT, WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT,
     },
-    TxTrace,
 };
 use prover_storage_rpc::{
     basic_rpc_db::{BasicRpcDb, RpcDb},
@@ -28,13 +31,10 @@ impl HostExecutor {
         provider: &DynProvider,
     ) -> Result<HostExecutorOutput, anyhow::Error> {
         // Fetch block.
-        let block = query_block(block_number, provider)
+        let block = query_morph_rpc_block(block_number, provider)
             .await
             .with_context(|| format!("query_block failed for block {block_number}"))?;
-        // Post-MPT migration (PR #886), the L2 state trie is a standard Ethereum MPT, so
-        // `header.state_root` is authoritative and replaces the previous custom `morph_diskRoot`
-        // RPC field. The root is re-derived locally below and checked against this value.
-        let post_state_root = block.header.state_root;
+        let post_state_root = block.header.state_root();
 
         // layer2 chain id
         let chain_id =
@@ -58,7 +58,7 @@ impl HostExecutor {
         let prev_state_root = prev_block.header.state_root;
 
         let tx_count = block.transactions.len();
-        let block_num = block.header.number.to::<u64>();
+        let block_num = block.header.number();
 
         // Init DB (RPC-backed, rooted at previous block).
         let rpc_db =
@@ -67,17 +67,15 @@ impl HostExecutor {
         // Warm up predeployed contract info.
         load_predeployed_contracts(&rpc_db).await?;
 
-        let txns = block
-            .transactions
-            .iter()
-            .map(|tx_trace| tx_trace.try_build_tx_envelope())
-            .collect::<Result<Vec<_>, _>>()?;
-        let morph_block = build_morph_block(&block.header, beneficiary, txns);
+        let morph_block = block
+            .into_consensus_block()
+            .map_header(|header| header.into_consensus())
+            .map_transactions(|tx| tx.into_inner());
 
         // Execute the whole block via reth's BasicBlockExecutor.
         let core_executor = MorphExecutor::new_ref(&rpc_db, chain_id);
         let bundle_state = core_executor
-            .execute_block(morph_block)
+            .execute_block(morph_block.clone())
             .with_context(|| format!("failed to execute block {block_number}"))?;
 
         // Populate state by fetching missing trie nodes/accounts from provider.
@@ -91,7 +89,7 @@ impl HostExecutor {
             ));
             state_for_verification.state_root()
         };
-        let expected_state_root = block.header.state_root;
+        let expected_state_root = post_state_root;
         if computed_state_root != expected_state_root {
             bail!(
                 "Mismatched state root after executing block {block_number}: expected {expected_state_root:?}, got {computed_state_root:?}"
@@ -102,7 +100,7 @@ impl HostExecutor {
         Ok(HostExecutorOutput {
             chain_id,
             beneficiary,
-            block,
+            block: morph_block,
             state,
             codes: rpc_db.bytecodes(),
             prev_state_root,
@@ -127,10 +125,10 @@ impl HostExecutor {
         provider: &DynProvider,
     ) -> Result<HostExecutorOutput, anyhow::Error> {
         // Fetch block.
-        let block = query_block(block_number, provider)
+        let block = query_morph_rpc_block(block_number, provider)
             .await
             .with_context(|| format!("query_block failed for block {block_number}"))?;
-        let post_state_root = block.header.state_root;
+        let post_state_root = block.header.state_root();
 
         // Fetch chain id and beneficiary.
         let chain_id =
@@ -147,7 +145,7 @@ impl HostExecutor {
         let prev_state_root = prev_block.header.state_root;
 
         let tx_count = block.transactions.len();
-        let block_num = block.header.number.to::<u64>();
+        let block_num = block.header.number();
 
         // Build the witness-backed DB.  This issues a single `debug_executionWitness` RPC call
         // and pre-populates the entire pre-state trie in memory.
@@ -160,17 +158,16 @@ impl HostExecutor {
         .await
         .context("failed to build ExecutionWitnessRpcDb")?;
 
-        let txns = block
-            .transactions
-            .iter()
-            .map(|tx_trace| tx_trace.try_build_tx_envelope())
-            .collect::<Result<Vec<_>, _>>()?;
-        let morph_block = build_morph_block(&block.header, beneficiary, txns);
+        let morph_block: alloy_consensus::Block<morph_primitives::MorphTxEnvelope, MorphHeader> =
+            block
+                .into_consensus_block()
+                .map_header(|header| header.into_consensus())
+                .map_transactions(|tx| tx.into_inner());
 
         // Execute the whole block via reth's BasicBlockExecutor.
         let core_executor = MorphExecutor::new_ref(&witness_db, chain_id);
         let bundle_state = core_executor
-            .execute_block(morph_block)
+            .execute_block(morph_block.clone())
             .with_context(|| format!("failed to execute block {block_number}"))?;
 
         // Verify post state root by applying the bundle diff to the pre-state.
@@ -196,7 +193,7 @@ impl HostExecutor {
         Ok(HostExecutorOutput {
             chain_id,
             beneficiary,
-            block,
+            block: morph_block,
             state: witness_db.state,
             codes,
             prev_state_root,

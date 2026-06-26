@@ -3966,7 +3966,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4391,8 +4391,8 @@ dependencies = [
  "libc",
  "log",
  "rustversion",
- "windows-link 0.1.3",
- "windows-result 0.3.4",
+ "windows-link 0.2.1",
+ "windows-result 0.4.1",
 ]
 
 [[package]]
@@ -4988,7 +4988,7 @@ dependencies = [
  "tokio",
  "tower-service",
  "tracing",
- "windows-registry 0.4.0",
+ "windows-registry 0.6.1",
 ]
 
 [[package]]
@@ -6290,8 +6290,8 @@ checksum = "1fafa6961cabd9c63bcd77a45d7e3b7f3b552b70417831fb0f56db717e72407e"
 
 [[package]]
 name = "morph-chainspec"
-version = "0.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#893ecbf78689aca8c2ff51125c8e049d99612192"
+version = "1.0.0"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#f5bc9cda2cc5a59a63ce9800cb4dcd83b67f0f1a"
 dependencies = [
  "alloy-chains",
  "alloy-consensus 2.0.5",
@@ -6312,8 +6312,8 @@ dependencies = [
 
 [[package]]
 name = "morph-evm"
-version = "0.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#893ecbf78689aca8c2ff51125c8e049d99612192"
+version = "1.0.0"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#f5bc9cda2cc5a59a63ce9800cb4dcd83b67f0f1a"
 dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-evm",
@@ -6336,8 +6336,8 @@ dependencies = [
 
 [[package]]
 name = "morph-payload-types"
-version = "0.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#893ecbf78689aca8c2ff51125c8e049d99612192"
+version = "1.0.0"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#f5bc9cda2cc5a59a63ce9800cb4dcd83b67f0f1a"
 dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-eips 2.0.5",
@@ -6355,8 +6355,8 @@ dependencies = [
 
 [[package]]
 name = "morph-primitives"
-version = "0.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#893ecbf78689aca8c2ff51125c8e049d99612192"
+version = "1.0.0"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#f5bc9cda2cc5a59a63ce9800cb4dcd83b67f0f1a"
 dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-eips 2.0.5",
@@ -6398,8 +6398,8 @@ dependencies = [
 
 [[package]]
 name = "morph-reference-index"
-version = "0.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#893ecbf78689aca8c2ff51125c8e049d99612192"
+version = "1.0.0"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#f5bc9cda2cc5a59a63ce9800cb4dcd83b67f0f1a"
 dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-primitives",
@@ -6423,8 +6423,8 @@ dependencies = [
 
 [[package]]
 name = "morph-revm"
-version = "0.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#893ecbf78689aca8c2ff51125c8e049d99612192"
+version = "1.0.0"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#f5bc9cda2cc5a59a63ce9800cb4dcd83b67f0f1a"
 dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-eips 2.0.5",
@@ -6445,8 +6445,8 @@ dependencies = [
 
 [[package]]
 name = "morph-rpc"
-version = "0.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#893ecbf78689aca8c2ff51125c8e049d99612192"
+version = "1.0.0"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix/payload-types-reth-codec-feature#f5bc9cda2cc5a59a63ce9800cb4dcd83b67f0f1a"
 dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-eips 2.0.5",
@@ -6748,7 +6748,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 3.1.0",
  "proc-macro2",
  "quote",
  "syn 2.0.111",
@@ -7919,6 +7919,7 @@ dependencies = [
  "anyhow",
  "kzg-rs",
  "log",
+ "morph-primitives",
  "morph-revm",
  "prover-executor-core",
  "prover-mpt",
@@ -7958,6 +7959,7 @@ dependencies = [
 name = "prover-executor-host"
 version = "0.1.0"
 dependencies = [
+ "alloy-consensus 2.0.5",
  "alloy-network 2.0.5",
  "alloy-primitives",
  "alloy-provider",
@@ -8115,7 +8117,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.1",
  "rustls",
- "socket2 0.5.7",
+ "socket2 0.6.4",
  "thiserror 2.0.17",
  "tokio",
  "tracing",
@@ -8153,7 +8155,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.5.7",
+ "socket2 0.6.4",
  "tracing",
  "windows-sys 0.60.2",
 ]
@@ -11272,7 +11274,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -11375,7 +11377,7 @@ dependencies = [
  "security-framework 3.5.1",
  "security-framework-sys",
  "webpki-root-certs 1.0.7",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -11908,6 +11910,7 @@ dependencies = [
  "flexi_logger",
  "futures",
  "log",
+ "morph-primitives",
  "once_cell",
  "prometheus",
  "prover-executor-client",
@@ -12551,7 +12554,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -13500,10 +13503,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -14796,7 +14799,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

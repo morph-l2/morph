@@ -1,8 +1,8 @@
 use crate::zstd_util::{init_zstd_encoder, N_BLOCK_SIZE_TARGET};
 use anyhow::{ensure, Context, Result};
+use morph_primitives::Block;
 use prover_executor_client::types::input::BlobInfo;
 use prover_primitives::types::blob::{get_blob_data_from_blocks, get_blob_data_from_traces};
-use prover_primitives::types::block::L2Block;
 use prover_primitives::types::BlockTrace;
 use std::{io::Write, sync::Arc};
 
@@ -20,7 +20,7 @@ const BLOB_DATA_SIZE: usize = BLOB_WIDTH * N_BYTES_U256;
 const MAX_BLOB_BYTES_SIZE: usize = BLOB_WIDTH * (N_BYTES_U256 - 1); // 4096 * 31 = 126,976
 
 // Get blob info from L2 blocks
-pub fn get_blob_info_from_blocks(blocks: &Vec<L2Block>) -> Result<BlobInfo> {
+pub fn get_blob_info_from_blocks(blocks: &Vec<Block>) -> Result<BlobInfo> {
     // Assemble batch data from block header and transactions.
     let batch_data = get_blob_data_from_blocks(blocks);
 
@@ -46,7 +46,7 @@ pub fn get_blob_info_from_traces(
 }
 
 /// Encode batch data from L2 blocks into multiple blob infos (one per 126,976-byte chunk).
-pub fn get_blob_infos_from_blocks(blocks: &[L2Block]) -> Result<Vec<BlobInfo>> {
+pub fn get_blob_infos_from_blocks(blocks: &[Block]) -> Result<Vec<BlobInfo>> {
     let batch_data = get_blob_data_from_blocks(&blocks.to_vec());
     let compressed = compresse_batch(batch_data.as_slice())?;
     encode_multi_blob(compressed)

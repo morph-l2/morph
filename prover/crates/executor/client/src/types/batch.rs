@@ -1,5 +1,7 @@
 use crate::types::input::BlockInput;
+use alloy_consensus::{BlockHeader, SignableTransaction};
 use alloy_primitives::Keccak256;
+use morph_primitives::MorphTxEnvelope;
 use revm::primitives::B256;
 
 /// BatchInfo is metadata of chunk, with following fields:
@@ -25,21 +27,28 @@ impl BatchInfo {
     /// Construct by block inputs
     pub fn from_block_inputs(
         block_inputs: &[BlockInput],
+        prev_state_root: B256,
         post_state_root: B256,
         withdraw_root: B256,
         sequencer_root: B256,
     ) -> Self {
         let blocks = block_inputs.iter().map(|x| x.current_block.clone()).collect::<Vec<_>>();
-        let chain_id = blocks.first().unwrap().chain_id;
-        let prev_state_root = blocks.first().unwrap().prev_state_root;
+        let chain_id = 2818;
+
+        let mut total_num_l1_txs = 0;
+        for block in &blocks {
+            let transactions: &Vec<morph_primitives::MorphTxEnvelope> = &block.body.transactions;
+            let num_l1_txs =
+                transactions.iter().filter(|tx| tx.is_l1_msg()).collect::<Vec<_>>().len();
+            total_num_l1_txs += num_l1_txs;
+        }
 
         let mut data_hasher = Keccak256::new();
-        data_hasher.update(blocks.last().unwrap().header.number.to::<u64>().to_be_bytes());
-        let num_l1_txs: u16 = blocks.iter().map(|x| x.num_l1_txs()).sum::<u64>() as u16;
-        data_hasher.update(num_l1_txs.to_be_bytes());
+        data_hasher.update(blocks.last().unwrap().header.number().to_be_bytes());
+        data_hasher.update((total_num_l1_txs as u16).to_be_bytes());
 
         for block in blocks.iter() {
-            block.hash_l1_msg(&mut data_hasher);
+            Self::hash_l1_msg(&block.body.transactions, &mut data_hasher);
         }
         let l1_data_hash = data_hasher.finalize();
 
@@ -50,6 +59,15 @@ impl BatchInfo {
             withdraw_root: Some(withdraw_root),
             sequencer_root: Some(sequencer_root),
             data_hash: l1_data_hash,
+        }
+    }
+
+    /// Hashes the L1 messages in the block using the provided hasher.
+    pub fn hash_l1_msg(transactions: &Vec<MorphTxEnvelope>, hasher: &mut Keccak256) {
+        for tx in transactions {
+            if let MorphTxEnvelope::L1Msg(l1) = tx {
+                hasher.update(l1.signature_hash());
+            }
         }
     }
 

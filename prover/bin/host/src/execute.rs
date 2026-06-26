@@ -3,7 +3,7 @@ use prover_executor_client::{types::input::ExecutorInput, EVMVerifier};
 use prover_executor_host::{
     blob::get_blob_infos_from_blocks,
     execute::HostExecutor,
-    utils::{assemble_block_input, query_block, HostExecutorOutput},
+    utils::{assemble_block_input, HostExecutorOutput},
     ClientBlockInput,
 };
 
@@ -24,8 +24,8 @@ pub async fn execute(
 ) -> Result<ClientBlockInput, anyhow::Error> {
     let output: HostExecutorOutput = HostExecutor::execute_block(block_number, provider).await?;
 
-    let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
-    let block_input = assemble_block_input(output, prev_block);
+    // let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
+    let block_input = assemble_block_input(output);
     let _ = EVMVerifier::verify(vec![block_input.clone()])?;
     Ok(block_input)
 }
@@ -41,8 +41,8 @@ pub async fn execute_with_witness(
     let output: HostExecutorOutput =
         HostExecutor::execute_block_with_witness(block_number, provider).await?;
 
-    let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
-    let block_input = assemble_block_input(output, prev_block);
+    // let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
+    let block_input = assemble_block_input(output);
     let _ = EVMVerifier::verify(vec![block_input.clone()])?;
     Ok(block_input)
 }

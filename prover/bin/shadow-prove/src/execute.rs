@@ -9,7 +9,7 @@ use prover_executor_client::{
 use prover_executor_host::{
     blob::get_blob_infos_from_blocks,
     execute::HostExecutor,
-    utils::{assemble_block_input, query_block, HostExecutorOutput},
+    utils::{assemble_block_input, HostExecutorOutput},
 };
 use serde::{Deserialize, Serialize};
 
@@ -34,8 +34,8 @@ pub async fn execute(
 ) -> Result<BlockInput, anyhow::Error> {
     let output: HostExecutorOutput = HostExecutor::execute_block(block_number, provider).await?;
 
-    let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
-    let block_input = assemble_block_input(output, prev_block);
+    // let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
+    let block_input = assemble_block_input(output);
     Ok(block_input)
 }
 
@@ -47,8 +47,8 @@ pub async fn execute_with_witness(
     let output: HostExecutorOutput =
         HostExecutor::execute_block_with_witness(block_number, provider).await?;
 
-    let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
-    let block_input = assemble_block_input(output, prev_block);
+    // let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
+    let block_input = assemble_block_input(output);
     Ok(block_input)
 }
 
@@ -146,12 +146,14 @@ mod tests {
         vec,
     };
 
+    use alloy_consensus::BlockHeader;
     use alloy_primitives::{hex, Address, B256};
     use alloy_provider::{Provider, ProviderBuilder};
+    use morph_primitives::MorphHeader;
     use prover_executor_client::{types::input::BlockInput, EVMVerifier};
     use prover_executor_host::{
         trace::trace_to_input,
-        utils::{assemble_block_input, query_block, HostExecutorOutput, ProverBlock},
+        utils::{assemble_block_input, query_morph_rpc_block, HostExecutorOutput},
     };
     use prover_primitives::types::BlockTrace;
     use prover_utils::provider::get_block_trace;
@@ -261,7 +263,7 @@ mod tests {
             let block_input: BlockInput = serde_json::from_reader(reader)
                 .unwrap_or_else(|e| panic!("Failed to deserialize {:?}: {e}", path));
             let _ = EVMVerifier::verify(vec![block_input.clone()]).unwrap();
-            println!("block_{:?} verify success", block_input.current_block.header.number);
+            println!("block_{:?} verify success", block_input.current_block.number());
         }
     }
 
@@ -272,29 +274,31 @@ mod tests {
             .connect_http("https://rpc-quicknode.morphl2.io".parse().unwrap())
             .erased();
         let mut inputs = vec![];
-        let mut prev_block: Option<ProverBlock> = None;
         for block_number in 20430946u64..20431546u64 {
-            if prev_block.is_none() {
-                prev_block =
-                    Some(query_block(block_number.saturating_sub(1), &provider).await.unwrap());
-            }
-            let current_block = query_block(block_number, &provider).await.unwrap();
+            let current_block = query_morph_rpc_block(block_number, &provider).await.unwrap();
             println!(
                 "fetched block {}, next_l1_msg_index: {}",
                 block_number, current_block.header.next_l1_msg_index
             );
+            let morph_block: alloy_consensus::Block<
+                morph_primitives::MorphTxEnvelope,
+                MorphHeader,
+            > = current_block
+                .into_consensus_block()
+                .map_header(|header| header.into_consensus())
+                .map_transactions(|tx| tx.into_inner());
+
             let output: HostExecutorOutput = HostExecutorOutput {
                 chain_id: 2818,
                 beneficiary: Address::default(),
-                block: current_block.clone(),
+                block: morph_block.clone(),
                 state: Default::default(),
                 codes: Default::default(),
                 prev_state_root: Default::default(),
                 post_state_root: Default::default(),
             };
-            let block_input = assemble_block_input(output, prev_block.unwrap());
+            let block_input = assemble_block_input(output);
             inputs.push(block_input);
-            prev_block = Some(current_block);
         }
 
         let path = Path::new("proof/shadow_input.json");
@@ -307,6 +311,7 @@ mod tests {
 
         let batch_info = prover_executor_client::types::batch::BatchInfo::from_block_inputs(
             &inputs,
+            B256::default(),
             B256::default(),
             B256::default(),
             B256::default(),
@@ -323,6 +328,7 @@ mod tests {
         let inputs: Vec<BlockInput> = serde_json::from_reader(reader).unwrap();
         let batch_info = prover_executor_client::types::batch::BatchInfo::from_block_inputs(
             &inputs,
+            B256::default(),
             B256::default(),
             B256::default(),
             B256::default(),

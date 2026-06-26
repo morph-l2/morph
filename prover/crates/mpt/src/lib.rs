@@ -158,6 +158,7 @@ impl EthereumState {
 
     /// Computes the state root.
     pub fn state_root(&self) -> B256 {
+        // The first call will perform a full calculation.
         self.state_trie.hash()
     }
 }

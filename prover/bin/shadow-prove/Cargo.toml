@@ -42,6 +42,7 @@ prover-executor-host = { workspace = true }
 prover-executor-client = { workspace = true }
 prover-primitives = { workspace = true }
 prover-utils.workspace = true
+morph-primitives = { workspace = true }
 
 [dev-dependencies]
 clap = { workspace = true, features = ["derive"] }

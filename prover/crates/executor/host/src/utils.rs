@@ -4,10 +4,9 @@ use alloy_primitives::{Address, B256};
 use alloy_provider::{DynProvider, EthGetBlock, Provider};
 use alloy_rpc_types::{BlockNumberOrTag, Header as RpcHeader};
 use anyhow::Context;
+use morph_primitives::Block;
 use prover_mpt::EthereumState;
-use prover_primitives::types::block::L2Block;
 use prover_primitives::types::{BlockHeader, TransactionTrace};
-use prover_primitives::TxTrace;
 use revm::state::Bytecode;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -70,7 +69,7 @@ pub struct HostExecutorOutput {
     /// beneficiary(coinbase)
     pub beneficiary: Address,
     /// executed block
-    pub block: ProverBlock,
+    pub block: Block,
     /// State containing sparse MPT nodes.
     pub state: EthereumState,
     /// executed codes
@@ -82,28 +81,12 @@ pub struct HostExecutorOutput {
 }
 
 /// Assembles a [ClientBlockInput] from the [HostExecutorOutput] and previous [ProverBlock].
-pub fn assemble_block_input(
-    output: HostExecutorOutput,
-    prev_block: ProverBlock,
-) -> ClientBlockInput {
+pub fn assemble_block_input(output: HostExecutorOutput) -> ClientBlockInput {
     let block = output.block;
     let state = output.state;
     let codes = output.codes;
 
-    let l2_block = L2Block {
-        chain_id: output.chain_id,
-        coinbase: output.beneficiary,
-        header: block.header,
-        transactions: block
-            .transactions
-            .iter()
-            .map(|tx_trace| tx_trace.try_build_tx_envelope().unwrap())
-            .collect(),
-        prev_state_root: output.prev_state_root,
-        post_state_root: output.post_state_root,
-        start_l1_queue_index: prev_block.header.next_l1_msg_index.to::<u64>(),
-    };
-    ClientBlockInput { current_block: l2_block, parent_state: state, bytecodes: codes }
+    ClientBlockInput { current_block: block, parent_state: state, bytecodes: codes }
 }
 
 /// Queries the Morph RPC block at a given block number.

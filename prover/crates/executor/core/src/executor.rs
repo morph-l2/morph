@@ -1,9 +1,7 @@
-use alloy_consensus::{BlockBody, Header};
-use alloy_primitives::Bloom;
 use anyhow::Result;
 use morph_chainspec::{hardfork::MorphHardfork, MorphChainSpec, MORPH_HOODI, MORPH_MAINNET};
 use morph_evm::MorphEvmConfig;
-use morph_primitives::{Block as MorphBlock, MorphHeader, MorphReceipt};
+use morph_primitives::{Block as MorphBlock, MorphReceipt};
 use reth_evm::execute::{BasicBlockExecutor, Executor};
 use reth_execution_types::BlockExecutionResult;
 use reth_primitives_traits::RecoveredBlock;
@@ -47,7 +45,6 @@ where
         let (bundle_state, _) = self.execute_recovered_block(&recovered_block)?;
         Ok(bundle_state)
     }
-
 }
 
 impl<DB> MorphExecutor<State<DB>>
@@ -55,7 +52,11 @@ where
     DB: Database + std::fmt::Debug,
 {
     /// Compatibility constructor for callers that still build a [`State`] manually.
-    pub fn with_hardfork(db: State<DB>, _block_env: revm::context::BlockEnv, chain_id: u64) -> Self {
+    pub fn with_hardfork(
+        db: State<DB>,
+        _block_env: revm::context::BlockEnv,
+        chain_id: u64,
+    ) -> Self {
         Self::new(db, chain_id)
     }
 }
@@ -68,29 +69,6 @@ where
     pub fn new_ref(db: DB, chain_id: u64) -> Self {
         Self::new(WrapDatabaseRef(db), chain_id)
     }
-}
-
-/// Builds a Morph block from prover block fields.
-pub fn build_morph_block(
-    header: &prover_primitives::types::BlockHeader,
-    beneficiary: alloy_primitives::Address,
-    transactions: Vec<morph_primitives::MorphTxEnvelope>,
-) -> MorphBlock {
-    let inner = Header {
-        state_root: header.state_root,
-        beneficiary,
-        number: header.number.to::<u64>(),
-        gas_limit: header.gas_limit.to::<u64>(),
-        timestamp: header.timestamp.to::<u64>(),
-        difficulty: header.difficulty,
-        mix_hash: header.mix_hash.unwrap_or_default(),
-        base_fee_per_gas: header.base_fee_per_gas.map(|fee| fee.to::<u64>()),
-        logs_bloom: Bloom::default(),
-        ..Default::default()
-    };
-
-    let header = MorphHeader { next_l1_msg_index: header.next_l1_msg_index.to::<u64>(), inner };
-    MorphBlock::new(header, BlockBody { transactions, ..Default::default() })
 }
 
 fn chain_spec_by_chain_id(chain_id: u64) -> Arc<MorphChainSpec> {
