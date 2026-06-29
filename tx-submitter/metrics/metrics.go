@@ -28,6 +28,7 @@ type Metrics struct {
 	reorgDepthVal           uint64
 	reorgCountVal           uint64
 	confirmedTxs            *prometheus.CounterVec
+	batchCleanupFailures    prometheus.Counter
 }
 
 // NewMetrics creates a new Metrics instance
@@ -92,6 +93,10 @@ func NewMetrics() *Metrics {
 			},
 			[]string{"type"},
 		),
+		batchCleanupFailures: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "tx_submitter_batch_cleanup_failures_total",
+			Help: "Total number of sealed batch cleanup (DeleteUntil) failures after a finalize tx confirmed",
+		}),
 	}
 
 	// Register metrics with Prometheus
@@ -110,6 +115,7 @@ func NewMetrics() *Metrics {
 	_ = prometheus.Register(m.HasPendingFinalizeBatch)
 	_ = prometheus.Register(m.reorgs)
 	_ = prometheus.Register(m.confirmedTxs)
+	_ = prometheus.Register(m.batchCleanupFailures)
 
 	return m
 }
@@ -177,6 +183,13 @@ func (m *Metrics) IncReorgs() {
 	m.reorgs.Inc()
 }
 
+// IncBatchCleanupFailures increments the sealed batch cleanup failure counter.
+// A non-zero value means a finalize tx confirmed but DeleteUntil failed, so local
+// historical sealed batches may linger; it should drive an alert.
+func (m *Metrics) IncBatchCleanupFailures() {
+	m.batchCleanupFailures.Inc()
+}
+
 // SetReorgDepth sets the reorg depth metric
 func (m *Metrics) SetReorgDepth(depth float64) {
 	atomic.StoreUint64(&m.reorgDepthVal, uint64(depth))
@@ -222,4 +235,5 @@ func (m *Metrics) UnregisterMetrics() {
 	prometheus.Unregister(m.HasPendingFinalizeBatch)
 	prometheus.Unregister(m.reorgs)
 	prometheus.Unregister(m.confirmedTxs)
+	prometheus.Unregister(m.batchCleanupFailures)
 }
