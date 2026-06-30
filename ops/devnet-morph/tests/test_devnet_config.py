@@ -32,8 +32,14 @@ class DevnetConfigTest(unittest.TestCase):
     def test_devnet_clean_removes_compose_project_volumes(self):
         makefile = (REPO_ROOT / "Makefile").read_text()
 
+        self.assertIn(
+            "DEVNET_CLEAN_COMPOSE_FILES := -f docker-compose-devnet.yml -f docker-compose-reth.yml -f docker-compose-cluster.yml",
+            makefile,
+        )
+        self.assertIn("docker compose $(DEVNET_CLEAN_COMPOSE_FILES) down --volumes --remove-orphans", makefile)
         self.assertIn("--filter label=com.docker.compose.project=docker", makefile)
         self.assertNotIn("docker_morph_data_0 docker_morph_data_1", makefile)
+        self.assertNotIn("devnet-clean-build-reth", makefile)
 
     def test_default_compose_includes_layer1_derivation_node(self):
         compose = (DOCKER_DIR / "docker-compose-devnet.yml").read_text()

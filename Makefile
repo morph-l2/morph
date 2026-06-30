@@ -161,6 +161,7 @@ export MORPH_RETH_RUSTFLAGS
 export MORPH_RETH_DOCKER_TARGET
 export MORPH_RETH_ENTRYPOINT
 DEVNET_COMPOSE_FILES := -f docker-compose-devnet.yml
+DEVNET_CLEAN_COMPOSE_FILES := -f docker-compose-devnet.yml -f docker-compose-reth.yml -f docker-compose-cluster.yml
 
 ifeq ($(EXECUTION_CLIENT),geth)
 DEVNET_EXECUTION_DEPS := submodules
@@ -215,16 +216,12 @@ devnet-down-reth:
 .PHONY: devnet-down-reth
 
 devnet-clean-build: devnet-l1-clean
-	cd ops/docker && docker compose $(DEVNET_COMPOSE_FILES) down --volumes --remove-orphans
+	cd ops/docker && docker compose $(DEVNET_CLEAN_COMPOSE_FILES) down --volumes --remove-orphans
 	docker volume ls --filter label=com.docker.compose.project=docker --format='{{.Name}}' | xargs docker volume rm 2>/dev/null || true
 	rm -rf ops/l2-genesis/.devnet
 	rm -rf ops/docker/.devnet
 	rm -rf ops/docker/consensus ops/docker/execution
 .PHONY: devnet-clean-build
-
-devnet-clean-build-reth:
-	$(MAKE) devnet-clean-build EXECUTION_CLIENT=reth
-.PHONY: devnet-clean-build-reth
 
 devnet-clean: devnet-clean-build
 	docker image ls '*morph*' --format='{{.Repository}}' | xargs -r docker rmi
