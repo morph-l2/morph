@@ -1,9 +1,0 @@
-FROM ethereum/client-go:v1.14.11
-
-RUN apk add --no-cache jq
-
-COPY ops/docker/entrypoint-l1.sh /entrypoint.sh
-
-VOLUME ["/db"]
-
-ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]

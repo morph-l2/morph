@@ -1,6 +1,4 @@
 volumes:
-  morph_data_0:
-  morph_data_1:
   layer1-el-data:
   layer1-cl-data:
   layer1-vc-data:
@@ -118,7 +116,7 @@ services:
       - "6060"
       - "30303"
     volumes:
-      - "morph_data_0:/db"
+      - ".devnet/el0:/db"
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
       - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/nodekey0:/db/geth/nodekey"
@@ -141,7 +139,7 @@ services:
       - "6060"
       - "30303"
     volumes:
-      - "morph_data_1:/db"
+      - ".devnet/el1:/db"
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
       - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/nodekey1:/db/geth/nodekey"
@@ -245,27 +243,12 @@ services:
       - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
       - TX_SUBMITTER_L1_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
       - TX_SUBMITTER_L2_ETH_RPCS=http://morph-el-0:8545,http://morph-el-1:8545
-      - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
-      - TX_SUBMITTER_MAX_TX_SIZE=125952
-      - TX_SUBMITTER_POLL_INTERVAL=3s
-      - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
       - TX_SUBMITTER_TX_TIMEOUT=60s
       - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - TX_SUBMITTER_NETWORK_TIMEOUT=20s
-      - TX_SUBMITTER_MAX_BLOCK=1000
-      - TX_SUBMITTER_MIN_BLOCK=50
       - TX_SUBMITTER_FINALIZE=true
-      - TX_SUBMITTER_MAX_FINALIZE_NUM=100
       - TX_SUBMITTER_PRIORITY_ROLLUP=true
       - TX_SUBMITTER_SEAL_BATCH=true
-      - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
-      - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
-      - TX_SUBMITTER_METRICS_PORT=6060
       - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000
-      - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
-      - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100
-      - TX_SUBMITTER_LOG_FILE_MAX_AGE=7
-      - TX_SUBMITTER_LOG_COMPRESS=true
       - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
       - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
       - TX_SUBMITTER_BATCH_V2_UPGRADE_TIME=1777533291
@@ -292,10 +275,5 @@ services:
       - INTERVAL=28000
       - L2_GAS_PRICE_ORACLE=0x530000000000000000000000000000000000000F
       - L2_GAS_ORACLE_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-      - OVERHEAD_THRESHOLD=200
       - OVERHEAD_INTERVAL=10
-      - TXN_PER_BLOCK=1
-      - TXN_PER_BATCH=50
       - L1_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - OVERHEAD_SWITCH=${OVERHEAD_SWITCH:-}
-      - MAX_OVERHEAD=${MAX_OVERHEAD:-}

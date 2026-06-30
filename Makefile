@@ -201,12 +201,10 @@ devnet-down-reth:
 
 devnet-clean-build: devnet-l1-clean
 	cd ops/docker && docker compose $(DEVNET_COMPOSE_FILES) down --volumes --remove-orphans
-	docker volume ls --filter name=docker_ --format='{{.Name}}' | xargs docker volume rm 2>/dev/null || true
+	docker volume rm docker_morph_data_0 docker_morph_data_1 docker_morph_data_2 docker_morph_data_3 docker_sentry_el_data docker_sentry_el_data_1 2>/dev/null || true
 	rm -rf ops/l2-genesis/.devnet
 	rm -rf ops/docker/.devnet
-	rm -rf ops/docker/consensus/beacondata ops/docker/consensus/validatordata ops/docker/consensus/genesis.ssz
-	rm -rf ops/docker/execution/geth
-	rm -rf ops/docker/execution/reth
+	rm -rf ops/docker/consensus ops/docker/execution
 .PHONY: devnet-clean-build
 
 devnet-clean-build-reth:
