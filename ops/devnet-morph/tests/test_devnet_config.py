@@ -40,6 +40,7 @@ class DevnetConfigTest(unittest.TestCase):
         self.assertIn("--filter label=com.docker.compose.project=docker", makefile)
         self.assertNotIn("docker_morph_data_0 docker_morph_data_1", makefile)
         self.assertNotIn("devnet-clean-build-reth", makefile)
+        self.assertNotIn("devnet-clean-reth", makefile)
 
     def test_default_compose_includes_layer1_derivation_node(self):
         compose = (DOCKER_DIR / "docker-compose-devnet.yml").read_text()

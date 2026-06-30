@@ -228,10 +228,6 @@ devnet-clean: devnet-clean-build
 	docker image ls '*sentry-*' --format='{{.Repository}}' | xargs -r docker rmi
 .PHONY: devnet-clean
 
-devnet-clean-reth:
-	$(MAKE) devnet-clean EXECUTION_CLIENT=reth
-.PHONY: devnet-clean-reth
-
 devnet-l1:
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --only-l1
 
