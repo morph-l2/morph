@@ -38,6 +38,12 @@ parser.add_argument('--sequencer-address',
 parser.add_argument('--sequencer-upgrade-offset-seconds', type=int,
                     default=int(os.environ.get('SEQUENCER_UPGRADE_OFFSET_SECONDS', '0')),
                     help='Seconds from now before single-sequencer mode activates')
+parser.add_argument('--deployer-private-key',
+                    default=os.environ.get(
+                        'DEPLOYER_PRIVATE_KEY',
+                        '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+                    ),
+                    help='Private key for the L1 contract deployer/owner')
 # parser.add_argument('--deploy', help='Whether the contracts should be predeployed or deployed', action="store_true")
 parser.add_argument('--debugccc', help='Whether set the debug log level for ccc', action="store_true")
 
@@ -336,13 +342,26 @@ def configure_l1_sequencer(paths, args, addresses, deploy_config):
         raise RuntimeError(
             f'sequencer private key derives {derived.stdout.strip()}, expected {args.sequencer_address}')
 
+    owner = run_command_capture_output([
+        'cast', 'call', l1_sequencer_addr,
+        'owner()(address)',
+        '--rpc-url', 'http://127.0.0.1:9545',
+    ], cwd=paths.contracts_dir).stdout.strip().lower()
+    deployer = run_command_capture_output([
+        'cast', 'wallet', 'address',
+        '--private-key', args.deployer_private_key,
+    ], cwd=paths.contracts_dir).stdout.strip().lower()
+    if deployer != owner:
+        raise RuntimeError(
+            f'deployer private key derives {deployer}, but L1Sequencer owner is {owner}')
+
     log.info(f'Setting first L1Sequencer: sequencer={args.sequencer_address} (active from block 0)')
     run_command([
         'cast', 'send', l1_sequencer_addr,
         'setFirstSequencer(address)',
         args.sequencer_address,
         '--rpc-url', 'http://127.0.0.1:9545',
-        '--private-key', deploy_config['BLOCK_SIGNER_PRIVATE_KEY'],
+        '--private-key', args.deployer_private_key,
     ], cwd=paths.contracts_dir)
 
     latest_l1_block = eth_blockNumber('127.0.0.1:9545') or 1
