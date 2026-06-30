@@ -15,6 +15,7 @@ require (
 	github.com/klauspost/compress v1.17.9
 	github.com/mdlayher/vsock v1.2.1
 	github.com/morph-l2/go-ethereum v1.10.14-0.20260623033834-bb0b3067eb62
+	github.com/morph-l2/morph-da-codec/bindings/decoder v0.0.0-20260624152917-9ca9683922f4
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.17.0
 	github.com/spf13/viper v1.13.0
