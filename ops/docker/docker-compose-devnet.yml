@@ -150,30 +150,6 @@ services:
       - "/bin/bash"
       - "/entrypoint.sh"
 
-  morph-el-2:
-    container_name: morph-el-2
-    depends_on:
-      - morph-el-0
-    image: morph-geth:latest
-    restart: unless-stopped
-    ports:
-      - "8745:8545"
-      - "8746:8546"
-      - "8551"
-      - "6060"
-      - "30303"
-    volumes:
-      - ".devnet/el2:/db"
-      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
-      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
-      - "${PWD}/nodekey2:/db/geth/nodekey"
-      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
-    environment:
-      - RUST_LOG=${RUST_LOG}
-    entrypoint:
-      - "/bin/bash"
-      - "/entrypoint.sh"
-
   # ========== L2 Nodes ==========
   node-0:
     container_name: node-0
@@ -239,44 +215,9 @@ services:
       - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
       - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
       - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
-    volumes:
-      - ".devnet/node1:${NODE_DATA_DIR}"
-      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
-    command: >
-      morphnode
-      --home $NODE_DATA_DIR
-
-  node-2:
-    container_name: node-2
-    depends_on:
-      morph-el-2:
-        condition: service_started
-      node-0:
-        condition: service_started
-    image: morph-node:latest
-    restart: unless-stopped
-    ports:
-      - "26656"
-      - "26657"
-      - "26658"
-      - "26660"
-    environment:
-      - EMPTY_BLOCK_DELAY=true
-      - MORPH_NODE_L2_ETH_RPC=http://morph-el-2:8545
-      - MORPH_NODE_L2_ENGINE_RPC=http://morph-el-2:8551
-      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
-      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
-      - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
-      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
-      - MORPH_NODE_L1_CONFIRMATIONS=0
-      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
-      - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
-      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
-      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
       - MORPH_NODE_DERIVATION_VERIFY_MODE=layer1
     volumes:
-      - ".devnet/node2:${NODE_DATA_DIR}"
+      - ".devnet/node1:${NODE_DATA_DIR}"
       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
     command: >
       morphnode
@@ -290,8 +231,6 @@ services:
         condition: service_started
       node-1:
         condition: service_started
-      node-2:
-        condition: service_started
     build:
       context: ../..
       dockerfile: ops/docker/Dockerfile.submitter
@@ -304,7 +243,7 @@ services:
       - TX_SUBMITTER_BUILD_ENV=dev
       - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
       - TX_SUBMITTER_L1_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
-      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-el-0:8545,http://morph-el-1:8545,http://morph-el-2:8545
+      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-el-0:8545,http://morph-el-1:8545
       - TX_SUBMITTER_TX_TIMEOUT=60s
       - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
       - TX_SUBMITTER_FINALIZE=true

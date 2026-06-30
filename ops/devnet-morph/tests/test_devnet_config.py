@@ -45,10 +45,12 @@ class DevnetConfigTest(unittest.TestCase):
     def test_default_compose_includes_layer1_derivation_node(self):
         compose = (DOCKER_DIR / "docker-compose-devnet.yml").read_text()
 
-        self.assertIn("morph-el-2:", compose)
-        self.assertIn("node-2:", compose)
-        self.assertIn("MORPH_NODE_L2_ETH_RPC=http://morph-el-2:8545", compose)
+        self.assertIn("node-1:", compose)
+        self.assertIn("MORPH_NODE_L2_ETH_RPC=http://morph-el-1:8545", compose)
         self.assertIn("MORPH_NODE_DERIVATION_VERIFY_MODE=layer1", compose)
+        self.assertNotIn("morph-el-2:", compose)
+        self.assertNotIn("node-2:", compose)
+        self.assertNotIn("morph-el-2:8545", compose)
 
     def test_cluster_compose_defines_ha_services(self):
         cluster_compose = DOCKER_DIR / "docker-compose-cluster.yml"

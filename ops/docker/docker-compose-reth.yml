@@ -30,6 +30,3 @@ services:
 
   morph-el-1:
     <<: *reth-service
-
-  morph-el-2:
-    <<: *reth-service
