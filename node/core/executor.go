@@ -271,7 +271,7 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 	}
 
 	// We only accept the continuous blocks for now.
-	// It acts like full sync. Snap sync is not enabled until the Geth enables snapshot with zkTrie
+	// It acts like full sync; snap sync is not enabled.
 	if wrappedBlock.Number > height+1 {
 		e.logger.Error("geth is behind",
 			"consensus_block", wrappedBlock.Number,
