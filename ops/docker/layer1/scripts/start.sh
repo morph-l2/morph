@@ -26,7 +26,7 @@ echo "=== Starting Ethereum Network ==="
 cd "$PROJECT_DIR/.."
 
 # Start all services
-docker compose -f docker-compose-4nodes.yml up -d layer1-el layer1-cl layer1-vc
+docker compose -f docker-compose-devnet.yml up -d layer1-el layer1-cl layer1-vc
 
 echo ""
 echo "Waiting for containers to start..."
@@ -52,7 +52,7 @@ echo "  Layer1 CL HTTP API: http://localhost:4000"
 echo "  Layer1 CL Metrics: http://localhost:5054"
 echo ""
 echo "View logs:"
-echo "  docker compose -f docker-compose-4nodes.yml logs -f layer1-el layer1-cl layer1-vc"
+echo "  docker compose -f docker-compose-devnet.yml logs -f layer1-el layer1-cl layer1-vc"
 echo ""
 echo "Stop network:"
-echo "  docker compose -f docker-compose-4nodes.yml down"
+echo "  docker compose -f docker-compose-devnet.yml down"

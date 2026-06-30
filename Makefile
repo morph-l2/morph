@@ -158,7 +158,7 @@ export MORPH_RETH_BUILD_PROFILE
 export MORPH_RETH_RUSTFLAGS
 export MORPH_RETH_DOCKER_TARGET
 export MORPH_RETH_ENTRYPOINT
-DEVNET_COMPOSE_FILES := -f docker-compose-4nodes.yml
+DEVNET_COMPOSE_FILES := -f docker-compose-devnet.yml
 
 ifeq ($(EXECUTION_CLIENT),geth)
 DEVNET_EXECUTION_DEPS := submodules
@@ -243,18 +243,18 @@ reth:
 .PHONY: reth
 
 # tx-submitter
-SUBMITTERS := $(shell grep -o 'tx-submitter-[0-9]*[^:]' ops/docker/docker-compose-4nodes.yml | sort | uniq)
+SUBMITTERS := $(shell grep -o 'tx-submitter-[0-9]*[^:]' ops/docker/docker-compose-devnet.yml | sort | uniq)
 rebuild-all-tx-submitter:
 	@for submitter in $(SUBMITTERS); do \
-		docker compose -f ./ops/docker/docker-compose-4nodes.yml up -d --build $$submitter --no-deps; \
+		docker compose -f ./ops/docker/docker-compose-devnet.yml up -d --build $$submitter --no-deps; \
 	done
 stop-all-tx-submitter:
 	@for submitter in $(SUBMITTERS); do \
-		docker compose -f ./ops/docker/docker-compose-4nodes.yml stop $$submitter; \
+		docker compose -f ./ops/docker/docker-compose-devnet.yml stop $$submitter; \
 	done
 start-all-tx-submitter:
 	@for submitter in $(SUBMITTERS); do \
-		docker compose -f ./ops/docker/docker-compose-4nodes.yml start $$submitter; \
+		docker compose -f ./ops/docker/docker-compose-devnet.yml start $$submitter; \
 	done
 
 # build geth

@@ -49,7 +49,7 @@ ETH = GWEI * GWEI
 
 def compose_file_args(execution_client):
     """Return docker-compose -f flags for the chosen L2 execution client."""
-    args = ['-f', 'docker-compose-4nodes.yml']
+    args = ['-f', 'docker-compose-devnet.yml']
     if execution_client == 'reth':
         args.extend(['-f', 'docker-compose-reth.yml'])
     return args
@@ -124,7 +124,7 @@ def devnet_l1(paths, result=None):
     
     # Start layer1 services
     log.info('Starting layer1 services (layer1-el, layer1-cl, layer1-vc)...')
-    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up', '-d', 
+    run_command(['docker', 'compose', '-f', 'docker-compose-devnet.yml', 'up', '-d',
                  'layer1-el', 'layer1-cl', 'layer1-vc'], check=False, cwd=paths.ops_dir, env={
             'PWD': paths.ops_dir
         })
@@ -167,8 +167,8 @@ def devnet_l1(paths, result=None):
 
 
 def devnet_build(paths):
-    """Build the docker images declared in docker-compose-4nodes.yml."""
-    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'build'], cwd=paths.ops_dir, env={
+    """Build the docker images declared in docker-compose-devnet.yml."""
+    run_command(['docker', 'compose', '-f', 'docker-compose-devnet.yml', 'build'], cwd=paths.ops_dir, env={
         'PWD': paths.ops_dir,
         'DOCKER_BUILDKIT': '1',  # (should be available by default in later versions, but explicitly enable it anyway)
         'COMPOSE_DOCKER_CLI_BUILD': '1'  # use the docker cache
