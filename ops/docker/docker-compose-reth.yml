@@ -30,13 +30,3 @@ services:
 
   morph-el-1:
     <<: *reth-service
-
-  morph-el-2:
-    <<: *reth-service
-
-  morph-el-3:
-    <<: *reth-service
-
-  sentry-el-0:
-    <<: *reth-service
-    build: !reset null

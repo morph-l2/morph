@@ -1,0 +1,280 @@
+volumes:
+  layer1-el-data:
+  layer1-cl-data:
+  layer1-vc-data:
+
+services:
+  # ========== Layer1 Ethereum Node ==========
+  layer1-el:
+    image: ethereum/client-go:latest
+    container_name: layer1-el
+    ports:
+      - "9545:8545"
+      - "9546:8546"
+      - "8551:8551"
+    volumes:
+      - ./layer1/genesis:/network-configs:ro
+      - ./layer1/jwt:/jwt:ro
+      - layer1-el-data:/data
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mkdir -p /data/geth/execution-data
+        if [ ! -f /data/geth/execution-data/geth/chaindata/CURRENT ]; then
+          echo "Initializing genesis..."
+          geth init --datadir=/data/geth/execution-data /network-configs/genesis.json || exit 1
+        else
+          echo "Genesis already initialized, skipping init"
+        fi
+        exec geth --networkid=900 --datadir=/data/geth/execution-data --http --http.addr=0.0.0.0 --http.port=8545 --http.api=admin,engine,net,eth,web3,debug,txpool --http.vhosts=* --http.corsdomain=* --ws --ws.addr=0.0.0.0 --ws.port=8546 --ws.api=admin,engine,net,eth,web3,debug,txpool --ws.origins=* --allow-insecure-unlock --authrpc.port=8551 --authrpc.addr=0.0.0.0 --authrpc.vhosts=* --authrpc.jwtsecret=/jwt/jwtsecret --syncmode=full --miner.gasprice=1 --rpc.allow-unprotected-txs --metrics --metrics.addr=0.0.0.0 --metrics.port=9001 --discovery.port=30303 --port=30303
+    restart: unless-stopped
+
+  layer1-cl:
+    image: sigp/lighthouse:latest
+    container_name: layer1-cl
+    depends_on:
+      - layer1-el
+    ports:
+      - "4000:4000"
+      - "9000:9000"
+      - "9000:9000/udp"
+      - "9001:9001"
+      - "5054:5054"
+    volumes:
+      - ./layer1/genesis:/network-configs:ro
+      - ./layer1/jwt:/jwt:ro
+      - layer1-cl-data:/data
+    command:
+      - lighthouse
+      - beacon_node
+      - --supernode
+      - --debug-level=info
+      - --datadir=/data/lighthouse/beacon-data
+      - --listen-address=0.0.0.0
+      - --port=9000
+      - --http
+      - --http-address=0.0.0.0
+      - --http-port=4000
+      - --disable-packet-filter
+      - --execution-endpoints=http://layer1-el:8551
+      - --jwt-secrets=/jwt/jwtsecret
+      - --suggested-fee-recipient=0x8943545177806ED17B9F23F0a21ee5948eCaa776
+      - --testnet-dir=/network-configs
+      - --allow-insecure-genesis-sync
+      - --disable-enr-auto-update
+      - --enr-tcp-port=9000
+      - --enr-udp-port=9000
+      - --enr-quic-port=9001
+      - --quic-port=9001
+      - --metrics
+      - --metrics-address=0.0.0.0
+      - --metrics-allow-origin=*
+      - --metrics-port=5054
+      - --enable-private-discovery
+    restart: unless-stopped
+
+  layer1-vc:
+    image: sigp/lighthouse:latest
+    container_name: layer1-vc
+    depends_on:
+      - layer1-cl
+    volumes:
+      - ./layer1/genesis:/network-configs:ro
+      - ./layer1/keystores/layer1:/validator-keys
+      - layer1-vc-data:/data
+    command:
+      - lighthouse
+      - vc
+      - --debug-level=info
+      - --testnet-dir=/network-configs
+      - --validators-dir=/validator-keys/keys
+      - --secrets-dir=/validator-keys/secrets
+      - --init-slashing-protection
+      - --beacon-nodes=http://layer1-cl:4000
+      - --suggested-fee-recipient=0x8943545177806ED17B9F23F0a21ee5948eCaa776
+      - --metrics
+      - --metrics-address=0.0.0.0
+      - --metrics-allow-origin=*
+      - --metrics-port=5064
+    restart: unless-stopped
+
+  # ========== L2 Execution Clients ==========
+  morph-el-0:
+    container_name: morph-el-0
+    depends_on:
+      layer1-el:
+        condition: service_started
+    image: morph-geth:latest
+    build:
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.l2-geth
+    restart: unless-stopped
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+      - "8551"
+      - "6060"
+      - "30303"
+    volumes:
+      - ".devnet/el0:/db"
+      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/nodekey0:/db/geth/nodekey"
+    environment:
+      - RUST_LOG=${RUST_LOG}
+    entrypoint:
+      - "/bin/bash"
+      - "/entrypoint.sh"
+
+  morph-el-1:
+    container_name: morph-el-1
+    depends_on:
+      - morph-el-0
+    image: morph-geth:latest
+    restart: unless-stopped
+    ports:
+      - "8645:8545"
+      - "8646:8546"
+      - "8551"
+      - "6060"
+      - "30303"
+    volumes:
+      - ".devnet/el1:/db"
+      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/nodekey1:/db/geth/nodekey"
+      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
+    environment:
+      - RUST_LOG=${RUST_LOG}
+    entrypoint:
+      - "/bin/bash"
+      - "/entrypoint.sh"
+
+  # ========== L2 Nodes ==========
+  node-0:
+    container_name: node-0
+    depends_on:
+      morph-el-0:
+        condition: service_started
+    image: morph-node:latest
+    build:
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.l2-node
+    restart: unless-stopped
+    ports:
+      - "26656"
+      - "26657:26657"
+      - "26658"
+      - "26660"
+    environment:
+      - MORPH_NODE_L2_ETH_RPC=http://morph-el-0:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://morph-el-0:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_L1_CONFIRMATIONS=0
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
+      - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=${ACTIVE_SEQUENCER_PRIVATE_KEY}
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
+    volumes:
+      - ".devnet/node0:${NODE_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --home $NODE_DATA_DIR
+
+  node-1:
+    container_name: node-1
+    depends_on:
+      morph-el-1:
+        condition: service_started
+      node-0:
+        condition: service_started
+    image: morph-node:latest
+    restart: unless-stopped
+    ports:
+      - "26656"
+      - "26657"
+      - "26658"
+      - "26660"
+    environment:
+      - EMPTY_BLOCK_DELAY=true
+      - MORPH_NODE_L2_ETH_RPC=http://morph-el-1:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://morph-el-1:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_L1_CONFIRMATIONS=0
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
+      - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
+      - MORPH_NODE_DERIVATION_VERIFY_MODE=layer1
+    volumes:
+      - ".devnet/node1:${NODE_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --home $NODE_DATA_DIR
+
+  # ========== Submitter and Oracle ==========
+  tx-submitter-0:
+    container_name: tx-submitter-0
+    depends_on:
+      node-0:
+        condition: service_started
+      node-1:
+        condition: service_started
+    build:
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.submitter
+    image: morph-tx-submitter:latest
+    restart: unless-stopped
+    command: tx-submitter
+    ports:
+      - "8060:6060"
+    environment:
+      - TX_SUBMITTER_BUILD_ENV=dev
+      - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
+      - TX_SUBMITTER_L1_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-el-0:8545,http://morph-el-1:8545
+      - TX_SUBMITTER_TX_TIMEOUT=60s
+      - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - TX_SUBMITTER_FINALIZE=true
+      - TX_SUBMITTER_PRIORITY_ROLLUP=true
+      - TX_SUBMITTER_SEAL_BATCH=true
+      - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000
+      - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
+      - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
+      - TX_SUBMITTER_BATCH_V2_UPGRADE_TIME=1777533291
+
+  gas-price-oracle:
+    container_name: gas-price-oracle
+    depends_on:
+      node-0:
+        condition: service_started
+    build:
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.oracle
+    image: morph-oracle:latest
+    restart: unless-stopped
+    ports:
+      - "6070:6060"
+    command: >
+      ./app
+    environment:
+      - GAS_ORACLE_L1_RPC=${L1_ETH_RPC}
+      - GAS_ORACLE_L1_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
+      - GAS_ORACLE_L2_RPC=http://morph-el-0:8545
+      - GAS_THRESHOLD=5
+      - INTERVAL=28000
+      - L2_GAS_PRICE_ORACLE=0x530000000000000000000000000000000000000F
+      - L2_GAS_ORACLE_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+      - OVERHEAD_INTERVAL=10
+      - L1_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
