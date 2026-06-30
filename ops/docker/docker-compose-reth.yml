@@ -40,3 +40,7 @@ services:
   sentry-el-0:
     <<: *reth-service
     build: !reset null
+
+  sentry-el-1:
+    <<: *reth-service
+    build: !reset null

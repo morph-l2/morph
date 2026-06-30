@@ -199,6 +199,10 @@ devnet-down:
 	cd ops/docker && docker compose $(DEVNET_COMPOSE_FILES) down
 .PHONY: devnet-down
 
+devnet-down-reth:
+	$(MAKE) devnet-down EXECUTION_CLIENT=reth
+.PHONY: devnet-down-reth
+
 devnet-clean-build: devnet-l1-clean
 	cd ops/docker && docker compose $(DEVNET_COMPOSE_FILES) down --volumes --remove-orphans
 	docker volume ls --filter name=docker_ --format='{{.Name}}' | xargs docker volume rm 2>/dev/null || true
@@ -217,6 +221,10 @@ devnet-clean: devnet-clean-build
 	docker image ls '*morph*' --format='{{.Repository}}' | xargs -r docker rmi
 	docker image ls '*sentry-*' --format='{{.Repository}}' | xargs -r docker rmi
 .PHONY: devnet-clean
+
+devnet-clean-reth:
+	$(MAKE) devnet-clean EXECUTION_CLIENT=reth
+.PHONY: devnet-clean-reth
 
 devnet-l1:
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --only-l1
