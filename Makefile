@@ -137,6 +137,11 @@ go-ubuntu-builder:
 ################## devnet 4 nodes ####################
 
 EXECUTION_CLIENT ?= geth
+DEVNET_SINGLE_SEQUENCER ?= true
+DEVNET_SINGLE_SEQUENCER_ENABLED := $(filter true 1 yes,$(DEVNET_SINGLE_SEQUENCER))
+DEVNET_SEQUENCER_PRIVATE_KEY ?= 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+DEVNET_SEQUENCER_ADDRESS ?= 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+DEVNET_SEQUENCER_UPGRADE_OFFSET_SECONDS ?= 0
 MORPH_RETH_BUILD_FROM_SOURCE ?= false
 ifeq ($(MORPH_RETH_BUILD_FROM_SOURCE),true)
 MORPH_RETH_IMAGE ?= morph-reth:latest
@@ -171,7 +176,11 @@ $(error unsupported EXECUTION_CLIENT "$(EXECUTION_CLIENT)", expected "geth" or "
 endif
 
 devnet-up: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder
-	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT)
+	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT) \
+		$(if $(DEVNET_SINGLE_SEQUENCER_ENABLED),--single-sequencer,--pbft) \
+		--sequencer-private-key=$(DEVNET_SEQUENCER_PRIVATE_KEY) \
+		--sequencer-address=$(DEVNET_SEQUENCER_ADDRESS) \
+		--sequencer-upgrade-offset-seconds=$(DEVNET_SEQUENCER_UPGRADE_OFFSET_SECONDS)
 .PHONY: devnet-up
 
 devnet-up-reth:
@@ -179,7 +188,11 @@ devnet-up-reth:
 .PHONY: devnet-up-reth
 
 devnet-up-debugccc: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder
-	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT) --debugccc
+	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT) --debugccc \
+		$(if $(DEVNET_SINGLE_SEQUENCER_ENABLED),--single-sequencer,--pbft) \
+		--sequencer-private-key=$(DEVNET_SEQUENCER_PRIVATE_KEY) \
+		--sequencer-address=$(DEVNET_SEQUENCER_ADDRESS) \
+		--sequencer-upgrade-offset-seconds=$(DEVNET_SEQUENCER_UPGRADE_OFFSET_SECONDS)
 .PHONY: devnet-up-debugccc
 
 devnet-down:
