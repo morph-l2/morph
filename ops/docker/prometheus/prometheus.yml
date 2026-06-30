@@ -19,10 +19,6 @@ scrape_configs:
       - targets:
           - 'node-0:26660'
           - 'node-1:26660'
-          - 'node-2:26660'
-          - 'node-3:26660'
-          - 'sentry-node-0:26660'
-          - 'sentry-node-1:26660'
         labels:
           service: 'morph-node'
 
@@ -32,9 +28,5 @@ scrape_configs:
       - targets:
           - 'morph-el-0:6060'
           - 'morph-el-1:6060'
-          - 'morph-el-2:6060'
-          - 'morph-el-3:6060'
-          - 'sentry-el-0:6060'
-          - 'sentry-el-1:6060'
         labels:
           service: 'morph-geth'

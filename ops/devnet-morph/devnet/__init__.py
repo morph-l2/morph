@@ -23,10 +23,6 @@ parser.add_argument('--polyrepo-dir', help='Directory of the polyrepo', default=
 parser.add_argument('--only-l1', help='Only bootstrap l1 geth', action="store_true")
 parser.add_argument('--execution-client', choices=('geth', 'reth'), default='geth',
                     help='L2 execution client implementation to run')
-parser.add_argument('--single-sequencer', dest='single_sequencer', action='store_true', default=True,
-                    help='Start devnet in centralized single-sequencer mode (default)')
-parser.add_argument('--pbft', dest='single_sequencer', action='store_false',
-                    help='Keep the legacy PBFT-only devnet mode')
 parser.add_argument('--sequencer-private-key',
                     default=os.environ.get(
                         'SEQUENCER_PRIVATE_KEY',
@@ -41,7 +37,7 @@ parser.add_argument('--sequencer-address',
                     help='L1Sequencer address expected to match --sequencer-private-key')
 parser.add_argument('--sequencer-upgrade-offset-seconds', type=int,
                     default=int(os.environ.get('SEQUENCER_UPGRADE_OFFSET_SECONDS', '0')),
-                    help='Seconds from now before PBFT switches to single-sequencer mode')
+                    help='Seconds from now before single-sequencer mode activates')
 # parser.add_argument('--deploy', help='Whether the contracts should be predeployed or deployed', action="store_true")
 parser.add_argument('--debugccc', help='Whether set the debug log level for ccc', action="store_true")
 
@@ -265,16 +261,12 @@ def devnet_deploy(paths, args):
                      '--private-key', deploy_config['l2StakingPks'][i]
                      ])
 
-    sequencer_upgrade_time = 0
-    if args.single_sequencer:
-        configure_l1_sequencer(paths, args, addresses, deploy_config)
-        sequencer_upgrade_time = int((time.time() + args.sequencer_upgrade_offset_seconds) * 1000)
-        log.info(
-            f'Single sequencer mode enabled: sequencer={args.sequencer_address}, '
-            f'upgrade_time_ms={sequencer_upgrade_time}, '
-            f'upgrade_offset_seconds={args.sequencer_upgrade_offset_seconds}')
-    else:
-        log.info('PBFT-only devnet mode enabled')
+    configure_l1_sequencer(paths, args, addresses, deploy_config)
+    sequencer_upgrade_time = int((time.time() + args.sequencer_upgrade_offset_seconds) * 1000)
+    log.info(
+        f'Single sequencer mode enabled: sequencer={args.sequencer_address}, '
+        f'upgrade_time_ms={sequencer_upgrade_time}, '
+        f'upgrade_offset_seconds={args.sequencer_upgrade_offset_seconds}')
 
     rust_log_level = 'info'
     if args.debugccc:
@@ -296,8 +288,8 @@ def devnet_deploy(paths, args):
         env_data['Proxy__L1Staking'] = addresses['Proxy__L1Staking']
         env_data['MORPH_L1STAKING'] = addresses['Proxy__L1Staking']
         env_data['L1_SEQUENCER_CONTRACT'] = addresses.get('Proxy__L1Sequencer', '')
-        env_data['SEQUENCER_PRIVATE_KEY'] = args.sequencer_private_key if args.single_sequencer else ''
-        env_data['HA_SEQUENCER_ADDR'] = args.sequencer_address if args.single_sequencer else ''
+        env_data['SEQUENCER_PRIVATE_KEY'] = args.sequencer_private_key
+        env_data['HA_SEQUENCER_ADDR'] = args.sequencer_address
         env_data['SEQUENCER_UPGRADE_TIME'] = str(sequencer_upgrade_time)
         envfile.seek(0)
         for key, value in env_data.items():
@@ -321,7 +313,7 @@ def devnet_deploy(paths, args):
                     'L1_ETH_RPC': 'http://layer1-el:8545',
                     'L1_BEACON_CHAIN_RPC': 'http://layer1-cl:4000',
                     'L1_SEQUENCER_CONTRACT': addresses.get('Proxy__L1Sequencer', ''),
-                    'SEQUENCER_PRIVATE_KEY': args.sequencer_private_key if args.single_sequencer else '',
+                    'SEQUENCER_PRIVATE_KEY': args.sequencer_private_key,
                     'SEQUENCER_UPGRADE_TIME': str(sequencer_upgrade_time),
                 })
     wait_up(8545)

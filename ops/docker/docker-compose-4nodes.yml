@@ -1,20 +1,6 @@
-version: '3.8'
-
 volumes:
-  l1_execution:
-  l1_consensus:
-  postgres_data:
   morph_data_0:
   morph_data_1:
-  morph_data_2:
-  morph_data_3:
-  sentry_el_data:
-  sentry_el_data_1:
-  node_data_0:
-  node_data_1:
-  node_data_2:
-  node_data_3:
-  sentry_node_data:
   layer1-el-data:
   layer1-cl-data:
   layer1-vc-data:
@@ -25,9 +11,9 @@ services:
     image: ethereum/client-go:latest
     container_name: layer1-el
     ports:
-      - "9545:8545"   # RPC
-      - "9546:8546"   # WebSocket
-      - "8551:8551"   # Engine API
+      - "9545:8545"
+      - "9546:8546"
+      - "8551:8551"
     volumes:
       - ./layer1/genesis:/network-configs:ro
       - ./layer1/jwt:/jwt:ro
@@ -51,11 +37,11 @@ services:
     depends_on:
       - layer1-el
     ports:
-      - "4000:4000"   # HTTP API
-      - "9000:9000"   # P2P TCP/UDP
-      - "9000:9000/udp" # P2P UDP
-      - "9001:9001"   # P2P QUIC
-      - "5054:5054"   # Metrics
+      - "4000:4000"
+      - "9000:9000"
+      - "9000:9000/udp"
+      - "9001:9001"
+      - "5054:5054"
     volumes:
       - ./layer1/genesis:/network-configs:ro
       - ./layer1/jwt:/jwt:ro
@@ -114,7 +100,7 @@ services:
       - --metrics-port=5064
     restart: unless-stopped
 
-  # ========== L2 Services ==========
+  # ========== L2 Execution Clients ==========
   morph-el-0:
     container_name: morph-el-0
     depends_on:
@@ -166,55 +152,7 @@ services:
       - "/bin/bash"
       - "/entrypoint.sh"
 
-  morph-el-2:
-    container_name: morph-el-2
-    depends_on:
-      - morph-el-0
-    image: morph-geth:latest
-    restart: unless-stopped
-    ports:
-      - "8745:8545"
-      - "8746:8546"
-      - "8551"
-      - "6060"
-      - "30303"
-    volumes:
-      - "morph_data_2:/db"
-      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
-      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
-      - "${PWD}/nodekey2:/db/geth/nodekey"
-      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
-    environment:
-      - RUST_LOG=${RUST_LOG}
-    entrypoint:
-      - "/bin/bash"
-      - "/entrypoint.sh"
-
-  morph-el-3:
-    container_name: morph-el-3
-    depends_on:
-      - morph-el-0
-    image: morph-geth:latest
-    restart: unless-stopped
-    ports:
-      - "8845:8545"
-      - "8846:8546"
-      - "8551"
-      - "6060"
-      - "30303"
-    volumes:
-      - "morph_data_3:/db"
-      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
-      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
-      - "${PWD}/nodekey3:/db/geth/nodekey"
-      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
-    environment:
-      - RUST_LOG=${RUST_LOG}
-    entrypoint:
-      - "/bin/bash"
-      - "/entrypoint.sh"
-
-
+  # ========== L2 Nodes ==========
   node-0:
     container_name: node-0
     depends_on:
@@ -242,6 +180,7 @@ services:
       - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
       - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
       - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=${SEQUENCER_PRIVATE_KEY}
       - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
     volumes:
       - ".devnet/node0:${NODE_DATA_DIR}"
@@ -253,6 +192,8 @@ services:
   node-1:
     container_name: node-1
     depends_on:
+      morph-el-1:
+        condition: service_started
       node-0:
         condition: service_started
     image: morph-node:latest
@@ -263,6 +204,7 @@ services:
       - "26658"
       - "26660"
     environment:
+      - EMPTY_BLOCK_DELAY=true
       - MORPH_NODE_L2_ETH_RPC=http://morph-el-1:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://morph-el-1:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
@@ -274,7 +216,6 @@ services:
       - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
       - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
       - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
-      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=${SEQUENCER_PRIVATE_KEY:-}
       - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
     volumes:
       - ".devnet/node1:${NODE_DATA_DIR}"
@@ -283,280 +224,13 @@ services:
       morphnode
       --home $NODE_DATA_DIR
 
-  node-2:
-    container_name: node-2
-    depends_on:
-      node-0:
-        condition: service_started
-    image: morph-node:latest
-    restart: unless-stopped
-    ports:
-      - "26656"
-      - "26657"
-      - "26658"
-      - "26660"
-    environment:
-      - EMPTY_BLOCK_DELAY=true
-      - MORPH_NODE_L2_ETH_RPC=http://morph-el-2:8545
-      - MORPH_NODE_L2_ENGINE_RPC=http://morph-el-2:8551
-      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
-      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
-      - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
-      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
-      - MORPH_NODE_L1_CONFIRMATIONS=0
-      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
-      - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
-      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
-      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
-    volumes:
-      - ".devnet/node2:${NODE_DATA_DIR}"
-      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
-    command: >
-      morphnode
-      --home $NODE_DATA_DIR
-
-  node-3:
-    container_name: node-3
-    depends_on:
-      node-0:
-        condition: service_started
-    image: morph-node:latest
-    restart: unless-stopped
-    ports:
-      - "26656"
-      - "26657"
-      - "26658"
-      - "26660"
-    environment:
-      - EMPTY_BLOCK_DELAY=true
-      - MORPH_NODE_L2_ETH_RPC=http://morph-el-3:8545
-      - MORPH_NODE_L2_ENGINE_RPC=http://morph-el-3:8551
-      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
-      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
-      - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
-      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
-      - MORPH_NODE_L1_CONFIRMATIONS=0
-      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
-      - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
-      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
-      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
-    volumes:
-      - ".devnet/node3:${NODE_DATA_DIR}"
-      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
-    command: >
-      morphnode
-      --home $NODE_DATA_DIR
-
-  sentry-el-0:
-    container_name: sentry-el-0
-    depends_on:
-      node-3:
-        condition: service_started
-    image: morph-geth:latest
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.l2-geth
-    restart: unless-stopped
-    ports:
-      - "8945:8545"
-      - "8946:8546"
-      - "8551"
-      - "6060"
-      - "30303"
-    volumes:
-      - "sentry_el_data:/db"
-      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
-      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
-      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
-    entrypoint:
-      - "/bin/sh"
-      - "/entrypoint.sh"
-
-  sentry-node-0:
-    container_name: sentry-node-0
-    depends_on:
-      node-0:
-        condition: service_started
-    image: morph-node:latest
-    restart: unless-stopped
-    ports:
-      - "26656"
-      - "26657"
-      - "26658"
-      - "26660"
-    environment:
-      - EMPTY_BLOCK_DELAY=true
-      - MORPH_NODE_L2_ETH_RPC=http://sentry-el-0:8545
-      - MORPH_NODE_L2_ENGINE_RPC=http://sentry-el-0:8551
-      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
-      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
-      - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
-      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
-      - MORPH_NODE_L1_CONFIRMATIONS=0
-      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
-      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
-      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
-    volumes:
-      - ".devnet/node4:${NODE_DATA_DIR}"
-      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
-    command: >
-      morphnode
-      --home $NODE_DATA_DIR
-
-  sentry-el-1:
-    container_name: sentry-el-1
-    depends_on:
-      node-0:
-        condition: service_started
-    image: morph-geth:latest
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.l2-geth
-    restart: unless-stopped
-    ports:
-      - "9045:8545"
-      - "9046:8546"
-      - "8551"
-      - "6060"
-      - "30303"
-    volumes:
-      - "sentry_el_data_1:/db"
-      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
-      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
-    entrypoint:
-      - "/bin/sh"
-      - "/entrypoint.sh"
-
-  sentry-node-1:
-    container_name: sentry-node-1
-    depends_on:
-      sentry-el-1:
-        condition: service_started
-    image: morph-node:latest
-    restart: unless-stopped
-    ports:
-      - "26656"
-      - "26657"
-      - "26658"
-      - "26660"
-    environment:
-      - EMPTY_BLOCK_DELAY=true
-      - MORPH_NODE_L2_ETH_RPC=http://sentry-el-1:8545
-      - MORPH_NODE_L2_ENGINE_RPC=http://sentry-el-1:8551
-      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
-      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
-      - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
-      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
-      - MORPH_NODE_L1_CONFIRMATIONS=0
-      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
-      - MORPH_NODE_DERIVATION_VERIFY_MODE=layer1
-      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
-      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
-    volumes:
-      - ".devnet/node5:${NODE_DATA_DIR}"
-      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
-    command: >
-      morphnode
-      --home $NODE_DATA_DIR
-
+  # ========== Submitter and Oracle ==========
   tx-submitter-0:
-   container_name:   tx-submitter-0
-   depends_on:
-     node-0:
-       condition: service_started
-   build:
-     context: ../..
-     dockerfile: ops/docker/Dockerfile.submitter
-   image: morph-tx-submitter:latest
-   restart: unless-stopped
-   command: tx-submitter
-   ports:
-     - "8060:6060"
-   environment:
-     # change the env variables to your own
-     - TX_SUBMITTER_BUILD_ENV=dev
-     - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
-     - TX_SUBMITTER_L1_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
-     - TX_SUBMITTER_L2_ETH_RPCS=http://morph-el-0:8545,http://morph-el-1:8545
-     - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
-     - TX_SUBMITTER_MAX_TX_SIZE=125952
-     - TX_SUBMITTER_POLL_INTERVAL=3s
-     - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
-     - TX_SUBMITTER_TX_TIMEOUT=60s
-     - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-     - TX_SUBMITTER_NETWORK_TIMEOUT=20s
-     - TX_SUBMITTER_MAX_BLOCK=1000
-     - TX_SUBMITTER_MIN_BLOCK=50
-     - TX_SUBMITTER_FINALIZE=true
-     - TX_SUBMITTER_MAX_FINALIZE_NUM=100
-     - TX_SUBMITTER_PRIORITY_ROLLUP=true
-     - TX_SUBMITTER_SEAL_BATCH=true
-     - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
-     - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
-     - TX_SUBMITTER_METRICS_PORT=6060
-     - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
-     - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
-     - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100 #MB
-     - TX_SUBMITTER_LOG_FILE_MAX_AGE=7 #day
-     - TX_SUBMITTER_LOG_COMPRESS=true
-     - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
-     - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
-     - TX_SUBMITTER_SEAL_BATCH=true
-     - TX_SUBMITTER_BATCH_V2_UPGRADE_TIME=1777533291
-
-  tx-submitter-1:
-   container_name: tx-submitter-1
-   profiles: ["multi-submitter"]
-   depends_on:
-     node-1:
-       condition: service_started
-   build:
-     context: ../..
-     dockerfile: ops/docker/Dockerfile.submitter
-   image: morph-tx-submitter:latest
-   restart: unless-stopped
-   command: tx-submitter
-   ports:
-     - "8061:6060"
-   environment:
-     # change the env variables to your own
-     - TX_SUBMITTER_BUILD_ENV=dev
-     - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
-     - TX_SUBMITTER_L1_PRIVATE_KEY=0x0890c388c3bf5e04fee1d8f3c117e5f44f435ced7baf7bfd66c10e1f3a3f4b10
-     - TX_SUBMITTER_L2_ETH_RPCS=http://morph-el-0:8545,http://morph-el-1:8545
-     - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
-     - TX_SUBMITTER_MAX_TX_SIZE=125952
-     - TX_SUBMITTER_POLL_INTERVAL=3s
-     - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
-     - TX_SUBMITTER_TX_TIMEOUT=60s
-     - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-     - TX_SUBMITTER_NETWORK_TIMEOUT=20s
-     - TX_SUBMITTER_MAX_BLOCK=1000
-     - TX_SUBMITTER_MIN_BLOCK=50
-     - TX_SUBMITTER_FINALIZE=false
-     - TX_SUBMITTER_MAX_FINALIZE_NUM=100
-     - TX_SUBMITTER_PRIORITY_ROLLUP=false
-     - TX_SUBMITTER_SEAL_BATCH=true
-     - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
-     - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
-     - TX_SUBMITTER_METRICS_PORT=6060
-     - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
-     - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
-     - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100
-     - TX_SUBMITTER_LOG_FILE_MAX_AGE=7
-     - TX_SUBMITTER_LOG_COMPRESS=true
-     - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
-     - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
-
-  tx-submitter-2:
-    container_name: tx-submitter-2
-    profiles: ["multi-submitter"]
+    container_name: tx-submitter-0
     depends_on:
-      node-2:
+      node-0:
+        condition: service_started
+      node-1:
         condition: service_started
     build:
       context: ../..
@@ -565,13 +239,12 @@ services:
     restart: unless-stopped
     command: tx-submitter
     ports:
-      - "8062:6060"
+      - "8060:6060"
     environment:
-      # change the env variables to your own
       - TX_SUBMITTER_BUILD_ENV=dev
       - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
-      - TX_SUBMITTER_L1_PRIVATE_KEY=0x6fd437eef7a83c486bd2e0a802ae071b3912d125ac31ac08f60841fd891559ae
-      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-el-2:8545,http://morph-el-3:8545
+      - TX_SUBMITTER_L1_PRIVATE_KEY=0xd99870855d97327d20c666abc78588f1449b1fac76ed0c86c1afb9ce2db85f32
+      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-el-0:8545,http://morph-el-1:8545
       - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
       - TX_SUBMITTER_MAX_TX_SIZE=125952
       - TX_SUBMITTER_POLL_INTERVAL=3s
@@ -581,69 +254,26 @@ services:
       - TX_SUBMITTER_NETWORK_TIMEOUT=20s
       - TX_SUBMITTER_MAX_BLOCK=1000
       - TX_SUBMITTER_MIN_BLOCK=50
-      - TX_SUBMITTER_FINALIZE=false
+      - TX_SUBMITTER_FINALIZE=true
       - TX_SUBMITTER_MAX_FINALIZE_NUM=100
-      - TX_SUBMITTER_PRIORITY_ROLLUP=false
+      - TX_SUBMITTER_PRIORITY_ROLLUP=true
       - TX_SUBMITTER_SEAL_BATCH=true
       - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
       - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
       - TX_SUBMITTER_METRICS_PORT=6060
-      - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
+      - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000
       - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
       - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100
       - TX_SUBMITTER_LOG_FILE_MAX_AGE=7
       - TX_SUBMITTER_LOG_COMPRESS=true
       - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
       - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
-
-  tx-submitter-3:
-    container_name: tx-submitter-3
-    profiles: ["multi-submitter"]
-    depends_on:
-      node-3:
-        condition: service_started
-    build:
-      context: ../..
-      dockerfile: ops/docker/Dockerfile.submitter
-    image: morph-tx-submitter:latest
-    restart: unless-stopped
-    command: tx-submitter
-    ports:
-      - "8063:6060"
-    environment:
-      # change the env variables to your own
-      - TX_SUBMITTER_BUILD_ENV=dev
-      - TX_SUBMITTER_L1_ETH_RPC=${L1_ETH_RPC}
-      - TX_SUBMITTER_L1_PRIVATE_KEY=0x9ae53aecdaebe4dcbfec96f3123a2a8c53f9596bf4b3d5adc9a388ccb361b4c0
-      - TX_SUBMITTER_L2_ETH_RPCS=http://morph-el-2:8545,http://morph-el-3:8545
-      - TX_SUBMITTER_MAX_BATCH_BUILD_TIME=60s
-      - TX_SUBMITTER_MAX_TX_SIZE=125952
-      - TX_SUBMITTER_POLL_INTERVAL=3s
-      - TX_SUBMITTER_SAFE_MINIMUM_ETHER_BALANCE=1
-      - TX_SUBMITTER_TX_TIMEOUT=60s
-      - TX_SUBMITTER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - TX_SUBMITTER_NETWORK_TIMEOUT=20s
-      - TX_SUBMITTER_MAX_BLOCK=1000
-      - TX_SUBMITTER_MIN_BLOCK=50
-      - TX_SUBMITTER_FINALIZE=false
-      - TX_SUBMITTER_MAX_FINALIZE_NUM=100
-      - TX_SUBMITTER_PRIORITY_ROLLUP=false
-      - TX_SUBMITTER_SEAL_BATCH=true
-      - TX_SUBMITTER_METRICS_SERVER_ENABLE=false
-      - TX_SUBMITTER_METRICS_HOSTNAME=0.0.0.0
-      - TX_SUBMITTER_METRICS_PORT=6060
-      - TX_SUBMITTER_TX_FEE_LIMIT=500000000000000000 #0.5e
-      - TX_SUBMITTER_LOG_FILENAME=tx_submitter.log
-      - TX_SUBMITTER_LOG_FILE_MAX_SIZE=100
-      - TX_SUBMITTER_LOG_FILE_MAX_AGE=7
-      - TX_SUBMITTER_LOG_COMPRESS=true
-      - TX_SUBMITTER_L1_STAKING_ADDRESS=${MORPH_L1STAKING:-0x5fc8d32690cc91d4c39d9d3abcbd16989f875707}
-      - TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM=0
+      - TX_SUBMITTER_BATCH_V2_UPGRADE_TIME=1777533291
 
   gas-price-oracle:
     container_name: gas-price-oracle
     depends_on:
-      node-3:
+      node-0:
         condition: service_started
     build:
       context: ../..
@@ -667,5 +297,5 @@ services:
       - TXN_PER_BLOCK=1
       - TXN_PER_BATCH=50
       - L1_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - OVERHEAD_SWITCH=${OVERHEAD_SWITCH}
-      - MAX_OVERHEAD=${MAX_OVERHEAD}
+      - OVERHEAD_SWITCH=${OVERHEAD_SWITCH:-}
+      - MAX_OVERHEAD=${MAX_OVERHEAD:-}
