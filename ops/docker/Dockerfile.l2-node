@@ -1,7 +1,19 @@
 # Build Stage
 FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.24-ubuntu as builder
 
-# Set working directory and copy necessary files
+# Cache module downloads before copying frequently changing source files.
+COPY go.work go.work.sum /morph/
+COPY bindings/go.mod bindings/go.sum /morph/bindings/
+COPY common/go.mod common/go.sum /morph/common/
+COPY contracts/go.mod contracts/go.sum /morph/contracts/
+COPY node/go.mod node/go.sum /morph/node/
+COPY ops/l2-genesis/go.mod ops/l2-genesis/go.sum /morph/ops/l2-genesis/
+COPY ops/tools/go.mod ops/tools/go.sum /morph/ops/tools/
+COPY token-price-oracle/go.mod token-price-oracle/go.sum /morph/token-price-oracle/
+COPY tx-submitter/go.mod tx-submitter/go.sum /morph/tx-submitter/
+WORKDIR /morph/node
+RUN go mod download
+
 COPY . /morph
 WORKDIR /morph/node
 

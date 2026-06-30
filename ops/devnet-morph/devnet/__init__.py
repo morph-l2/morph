@@ -44,6 +44,9 @@ parser.add_argument('--deployer-private-key',
                         '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
                     ),
                     help='Private key for the L1 contract deployer/owner')
+parser.add_argument('--cluster', action="store_true",
+                    default=os.environ.get('DEVNET_CLUSTER', '').lower() in ('1', 'true', 'yes'),
+                    help='Start an HA sequencer cluster instead of making node-0 the sequencer')
 # parser.add_argument('--deploy', help='Whether the contracts should be predeployed or deployed', action="store_true")
 parser.add_argument('--debugccc', help='Whether set the debug log level for ccc', action="store_true")
 
@@ -53,11 +56,13 @@ GWEI = 1e9
 ETH = GWEI * GWEI
 
 
-def compose_file_args(execution_client):
+def compose_file_args(execution_client, cluster=False):
     """Return docker-compose -f flags for the chosen L2 execution client."""
     args = ['-f', 'docker-compose-devnet.yml']
     if execution_client == 'reth':
         args.extend(['-f', 'docker-compose-reth.yml'])
+    if cluster:
+        args.extend(['-f', 'docker-compose-cluster.yml'])
     return args
 
 
@@ -269,8 +274,9 @@ def devnet_deploy(paths, args):
 
     configure_l1_sequencer(paths, args, addresses, deploy_config)
     sequencer_upgrade_time = int((time.time() + args.sequencer_upgrade_offset_seconds) * 1000)
+    active_sequencer_private_key = '' if args.cluster else args.sequencer_private_key
     log.info(
-        f'Single sequencer mode enabled: sequencer={args.sequencer_address}, '
+        f'Single sequencer mode enabled: sequencer={args.sequencer_address}, cluster={args.cluster}, '
         f'upgrade_time_ms={sequencer_upgrade_time}, '
         f'upgrade_offset_seconds={args.sequencer_upgrade_offset_seconds}')
 
@@ -295,6 +301,7 @@ def devnet_deploy(paths, args):
         env_data['MORPH_L1STAKING'] = addresses['Proxy__L1Staking']
         env_data['L1_SEQUENCER_CONTRACT'] = addresses.get('Proxy__L1Sequencer', '')
         env_data['SEQUENCER_PRIVATE_KEY'] = args.sequencer_private_key
+        env_data['ACTIVE_SEQUENCER_PRIVATE_KEY'] = active_sequencer_private_key
         env_data['HA_SEQUENCER_ADDR'] = args.sequencer_address
         env_data['SEQUENCER_UPGRADE_TIME'] = str(sequencer_upgrade_time)
         envfile.seek(0)
@@ -307,7 +314,7 @@ def devnet_deploy(paths, args):
 
 
 
-    run_command(['docker', 'compose', *compose_file_args(args.execution_client), 'up', '-d'], check=False, cwd=paths.ops_dir,
+    run_command(['docker', 'compose', *compose_file_args(args.execution_client, args.cluster), 'up', '-d'], check=False, cwd=paths.ops_dir,
                 env={
                     'MORPH_PORTAL': addresses['Proxy__L1MessageQueueWithGasPriceOracle'],
                     'MORPH_ROLLUP': addresses['Proxy__Rollup'],
@@ -320,6 +327,7 @@ def devnet_deploy(paths, args):
                     'L1_BEACON_CHAIN_RPC': 'http://layer1-cl:4000',
                     'L1_SEQUENCER_CONTRACT': addresses.get('Proxy__L1Sequencer', ''),
                     'SEQUENCER_PRIVATE_KEY': args.sequencer_private_key,
+                    'ACTIVE_SEQUENCER_PRIVATE_KEY': active_sequencer_private_key,
                     'SEQUENCER_UPGRADE_TIME': str(sequencer_upgrade_time),
                 })
     wait_up(8545)
@@ -399,7 +407,7 @@ def wait_for_l1_finalized(min_block, retries=120, wait_secs=3):
         log.info(f'Waiting for L1 finalized block >= {min_block} (current: {finalized})')
         time.sleep(wait_secs)
 
-    log.warning(f'Timeout waiting for L1 finalized block >= {min_block}; continuing')
+    raise RuntimeError(f'Timeout waiting for L1 finalized block >= {min_block}')
 
 
 def run_command(args, check=True, shell=False, cwd=None, env=None, output=None):

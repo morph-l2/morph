@@ -3,8 +3,12 @@ FROM golang:1.24.0-alpine as builder
 
 RUN apk add --no-cache gcc musl-dev linux-headers git make
 
-COPY ./go-ethereum /go-ethereum
-RUN cd /go-ethereum && go run build/ci.go install ./cmd/geth
+COPY go-ethereum/go.mod go-ethereum/go.sum /go-ethereum/
+WORKDIR /go-ethereum
+RUN go mod download
+
+COPY go-ethereum /go-ethereum
+RUN go run build/ci.go install ./cmd/geth
 
 # Pull Geth into a second stage deploy alpine container
 FROM alpine:latest

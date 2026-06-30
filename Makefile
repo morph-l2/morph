@@ -137,6 +137,8 @@ go-ubuntu-builder:
 ################## devnet 2 nodes ####################
 
 EXECUTION_CLIENT ?= geth
+DEVNET_CLUSTER ?= false
+DEVNET_CLUSTER_ENABLED := $(filter true 1 yes,$(DEVNET_CLUSTER))
 DEVNET_SEQUENCER_PRIVATE_KEY ?= 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 DEVNET_SEQUENCER_ADDRESS ?= 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 DEVNET_SEQUENCER_UPGRADE_OFFSET_SECONDS ?= 0
@@ -172,20 +174,33 @@ endif
 else
 $(error unsupported EXECUTION_CLIENT "$(EXECUTION_CLIENT)", expected "geth" or "reth")
 endif
+ifneq ($(DEVNET_CLUSTER_ENABLED),)
+DEVNET_COMPOSE_FILES += -f docker-compose-cluster.yml
+endif
 
 devnet-up: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT) \
+		$(if $(DEVNET_CLUSTER_ENABLED),--cluster,) \
 		--sequencer-private-key=$(DEVNET_SEQUENCER_PRIVATE_KEY) \
 		--sequencer-address=$(DEVNET_SEQUENCER_ADDRESS) \
 		--sequencer-upgrade-offset-seconds=$(DEVNET_SEQUENCER_UPGRADE_OFFSET_SECONDS)
 .PHONY: devnet-up
 
+devnet-up-cluster:
+	$(MAKE) devnet-up DEVNET_CLUSTER=true
+.PHONY: devnet-up-cluster
+
 devnet-up-reth:
 	$(MAKE) devnet-up EXECUTION_CLIENT=reth
 .PHONY: devnet-up-reth
 
+devnet-up-cluster-reth:
+	$(MAKE) devnet-up EXECUTION_CLIENT=reth DEVNET_CLUSTER=true
+.PHONY: devnet-up-cluster-reth
+
 devnet-up-debugccc: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT) --debugccc \
+		$(if $(DEVNET_CLUSTER_ENABLED),--cluster,) \
 		--sequencer-private-key=$(DEVNET_SEQUENCER_PRIVATE_KEY) \
 		--sequencer-address=$(DEVNET_SEQUENCER_ADDRESS) \
 		--sequencer-upgrade-offset-seconds=$(DEVNET_SEQUENCER_UPGRADE_OFFSET_SECONDS)
@@ -201,7 +216,7 @@ devnet-down-reth:
 
 devnet-clean-build: devnet-l1-clean
 	cd ops/docker && docker compose $(DEVNET_COMPOSE_FILES) down --volumes --remove-orphans
-	docker volume rm docker_morph_data_0 docker_morph_data_1 docker_morph_data_2 docker_morph_data_3 docker_sentry_el_data docker_sentry_el_data_1 2>/dev/null || true
+	docker volume ls --filter label=com.docker.compose.project=docker --format='{{.Name}}' | xargs docker volume rm 2>/dev/null || true
 	rm -rf ops/l2-genesis/.devnet
 	rm -rf ops/docker/.devnet
 	rm -rf ops/docker/consensus ops/docker/execution
