@@ -44,7 +44,7 @@ func (s *EnclaveSigner) injectCredentials() error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if err := conn.SetDeadline(time.Now().Add(credLoadTimeout)); err != nil {
 		return fmt.Errorf("set deadline: %w", err)
 	}
@@ -70,7 +70,7 @@ func irsaCreds() (creds awsCreds, available bool, err error) {
 	if roleARN == "" || tokenFile == "" {
 		return awsCreds{}, false, nil
 	}
-	jwt, err := os.ReadFile(tokenFile)
+	jwt, err := os.ReadFile(tokenFile) //nolint:gosec // G304: trusted IRSA token path (env-injected)
 	if err != nil {
 		return awsCreds{}, true, fmt.Errorf("read web identity token %s: %w", tokenFile, err)
 	}
@@ -110,7 +110,7 @@ func assumeRoleWithWebIdentity(region, roleARN, session, jwt string) (awsCreds, 
 	if err != nil {
 		return awsCreds{}, fmt.Errorf("STS request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode != http.StatusOK {
 		return awsCreds{}, fmt.Errorf("STS %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
