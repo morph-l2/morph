@@ -20,10 +20,13 @@ import (
 // the morph-enclave-signer repo. Big-endian throughout.
 //
 // Init (op=0x01) is the key-creation flow handled by ops-cli on a
-// throwaway EC2; the morph node never sends it.
+// throwaway EC2; the morph node never sends it. ProvideCredentials
+// (op=0x04) is sent once at startup to inject IRSA credentials so the
+// AWS-backed signer can load its key (see injectCredentials).
 const (
-	opSign      byte = 0x02
-	opGetPubkey byte = 0x03
+	opSign               byte = 0x02
+	opGetPubkey          byte = 0x03
+	opProvideCredentials byte = 0x04
 
 	statusOk byte = 0x00
 
@@ -43,6 +46,11 @@ const (
 	// Applied via SetDeadline at the start of probe/signOnce, cleared
 	// on exit so the persistent conn can be reused for the next call.
 	requestTimeout = 1 * time.Second
+	// credLoadTimeout bounds the one-shot ProvideCredentials round-trip.
+	// Unlike a normal RPC, the enclave's Ack returns only after its
+	// one-time SM Get + KMS Decrypt + key load, so this is far larger
+	// than requestTimeout.
+	credLoadTimeout = 5 * time.Second
 )
 
 // EnclaveSigner implements Signer by talking to a Nitro Enclave signer
@@ -81,6 +89,14 @@ func NewEnclaveSigner(addr string, logger tmlog.Logger) (*EnclaveSigner, error) 
 		cid:    cid,
 		port:   port,
 		logger: logger.With("module", "signer", "kind", "enclave", "addr", addr),
+	}
+	// Inject AWS credentials (resolved from the pod's IRSA env) before the
+	// probe: an AWS-backed signer loads its key lazily on ProvideCredentials
+	// and would otherwise reject GetPubkey/Sign. No-op when no IRSA env is
+	// present (local/dev); idempotent enclave-side, so safe on every restart.
+	if err := s.injectCredentials(); err != nil {
+		s.logger.Error("enclave credential injection failed; node cannot start", "err", err)
+		return nil, fmt.Errorf("enclave signer credentials %s: %w", addr, err)
 	}
 	if err := s.probe(); err != nil {
 		s.logger.Error("enclave signer init failed; node cannot start", "err", err)
