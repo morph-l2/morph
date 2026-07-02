@@ -14,8 +14,8 @@ cd "$PROJECT_DIR/.."
 
 # Stop and remove only layer1 containers
 echo "Stopping and removing layer1 containers..."
-docker compose -f docker-compose-4nodes.yml stop layer1-el layer1-cl layer1-vc 2>/dev/null || true
-docker compose -f docker-compose-4nodes.yml rm -f layer1-el layer1-cl layer1-vc 2>/dev/null || true
+docker compose -f docker-compose-devnet.yml stop layer1-el layer1-cl layer1-vc 2>/dev/null || true
+docker compose -f docker-compose-devnet.yml rm -f layer1-el layer1-cl layer1-vc 2>/dev/null || true
 
 # Remove layer1 volumes
 echo "Removing layer1 volumes..."
@@ -81,7 +81,6 @@ echo "Preserved:"
 echo "  - Configuration templates (layer1/configs/values.env.template)"
 echo "  - JWT secret (layer1/jwt/jwtsecret)"
 echo "  - Keystores (layer1/keystores/)"
-echo "  - Docker Compose file (docker-compose-4nodes.yml)"
+echo "  - Docker Compose file (docker-compose-devnet.yml)"
 echo ""
 echo "You can now run 'make generate' and 'make start' again to create a fresh network."
-
