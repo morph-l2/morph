@@ -15,7 +15,7 @@ var (
 	// L1 Hoodi Contract Addresses
 	HoodiRollupContractAddress      = common.HexToAddress("0x57e0e6dde89dc52c01fe785774271504b1e04664")
 	HoodiSyncDepositContractAddress = common.HexToAddress("0xd7f39d837f4790b215ba67e0ab63665912648dbe")
-	HoodiL1SequencerContractAddress = common.HexToAddress("")
+	HoodiL1SequencerContractAddress = common.HexToAddress("0x6967493CE2dA84e4835E521D780014AE0Dc469e4")
 )
 
 // Network-specific default block timestamps (Unix milliseconds) at which consensus switches to
