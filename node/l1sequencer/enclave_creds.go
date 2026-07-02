@@ -130,8 +130,10 @@ func assumeRoleWithWebIdentity(region, roleARN, session, jwt string) (awsCreds, 
 		return awsCreds{}, fmt.Errorf("parse STS response: %w", err)
 	}
 	c := parsed.Result.Credentials
-	if c.AccessKeyID == "" || c.SecretAccessKey == "" {
-		return awsCreds{}, fmt.Errorf("STS response missing credentials")
+	// AssumeRoleWithWebIdentity always returns a session token for temporary
+	// credentials; a missing one means an unusable/ambiguous credential.
+	if c.AccessKeyID == "" || c.SecretAccessKey == "" || c.SessionToken == "" {
+		return awsCreds{}, fmt.Errorf("STS response missing temporary credential fields")
 	}
 	out := awsCreds{accessKeyID: c.AccessKeyID, secretAccessKey: c.SecretAccessKey, sessionToken: c.SessionToken}
 	if c.Expiration != "" {
@@ -144,6 +146,16 @@ func assumeRoleWithWebIdentity(region, roleARN, session, jwt string) (awsCreds, 
 	return out, nil
 }
 
+// ProvideCredentials field caps — must match crates/protocol in the
+// morph-enclave-signer repo. Bounding each field keeps the u16 length
+// prefix from overflowing (STS credential fields are opaque and, per AWS,
+// carry no documented max size).
+const (
+	maxAccessKeyIDLen     = 128
+	maxSecretAccessKeyLen = 256
+	maxSessionTokenLen    = 8192
+)
+
 // writeProvideCredentials sends op=ProvideCredentials on an established
 // conn and reads the Ack. Field layout mirrors crates/protocol (and
 // ops-cli's client.go):
@@ -152,6 +164,15 @@ func assumeRoleWithWebIdentity(region, roleARN, session, jwt string) (awsCreds, 
 //
 // where each _lp is [len:u16][bytes]; all integers are big-endian.
 func writeProvideCredentials(conn net.Conn, c awsCreds) error {
+	if len(c.accessKeyID) > maxAccessKeyIDLen {
+		return fmt.Errorf("access key id len %d exceeds max %d", len(c.accessKeyID), maxAccessKeyIDLen)
+	}
+	if len(c.secretAccessKey) > maxSecretAccessKeyLen {
+		return fmt.Errorf("secret access key len %d exceeds max %d", len(c.secretAccessKey), maxSecretAccessKeyLen)
+	}
+	if len(c.sessionToken) > maxSessionTokenLen {
+		return fmt.Errorf("session token len %d exceeds max %d", len(c.sessionToken), maxSessionTokenLen)
+	}
 	buf := []byte{opProvideCredentials}
 	buf = appendLPString(buf, c.accessKeyID)
 	buf = appendLPString(buf, c.secretAccessKey)
@@ -166,6 +187,8 @@ func writeProvideCredentials(conn net.Conn, c awsCreds) error {
 }
 
 // appendLPString appends a [len:u16][bytes] field (big-endian length).
+// Callers bound each field below the u16 max (see writeProvideCredentials),
+// so the length conversion cannot overflow.
 func appendLPString(buf []byte, s string) []byte {
 	var l [2]byte
 	binary.BigEndian.PutUint16(l[:], uint16(len(s)))
