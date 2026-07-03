@@ -9,7 +9,7 @@ require (
 	github.com/crate-crypto/go-eth-kzg v1.4.0
 	github.com/holiman/uint256 v1.2.4
 	github.com/morph-l2/externalsign v0.3.1
-	github.com/morph-l2/go-ethereum v1.10.14-0.20260629084315-efdd4dbee28b
+	github.com/morph-l2/go-ethereum v1.10.14-0.20260702033856-0eda19148ddd
 	github.com/prometheus/client_golang v1.17.0
 	github.com/stretchr/testify v1.10.0
 	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a
@@ -66,7 +66,6 @@ require (
 	github.com/rjeczalik/notify v0.9.3 // indirect
 	github.com/rs/cors v1.11.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/scroll-tech/zktrie v0.8.4 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/status-im/keycard-go v0.3.2 // indirect
 	github.com/supranational/blst v0.3.16-0.20250831170142-f48500c1fdbe // indirect
