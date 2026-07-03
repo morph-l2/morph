@@ -14,7 +14,7 @@ require (
 	github.com/hashicorp/raft-boltdb/v2 v2.3.1
 	github.com/klauspost/compress v1.17.9
 	github.com/mdlayher/vsock v1.2.1
-	github.com/morph-l2/go-ethereum v1.10.14-0.20260629084315-efdd4dbee28b
+	github.com/morph-l2/go-ethereum v1.10.14-0.20260702033856-0eda19148ddd
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.17.0
 	github.com/spf13/viper v1.13.0
@@ -108,7 +108,6 @@ require (
 	github.com/rs/cors v1.11.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sasha-s/go-deadlock v0.3.1 // indirect
-	github.com/scroll-tech/zktrie v0.8.4 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/spf13/afero v1.10.0 // indirect
 	github.com/spf13/cast v1.5.0 // indirect

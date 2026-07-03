@@ -991,8 +991,6 @@ github.com/morikuni/aec v1.0.0/go.mod h1:BbKIizmSmc5MMPqRYbxO4ZU0S0+P200+tUnFx7P
 github.com/morph-l2/go-ethereum v0.0.0-20260529141627-eb5fbf8f9748 h1:xxYv3ZbhCsdtgwC81wU3eRm0xNrc2oTx7PGYLPY92xU=
 github.com/morph-l2/go-ethereum v0.0.0-20260529141627-eb5fbf8f9748/go.mod h1:nkVzHjQWCOjvukQW8ittlwX+Xz9gmVHrP7mUi7zoHTs=
 github.com/morph-l2/go-ethereum v1.10.14-0.20251125061742-69718a9dcab9/go.mod h1:tiFPeidxjoCmLj18ne9H3KQdIGTCvRC30qlef06Fd9M=
-github.com/morph-l2/go-ethereum v1.10.14-0.20260629084315-efdd4dbee28b h1:z/ivkqYXZQ07ztg38AxybRLPLyujHF0E/+z3gjHV7eM=
-github.com/morph-l2/go-ethereum v1.10.14-0.20260629084315-efdd4dbee28b/go.mod h1:nkVzHjQWCOjvukQW8ittlwX+Xz9gmVHrP7mUi7zoHTs=
 github.com/morph-l2/tendermint v0.0.0-20260529095305-b1b3a3a1d806 h1:gJmofzJ0PnCCObETUH02AsSVS1YY4tLpUWYFhEggCmk=
 github.com/morph-l2/tendermint v0.0.0-20260529095305-b1b3a3a1d806/go.mod h1:qpiwqfcCB89dBYfqVJOc/HjGxDp3OdDlthgttJJYyRs=
 github.com/morph-l2/tendermint v0.3.8-0.20260617072029-29056623cdb0 h1:LcRbLo0pQXev4z/6i65mVr/9XoFE9Zf7+tcqKItpE+M=
@@ -1136,6 +1134,8 @@ github.com/satori/go.uuid v1.2.0 h1:0uYX9dsZ2yD7q2RtLRtPSdGDWzjeM3TbMJP9utgA0ww=
 github.com/satori/go.uuid v1.2.0/go.mod h1:dA0hQrYB0VpLJoorglMZABFdXlWrHn1NEOzdhQKdks0=
 github.com/schollz/progressbar/v3 v3.19.0 h1:Ea18xuIRQXLAUidVDox3AbwfUhD0/1IvohyTutOIFoc=
 github.com/schollz/progressbar/v3 v3.19.0/go.mod h1:IsO3lpbaGuzh8zIMzgY3+J8l4C8GjO0Y9S69eFvNsec=
+github.com/scroll-tech/zktrie v0.8.4 h1:UagmnZ4Z3ITCk+aUq9NQZJNAwnWl4gSxsLb2Nl7IgRE=
+github.com/scroll-tech/zktrie v0.8.4/go.mod h1:XvNo7vAk8yxNyTjBDj5WIiFzYW4bx/gJ78+NK6Zn6Uk=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 h1:nn5Wsu0esKSJiIVhscUtVbo7ada43DJhG55ua/hjS5I=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529/go.mod h1:DxrIzT+xaE7yg65j358z/aeFdxmN0P9QXhEzd20vsDc=
 github.com/securego/gosec/v2 v2.13.1 h1:7mU32qn2dyC81MH9L2kefnQyRMUarfDER3iQyMHcjYM=
