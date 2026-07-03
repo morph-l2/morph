@@ -113,7 +113,6 @@ func NewEnclaveSigner(addr string, logger tmlog.Logger) (*EnclaveSigner, error) 
 		_ = s.Close()
 		return nil, fmt.Errorf("enclave signer self-test: %w", err)
 	}
-	s.logger.Info("enclave signer ready", "address", s.address.Hex())
 	return s, nil
 }
 
