@@ -134,9 +134,14 @@ go-ubuntu-builder:
 	fi
 .PHONY: go-ubuntu-builder
 
-################## devnet 4 nodes ####################
+################## devnet 2 nodes ####################
 
 EXECUTION_CLIENT ?= geth
+DEVNET_CLUSTER ?= false
+DEVNET_CLUSTER_ENABLED := $(filter true 1 yes,$(DEVNET_CLUSTER))
+DEVNET_SEQUENCER_PRIVATE_KEY ?= 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+DEVNET_SEQUENCER_ADDRESS ?= 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+DEVNET_SEQUENCER_UPGRADE_OFFSET_SECONDS ?= 0
 MORPH_RETH_BUILD_FROM_SOURCE ?= false
 ifeq ($(MORPH_RETH_BUILD_FROM_SOURCE),true)
 MORPH_RETH_IMAGE ?= morph-reth:latest
@@ -155,7 +160,8 @@ export MORPH_RETH_BUILD_PROFILE
 export MORPH_RETH_RUSTFLAGS
 export MORPH_RETH_DOCKER_TARGET
 export MORPH_RETH_ENTRYPOINT
-DEVNET_COMPOSE_FILES := -f docker-compose-4nodes.yml
+DEVNET_COMPOSE_FILES := -f docker-compose-devnet.yml
+DEVNET_CLEAN_COMPOSE_FILES := -f docker-compose-devnet.yml -f docker-compose-reth.yml -f docker-compose-cluster.yml
 
 ifeq ($(EXECUTION_CLIENT),geth)
 DEVNET_EXECUTION_DEPS := submodules
@@ -169,36 +175,53 @@ endif
 else
 $(error unsupported EXECUTION_CLIENT "$(EXECUTION_CLIENT)", expected "geth" or "reth")
 endif
+ifneq ($(DEVNET_CLUSTER_ENABLED),)
+DEVNET_COMPOSE_FILES += -f docker-compose-cluster.yml
+endif
 
 devnet-up: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder
-	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT)
+	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT) \
+		$(if $(DEVNET_CLUSTER_ENABLED),--cluster,) \
+		--sequencer-private-key=$(DEVNET_SEQUENCER_PRIVATE_KEY) \
+		--sequencer-address=$(DEVNET_SEQUENCER_ADDRESS) \
+		--sequencer-upgrade-offset-seconds=$(DEVNET_SEQUENCER_UPGRADE_OFFSET_SECONDS)
 .PHONY: devnet-up
+
+devnet-up-cluster:
+	$(MAKE) devnet-up DEVNET_CLUSTER=true
+.PHONY: devnet-up-cluster
 
 devnet-up-reth:
 	$(MAKE) devnet-up EXECUTION_CLIENT=reth
 .PHONY: devnet-up-reth
 
+devnet-up-cluster-reth:
+	$(MAKE) devnet-up EXECUTION_CLIENT=reth DEVNET_CLUSTER=true
+.PHONY: devnet-up-cluster-reth
+
 devnet-up-debugccc: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder
-	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT) --debugccc
+	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT) --debugccc \
+		$(if $(DEVNET_CLUSTER_ENABLED),--cluster,) \
+		--sequencer-private-key=$(DEVNET_SEQUENCER_PRIVATE_KEY) \
+		--sequencer-address=$(DEVNET_SEQUENCER_ADDRESS) \
+		--sequencer-upgrade-offset-seconds=$(DEVNET_SEQUENCER_UPGRADE_OFFSET_SECONDS)
 .PHONY: devnet-up-debugccc
 
 devnet-down:
 	cd ops/docker && docker compose $(DEVNET_COMPOSE_FILES) down
 .PHONY: devnet-down
 
+devnet-down-reth:
+	$(MAKE) devnet-down EXECUTION_CLIENT=reth
+.PHONY: devnet-down-reth
+
 devnet-clean-build: devnet-l1-clean
-	cd ops/docker && docker compose $(DEVNET_COMPOSE_FILES) down --volumes --remove-orphans
-	docker volume ls --filter name=docker_ --format='{{.Name}}' | xargs docker volume rm 2>/dev/null || true
+	cd ops/docker && docker compose $(DEVNET_CLEAN_COMPOSE_FILES) down --volumes --remove-orphans
+	docker volume ls --filter label=com.docker.compose.project=docker --format='{{.Name}}' | xargs docker volume rm 2>/dev/null || true
 	rm -rf ops/l2-genesis/.devnet
 	rm -rf ops/docker/.devnet
-	rm -rf ops/docker/consensus/beacondata ops/docker/consensus/validatordata ops/docker/consensus/genesis.ssz
-	rm -rf ops/docker/execution/geth
-	rm -rf ops/docker/execution/reth
+	rm -rf ops/docker/consensus ops/docker/execution
 .PHONY: devnet-clean-build
-
-devnet-clean-build-reth:
-	$(MAKE) devnet-clean-build EXECUTION_CLIENT=reth
-.PHONY: devnet-clean-build-reth
 
 devnet-clean: devnet-clean-build
 	docker image ls '*morph*' --format='{{.Repository}}' | xargs -r docker rmi
@@ -226,18 +249,18 @@ reth:
 .PHONY: reth
 
 # tx-submitter
-SUBMITTERS := $(shell grep -o 'tx-submitter-[0-9]*[^:]' ops/docker/docker-compose-4nodes.yml | sort | uniq)
+SUBMITTERS := $(shell grep -o 'tx-submitter-[0-9]*[^:]' ops/docker/docker-compose-devnet.yml | sort | uniq)
 rebuild-all-tx-submitter:
 	@for submitter in $(SUBMITTERS); do \
-		docker compose -f ./ops/docker/docker-compose-4nodes.yml up -d --build $$submitter --no-deps; \
+		docker compose -f ./ops/docker/docker-compose-devnet.yml up -d --build $$submitter --no-deps; \
 	done
 stop-all-tx-submitter:
 	@for submitter in $(SUBMITTERS); do \
-		docker compose -f ./ops/docker-compose-4nodes.yml stop $$submitter; \
+		docker compose -f ./ops/docker/docker-compose-devnet.yml stop $$submitter; \
 	done
 start-all-tx-submitter:
 	@for submitter in $(SUBMITTERS); do \
-		docker compose -f ./ops/docker-compose-4nodes.yml start $$submitter; \
+		docker compose -f ./ops/docker/docker-compose-devnet.yml start $$submitter; \
 	done
 
 # build geth

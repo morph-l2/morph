@@ -23,6 +23,30 @@ parser.add_argument('--polyrepo-dir', help='Directory of the polyrepo', default=
 parser.add_argument('--only-l1', help='Only bootstrap l1 geth', action="store_true")
 parser.add_argument('--execution-client', choices=('geth', 'reth'), default='geth',
                     help='L2 execution client implementation to run')
+parser.add_argument('--sequencer-private-key',
+                    default=os.environ.get(
+                        'SEQUENCER_PRIVATE_KEY',
+                        '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+                    ),
+                    help='Private key used by the single devnet sequencer')
+parser.add_argument('--sequencer-address',
+                    default=os.environ.get(
+                        'HA_SEQUENCER_ADDR',
+                        '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+                    ),
+                    help='L1Sequencer address expected to match --sequencer-private-key')
+parser.add_argument('--sequencer-upgrade-offset-seconds', type=int,
+                    default=int(os.environ.get('SEQUENCER_UPGRADE_OFFSET_SECONDS', '0')),
+                    help='Seconds from now before single-sequencer mode activates')
+parser.add_argument('--deployer-private-key',
+                    default=os.environ.get(
+                        'DEPLOYER_PRIVATE_KEY',
+                        '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+                    ),
+                    help='Private key for the L1 contract deployer/owner')
+parser.add_argument('--cluster', action="store_true",
+                    default=os.environ.get('DEVNET_CLUSTER', '').lower() in ('1', 'true', 'yes'),
+                    help='Start an HA sequencer cluster instead of making node-0 the sequencer')
 # parser.add_argument('--deploy', help='Whether the contracts should be predeployed or deployed', action="store_true")
 parser.add_argument('--debugccc', help='Whether set the debug log level for ccc', action="store_true")
 
@@ -32,11 +56,13 @@ GWEI = 1e9
 ETH = GWEI * GWEI
 
 
-def compose_file_args(execution_client):
+def compose_file_args(execution_client, cluster=False):
     """Return docker-compose -f flags for the chosen L2 execution client."""
-    args = ['-f', 'docker-compose-4nodes.yml']
+    args = ['-f', 'docker-compose-devnet.yml']
     if execution_client == 'reth':
         args.extend(['-f', 'docker-compose-reth.yml'])
+    if cluster:
+        args.extend(['-f', 'docker-compose-cluster.yml'])
     return args
 
 
@@ -109,7 +135,7 @@ def devnet_l1(paths, result=None):
     
     # Start layer1 services
     log.info('Starting layer1 services (layer1-el, layer1-cl, layer1-vc)...')
-    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'up', '-d', 
+    run_command(['docker', 'compose', '-f', 'docker-compose-devnet.yml', 'up', '-d',
                  'layer1-el', 'layer1-cl', 'layer1-vc'], check=False, cwd=paths.ops_dir, env={
             'PWD': paths.ops_dir
         })
@@ -152,8 +178,8 @@ def devnet_l1(paths, result=None):
 
 
 def devnet_build(paths):
-    """Build the docker images declared in docker-compose-4nodes.yml."""
-    run_command(['docker', 'compose', '-f', 'docker-compose-4nodes.yml', 'build'], cwd=paths.ops_dir, env={
+    """Build the docker images declared in docker-compose-devnet.yml."""
+    run_command(['docker', 'compose', '-f', 'docker-compose-devnet.yml', 'build'], cwd=paths.ops_dir, env={
         'PWD': paths.ops_dir,
         'DOCKER_BUILDKIT': '1',  # (should be available by default in later versions, but explicitly enable it anyway)
         'COMPOSE_DOCKER_CLI_BUILD': '1'  # use the docker cache
@@ -246,6 +272,14 @@ def devnet_deploy(paths, args):
                      '--private-key', deploy_config['l2StakingPks'][i]
                      ])
 
+    configure_l1_sequencer(paths, args, addresses, deploy_config)
+    sequencer_upgrade_time = int((time.time() + args.sequencer_upgrade_offset_seconds) * 1000)
+    active_sequencer_private_key = '' if args.cluster else args.sequencer_private_key
+    log.info(
+        f'Single sequencer mode enabled: sequencer={args.sequencer_address}, cluster={args.cluster}, '
+        f'upgrade_time_ms={sequencer_upgrade_time}, '
+        f'upgrade_offset_seconds={args.sequencer_upgrade_offset_seconds}')
+
     rust_log_level = 'info'
     if args.debugccc:
         rust_log_level = 'debug'
@@ -264,7 +298,12 @@ def devnet_deploy(paths, args):
         env_data['MORPH_ROLLUP'] = addresses['Proxy__Rollup']
         env_data['RUST_LOG'] = rust_log_level
         env_data['Proxy__L1Staking'] = addresses['Proxy__L1Staking']
+        env_data['MORPH_L1STAKING'] = addresses['Proxy__L1Staking']
         env_data['L1_SEQUENCER_CONTRACT'] = addresses.get('Proxy__L1Sequencer', '')
+        env_data['SEQUENCER_PRIVATE_KEY'] = args.sequencer_private_key
+        env_data['ACTIVE_SEQUENCER_PRIVATE_KEY'] = active_sequencer_private_key
+        env_data['HA_SEQUENCER_ADDR'] = args.sequencer_address
+        env_data['SEQUENCER_UPGRADE_TIME'] = str(sequencer_upgrade_time)
         envfile.seek(0)
         for key, value in env_data.items():
             envfile.write(f'{key}={value}\n')
@@ -275,7 +314,7 @@ def devnet_deploy(paths, args):
 
 
 
-    run_command(['docker', 'compose', *compose_file_args(args.execution_client), 'up', '-d'], check=False, cwd=paths.ops_dir,
+    run_command(['docker', 'compose', *compose_file_args(args.execution_client, args.cluster), 'up', '-d'], check=False, cwd=paths.ops_dir,
                 env={
                     'MORPH_PORTAL': addresses['Proxy__L1MessageQueueWithGasPriceOracle'],
                     'MORPH_ROLLUP': addresses['Proxy__Rollup'],
@@ -286,9 +325,55 @@ def devnet_deploy(paths, args):
                     'GENESIS_FILE_PATH': '/genesis.json',
                     'L1_ETH_RPC': 'http://layer1-el:8545',
                     'L1_BEACON_CHAIN_RPC': 'http://layer1-cl:4000',
+                    'L1_SEQUENCER_CONTRACT': addresses.get('Proxy__L1Sequencer', ''),
+                    'SEQUENCER_PRIVATE_KEY': args.sequencer_private_key,
+                    'ACTIVE_SEQUENCER_PRIVATE_KEY': active_sequencer_private_key,
+                    'SEQUENCER_UPGRADE_TIME': str(sequencer_upgrade_time),
                 })
     wait_up(8545)
     wait_for_rpc_server('127.0.0.1:8545')
+
+
+def configure_l1_sequencer(paths, args, addresses, deploy_config):
+    """Register the devnet's single sequencer in L1Sequencer before starting L2."""
+    l1_sequencer_addr = addresses.get('Proxy__L1Sequencer', '')
+    if not l1_sequencer_addr:
+        raise RuntimeError('Proxy__L1Sequencer missing from deployment output')
+
+    expected_addr = args.sequencer_address.lower()
+    derived = run_command_capture_output([
+        'cast', 'wallet', 'address',
+        '--private-key', args.sequencer_private_key,
+    ], cwd=paths.contracts_dir)
+    actual_addr = derived.stdout.strip().lower()
+    if actual_addr != expected_addr:
+        raise RuntimeError(
+            f'sequencer private key derives {derived.stdout.strip()}, expected {args.sequencer_address}')
+
+    owner = run_command_capture_output([
+        'cast', 'call', l1_sequencer_addr,
+        'owner()(address)',
+        '--rpc-url', 'http://127.0.0.1:9545',
+    ], cwd=paths.contracts_dir).stdout.strip().lower()
+    deployer = run_command_capture_output([
+        'cast', 'wallet', 'address',
+        '--private-key', args.deployer_private_key,
+    ], cwd=paths.contracts_dir).stdout.strip().lower()
+    if deployer != owner:
+        raise RuntimeError(
+            f'deployer private key derives {deployer}, but L1Sequencer owner is {owner}')
+
+    log.info(f'Setting first L1Sequencer: sequencer={args.sequencer_address} (active from block 0)')
+    run_command([
+        'cast', 'send', l1_sequencer_addr,
+        'setFirstSequencer(address)',
+        args.sequencer_address,
+        '--rpc-url', 'http://127.0.0.1:9545',
+        '--private-key', args.deployer_private_key,
+    ], cwd=paths.contracts_dir)
+
+    latest_l1_block = eth_blockNumber('127.0.0.1:9545') or 1
+    wait_for_l1_finalized(latest_l1_block)
 
 
 def wait_for_rpc_server(url):
@@ -310,6 +395,19 @@ def wait_for_rpc_server(url):
         except Exception as e:
             log.info(f'Waiting for RPC server at {url}')
             time.sleep(1)
+
+
+def wait_for_l1_finalized(min_block, retries=120, wait_secs=3):
+    """Wait until the local L1 finalized tag reaches min_block."""
+    for _ in range(retries):
+        finalized = eth_block_by_number('127.0.0.1:9545', 'finalized')
+        if finalized is not None and finalized >= min_block:
+            log.info(f'L1 finalized block {finalized} reached target {min_block}')
+            return
+        log.info(f'Waiting for L1 finalized block >= {min_block} (current: {finalized})')
+        time.sleep(wait_secs)
+
+    raise RuntimeError(f'Timeout waiting for L1 finalized block >= {min_block}')
 
 
 def run_command(args, check=True, shell=False, cwd=None, env=None, output=None):
@@ -422,4 +520,32 @@ def eth_blockNumber(url):
         return None
     except Exception as e:
         log.debug(f'Error calling eth_blockNumber: {e}')
+        return None
+
+
+def eth_block_by_number(url, tag):
+    """
+    Call eth_getBlockByNumber JSON-RPC method for a tag and return the block number.
+    Returns the block number as an integer, or None when the tag is unavailable.
+    """
+    try:
+        conn = http.client.HTTPConnection(url)
+        headers = {'Content-type': 'application/json'}
+        body = json.dumps({
+            'id': 1,
+            'jsonrpc': '2.0',
+            'method': 'eth_getBlockByNumber',
+            'params': [tag, False],
+        })
+        conn.request('POST', '/', body, headers)
+        response = conn.getresponse()
+        data = response.read().decode()
+        conn.close()
+        result = json.loads(data)
+        block = result.get('result')
+        if block and block.get('number'):
+            return int(block['number'], 16)
+        return None
+    except Exception as e:
+        log.debug(f'Error calling eth_getBlockByNumber({tag}): {e}')
         return None

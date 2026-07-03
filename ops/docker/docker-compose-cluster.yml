@@ -1,0 +1,195 @@
+services:
+  ha-geth-0:
+    container_name: ha-geth-0
+    depends_on:
+      morph-el-0:
+        condition: service_started
+    image: morph-geth:latest
+    restart: unless-stopped
+    ports:
+      - "9145:8545"
+      - "9146:8546"
+      - "8551"
+      - "6060"
+      - "30303"
+    volumes:
+      - ".devnet/ha-el0:/db"
+      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/ha-nodekey0:/db/geth/nodekey"
+      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
+    environment:
+      - RUST_LOG=${RUST_LOG}
+    entrypoint:
+      - "/bin/bash"
+      - "/entrypoint.sh"
+
+  ha-geth-1:
+    container_name: ha-geth-1
+    depends_on:
+      morph-el-0:
+        condition: service_started
+    image: morph-geth:latest
+    restart: unless-stopped
+    ports:
+      - "9245:8545"
+      - "9246:8546"
+      - "8551"
+      - "6060"
+      - "30303"
+    volumes:
+      - ".devnet/ha-el1:/db"
+      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/ha-nodekey1:/db/geth/nodekey"
+      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
+    environment:
+      - RUST_LOG=${RUST_LOG}
+    entrypoint:
+      - "/bin/bash"
+      - "/entrypoint.sh"
+
+  ha-geth-2:
+    container_name: ha-geth-2
+    depends_on:
+      morph-el-0:
+        condition: service_started
+    image: morph-geth:latest
+    restart: unless-stopped
+    ports:
+      - "9345:8545"
+      - "9346:8546"
+      - "8551"
+      - "6060"
+      - "30303"
+    volumes:
+      - ".devnet/ha-el2:/db"
+      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/ha-nodekey2:/db/geth/nodekey"
+      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
+    environment:
+      - RUST_LOG=${RUST_LOG}
+    entrypoint:
+      - "/bin/bash"
+      - "/entrypoint.sh"
+
+  ha-node-0:
+    container_name: ha-node-0
+    depends_on:
+      ha-geth-0:
+        condition: service_started
+      node-0:
+        condition: service_started
+    image: morph-node:latest
+    restart: unless-stopped
+    ports:
+      - "26656"
+      - "27657:26657"
+      - "26658"
+      - "26660"
+      - "9501:9401"
+    environment:
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=${SEQUENCER_PRIVATE_KEY}
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
+      - MORPH_NODE_L2_ETH_RPC=http://ha-geth-0:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-0:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_L1_CONFIRMATIONS=0
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
+      - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_HA_ENABLED=true
+      - MORPH_NODE_HA_BOOTSTRAP=true
+      - MORPH_NODE_HA_SERVER_ID=ha-node-0
+      - MORPH_NODE_HA_ADVERTISED_ADDR=ha-node-0:9400
+    volumes:
+      - ".devnet/ha-node0:${NODE_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --home $NODE_DATA_DIR
+
+  ha-node-1:
+    container_name: ha-node-1
+    depends_on:
+      ha-node-0:
+        condition: service_started
+      ha-geth-1:
+        condition: service_started
+    image: morph-node:latest
+    restart: unless-stopped
+    ports:
+      - "26656"
+      - "27757:26657"
+      - "26658"
+      - "26660"
+      - "9601:9401"
+    environment:
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=${SEQUENCER_PRIVATE_KEY}
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
+      - MORPH_NODE_L2_ETH_RPC=http://ha-geth-1:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-1:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_L1_CONFIRMATIONS=0
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
+      - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_HA_ENABLED=true
+      - MORPH_NODE_HA_JOIN=ha-node-0:9401
+      - MORPH_NODE_HA_SERVER_ID=ha-node-1
+      - MORPH_NODE_HA_ADVERTISED_ADDR=ha-node-1:9400
+    volumes:
+      - ".devnet/ha-node1:${NODE_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --home $NODE_DATA_DIR
+
+  ha-node-2:
+    container_name: ha-node-2
+    depends_on:
+      ha-node-0:
+        condition: service_started
+      ha-geth-2:
+        condition: service_started
+    image: morph-node:latest
+    restart: unless-stopped
+    ports:
+      - "26656"
+      - "27857:26657"
+      - "26658"
+      - "26660"
+      - "9701:9401"
+    environment:
+      - MORPH_NODE_SEQUENCER_PRIVATE_KEY=${SEQUENCER_PRIVATE_KEY}
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
+      - MORPH_NODE_L2_ETH_RPC=http://ha-geth-2:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-2:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_L1_CONFIRMATIONS=0
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
+      - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_HA_ENABLED=true
+      - MORPH_NODE_HA_JOIN=ha-node-0:9401
+      - MORPH_NODE_HA_SERVER_ID=ha-node-2
+      - MORPH_NODE_HA_ADVERTISED_ADDR=ha-node-2:9400
+    volumes:
+      - ".devnet/ha-node2:${NODE_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --home $NODE_DATA_DIR
