@@ -293,9 +293,9 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
 }
 
 async fn query_batch_tx(latest: U64, l1_rollup: &RollupType, batch_index: u64, l1_provider: &Provider<Http>) -> Option<(H256, H256)> {
-    let start = if latest > U64::from(7200 * 3) {
+    let start = if latest > U64::from(7200) {
         // Depends on challenge period
-        latest - U64::from(7200 * 3)
+        latest - U64::from(7200)
     } else {
         U64::from(1)
     };
@@ -354,9 +354,9 @@ async fn query_tx_hash(l1_rollup: &RollupType, start: U64, batch_index: u64, l1_
 }
 
 async fn detecte_challenge_event(latest: U64, l1_rollup: &RollupType, l1_provider: &Provider<Http>) -> Option<u64> {
-    let start = if latest > U64::from(7200 * 3) {
+    let start = if latest > U64::from(7200) {
         // Depends on challenge period
-        latest - U64::from(7200 * 3)
+        latest - U64::from(7200)
     } else {
         U64::from(1)
     };
@@ -369,7 +369,7 @@ async fn detecte_challenge_event(latest: U64, l1_rollup: &RollupType, l1_provide
         }
     };
     log::info!(
-        "{:#?} batches have already been challenged, and been found in recent 7200x3 L1 blocks.",
+        "{:#?} batches have already been challenged, and been found in recent 7200 L1 blocks.",
         logs.len()
     );
 
