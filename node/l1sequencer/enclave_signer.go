@@ -2,6 +2,7 @@ package l1sequencer
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -29,6 +30,11 @@ const (
 	opProvideCredentials byte = 0x04
 
 	statusOk byte = 0x00
+	// statusKeyNotInitialized (Status::KeyNotInitialized in crates/protocol)
+	// means the enclave has no key loaded — its in-memory keystore is empty,
+	// e.g. because the enclave restarted and lost the key. Sign recovers by
+	// re-injecting credentials (idempotent enclave-side) and retrying.
+	statusKeyNotInitialized byte = 0x02
 
 	hashLen    = 32
 	sigLen     = 65
@@ -114,9 +120,12 @@ func NewEnclaveSigner(addr string, logger tmlog.Logger) (*EnclaveSigner, error) 
 // Sign signs a 32-byte prehash. Returns the 65-byte [r||s||v] signature.
 //
 // Up to 3 attempts: each tries the cached conn (or dials fresh if
-// none), and on any wire error drops the conn and retries. After 3
-// failures returns an error wrapping the last cause; the caller is
-// expected to treat that as fatal (block production can't proceed
+// none), and on any wire error drops the conn and retries. If the
+// enclave reports KeyNotInitialized (it restarted and lost its
+// in-memory key), the credentials are re-injected between attempts so
+// the signer reloads the key without waiting for a full node restart.
+// After 3 failures returns an error wrapping the last cause; the caller
+// is expected to treat that as fatal (block production can't proceed
 // without a signer, so tendermint will halt consensus).
 func (s *EnclaveSigner) Sign(data []byte) ([]byte, error) {
 	if len(data) != hashLen {
@@ -147,6 +156,15 @@ func (s *EnclaveSigner) Sign(data []byte) ([]byte, error) {
 			"attempt", attempt, "max", maxAttempts, "err", err)
 		_ = s.conn.Close()
 		s.conn = nil
+		// KeyNotInitialized means the enclave lost its key (it restarted):
+		// its keystore is empty until credentials are pushed again. Re-inject
+		// (a no-op Ack enclave-side once loaded) so the next attempt can sign,
+		// instead of failing every Sign until the whole node is restarted.
+		if isKeyNotInitialized(err) {
+			if ierr := s.injectCredentials(); ierr != nil {
+				s.logger.Error("re-inject credentials after key-not-loaded failed", "err", ierr)
+			}
+		}
 	}
 	s.logger.Error("sign exhausted all retries", "attempts", maxAttempts, "err", lastErr)
 	return nil, fmt.Errorf("enclave sign failed after %d attempts: %w", maxAttempts, lastErr)
@@ -328,5 +346,25 @@ func readOkStatus(conn net.Conn) error {
 	if _, err := io.ReadFull(conn, msg); err != nil {
 		return fmt.Errorf("enclave signer status=0x%02X (read msg: %w)", statusBuf[0], err)
 	}
-	return fmt.Errorf("enclave signer error: status=0x%02X msg=%q", statusBuf[0], string(msg))
+	return &enclaveError{status: statusBuf[0], msg: string(msg)}
+}
+
+// enclaveError is a well-formed non-OK status frame from the enclave
+// (status byte + message). It is returned by readOkStatus so callers can
+// branch on the status code — notably statusKeyNotInitialized, which Sign
+// recovers from by re-injecting credentials.
+type enclaveError struct {
+	status byte
+	msg    string
+}
+
+func (e *enclaveError) Error() string {
+	return fmt.Sprintf("enclave signer error: status=0x%02X msg=%q", e.status, e.msg)
+}
+
+// isKeyNotInitialized reports whether err is an enclave status frame with
+// KeyNotInitialized (0x02) anywhere in its chain.
+func isKeyNotInitialized(err error) bool {
+	var e *enclaveError
+	return errors.As(err, &e) && e.status == statusKeyNotInitialized
 }
