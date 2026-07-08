@@ -14,8 +14,8 @@ import (
 
 	commonbatch "morph-l2/common/batch"
 	"morph-l2/common/blob"
+	"morph-l2/common/codec/zstd"
 	"morph-l2/node/types"
-	"morph-l2/node/zstd"
 )
 
 // buildBlockContexts returns the concatenated 60-byte encoding of `count`
