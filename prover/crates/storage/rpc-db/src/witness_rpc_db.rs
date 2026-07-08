@@ -8,6 +8,7 @@ use alloy_primitives::{map::HashMap, B256};
 use alloy_provider::{Network, Provider};
 use alloy_rlp::Decodable;
 use alloy_rpc_types::BlockId;
+use morph_primitives::MorphHeader;
 use prover_mpt::EthereumState;
 
 use revm::primitives::keccak256;
@@ -16,6 +17,7 @@ use reth_storage_errors::{db::DatabaseError, provider::ProviderError};
 use revm::database::DatabaseRef;
 use revm::primitives::{Address, U256};
 
+use crate::account_proof::EIP1186AccountProofResponseCompat;
 use crate::error::RpcDbError;
 
 /// A database that fetches data via `debug_executionWitness` RPC method.
@@ -49,11 +51,19 @@ impl<P: Provider<N> + Clone, N: Network> ExecutionWitnessRpcDb<P, N> {
     /// This fetches the `debug_executionWitness` data for the block
     /// at `block_number + 1` (i.e., the next block), and builds the
     /// [`EthereumState`] from the witness data.
+    ///
+    /// `force_include` lists `(address, slot)` pairs whose storage trie must be present in the
+    /// resulting state even if the block did not touch them. An execution witness only contains
+    /// state that was accessed during block execution, so accounts read *outside* of execution
+    /// (e.g. Morph predeploys read to derive batch public inputs) would otherwise be missing.
+    /// For each pair we fetch an `eth_getProof` at `block_number` and merge its storage trie into
+    /// the state.
     pub async fn new(
         provider: P,
         chain_id: u64,
         block_number: u64,
         state_root: B256,
+        force_include: &[(Address, U256)],
     ) -> Result<Self, RpcDbError> {
         // Fetch the execution witness for the block at block_number + 1.
         // The witness contains all state trie nodes, codes, and ancestor headers
@@ -69,7 +79,19 @@ impl<P: Provider<N> + Clone, N: Network> ExecutionWitnessRpcDb<P, N> {
             .map_err(RpcDbError::Transport)?;
 
         // Build the EthereumState from the execution witness.
-        let state = EthereumState::from_execution_witness(&execution_witness, state_root);
+        let mut state = EthereumState::from_execution_witness(&execution_witness, state_root);
+
+        // Merge storage tries for accounts that must be present regardless of whether the block
+        // touched them (see `force_include` docs). Grouping slots by address keeps this to one
+        // `eth_getProof` per account.
+        let mut slots_by_address: HashMap<Address, Vec<B256>> = HashMap::default();
+        for (address, slot) in force_include {
+            slots_by_address.entry(*address).or_default().push(B256::from(slot.to_be_bytes::<32>()));
+        }
+        for (address, slots) in slots_by_address {
+            let proof = Self::eth_get_proof(&provider, address, slots, block_number).await?;
+            state.insert_storage_trie_from_proof(&proof)?;
+        }
 
         // Decode and index bytecodes by their code hash.
         let codes: HashMap<B256, Bytecode> = execution_witness
@@ -82,15 +104,18 @@ impl<P: Provider<N> + Clone, N: Network> ExecutionWitnessRpcDb<P, N> {
             .collect();
 
         // Decode and index ancestor headers by their block number.
-        let ancestor_headers: HashMap<u64, Header> = execution_witness
-            .headers
-            .iter()
-            .filter_map(|encoded: &alloy_primitives::Bytes| {
-                let header = Header::decode(&mut encoded.as_ref())
-                    .expect("Valid RLP-encoded header in witness");
-                Some((header.number, header))
-            })
-            .collect();
+        //
+        // Morph-reth's `debug_executionWitness` RLP-encodes headers using the node's
+        // native `MorphHeader` type, whose encoding differs from a standard Ethereum
+        // header (it carries the extra `next_l1_msg_index` field). Decoding those bytes
+        // as an `alloy_consensus::Header` fails with `UnexpectedLength`, so we decode the
+        // `MorphHeader` wrapper and keep its inner Ethereum header.
+        let mut ancestor_headers: HashMap<u64, Header> = HashMap::default();
+        for encoded in execution_witness.headers.iter() {
+            let header = MorphHeader::decode(&mut encoded.as_ref())
+                .map_err(RpcDbError::HeaderDecodeError)?;
+            ancestor_headers.insert(header.inner.number, header.inner);
+        }
 
         let db = Self {
             provider,
@@ -109,6 +134,23 @@ impl<P: Provider<N> + Clone, N: Network> ExecutionWitnessRpcDb<P, N> {
     /// Returns all bytecodes indexed by code hash.
     pub fn bytecodes(&self) -> Vec<Bytecode> {
         self.codes.values().cloned().collect()
+    }
+
+    /// Fetches an EIP-1186 proof for `address` and `slots` at `block_number`.
+    async fn eth_get_proof(
+        provider: &P,
+        address: Address,
+        slots: Vec<B256>,
+        block_number: u64,
+    ) -> Result<alloy_rpc_types::EIP1186AccountProofResponse, RpcDbError> {
+        let compact_proof: EIP1186AccountProofResponseCompat = provider
+            .raw_request::<(Address, Vec<B256>, BlockId), _>(
+                "eth_getProof".into(),
+                (address, slots, block_number.into()),
+            )
+            .await
+            .map_err(|e| RpcDbError::GetProofError(address, e.to_string()))?;
+        Ok(compact_proof.into())
     }
 }
 

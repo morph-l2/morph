@@ -1,5 +1,5 @@
 use alloy_consensus::BlockHeader;
-use alloy_primitives::{map::HashMap, U256};
+use alloy_primitives::{hex::ToHexExt, map::HashMap, U256};
 use morph_primitives::Block;
 use prover_mpt::EthereumState;
 use prover_primitives::Address;
@@ -21,7 +21,6 @@ pub struct BlobInfo {
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BlockInput {
-
     /// l2 block info
     pub current_block: Block,
 
@@ -55,11 +54,10 @@ impl BlockInput {
         let hashed_address = keccak256(address);
         let hashed_address = hashed_address.as_slice();
 
-        let storage_trie = self
-            .parent_state
-            .storage_tries
-            .get(hashed_address)
-            .expect("A storage trie must be provided for each account");
+        let storage_trie = self.parent_state.storage_tries.get(hashed_address).expect(&format!(
+            "A storage trie must be provided for each account, address: {:?}",
+            address.encode_hex_with_prefix()
+        ));
 
         Ok(storage_trie
             .get_rlp::<U256>(keccak256(index.to_be_bytes::<32>()).as_slice())

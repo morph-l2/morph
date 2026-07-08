@@ -76,6 +76,39 @@ impl EthereumState {
         Ok(state)
     }
 
+    /// Inserts (or overwrites) the storage trie for a single account, built from an
+    /// EIP-1186 proof response.
+    ///
+    /// This is used to force-include accounts (e.g. Morph predeploy contracts) whose storage
+    /// was *not* touched during block execution and is therefore missing from an execution
+    /// witness. The proof must be taken at the same state root this `EthereumState` is rooted at,
+    /// so the resolved storage trie is consistent with the account's `storage_root`.
+    pub fn insert_storage_trie_from_proof(
+        &mut self,
+        proof: &EIP1186AccountProofResponse,
+    ) -> Result<(), FromProofError> {
+        let mut storage_nodes = HashMap::with_hasher(Default::default());
+        let mut storage_root_node = MptNode::default();
+
+        for storage_proof in &proof.storage_proof {
+            let proof_nodes = parse_proof(&storage_proof.proof)?;
+            mpt_from_proof(&proof_nodes)?;
+
+            // the first node in the proof is the root
+            if let Some(node) = proof_nodes.first() {
+                storage_root_node = node.clone();
+            }
+
+            proof_nodes.into_iter().for_each(|node| {
+                storage_nodes.insert(node.reference(), node);
+            });
+        }
+
+        self.storage_tries
+            .insert(keccak256(proof.address), resolve_nodes(&storage_root_node, &storage_nodes));
+        Ok(())
+    }
+
     #[cfg(feature = "execution-witness")]
     pub fn from_execution_witness(
         witness: &alloy_rpc_types_debug::ExecutionWitness,

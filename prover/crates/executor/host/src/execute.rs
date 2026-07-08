@@ -149,11 +149,19 @@ impl HostExecutor {
 
         // Build the witness-backed DB.  This issues a single `debug_executionWitness` RPC call
         // and pre-populates the entire pre-state trie in memory.
+        // Force-include the Morph predeploys whose storage the client reads to derive batch
+        // public inputs (withdraw root & sequencer root). A block that does not touch them would
+        // otherwise leave their storage tries out of the execution witness.
+        let force_include = [
+            (WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT),
+            (SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT),
+        ];
         let witness_db = ExecutionWitnessRpcDb::new(
             provider.clone(),
             chain_id,
             prev_block_number,
             prev_state_root,
+            &force_include,
         )
         .await
         .context("failed to build ExecutionWitnessRpcDb")?;

@@ -19,6 +19,7 @@ alloy-primitives = { workspace = true, features = [
 ] }
 prover-primitives = { workspace = true }
 prover-mpt = { workspace = true }
+morph-primitives = { workspace = true }
 alloy-rpc-types = { workspace = true }
 alloy-rpc-types-debug = { workspace = true }
 alloy-transport = { workspace = true }

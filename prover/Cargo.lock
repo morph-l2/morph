@@ -8048,6 +8048,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "log",
+ "morph-primitives",
  "prover-mpt",
  "prover-primitives",
  "reth-primitives-traits",
