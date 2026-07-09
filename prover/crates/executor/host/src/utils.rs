@@ -6,7 +6,6 @@ use alloy_rpc_types::{BlockNumberOrTag, Header as RpcHeader};
 use anyhow::Context;
 use morph_primitives::Block;
 use prover_mpt::EthereumState;
-use prover_primitives::types::{BlockHeader, TransactionTrace};
 use revm::state::Bytecode;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -41,16 +40,6 @@ pub type MorphRpcBlock = alloy_rpc_types::Block<
     morph_rpc::MorphRpcTransaction,
     RpcHeader<morph_primitives::MorphHeader>,
 >;
-
-/// Block structure returned by the prover RPC.
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-pub struct ProverBlock {
-    /// block
-    #[serde(flatten)]
-    pub header: BlockHeader,
-    /// txs
-    pub transactions: Vec<TransactionTrace>,
-}
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct DiskRoot {
@@ -110,19 +99,6 @@ pub async fn query_morph_rpc_block(
     .await
     .with_context(|| format!("eth_getBlockByNumber failed for block {block_number}"))?
     .with_context(|| format!("block {block_number} not found"))
-}
-
-/// Queries the block at a given block number.
-pub async fn query_block(
-    block_number: u64,
-    provider: &DynProvider,
-) -> Result<ProverBlock, anyhow::Error> {
-    let block = query_morph_rpc_block(block_number, provider).await?;
-    let value = serde_json::to_value(block)
-        .with_context(|| format!("failed to serialize Morph RPC block {block_number}"))?;
-    serde_json::from_value(value).with_context(|| {
-        format!("failed to convert Morph RPC block {block_number} into ProverBlock")
-    })
 }
 
 #[cfg(test)]

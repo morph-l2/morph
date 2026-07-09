@@ -11,11 +11,11 @@ use alloy_rpc_types::BlockId;
 use morph_primitives::MorphHeader;
 use prover_mpt::EthereumState;
 
-use revm::primitives::keccak256;
-use revm::state::{AccountInfo, Bytecode};
 use reth_storage_errors::{db::DatabaseError, provider::ProviderError};
 use revm::database::DatabaseRef;
+use revm::primitives::keccak256;
 use revm::primitives::{Address, U256};
+use revm::state::{AccountInfo, Bytecode};
 
 use crate::account_proof::EIP1186AccountProofResponseCompat;
 use crate::error::RpcDbError;
@@ -86,7 +86,10 @@ impl<P: Provider<N> + Clone, N: Network> ExecutionWitnessRpcDb<P, N> {
         // `eth_getProof` per account.
         let mut slots_by_address: HashMap<Address, Vec<B256>> = HashMap::default();
         for (address, slot) in force_include {
-            slots_by_address.entry(*address).or_default().push(B256::from(slot.to_be_bytes::<32>()));
+            slots_by_address
+                .entry(*address)
+                .or_default()
+                .push(B256::from(slot.to_be_bytes::<32>()));
         }
         for (address, slots) in slots_by_address {
             let proof = Self::eth_get_proof(&provider, address, slots, block_number).await?;
@@ -197,12 +200,11 @@ impl<P: Provider<N> + Clone, N: Network> DatabaseRef for ExecutionWitnessRpcDb<P
 
     /// Get account code by its hash.
     fn code_by_hash_ref(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
-        self.codes
-            .get(&code_hash)
-            .cloned()
-            .ok_or_else(|| ProviderError::Database(DatabaseError::Other(
-                format!("bytecode not found for hash {code_hash:?}"),
+        self.codes.get(&code_hash).cloned().ok_or_else(|| {
+            ProviderError::Database(DatabaseError::Other(format!(
+                "bytecode not found for hash {code_hash:?}"
             )))
+        })
     }
 
     /// Get storage value of address at index.
