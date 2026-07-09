@@ -157,11 +157,6 @@ func L2NodeMain(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	if haService != nil {
-		if err = haService.Start(); err != nil {
-			return err
-		}
-	}
 
 	// ========== Derivation config (loaded early to drive the layer1 branch below) ==========
 	derivationCfg := derivation.DefaultConfig()
@@ -216,6 +211,12 @@ func L2NodeMain(ctx *cli.Context) error {
 		nodeConfig.Logger.Info("derivation started")
 	} else {
 		nodeConfig.Logger.Info("derivation skipped: sequencer mode")
+	}
+
+	if haService != nil {
+		if err = haService.Start(); err != nil {
+			return err
+		}
 	}
 
 	interruptChannel := make(chan os.Signal, 1)
