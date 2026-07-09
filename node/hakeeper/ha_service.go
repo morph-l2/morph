@@ -29,7 +29,7 @@ const (
 	// advertisedAddr may be a hostname whose DNS record is not yet propagated the
 	// instant the pod starts (it resolves a few seconds later). Retry the initial
 	// resolve instead of failing fast on that startup race.
-	advAddrResolveRetries  = 50              // retries after the first attempt (6 resolves total)
+	advAddrResolveRetries  = 5               // retries after the first attempt (6 resolves total)
 	advAddrResolveInterval = 3 * time.Second // 5 retries × 3s ≈ 15s max wait for DNS to propagate
 )
 
