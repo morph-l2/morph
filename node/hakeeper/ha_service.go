@@ -49,6 +49,7 @@ type HAService struct {
 	raftObserver *raft.Observer
 
 	leaderReady int32 // atomic: 1 = can produce blocks
+	started     int32 // atomic: 1 = Start() already ran (idempotency guard)
 	stopCh      chan struct{}
 	wg          sync.WaitGroup
 }
@@ -84,6 +85,10 @@ func (h *HAService) SetOnBlockApplied(fn func(*types.BlockV2) error) {
 // Start initializes Raft and the management RPC server.
 // Called by StateV2.OnStart() at upgrade height.
 func (h *HAService) Start() error {
+	if !atomic.CompareAndSwapInt32(&h.started, 0, 1) {
+		h.logger.Info("hakeeper: Start already called, skipping")
+		return nil
+	}
 	if err := h.initRaft(); err != nil {
 		return fmt.Errorf("HAService.Start: %w", err)
 	}

@@ -157,6 +157,11 @@ func L2NodeMain(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	if haService != nil {
+		if err = haService.Start(); err != nil {
+			return err
+		}
+	}
 
 	// ========== Derivation config (loaded early to drive the layer1 branch below) ==========
 	derivationCfg := derivation.DefaultConfig()
