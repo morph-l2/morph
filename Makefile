@@ -44,7 +44,7 @@ submodules:
 	@if [ -d "go-ethereum" ]; then \
 		echo "Updating go-ethereum submodule to tag $(ETHEREUM_SUBMODULE_COMMIT_OR_TAG)..."; \
 		cd go-ethereum && \
-		git fetch --tags && \
+		git fetch --tags --force && \
 		git checkout $(ETHEREUM_SUBMODULE_COMMIT_OR_TAG) && \
 		cd ..; \
 	fi
