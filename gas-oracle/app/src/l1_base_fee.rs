@@ -8,9 +8,6 @@ use ethers::prelude::*;
 use eyre::anyhow;
 use remote_signer_client::SignerClient;
 
-const MAX_BASE_FEE: u128 = 1000 * 10i32.pow(9) as u128; // 1000Gwei
-const MAX_BLOB_BASE_FEE: u128 = 100 * 10i32.pow(9) as u128; // 100Gwei
-
 pub struct BaseFeeUpdater {
     l1_provider: Provider<Http>,
     l2_provider: Provider<Http>,
@@ -19,6 +16,10 @@ pub struct BaseFeeUpdater {
     gas_threshold: u64,
     l1_base_fee_buffer: u64,
     l1_blob_base_fee_buffer: u64,
+    // Upper caps applied to the fetched L1 fees before pushing them on-chain.
+    // Configurable via env; defaults preserve the historical 1000/100 Gwei limits.
+    max_l1_base_fee: u64,
+    max_l1_blob_base_fee: u64,
 }
 
 impl BaseFeeUpdater {
@@ -30,6 +31,8 @@ impl BaseFeeUpdater {
         gas_threshold: u64,
         l1_base_fee_buffer: u64,
         l1_blob_base_fee_buffer: u64,
+        max_l1_base_fee: u64,
+        max_l1_blob_base_fee: u64,
     ) -> Self {
         BaseFeeUpdater {
             l1_provider,
@@ -39,6 +42,8 @@ impl BaseFeeUpdater {
             gas_threshold,
             l1_base_fee_buffer,
             l1_blob_base_fee_buffer,
+            max_l1_base_fee,
+            max_l1_blob_base_fee,
         }
     }
 
@@ -127,8 +132,8 @@ impl BaseFeeUpdater {
         base_fee_on_l2: U256,
         blob_fee_on_l2: U256,
     ) -> Result<(), OracleError> {
-        l1_base_fee = l1_base_fee.min(MAX_BASE_FEE.into());
-        l1_blob_base_fee = l1_blob_base_fee.min(MAX_BLOB_BASE_FEE.into());
+        l1_base_fee = l1_base_fee.min(U256::from(self.max_l1_base_fee));
+        l1_blob_base_fee = l1_blob_base_fee.min(U256::from(self.max_l1_blob_base_fee));
 
         // update_base_fee
         let actual_change = l1_blob_base_fee.abs_diff(blob_fee_on_l2);

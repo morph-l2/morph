@@ -36,6 +36,8 @@ struct Config {
     l1_beacon_rpc: String,
     l1_base_fee_buffer: u64,
     l1_blob_base_fee_buffer: u64,
+    max_l1_base_fee: u64,
+    max_l1_blob_base_fee: u64,
     commit_scalar_buffer: u64,
     blob_scalar_buffer: u64,
     finalize_batch_gas_used: u64,
@@ -65,6 +67,8 @@ impl Config {
             l1_beacon_rpc: read_parse_env("GAS_ORACLE_L1_BEACON_RPC"),
             l1_base_fee_buffer: read_env_var("GAS_ORACLE_L1_BASE_FEE_BUFFER", 0u64),
             l1_blob_base_fee_buffer: read_env_var("GAS_ORACLE_L1_BLOB_BASE_FEE_BUFFER", 0u64),
+            max_l1_base_fee: read_env_var("GAS_ORACLE_MAX_L1_BASE_FEE", 1000 * 10u64.pow(9)),
+            max_l1_blob_base_fee: read_env_var("GAS_ORACLE_MAX_L1_BLOB_BASE_FEE", 100 * 10u64.pow(9)),
             commit_scalar_buffer: read_env_var("GAS_ORACLE_COMMIT_SCALAR_BUFFER", 0u64),
             blob_scalar_buffer: read_env_var("GAS_ORACLE_BLOB_SCALAR_BUFFER", 0u64),
             finalize_batch_gas_used: read_env_var("GAS_ORACLE_FINALIZE_BATCH_GAS_USED", 113100u64),
@@ -210,6 +214,8 @@ async fn prepare_updater(
         config.gas_threshold,
         config.l1_base_fee_buffer,
         config.l1_blob_base_fee_buffer,
+        config.max_l1_base_fee,
+        config.max_l1_blob_base_fee,
     );
 
     let scalar_updater = ScalarUpdater::new(
