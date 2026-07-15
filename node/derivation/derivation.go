@@ -47,7 +47,7 @@ type Derivation struct {
 	logger                tmlog.Logger
 	rollup                *bindings.Rollup
 	metrics               *Metrics
-	l1BeaconClient        *L1BeaconClient
+	l1BeaconClient        *FallbackBeaconClient
 	L2ToL1MessagePasser   *bindings.L2ToL1MessagePasser
 
 	rollupABI             *abi.ABI
@@ -124,8 +124,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	// itself is started once at the top level (cmd/node/main.go) so every
 	// verify-mode and sequencer-mode produces exactly one /metrics URL.
 	metrics := PrometheusMetrics("morphnode")
-	baseHttp := NewFallbackHTTPClient(cfg.BeaconRpcList(), logger, metrics)
-	l1BeaconClient := NewL1BeaconClient(baseHttp)
+	l1BeaconClient := NewFallbackBeaconClient(cfg.BeaconRpcList(), logger, metrics)
 
 	l2Client := types.NewRetryableClient(aClient, eClient, logger)
 	tagAdv := newTagAdvancer(l2Client, metrics, logger)

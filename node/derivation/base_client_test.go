@@ -2,109 +2,139 @@ package derivation
 
 import (
 	"context"
-	"io"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
+	"github.com/morph-l2/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
-// newBeaconStub returns a server that always answers with the given status and
-// body, and a counter recording how many requests it received.
-func newBeaconStub(t *testing.T, status int, body string) (string, *int32) {
+// zero-value but correctly-sized hex so the beacon JSON decodes into a
+// BlobSidecar. GetBlobSidecarsEnhanced does not verify blob contents (that
+// happens downstream), it only counts sidecars, so dummy bytes are fine here.
+var (
+	hex32 = "0x" + strings.Repeat("00", 32)
+	hex48 = "0x" + strings.Repeat("00", 48)
+)
+
+func sidecarJSON(index int) string {
+	return fmt.Sprintf(`{"block_root":%q,"slot":"1","blob":"0x00","index":"%d","kzg_commitment":%q,"kzg_proof":%q}`,
+		hex32, index, hex48, hex48)
+}
+
+// beaconBehavior controls what a stub beacon returns for blob_sidecars.
+type beaconBehavior int
+
+const (
+	beaconServesBlob  beaconBehavior = iota // 200 with one sidecar
+	beaconServesEmpty                       // 200 with an empty list (pruned / not indexed)
+	beaconServerError                       // 500
+)
+
+// newStubBeacon serves the genesis + spec endpoints (needed for slot math) and
+// answers blob_sidecars according to behavior. It returns the base URL and a
+// counter of blob_sidecars requests received.
+func newStubBeacon(t *testing.T, behavior beaconBehavior) (string, *int32) {
 	t.Helper()
-	var hits int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		atomic.AddInt32(&hits, 1)
-		w.WriteHeader(status)
-		_, _ = io.WriteString(w, body)
+	var blobHits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, genesisMethod):
+			_, _ = w.Write([]byte(`{"data":{"genesis_time":"0"}}`))
+		case strings.Contains(r.URL.Path, specMethod):
+			_, _ = w.Write([]byte(`{"data":{"SECONDS_PER_SLOT":"12"}}`))
+		case strings.Contains(r.URL.Path, sidecarsMethodPrefix):
+			atomic.AddInt32(&blobHits, 1)
+			switch behavior {
+			case beaconServesBlob:
+				_, _ = w.Write([]byte(`{"data":[` + sidecarJSON(0) + `]}`))
+			case beaconServesEmpty:
+				_, _ = w.Write([]byte(`{"data":[]}`))
+			case beaconServerError:
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
 	}))
 	t.Cleanup(srv.Close)
-	return srv.URL, &hits
+	return srv.URL, &blobHits
 }
 
-func doGet(t *testing.T, cl HTTP) (*http.Response, error) {
+func oneHash() []IndexedBlobHash {
+	return []IndexedBlobHash{{Index: 0, Hash: common.Hash{}}}
+}
+
+func fetch(t *testing.T, c *FallbackBeaconClient) ([]*BlobSidecar, error) {
 	t.Helper()
-	return cl.Get(context.Background(), "eth/v1/beacon/genesis", http.Header{})
+	return c.GetBlobSidecarsEnhanced(context.Background(), L1BlockRef{Time: 12}, oneHash())
 }
 
-// The primary endpoint is used when healthy and the fallback is never touched.
-func TestFallbackHTTPClient_PrimaryHealthy(t *testing.T) {
-	primary, primaryHits := newBeaconStub(t, http.StatusOK, "ok")
-	fallback, fallbackHits := newBeaconStub(t, http.StatusOK, "fallback")
+// The primary serves the blob and the fallback is never queried.
+func TestFallbackBeacon_PrimaryServesBlob(t *testing.T) {
+	primary, primaryHits := newStubBeacon(t, beaconServesBlob)
+	fallback, fallbackHits := newStubBeacon(t, beaconServesBlob)
 
-	cl := NewFallbackHTTPClient([]string{primary, fallback}, nil, nil)
-	resp, err := doGet(t, cl)
+	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
+	sidecars, err := fetch(t, c)
 	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	body, _ := io.ReadAll(resp.Body)
-	require.Equal(t, "ok", string(body))
+	require.Len(t, sidecars, 1)
 	require.EqualValues(t, 1, atomic.LoadInt32(primaryHits))
-	require.EqualValues(t, 0, atomic.LoadInt32(fallbackHits), "fallback must not be queried while primary is healthy")
+	require.EqualValues(t, 0, atomic.LoadInt32(fallbackHits), "fallback must not be queried while primary serves the blob")
 }
 
-// A non-200 from the primary transparently falls through to a healthy fallback.
-func TestFallbackHTTPClient_FallsBackOnNon200(t *testing.T) {
-	primary, primaryHits := newBeaconStub(t, http.StatusInternalServerError, "boom")
-	fallback, fallbackHits := newBeaconStub(t, http.StatusOK, "recovered")
+// The key case: primary answers 200 but with NO sidecars (pruned / not indexed).
+// This must fall back to a beacon that actually has the blob.
+func TestFallbackBeacon_FallsBackOnEmptyResult(t *testing.T) {
+	primary, primaryHits := newStubBeacon(t, beaconServesEmpty)
+	fallback, fallbackHits := newStubBeacon(t, beaconServesBlob)
 
-	cl := NewFallbackHTTPClient([]string{primary, fallback}, nil, nil)
-	resp, err := doGet(t, cl)
+	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
+	sidecars, err := fetch(t, c)
 	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	body, _ := io.ReadAll(resp.Body)
-	require.Equal(t, "recovered", string(body))
-	require.EqualValues(t, 1, atomic.LoadInt32(primaryHits))
-	require.EqualValues(t, 1, atomic.LoadInt32(fallbackHits))
+	require.Len(t, sidecars, 1)
+	require.Positive(t, atomic.LoadInt32(primaryHits))
+	require.Positive(t, atomic.LoadInt32(fallbackHits))
 }
 
-// A transport error (dead endpoint) also triggers fallback.
-func TestFallbackHTTPClient_FallsBackOnTransportError(t *testing.T) {
-	fallback, fallbackHits := newBeaconStub(t, http.StatusOK, "recovered")
+// A 5xx on the primary also falls back.
+func TestFallbackBeacon_FallsBackOnServerError(t *testing.T) {
+	primary, _ := newStubBeacon(t, beaconServerError)
+	fallback, fallbackHits := newStubBeacon(t, beaconServesBlob)
 
-	// http://127.0.0.1:0 is not listenable, so the first Get fails at the
-	// transport layer before any response is produced.
-	cl := NewFallbackHTTPClient([]string{"http://127.0.0.1:0", fallback}, nil, nil)
-	resp, err := doGet(t, cl)
+	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
+	sidecars, err := fetch(t, c)
 	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.EqualValues(t, 1, atomic.LoadInt32(fallbackHits))
+	require.Len(t, sidecars, 1)
+	require.Positive(t, atomic.LoadInt32(fallbackHits))
 }
 
-// When every endpoint fails (non-200 or transport error), the last error is
-// returned so the caller (apiReq) reports a failure.
-func TestFallbackHTTPClient_AllFailReturnsError(t *testing.T) {
-	primary, primaryHits := newBeaconStub(t, http.StatusServiceUnavailable, "down")
-	fallback, fallbackHits := newBeaconStub(t, http.StatusNotFound, "missing")
+// An unreachable primary (transport error) falls back.
+func TestFallbackBeacon_FallsBackOnTransportError(t *testing.T) {
+	fallback, fallbackHits := newStubBeacon(t, beaconServesBlob)
 
-	cl := NewFallbackHTTPClient([]string{primary, fallback}, nil, nil)
-	resp, err := doGet(t, cl)
-	require.Error(t, err)
-	require.Nil(t, resp)
-	// Both endpoints are tried before giving up.
-	require.EqualValues(t, 1, atomic.LoadInt32(primaryHits))
-	require.EqualValues(t, 1, atomic.LoadInt32(fallbackHits))
+	c := NewFallbackBeaconClient([]string{"http://127.0.0.1:0", fallback}, nil, nil)
+	sidecars, err := fetch(t, c)
+	require.NoError(t, err)
+	require.Len(t, sidecars, 1)
+	require.Positive(t, atomic.LoadInt32(fallbackHits))
 }
 
-// A per-endpoint failure is exposed via metrics so a flaky beacon is visible on
-// dashboards.
-func TestFallbackHTTPClient_RecordsFailureMetric(t *testing.T) {
-	primary, _ := newBeaconStub(t, http.StatusServiceUnavailable, "down")
-	fallback, _ := newBeaconStub(t, http.StatusOK, "recovered")
+// When every beacon fails to serve the blob, an error is returned and every
+// endpoint's failure is recorded in metrics (exercised via a real *Metrics).
+func TestFallbackBeacon_AllFailReturnsError(t *testing.T) {
+	primary, primaryHits := newStubBeacon(t, beaconServesEmpty)
+	fallback, fallbackHits := newStubBeacon(t, beaconServerError)
 
 	m := PrometheusMetrics("morphnode_test_" + t.Name())
-	cl := NewFallbackHTTPClient([]string{primary, fallback}, nil, m)
-	resp, err := doGet(t, cl)
-	require.NoError(t, err)
-	resp.Body.Close()
-	// Just assert the increment path does not panic with a real Metrics; the
-	// counter value is scraped from /metrics in production.
+	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, m)
+	sidecars, err := fetch(t, c)
+	require.Error(t, err)
+	require.Nil(t, sidecars)
+	require.Positive(t, atomic.LoadInt32(primaryHits))
+	require.Positive(t, atomic.LoadInt32(fallbackHits))
 }

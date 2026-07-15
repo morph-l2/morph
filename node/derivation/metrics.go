@@ -37,10 +37,10 @@ type Metrics struct {
 	L1ReorgResetTotal          metrics.Counter
 	TagInvariantViolationTotal metrics.Counter
 
-	// BeaconRequestFailure counts beacon requests that failed (transport error
-	// or non-200), labelled by endpoint, before the FallbackHTTPClient moved on
-	// to the next configured beacon. A rising count for one endpoint pinpoints
-	// the flaky beacon node.
+	// BeaconRequestFailure counts beacons that failed to serve blob sidecars
+	// (unreachable, non-200, or an incomplete/empty result), labelled by
+	// endpoint, before the FallbackBeaconClient moved on to the next configured
+	// beacon. A rising count for one endpoint pinpoints the flaky beacon node.
 	BeaconRequestFailure metrics.Counter
 }
 
