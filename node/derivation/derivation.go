@@ -124,7 +124,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	// itself is started once at the top level (cmd/node/main.go) so every
 	// verify-mode and sequencer-mode produces exactly one /metrics URL.
 	metrics := PrometheusMetrics("morphnode")
-	baseHttp := NewBasicHTTPClient(cfg.BeaconRpc, logger)
+	baseHttp := NewFallbackHTTPClient(cfg.BeaconRpcList(), logger)
 	l1BeaconClient := NewL1BeaconClient(baseHttp)
 
 	l2Client := types.NewRetryableClient(aClient, eClient, logger)

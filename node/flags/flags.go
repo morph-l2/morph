@@ -66,7 +66,7 @@ var (
 
 	L1BeaconAddr = cli.StringFlag{
 		Name:   "l1.beaconrpc",
-		Usage:  "Address of L1 Beacon JSON-RPC endpoint to use (eth namespace required)",
+		Usage:  "Address of L1 Beacon JSON-RPC endpoint(s) to use (eth namespace required). Supports a comma-separated list; endpoints are tried in order and derivation falls back to the next one when a beacon temporarily fails to serve blob sidecars",
 		EnvVar: prefixEnvVar("L1_ETH_BEACON_RPC"),
 	}
 
