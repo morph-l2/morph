@@ -388,7 +388,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				// or fails — without it, a deriveForce error would leave
 				// reactors stopped indefinitely (Stop is idempotent on
 				// retry, but Start is never reached).
-				err = d.withReactorsQuiesced(ctx, batchInfo.batchIndex, func() error {
+				err = d.withReactorsQuiesced(batchInfo.batchIndex, func() error {
 					var derErr error
 					lastHeader, derErr = d.deriveForce(batchInfoFull)
 					return derErr
@@ -432,7 +432,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 					// so the deferred Start runs whether deriveForce succeeds
 					// or fails — without it, a deriveForce error would leave
 					// reactors stopped indefinitely.
-					err = d.withReactorsQuiesced(ctx, batchInfo.batchIndex, func() error {
+					err = d.withReactorsQuiesced(batchInfo.batchIndex, func() error {
 						var derErr error
 						lastHeader, derErr = d.deriveForce(batchInfoFull)
 						return derErr
@@ -837,7 +837,7 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 // zero (which would tell blocksync to re-fetch from genesis). HA
 // sequencers and mock-mode skip (d.node == nil): sequencers don't
 // auto-reorg, mock has no reactors.
-func (d *Derivation) withReactorsQuiesced(ctx context.Context, batchIndex uint64, body func() error) error {
+func (d *Derivation) withReactorsQuiesced(batchIndex uint64, body func() error) error {
 	if d.node == nil {
 		return body()
 	}
