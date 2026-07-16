@@ -13,7 +13,12 @@ pub fn trace_to_input(trace: &BlockTrace) -> ClientBlockInput {
     let witness = trace_to_execution_witness(trace).unwrap();
     let state = EthereumState::from_execution_witness(&witness, trace.root_before());
     let bytecodes = witness.codes.into_iter().map(Bytecode::new_raw).collect::<Vec<_>>();
-    ClientBlockInput { current_block: Block::default(), parent_state: state, bytecodes }
+    ClientBlockInput {
+        current_block: Block::default(),
+        parent_state: state,
+        bytecodes,
+        chain_id: 2818,
+    }
 }
 
 /// Converts a block trace to an execution witness.

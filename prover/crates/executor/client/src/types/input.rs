@@ -29,6 +29,9 @@ pub struct BlockInput {
 
     /// Account bytecodes.
     pub bytecodes: Vec<Bytecode>,
+
+    /// ChainId
+    pub chain_id: u64,
 }
 
 impl BlockInput {

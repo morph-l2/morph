@@ -78,7 +78,7 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
         return Ok(());
     }
     let header = &block.header;
-    let chain_id = 2818;
+    let chain_id = block_input.chain_id;
     let block_num = block.number();
     let txn_count = block.body.transactions.len();
 

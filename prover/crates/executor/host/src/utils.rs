@@ -75,7 +75,12 @@ pub fn assemble_block_input(output: HostExecutorOutput) -> ClientBlockInput {
     let state = output.state;
     let codes = output.codes;
 
-    ClientBlockInput { current_block: block, parent_state: state, bytecodes: codes }
+    ClientBlockInput {
+        current_block: block,
+        parent_state: state,
+        bytecodes: codes,
+        chain_id: output.chain_id,
+    }
 }
 
 /// Queries the Morph RPC block at a given block number.

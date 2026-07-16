@@ -13,14 +13,14 @@ use revm::primitives::B256;
 /// - flattened L2 tx bytes hash
 #[derive(Debug)]
 pub struct BatchInfo {
-    chain_id: u64,
-    prev_state_root: B256,
+    pub chain_id: u64,
+    pub prev_state_root: B256,
     pub post_state_root: B256,
     /// withdraw_root
     pub withdraw_root: Option<B256>,
     /// sequencer_root
     pub sequencer_root: Option<B256>,
-    data_hash: B256,
+    pub data_hash: B256,
 }
 
 impl BatchInfo {
@@ -32,8 +32,8 @@ impl BatchInfo {
         withdraw_root: B256,
         sequencer_root: B256,
     ) -> Self {
+        let chain_id = block_inputs.first().map(|b| b.chain_id).unwrap_or(2818);
         let blocks = block_inputs.iter().map(|x| x.current_block.clone()).collect::<Vec<_>>();
-        let chain_id = 2818;
 
         let mut total_num_l1_txs = 0;
         for block in &blocks {
