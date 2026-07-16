@@ -72,6 +72,36 @@ func splitCompressedIntoBlobs(t *testing.T, compressed []byte) []kzg4844.Blob {
 	return blobs
 }
 
+func appendRandomTrailer(t *testing.T, data []byte, trailerLen int) []byte {
+	t.Helper()
+	trailer := make([]byte, trailerLen)
+	_, err := rand.Read(trailer)
+	require.NoError(t, err)
+	if trailerLen > 0 {
+		// Ensure the suffix is visibly invalid tx data if a decoder ever
+		// leaks it into the decompressed payload.
+		trailer[0] = 0x05
+	}
+	out := make([]byte, 0, len(data)+trailerLen)
+	out = append(out, data...)
+	out = append(out, trailer...)
+	return out
+}
+
+func buildRandomBatchPayload(t *testing.T, startBlock uint64, blockCount, padLen int) []byte {
+	t.Helper()
+	blockCtx := buildBlockContexts(startBlock, blockCount)
+	pad := make([]byte, padLen)
+	_, err := rand.Read(pad)
+	require.NoError(t, err)
+
+	payload := make([]byte, 0, len(blockCtx)+1+padLen)
+	payload = append(payload, blockCtx...)
+	payload = append(payload, 0x00)
+	payload = append(payload, pad...)
+	return payload
+}
+
 // TestParseBatchSingleBlob covers the backward-compatible path where a V1
 // batch fits in a single blob. It guards against regressions in the recent
 // "concatenate then decompress" refactor: the single-blob flow must still
@@ -224,6 +254,136 @@ func TestParseBatchMultiBlobConcatDecompressInvariant(t *testing.T) {
 		require.NotEqual(t, pad, out,
 			"reversed-blob decompression unexpectedly matched payload")
 	}
+}
+
+// TestParseBatchIgnoresTrailingBytesAfterZstdFrame guards the zstd decoder
+// differential fixed in bug #10. The batch payload is a single valid zstd
+// frame; arbitrary bytes appended after that frame must not become part of
+// the decompressed tx stream, otherwise DecodeTxsFromBytes may reject the
+// immutable L1 batch forever. Cover both layouts the derivation code sees:
+// the whole encoded stream in one blob and the same stream split over
+// multiple blobs.
+func TestParseBatchIgnoresTrailingBytesAfterZstdFrame(t *testing.T) {
+	const (
+		parentIndex = 321
+		startBlock  = 3_000
+		blockCount  = 6
+		trailerLen  = 384
+	)
+
+	tests := []struct {
+		name         string
+		version      uint
+		padLen       int
+		assertLayout func(*testing.T, []byte, []kzg4844.Blob)
+	}{
+		{
+			name:    "single blob",
+			version: 1,
+			padLen:  512,
+			assertLayout: func(t *testing.T, compressed []byte, blobs []kzg4844.Blob) {
+				t.Helper()
+				require.LessOrEqual(t, len(compressed), commonbatch.MaxBlobBytesSize,
+					"single-blob test expects compressed payload plus trailer to fit in one blob")
+				require.Len(t, blobs, 1)
+			},
+		},
+		{
+			name:    "multi blob",
+			version: 2,
+			padLen:  commonbatch.MaxBlobBytesSize + commonbatch.MaxBlobBytesSize/5,
+			assertLayout: func(t *testing.T, compressed []byte, blobs []kzg4844.Blob) {
+				t.Helper()
+				require.Greater(t, len(compressed), commonbatch.MaxBlobBytesSize,
+					"multi-blob test requires compressed payload plus trailer to overflow one blob")
+				require.GreaterOrEqual(t, len(blobs), 2)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := buildRandomBatchPayload(t, startBlock, blockCount, tt.padLen)
+
+			compressed, err := zstd.CompressBatchBytes(payload)
+			require.NoError(t, err)
+			compressedWithTrailer := appendRandomTrailer(t, compressed, trailerLen)
+
+			decoded, err := zstd.DecompressBatchBytes(compressedWithTrailer)
+			require.NoError(t, err)
+			require.Equal(t, payload, decoded)
+
+			blobs := splitCompressedIntoBlobs(t, compressedWithTrailer)
+			tt.assertLayout(t, compressedWithTrailer, blobs)
+
+			batch := geth.RPCRollupBatch{
+				Version:           tt.version,
+				ParentBatchHeader: buildV1ParentHeader(parentIndex, startBlock),
+				LastBlockNumber:   startBlock + blockCount - 1,
+				PrevStateRoot:     common.BigToHash(big.NewInt(1)),
+				PostStateRoot:     common.BigToHash(big.NewInt(2)),
+				WithdrawRoot:      common.BigToHash(big.NewInt(3)),
+				Sidecar:           eth.BlobTxSidecar{Blobs: blobs},
+			}
+
+			var bi BatchInfo
+			require.NoError(t, bi.ParseBatch(batch))
+			require.EqualValues(t, parentIndex+1, bi.batchIndex)
+			require.EqualValues(t, startBlock, bi.FirstBlockNumber())
+			require.EqualValues(t, startBlock+blockCount-1, bi.LastBlockNumber())
+			require.Len(t, bi.blockContexts, blockCount)
+		})
+	}
+}
+
+// TestParseBatchIgnoresConcatenatedZstdFrame covers the exploit shape behind
+// bug #10: a valid second frame must be ignored to match the zkVM's
+// single-frame decoder. The first frame intentionally ends immediately after
+// the block contexts. If the second frame is decoded, its leading unsupported
+// tx type (0x05) makes ParseBatch fail and exposes the differential.
+func TestParseBatchIgnoresConcatenatedZstdFrame(t *testing.T) {
+	const (
+		parentIndex = 322
+		startBlock  = 4_000
+		blockCount  = 4
+		trailerLen  = 384
+	)
+
+	payload := buildBlockContexts(startBlock, blockCount)
+	compressed, err := zstd.CompressBatchBytes(payload)
+	require.NoError(t, err)
+
+	trailingPayload := make([]byte, trailerLen)
+	_, err = rand.Read(trailingPayload)
+	require.NoError(t, err)
+	trailingPayload[0] = 0x05
+	trailingFrame, err := zstd.CompressBatchBytes(trailingPayload)
+	require.NoError(t, err)
+
+	concatenatedFrames := make([]byte, 0, len(compressed)+len(trailingFrame))
+	concatenatedFrames = append(concatenatedFrames, compressed...)
+	concatenatedFrames = append(concatenatedFrames, trailingFrame...)
+
+	decoded, err := zstd.DecompressBatchBytes(concatenatedFrames)
+	require.NoError(t, err)
+	require.Equal(t, payload, decoded)
+
+	blobs := splitCompressedIntoBlobs(t, concatenatedFrames)
+	require.Len(t, blobs, 1)
+
+	batch := geth.RPCRollupBatch{
+		Version:           1,
+		ParentBatchHeader: buildV1ParentHeader(parentIndex, startBlock),
+		LastBlockNumber:   startBlock + blockCount - 1,
+		Sidecar:           eth.BlobTxSidecar{Blobs: blobs},
+	}
+
+	var bi BatchInfo
+	require.NoError(t, bi.ParseBatch(batch))
+	require.EqualValues(t, parentIndex+1, bi.batchIndex)
+	require.EqualValues(t, startBlock, bi.FirstBlockNumber())
+	require.EqualValues(t, startBlock+blockCount-1, bi.LastBlockNumber())
+	require.Len(t, bi.blockContexts, blockCount)
 }
 
 // TestParseBatchBlockCountBounds covers the blockCount guards hardened in
