@@ -38,7 +38,7 @@ type Metrics struct {
 	TagInvariantViolationTotal metrics.Counter
 
 	// BeaconRequestFailure counts beacons that failed to serve blob sidecars
-	// (unreachable, non-200, or an incomplete/empty result), labelled by
+	// (unreachable, non-200, or an incomplete/empty result), labeled by
 	// endpoint, before the FallbackBeaconClient moved on to the next configured
 	// beacon. A rising count for one endpoint pinpoints the flaky beacon node.
 	BeaconRequestFailure metrics.Counter
