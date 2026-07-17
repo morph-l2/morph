@@ -170,6 +170,14 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	}
 	c.VerifyMode = normalized
 
+	// Layer1-verify validators historically derived only from finalized L1 data
+	// (the pre-centralized-sequencer default). Preserve that: unless the operator
+	// explicitly set --derivation.confirmations, a layer1 node reads finalized
+	// rather than the fixed-depth latest-N default that consensus fullnodes use.
+	if c.VerifyMode == VerifyModeLayer1 && !ctx.GlobalIsSet(flags.DerivationConfirmations.Name) {
+		c.L1.Confirmations = rpc.FinalizedBlockNumber
+	}
+
 	if ctx.GlobalIsSet(flags.DerivationReorgCheckDepth.Name) {
 		c.ReorgCheckDepth = ctx.GlobalUint64(flags.DerivationReorgCheckDepth.Name)
 	}

@@ -2,10 +2,10 @@ module morph-l2/tools
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.8-0.20260625105428-a5de063445a3
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.8
 
 require (
-	github.com/morph-l2/go-ethereum v1.10.14-0.20260623033834-bb0b3067eb62
+	github.com/morph-l2/go-ethereum v1.10.14-0.20260709072051-ffa95e0670a3
 	github.com/tendermint/tendermint v0.35.9
 )
 
@@ -65,7 +65,6 @@ require (
 	github.com/rjeczalik/notify v0.9.3 // indirect
 	github.com/rs/cors v1.11.0 // indirect
 	github.com/sasha-s/go-deadlock v0.3.1 // indirect
-	github.com/scroll-tech/zktrie v0.8.4 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/status-im/keycard-go v0.3.2 // indirect
 	github.com/supranational/blst v0.3.16-0.20250831170142-f48500c1fdbe // indirect
