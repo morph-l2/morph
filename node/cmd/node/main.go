@@ -15,6 +15,7 @@ import (
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	tmcrypto "github.com/tendermint/tendermint/crypto"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	tmnode "github.com/tendermint/tendermint/node"
 	"github.com/tendermint/tendermint/privval"
@@ -131,8 +132,30 @@ func L2NodeMain(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	tmVal := privval.LoadOrGenFilePV(tmCfg.PrivValidatorKeyFile(), tmCfg.PrivValidatorStateFile())
-	pubKey, _ := tmVal.GetPubKey()
+
+	// Load derivation config here (not just before the switch below): its
+	// VerifyMode decides whether this node runs the Tendermint consensus node,
+	// which in turn decides whether we need a priv-validator file.
+	derivationCfg := derivation.DefaultConfig()
+	if err := derivationCfg.SetCliContext(ctx); err != nil {
+		return fmt.Errorf("derivation set cli context error: %v", err)
+	}
+
+	// Only nodes that start the Tendermint consensus node need a priv-validator
+	// key/state file. Layer1-verify validators never start Tendermint (see the
+	// switch below); LoadOrGenFilePV would generate and Save a FilePV, forcing a
+	// <home>/data/ directory that from-scratch validators never had and panicking
+	// when it is absent. Skip it and hand the executor a nil pubkey -- NewExecutor
+	// and the sequencer-set check both tolerate nil (a layer1 validator is never
+	// in the sequencer set, so its "am I a sequencer" check is correctly false).
+	var (
+		tmVal  *privval.FilePV
+		pubKey tmcrypto.PubKey
+	)
+	if derivationCfg.VerifyMode != derivation.VerifyModeLayer1 {
+		tmVal = privval.LoadOrGenFilePV(tmCfg.PrivValidatorKeyFile(), tmCfg.PrivValidatorStateFile())
+		pubKey, _ = tmVal.GetPubKey()
+	}
 
 	// Reuse the shared syncer instance -- DevSequencer mode is the only path
 	// that pulls a syncer out of NewExecutor, so we hand back the same one
@@ -156,12 +179,6 @@ func L2NodeMain(ctx *cli.Context) error {
 	haService, err = initHAService(ctx, home, nodeConfig.Logger)
 	if err != nil {
 		return err
-	}
-
-	// ========== Derivation config (loaded early to drive the layer1 branch below) ==========
-	derivationCfg := derivation.DefaultConfig()
-	if err := derivationCfg.SetCliContext(ctx); err != nil {
-		return fmt.Errorf("derivation set cli context error: %v", err)
 	}
 
 	switch {
