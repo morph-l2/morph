@@ -65,7 +65,15 @@ func TestAuthMiddleware_WriteMethod_WrongToken_Returns401(t *testing.T) {
 }
 
 func TestAuthMiddleware_EmptyToken_AllMethodsPass(t *testing.T) {
-	t.Skip("empty token is still allowed at middleware level, but rejected by Server.New() in production path")
+	h := authMiddleware("", okHandler)
+	body := `{"jsonrpc":"2.0","method":"ha_removeServer","params":["node-2",1],"id":1}`
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 with empty token, got %d", rr.Code)
+	}
 }
 
 func TestAuthMiddleware_BatchRequest_WithWriteMethod_NoToken_Returns401(t *testing.T) {

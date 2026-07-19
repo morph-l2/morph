@@ -24,11 +24,13 @@ type rpcEnvelope struct {
 }
 
 // authMiddleware returns an HTTP handler that enforces token auth on write methods.
-// If token is empty, the middleware is disabled and all requests pass through.
+// It is fail-closed: empty token is treated as unauthorized.
 func authMiddleware(token string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if token == "" {
-			next.ServeHTTP(w, r)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"unauthorized"}}`))
 			return
 		}
 
