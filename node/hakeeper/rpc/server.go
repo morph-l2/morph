@@ -23,17 +23,17 @@ type Server struct {
 }
 
 // New creates a new Server. cons must implement ConsensusAdapter (defined in this package).
-// token is the auth token for write APIs; pass empty string to disable auth.
+// token is the auth token for write APIs; empty is rejected so write APIs cannot be unintentionally exposed.
 func New(log log.Logger, listenAddr string, listenPort int, cons ConsensusAdapter, token string) (*Server, error) {
+	if token == "" {
+		return nil, errors.New("hakeeper RPC auth token must not be empty; set --ha.rpc-token or MORPH_NODE_HA_RPC_TOKEN")
+	}
+
 	rpcSrv := ethrpc.NewServer()
 
 	backend := NewAPIBackend(log, cons)
 	if err := rpcSrv.RegisterName(RPCNamespace, backend); err != nil {
 		return nil, errors.Wrap(err, "failed to register hakeeper API")
-	}
-
-	if token == "" {
-		log.Info("hakeeper RPC server has no auth token configured, write APIs are unprotected")
 	}
 
 	mux := http.NewServeMux()
