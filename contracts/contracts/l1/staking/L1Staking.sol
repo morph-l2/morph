@@ -336,8 +336,9 @@ contract L1Staking is IL1Staking, Staking, OwnableUpgradeable, ReentrancyGuardUp
         bytes32, // msgHash
         bytes calldata // signature
     ) external pure returns (bool) {
-        // TODO verify BLS signature
-        return true;
+        // BLS verification is required for rollup consensus safety.
+        // Revert explicitly until the verification implementation is integrated.
+        revert("BLS verification not implemented");
     }
 
     /// @notice return all stakers
