@@ -276,7 +276,7 @@ var (
 	}
 	SequencerHARPCToken = cli.StringFlag{
 		Name:   "ha.rpc-token",
-		Usage:  "Auth token for HAKeeper RPC write APIs. If empty, auth is disabled.",
+		Usage:  "Auth token for HAKeeper RPC write APIs. Must be set; empty token is rejected.",
 		EnvVar: prefixEnvVar("HA_RPC_TOKEN"),
 	}
 

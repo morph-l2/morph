@@ -127,14 +127,17 @@ contract Record is IRecord, OwnableUpgradeable {
         require(_batchSubmissions.length > 0, "empty batch submissions");
         for (uint256 i = 0; i < _batchSubmissions.length; i++) {
             require(_batchSubmissions[i].index == nextBatchSubmissionIndex + i, "invalid index");
-            // TODO: check more
-            batchSubmissions[_batchSubmissions[i].index] = BatchSubmission(
-                _batchSubmissions[i].index,
-                _batchSubmissions[i].submitter,
-                _batchSubmissions[i].startBlock,
-                _batchSubmissions[i].endBlock,
-                _batchSubmissions[i].rollupTime,
-                _batchSubmissions[i].rollupBlock
+            BatchSubmission calldata bs = _batchSubmissions[i];
+            require(bs.startBlock < bs.endBlock, "invalid block range");
+            require(bs.rollupTime > 0, "invalid rollup time");
+            require(bs.rollupBlock > 0, "invalid rollup block");
+            batchSubmissions[bs.index] = BatchSubmission(
+                bs.index,
+                bs.submitter,
+                bs.startBlock,
+                bs.endBlock,
+                bs.rollupTime,
+                bs.rollupBlock
             );
         }
         emit BatchSubmissionsUploaded(nextBatchSubmissionIndex, _batchSubmissions.length);
@@ -146,13 +149,15 @@ contract Record is IRecord, OwnableUpgradeable {
         require(_rollupEpochs.length > 0, "empty rollup epochs");
         for (uint256 i = 0; i < _rollupEpochs.length; i++) {
             require(_rollupEpochs[i].index == nextRollupEpochIndex + i, "invalid index");
-            // TODO: check more
-            rollupEpochs[_rollupEpochs[i].index] = RollupEpochInfo(
-                _rollupEpochs[i].index,
-                _rollupEpochs[i].submitter,
-                _rollupEpochs[i].startTime,
-                _rollupEpochs[i].endTime,
-                _rollupEpochs[i].endBlock
+            RollupEpochInfo calldata re = _rollupEpochs[i];
+            require(re.startTime < re.endTime, "invalid time range");
+            require(re.endBlock > re.startTime, "invalid end block");
+            rollupEpochs[re.index] = RollupEpochInfo(
+                re.index,
+                re.submitter,
+                re.startTime,
+                re.endTime,
+                re.endBlock
             );
         }
         emit RollupEpochsUploaded(nextRollupEpochIndex, _rollupEpochs.length);
