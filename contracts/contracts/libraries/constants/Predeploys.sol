@@ -116,4 +116,14 @@ library Predeploys {
      * @notice Address of the L2_REVERSE_ERC20_GATEWAY predeploy.
      */
     address internal constant L2_REVERSE_ERC20_GATEWAY = 0x5300000000000000000000000000000000000018;
+
+    /**
+     * @notice Address of the RECOVERABLE_DEPOSIT_REGISTRY (Onyx).
+     * @dev Unlike the other entries this Registry is NOT genesis-injected: it is
+     *      deployed by governance before the Onyx hardfork and its address is
+     *      fixed in the execution-layer chain config (recoverableDepositRegistryAddress),
+     *      which both morph-reth and go-ethereum read. This constant is kept for
+     *      tooling/reference and MUST match that chain-config value byte-for-byte.
+     */
+    address internal constant RECOVERABLE_DEPOSIT_REGISTRY = 0x5300000000000000000000000000000000000023;
 }
