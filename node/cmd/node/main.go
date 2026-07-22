@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -51,6 +53,8 @@ func main() {
 	}
 }
 
+// L2NodeMain initializes and runs the Morph node for the selected verification
+// and sequencer mode.
 func L2NodeMain(ctx *cli.Context) error {
 	var (
 		err       error
@@ -190,9 +194,26 @@ func L2NodeMain(ctx *cli.Context) error {
 		go ms.Start()
 	case derivationCfg.VerifyMode == derivation.VerifyModeLayer1:
 		nodeConfig.Logger.Info("layer1 verify mode: tendermint not started")
-		// Other modes inherit /metrics from tendermint; layer1 has to bring
-		// its own listener up on the same address.
-		startMetricsServer(tmCfg.Instrumentation.PrometheusListenAddr, nodeConfig.Logger)
+		// Other modes inherit /metrics from tendermint; layer1 has to bring its
+		// own listener up. Default to the Tendermint [instrumentation] address
+		// from config.toml, but let --metrics-port / METRICS_PORT replace only
+		// its port while preserving the configured hostname.
+		if ctx.GlobalIsSet(flags.MetricsServerEnable.Name) {
+			tmCfg.Instrumentation.Prometheus = ctx.GlobalBool(flags.MetricsServerEnable.Name)
+		}
+		if tmCfg.Instrumentation.Prometheus {
+			if ctx.GlobalIsSet(flags.MetricsPort.Name) {
+				host, _, err := net.SplitHostPort(tmCfg.Instrumentation.PrometheusListenAddr)
+				if err != nil && tmCfg.Instrumentation.PrometheusListenAddr != "" {
+					return fmt.Errorf("invalid instrumentation.prometheus_listen_addr: %w", err)
+				}
+				tmCfg.Instrumentation.PrometheusListenAddr = net.JoinHostPort(
+					host,
+					strconv.FormatUint(derivationCfg.MetricsPort, 10),
+				)
+			}
+			startMetricsServer(tmCfg.Instrumentation.PrometheusListenAddr, nodeConfig.Logger)
+		}
 	default:
 		// Convert typed nil (*HAService)(nil) to untyped nil interface to avoid
 		// Go's nil interface gotcha: a typed nil satisfies (ha != nil) checks.
@@ -426,6 +447,8 @@ func initL1SequencerComponents(
 	return tracker, verifier, signer, nil
 }
 
+// startMetricsServer starts the metrics HTTP server asynchronously when addr
+// is non-empty.
 func startMetricsServer(addr string, logger tmlog.Logger) {
 	if addr == "" {
 		logger.Info("metrics server disabled (instrumentation.prometheus_listen_addr is empty)")
