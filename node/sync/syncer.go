@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/morph-l2/go-ethereum/common"
@@ -13,6 +14,8 @@ import (
 )
 
 type Syncer struct {
+	startOnce sync.Once
+
 	ctx          context.Context
 	cancel       context.CancelFunc
 	bridgeClient *BridgeClient
@@ -28,10 +31,14 @@ type Syncer struct {
 	isFake              bool
 }
 
-func NewSyncer(ctx context.Context, db Database, config *Config, logger tmlog.Logger) (*Syncer, error) {
-	l1Client, err := ethclient.Dial(config.L1.Addr)
-	if err != nil {
-		return nil, err
+// NewSyncer wires the L1 message bridge to the provided shared l1Client.
+// The client is owned by the caller (typically main.go) so that all
+// L1-touching components (syncer, derivation, l1sequencer.Tracker/Verifier,
+// rollup binding) share a single connection pool, retry policy, and metrics
+// surface. Do NOT dial a fresh client here.
+func NewSyncer(ctx context.Context, db Database, config *Config, logger tmlog.Logger, l1Client *ethclient.Client) (*Syncer, error) {
+	if l1Client == nil {
+		return nil, errors.New("l1Client cannot be nil")
 	}
 
 	if config.L1MessageQueueAddress == nil {
@@ -75,32 +82,40 @@ func NewSyncer(ctx context.Context, db Database, config *Config, logger tmlog.Lo
 	}, nil
 }
 
+// Start begins the L1 message sync loop. Safe to call multiple times: the
+// shared *Syncer is wired through main.go to both Derivation.Start (which
+// always invokes it) and Executor.updateSequencerSet (which invokes it on
+// sequencer-role transitions). Without the once-guard the second caller
+// would spawn a duplicate poller racing on s.latestSynced and double-close
+// s.stop on shutdown.
 func (s *Syncer) Start() {
-	if s.isFake {
-		return
-	}
-	// block node startup during initial sync and print some helpful logs
-	s.logger.Info("initial sync start", "msg", "Running initial sync of L1 messages before starting sequencer, this might take a while...")
-	s.fetchL1Messages()
-	s.logger.Info("initial sync completed", "latestSyncedBlock", s.latestSynced)
-
-	go func() {
-		t := time.NewTicker(s.pollInterval)
-		defer t.Stop()
-
-		for {
-			// don't wait for ticker during startup
-			s.fetchL1Messages()
-
-			select {
-			case <-s.ctx.Done():
-				close(s.stop)
-				return
-			case <-t.C:
-				continue
-			}
+	s.startOnce.Do(func() {
+		if s.isFake {
+			return
 		}
-	}()
+		// block node startup during initial sync and print some helpful logs
+		s.logger.Info("initial sync start", "msg", "Running initial sync of L1 messages before starting sequencer, this might take a while...")
+		s.fetchL1Messages()
+		s.logger.Info("initial sync completed", "latestSyncedBlock", s.latestSynced)
+
+		go func() {
+			t := time.NewTicker(s.pollInterval)
+			defer t.Stop()
+
+			for {
+				// don't wait for ticker during startup
+				s.fetchL1Messages()
+
+				select {
+				case <-s.ctx.Done():
+					close(s.stop)
+					return
+				case <-t.C:
+					continue
+				}
+			}
+		}()
+	})
 }
 
 func (s *Syncer) Stop() {

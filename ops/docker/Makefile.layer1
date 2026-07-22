@@ -16,12 +16,12 @@ start:
 	@./layer1/scripts/start.sh
 
 stop:
-	@docker compose -f docker-compose-4nodes.yml down
+	@docker compose -f docker-compose-devnet.yml down
 
 restart: stop start
 
 logs:
-	@docker compose -f docker-compose-4nodes.yml logs -f layer1-el layer1-cl layer1-vc
+	@docker compose -f docker-compose-devnet.yml logs -f layer1-el layer1-cl layer1-vc
 
 clean:
 	@./layer1/scripts/clean.sh

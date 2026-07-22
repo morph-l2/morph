@@ -15,11 +15,25 @@ import (
 // ErrKeyNotFound is returned by SealedBatchKV implementations when a key is absent.
 var ErrKeyNotFound = errors.New("batch storage: key not found")
 
+// KVPair is a key/value entry applied as part of an atomic WriteBatch.
+type KVPair struct {
+	Key   []byte
+	Value []byte
+}
+
 // SealedBatchKV is a minimal key-value store used by BatchStorage.
 type SealedBatchKV interface {
 	GetBytes(key []byte) ([]byte, error)
 	PutBytes(key, val []byte) error
 	Delete(key []byte) error
+	// WriteBatch applies all puts and deletes as a single atomic write, so that
+	// batch data, batch header and the indices snapshot can never get out of sync
+	// with each other on crash or partial failure.
+	WriteBatch(puts []KVPair, deletes [][]byte) error
+	// IteratePrefixKeys returns every key currently stored under prefix. It backs
+	// the force-wipe self-heal path, which must remove orphaned sealed batch data
+	// and header keys even when the indices snapshot is corrupt or unreadable.
+	IteratePrefixKeys(prefix []byte) ([][]byte, error)
 }
 
 // L1HeaderClient is the L1 RPC surface required to recover batch headers from events.

@@ -1,6 +1,7 @@
 package derivation
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math/big"
@@ -59,6 +60,11 @@ type BatchInfo struct {
 	root                       common.Hash
 	withdrawalRoot             common.Hash
 	parentTotalL1MessagePopped uint64
+
+	// blobHashes is the ordered list of EIP-4844 blob versioned hashes
+	// declared by the L1 commitBatch tx. local verify uses this to compare
+	// against locally-rebuilt versioned hashes (SPEC-005 section 4).
+	blobHashes []common.Hash
 }
 
 func (bi *BatchInfo) FirstBlockNumber() uint64 {
@@ -172,13 +178,24 @@ func (bi *BatchInfo) ParseBatch(batch geth.RPCRollupBatch) error {
 		txsData = batchBytes
 	} else {
 		// Block contexts are at the head of the decompressed stream,
-		// immediately followed by the tx payload bytes.
-		bcLen := blockCount * 60
-		if uint64(len(batchBytes)) < bcLen {
-			return fmt.Errorf("decompressed batch too short for block contexts: have %d, need %d", len(batchBytes), bcLen)
+		// immediately followed by the tx payload bytes. Bound blockCount by
+		// the payload length using division so blockCount*60 cannot overflow
+		// uint64 and bypass the length guard (a wrapped-small bcLen would
+		// otherwise drive a huge make([]*BlockContext) below).
+		if blockCount > uint64(len(batchBytes))/60 {
+			return fmt.Errorf("decompressed batch too short for block contexts: have %d, need %d blocks", len(batchBytes), blockCount)
 		}
+		bcLen := blockCount * 60
 		rawBlockContexts = batchBytes[:bcLen]
 		txsData = batchBytes[bcLen:]
+	}
+
+	// A batch must contain at least one block; zero-block batches are not
+	// supported. blockCount == 0 (e.g. a batch whose lastBlockNumber equals the
+	// parent's, or a zero block-count prefix) would yield empty blockContexts
+	// and a nil header downstream during derivation. Reject it here.
+	if blockCount == 0 {
+		return fmt.Errorf("invalid batch: zero block count")
 	}
 
 	data, err := commonbatch.DecodeTxsFromBytes(txsData)
@@ -236,6 +253,46 @@ func encodeTransactions(txs []*eth.Transaction) [][]byte {
 		enc[i], _ = tx.MarshalBinary()
 	}
 	return enc
+}
+
+// blockContentMatches reports whether a local L2 block carries the same
+// content the batch committed for that height: timestamp, gas limit, base
+// fee and the ordered tx list (L1 messages then L2 txs, by binary encoding).
+// The batch has no parent hashes, so this is content-only; deriveForce pairs
+// it with a canonical anchor to conclude a block is canonical.
+func blockContentMatches(local *eth.Block, sd *catalyst.SafeL2Data) bool {
+	h := local.Header()
+	if h.Time != sd.Timestamp {
+		return false
+	}
+	if h.GasLimit != sd.GasLimit {
+		return false
+	}
+	if !baseFeeEqual(h.BaseFee, sd.BaseFee) {
+		return false
+	}
+	txs := local.Transactions()
+	if len(txs) != len(sd.Transactions) {
+		return false
+	}
+	for i, tx := range txs {
+		enc, err := tx.MarshalBinary()
+		if err != nil || !bytes.Equal(enc, sd.Transactions[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// baseFeeEqual treats nil and zero as equal — ParseBatch normalises a zero
+// base fee to nil, while a local header may carry an explicit zero.
+func baseFeeEqual(a, b *big.Int) bool {
+	az := a == nil || a.Sign() == 0
+	bz := b == nil || b.Sign() == 0
+	if az || bz {
+		return az && bz
+	}
+	return a.Cmp(b) == 0
 }
 
 type txQueue struct {
