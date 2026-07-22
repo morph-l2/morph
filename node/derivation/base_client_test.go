@@ -69,6 +69,15 @@ func oneHash() []IndexedBlobHash {
 	return []IndexedBlobHash{{Index: 0, Hash: common.Hash{}}}
 }
 
+type canceledHTTP struct {
+	calls *int32
+}
+
+func (h canceledHTTP) Get(ctx context.Context, _ string, _ http.Header) (*http.Response, error) {
+	atomic.AddInt32(h.calls, 1)
+	return nil, ctx.Err()
+}
+
 func fetch(t *testing.T, c *FallbackBeaconClient) ([]*BlobSidecar, error) {
 	t.Helper()
 	return c.GetBlobSidecarsEnhanced(context.Background(), L1BlockRef{Time: 12}, oneHash())
@@ -122,6 +131,26 @@ func TestFallbackBeacon_FallsBackOnTransportError(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, sidecars, 1)
 	require.Positive(t, atomic.LoadInt32(fallbackHits))
+}
+
+func TestFallbackBeacon_StopsOnContextCancellation(t *testing.T) {
+	var primaryCalls, fallbackCalls int32
+	c := &FallbackBeaconClient{
+		clients: []*L1BeaconClient{
+			NewL1BeaconClient(canceledHTTP{calls: &primaryCalls}),
+			NewL1BeaconClient(canceledHTTP{calls: &fallbackCalls}),
+		},
+		endpoints: []string{"primary", "fallback"},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	sidecars, err := c.GetBlobSidecarsEnhanced(ctx, L1BlockRef{Time: 12}, oneHash())
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, sidecars)
+	require.Positive(t, atomic.LoadInt32(&primaryCalls))
+	require.Zero(t, atomic.LoadInt32(&fallbackCalls))
 }
 
 // When every beacon fails to serve the blob, an error is returned and every

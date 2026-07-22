@@ -249,6 +249,9 @@ func (c *FallbackBeaconClient) GetBlobSidecarsEnhanced(ctx context.Context, ref 
 		if err == nil && len(sidecars) > 0 && len(sidecars) >= len(hashes) {
 			return sidecars, nil
 		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if err == nil {
 			err = fmt.Errorf("beacon returned %d sidecars, want at least %d", len(sidecars), len(hashes))
 		}
