@@ -223,6 +223,27 @@ def devnet_deploy(paths, args):
     ], cwd=paths.L2_dir)
     write_json(done_file, {})
 
+    # Onyx recoverable-sweep: inject the hardfork activation + registry address
+    # into the generated L2 genesis config. The L2 genesis tool only emits up to
+    # Jade, but morph-reth reads unknown config fields via OtherFields, so patching
+    # them here is enough to activate Onyx. This touches ONLY the `config` object
+    # (no `alloc` change), so the genesis state root is unchanged and the rollup
+    # batch header already written to rollup.json / L1 stays consistent. Enable
+    # with DEVNET_ONYX=1; the registry is deployed post-genesis (see the demo
+    # script) at a CREATE-predicted address that must match here.
+    if os.environ.get('DEVNET_ONYX', '').lower() in ('1', 'true', 'yes'):
+        onyx_time = int(os.environ.get('DEVNET_ONYX_TIME', '0'))
+        registry_addr = os.environ.get(
+            'DEVNET_RECOVERABLE_REGISTRY', '0x71C95911E9a5D330f4D621842EC243EE1343292e')
+        genesis_l2 = read_json(paths.genesis_l2_path)
+        cfg = genesis_l2.setdefault('config', {})
+        cfg['onyxTime'] = onyx_time
+        cfg.setdefault('morph', {})['recoverableDepositRegistryAddress'] = registry_addr
+        write_json(paths.genesis_l2_path, genesis_l2)
+        log.info(
+            f'[onyx] patched L2 genesis config: onyxTime={onyx_time}, '
+            f'recoverableDepositRegistryAddress={registry_addr}')
+
     log.info('Deploying L1 Impl contracts and initialize contracts...')
     rollup_cfg = read_json(paths.rollup_config_path)
     l2_genesis_state_root = rollup_cfg['l2_genesis_state_root']
