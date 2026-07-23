@@ -7,12 +7,11 @@ import socket
 import calendar
 import datetime
 import time
-import fileinput
-import re
 import platform
 import shutil
 import http.client
 import devnet.log_setup
+import devnet.contracts_init
 
 # from devnet.genesis import GENESIS_TMPL
 
@@ -200,15 +199,39 @@ def devnet_deploy(paths, args):
     write_json(temp_deploy_config, deploy_config)
 
     # private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
-    log.info(f'Removing contracts deployment file: {paths.deployment_dir}...')
+    log.info(f'Removing contracts deployment files...')
     run_command(['rm', '-f', paths.deployment_dir], env={}, cwd=paths.contracts_dir)
-    log.info('Deploying L1 Proxy contracts...')
+    deployment_impls = pjoin(paths.devnet_dir, 'devnetL1_impls.json')
+    run_command(['rm', '-f', deployment_impls], env={}, cwd=paths.contracts_dir)
+
+    log.info('Building contracts (Foundry)...')
     run_command([
-        'yarn', 'build'
+        'forge', 'build'
     ], env={}, cwd=paths.contracts_dir)
+
+    forge_config = pjoin(paths.contracts_dir, 'script', 'config', 'l1.json')
+    deployer_pk = args.deployer_private_key
+
+    # ========================================================================
+    # Phase 1 — Deploy proxy contracts
+    # ========================================================================
+    log.info('Deploying L1 Proxy contracts (forge script)...')
     run_command([
-        'npx', 'hardhat', 'deploy', '--network', 'l1', '--storagepath', paths.deployment_dir, '--concurrent', 'true'
+        'forge', 'script', 'script/deploy/Deploy.s.sol',
+        '--broadcast',
+        '--rpc-url', 'http://127.0.0.1:9545',
+        '--private-key', deployer_pk,
+        '--sig', 'run(string,string)', forge_config, paths.deployment_dir
     ], env={}, cwd=paths.contracts_dir)
+
+    # Save proxy addresses for later merge (Phase 2a will overwrite)
+    proxies = read_json(paths.deployment_dir)
+    log.info(f'Deployed {len(proxies)} proxy contracts')
+
+    # Go genesis expects [{name, address, number}]; convert to a temp file.
+    go_deployment_file = pjoin(paths.devnet_dir, 'devnetL1_for_go.json')
+    array_fmt = [{"name": k, "address": v, "number": 0} for k, v in proxies.items()]
+    write_json(go_deployment_file, array_fmt)
 
     log.info('Generating L2 genesis and rollup configs.')
     run_command([
@@ -216,7 +239,7 @@ def devnet_deploy(paths, args):
         'go', 'run', 'cmd/main.go', 'genesis', 'l2',
         '--l1-rpc', 'http://localhost:9545',
         '--deploy-config', temp_deploy_config,
-        '--deployment-dir', paths.deployment_dir,
+        '--deployment-dir', go_deployment_file,
         '--outfile.l2', pjoin(paths.devnet_dir, 'genesis-l2.json'),
         '--outfile.genbatchheader', pjoin(paths.devnet_dir, 'genesis-batch-header.json'),
         '--outfile.rollup', pjoin(paths.devnet_dir, 'rollup.json')
@@ -225,26 +248,40 @@ def devnet_deploy(paths, args):
 
     log.info('Deploying L1 Impl contracts and initialize contracts...')
     rollup_cfg = read_json(paths.rollup_config_path)
-    l2_genesis_state_root = rollup_cfg['l2_genesis_state_root']
-    withdraw_root = rollup_cfg['withdraw_root']
     genesis_batch_header = rollup_cfg['genesis_batch_header']
-#     Do not need genesis root and withdraw root
-#     pattern1 = re.compile("rollupGenesisStateRoot: '.*'")
-#     pattern2 = re.compile("withdrawRoot: '.*'")
-    pattern3 = re.compile("batchHeader: '.*'")
-#     for line in fileinput.input(paths.contracts_config, inplace=True):
-#         modified_line = re.sub(pattern1, f"rollupGenesisStateRoot: '{l2_genesis_state_root}'", line)
-#         print(modified_line, end='')
-#     for line in fileinput.input(paths.contracts_config, inplace=True):
-#         modified_line = re.sub(pattern2, f"withdrawRoot: '{withdraw_root}'", line)
-#         print(modified_line, end='')
 
-    for line in fileinput.input(paths.contracts_config, inplace=True):
-        modified_line = re.sub(pattern3, f"batchHeader: '{genesis_batch_header}'", line)
-        print(modified_line, end='')
+    # Inject batchHeader into a temp copy of the deploy config (don't mutate committed file)
+    l1_json = read_json(forge_config)
+    l1_json['batchHeader'] = genesis_batch_header
+    forge_config_temp = pjoin(paths.devnet_dir, 'deploy-config-l1.json')
+    write_json(forge_config_temp, l1_json)
+
+    # Phase 2a — deploy implementation contracts (reads proxies, writes to separate file)
+    log.info('Deploying L1 implementation contracts (forge script)...')
     run_command([
-        'npx', 'hardhat', 'initialize', '--network', 'l1', '--storagepath', paths.deployment_dir, '--concurrent', 'true'
+        'forge', 'script', 'script/deploy/InitializeImpls.s.sol',
+        '--broadcast',
+        '--rpc-url', 'http://127.0.0.1:9545',
+        '--private-key', deployer_pk,
+        '--sig', 'run(string,string,string)', forge_config_temp, paths.deployment_dir, deployment_impls
     ], env={}, cwd=paths.contracts_dir)
+
+    # Merge proxy + impl addresses so Phase 2b can read both
+    impls = read_json(deployment_impls)
+    merged = {**proxies, **impls}
+    write_json(paths.deployment_dir, merged)
+    log.info(f'Merged deployment: {len(proxies)} proxies + {len(impls)} impls = {len(merged)} total')
+
+    # Phase 2b — upgrade + initialize + transfer admin (cast-based, replaces forge script)
+    log.info('Initializing L1 contracts (cast-based)...')
+    devnet.contracts_init.initialize_contracts(
+        contracts_dir=paths.contracts_dir,
+        rpc_url='http://127.0.0.1:9545',
+        deployer_pk=deployer_pk,
+        config=l1_json,
+        proxies=proxies,
+        impls=impls,
+    )
 
     # run_command([
     #     'npx', 'hardhat', 'staking', '--network', 'l1', '--storagepath', paths.deployment_dir
@@ -253,8 +290,12 @@ def devnet_deploy(paths, args):
     log.info('Parser L1 contracts...')
     addresses = {}
     deployment = read_json(paths.deployment_dir)
-    for d in deployment:
-        addresses[d['name']] = d['address']
+    # Handle both forge flat-object format and legacy array-of-objects format
+    if isinstance(deployment, list):
+        for d in deployment:
+            addresses[d['name']] = d['address']
+    else:
+        addresses = dict(deployment)
     log.info('Passing L1 contracts address:', addresses)
 
     log.info('Do Staking Sequencer...')

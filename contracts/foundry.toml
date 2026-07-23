@@ -3,6 +3,7 @@ src = 'contracts'
 out = 'forge-artifacts'
 optimizer = true
 optimizer_runs = 999999
+via_ir = true
 remappings = []
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = 'none'
@@ -12,7 +13,7 @@ ffi = true
 fuzz_runs = 16
 evm_version = 'cancun'
 
-fs_permissions = [{ access = 'read-write', path = './' }]
+fs_permissions = [{ access = 'read-write', path = './' }, { access = 'read-write', path = '../ops/' }]
 
 [profile.ci]
 fuzz_runs = 512
