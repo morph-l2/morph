@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Onyx recoverable-sweep end-to-end demo against a running `make devnet-up-reth`.
+# Onyx sweep end-to-end demo against a running `make devnet-up-reth`.
 #
 # Prerequisites:
 #   - devnet is up with the Onyx genesis patch applied, i.e. started with:
@@ -15,8 +15,8 @@
 #      was patched with (REGISTRY below)
 #   3. deploy a MockERC20, whitelist it, register a deposit EOA via EIP-712
 #   4. transfer whitelisted tokens INTO the deposit -> the EL auto-sweeps them
-#      to master and appends a RecoverableSweep log
-#   5. assert: RecoverableSweep log present, deposit balance == 0
+#      to master and appends a Swept log
+#   5. assert: Swept log present, deposit balance == 0
 #
 set -euo pipefail
 
@@ -39,7 +39,7 @@ DEPOSIT_KEY=0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
 MASTER=$ACCT0
 OWNER=$ACCT0
 # CREATE-predicted proxy address = keccak(rlp(DEPLOYER, nonce=1)); must match the
-# recoverableDepositRegistryAddress patched into the genesis config.
+# sweepRegistryAddress patched into the genesis config.
 REGISTRY="${REGISTRY:-0x71C95911E9a5D330f4D621842EC243EE1343292e}"
 
 SWEEP_TOPIC=0x4cb65f464c97b7cae979110960f2dba5a9447c795638563ad5f1e2b52c6f37dd
@@ -56,7 +56,7 @@ send0 --value 10ether "$DEPLOYER" >/dev/null
 
 # 2. deploy impl (nonce 0) then proxy (nonce 1)
 echo "==> [2] deploy Registry impl + proxy from $DEPLOYER"
-IMPL=$(forge create contracts/l2/system/RecoverableDepositRegistry.sol:RecoverableDepositRegistry \
+IMPL=$(forge create contracts/l2/system/SweepRegistry.sol:SweepRegistry \
   --rpc-url "$L2_RPC" --private-key "$DEPLOYER_KEY" --broadcast --json | jq -r .deployedTo)
 echo "    impl  = $IMPL"
 INIT_DATA=$(cast calldata "initialize(address)" "$OWNER")
@@ -85,7 +85,7 @@ echo "    resolveSweep(before register) = $pre"
 
 # 4. deposit signs EIP-712 authorization, owner registers it
 echo "==> [4] EIP-712 register deposit $DEPOSIT -> master $MASTER"
-MODE=$(cast keccak "MORPH_RECOVERABLE_DEPOSIT_V1")
+MODE=$(cast keccak "MORPH_SWEEP_V1")
 SCOPE=$(cast keccak "WHITELISTED_ERC20_TO_MASTER_ONLY")
 DEADLINE=$(( $(date +%s) + 31536000 ))
 TYPED=$(mktemp)
@@ -98,7 +98,7 @@ cat > "$TYPED" <<JSON
       {"name":"chainId","type":"uint256"},
       {"name":"verifyingContract","type":"address"}
     ],
-    "RecoverableDepositAuthorization": [
+    "SweepAuthorization": [
       {"name":"deposit","type":"address"},
       {"name":"master","type":"address"},
       {"name":"registry","type":"address"},
@@ -109,9 +109,9 @@ cat > "$TYPED" <<JSON
       {"name":"sweepScope","type":"bytes32"}
     ]
   },
-  "primaryType": "RecoverableDepositAuthorization",
+  "primaryType": "SweepAuthorization",
   "domain": {
-    "name": "RecoverableDepositRegistry",
+    "name": "SweepRegistry",
     "version": "1",
     "chainId": $L2_CHAIN_ID,
     "verifyingContract": "$PROXY"
@@ -130,7 +130,7 @@ cat > "$TYPED" <<JSON
 JSON
 SIG=$(cast wallet sign --private-key "$DEPOSIT_KEY" --data --from-file "$TYPED")
 rm -f "$TYPED"
-send0 "$PROXY" "registerRecoverableDeposit(address,address,uint256,uint64,bytes)" \
+send0 "$PROXY" "registerSweep(address,address,uint256,uint64,bytes)" \
   "$DEPOSIT" "$MASTER" 0 "$DEADLINE" "$SIG" >/dev/null
 post=$(cast call --rpc-url "$L2_RPC" "$PROXY" "resolveSweep(address,address)(address)" "$TOKEN" "$DEPOSIT")
 echo "    resolveSweep(after register) = $post"
@@ -144,9 +144,9 @@ echo "    tx = $TXHASH"
 echo "==> [6] assert"
 LOGS=$(cast receipt --rpc-url "$L2_RPC" "$TXHASH" --json | jq -r '.logs[].topics[0]')
 if echo "$LOGS" | grep -qi "${SWEEP_TOPIC#0x}"; then
-  echo "    OK: RecoverableSweep log present"
+  echo "    OK: Swept log present"
 else
-  echo "    FAIL: no RecoverableSweep log in receipt"; echo "$LOGS"; exit 1
+  echo "    FAIL: no Swept log in receipt"; echo "$LOGS"; exit 1
 fi
 dep_bal=$(cast call --rpc-url "$L2_RPC" "$TOKEN" "balanceOf(address)(uint256)" "$DEPOSIT")
 master_bal=$(cast call --rpc-url "$L2_RPC" "$TOKEN" "balanceOf(address)(uint256)" "$MASTER")
@@ -155,4 +155,4 @@ echo "    master  balance = $master_bal"
 [ "${dep_bal%% *}" = "0" ] || { echo "    FAIL: deposit not drained"; exit 1; }
 
 echo ""
-echo "SUCCESS: Onyx recoverable-sweep worked end-to-end on devnet."
+echo "SUCCESS: Onyx sweep worked end-to-end on devnet."

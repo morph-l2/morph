@@ -3,14 +3,14 @@ pragma solidity =0.8.24;
 
 import "forge-std/Test.sol";
 
-import {RecoverableDepositRegistry} from "../l2/system/RecoverableDepositRegistry.sol";
-import {IRecoverableDepositRegistry} from "../l2/system/IRecoverableDepositRegistry.sol";
+import {SweepRegistry} from "../l2/system/SweepRegistry.sol";
+import {ISweepRegistry} from "../l2/system/ISweepRegistry.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 
-contract RecoverableDepositRegistryTest is Test {
-    RecoverableDepositRegistry internal registry;
-    RecoverableDepositRegistry internal registryImpl;
+contract SweepRegistryTest is Test {
+    SweepRegistry internal registry;
+    SweepRegistry internal registryImpl;
     ProxyAdmin internal proxyAdmin;
 
     address internal multisig = address(512);
@@ -28,9 +28,9 @@ contract RecoverableDepositRegistryTest is Test {
     // Must match the contract's frozen tags (asserted in a dedicated test).
     bytes32 internal constant AUTH_TYPEHASH =
         keccak256(
-            "RecoverableDepositAuthorization(address deposit,address master,address registry,uint256 chainId,uint256 nonce,uint64 deadline,bytes32 mode,bytes32 sweepScope)"
+            "SweepAuthorization(address deposit,address master,address registry,uint256 chainId,uint256 nonce,uint64 deadline,bytes32 mode,bytes32 sweepScope)"
         );
-    bytes32 internal constant MODE = keccak256("MORPH_RECOVERABLE_DEPOSIT_V1");
+    bytes32 internal constant MODE = keccak256("MORPH_SWEEP_V1");
     bytes32 internal constant SWEEP_SCOPE = keccak256("WHITELISTED_ERC20_TO_MASTER_ONLY");
 
     function setUp() public {
@@ -39,21 +39,21 @@ contract RecoverableDepositRegistryTest is Test {
         vm.prank(multisig);
         proxyAdmin = new ProxyAdmin();
 
-        registryImpl = new RecoverableDepositRegistry();
+        registryImpl = new SweepRegistry();
 
         vm.prank(multisig);
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(registryImpl),
             address(proxyAdmin),
-            abi.encodeWithSelector(RecoverableDepositRegistry.initialize.selector, owner)
+            abi.encodeWithSelector(SweepRegistry.initialize.selector, owner)
         );
-        registry = RecoverableDepositRegistry(address(proxy));
+        registry = SweepRegistry(address(proxy));
 
         // Whitelist the sweep token by default.
         vm.prank(owner);
         registry.setTokenWhitelist(token, true);
 
-        vm.label(address(registry), "RecoverableDepositRegistry");
+        vm.label(address(registry), "SweepRegistry");
         vm.label(deposit, "deposit");
         vm.label(master, "master");
         vm.label(operator, "operator");
@@ -96,7 +96,7 @@ contract RecoverableDepositRegistryTest is Test {
         uint64 deadline = _deadline();
         bytes memory sig = _sign(depositPk, deposit, master, 0, deadline);
         vm.prank(caller);
-        registry.registerRecoverableDeposit(deposit, master, 0, deadline, sig);
+        registry.registerSweep(deposit, master, 0, deadline, sig);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -108,7 +108,7 @@ contract RecoverableDepositRegistryTest is Test {
     }
 
     function test_initialize_reverts_on_impl() public {
-        RecoverableDepositRegistry impl = new RecoverableDepositRegistry();
+        SweepRegistry impl = new SweepRegistry();
         vm.expectRevert();
         impl.initialize(owner);
     }
@@ -129,23 +129,23 @@ contract RecoverableDepositRegistryTest is Test {
     }
 
     function test_setTokenWhitelist_reverts_zero() public {
-        vm.expectRevert(IRecoverableDepositRegistry.ZeroAddress.selector);
+        vm.expectRevert(ISweepRegistry.ZeroAddress.selector);
         vm.prank(owner);
         registry.setTokenWhitelist(address(0), true);
     }
 
-    function test_setRecoverableOperator_sets_and_emits() public {
+    function test_setSweepOperator_sets_and_emits() public {
         vm.expectEmit(true, true, false, true, address(registry));
-        emit IRecoverableDepositRegistry.RecoverableOperatorSet(master, operator, true);
+        emit ISweepRegistry.SweepOperatorSet(master, operator, true);
         vm.prank(master);
-        registry.setRecoverableOperator(operator, true);
+        registry.setSweepOperator(operator, true);
         assertTrue(registry.operators(master, operator));
     }
 
-    function test_setRecoverableOperator_reverts_zero() public {
-        vm.expectRevert(IRecoverableDepositRegistry.ZeroAddress.selector);
+    function test_setSweepOperator_reverts_zero() public {
+        vm.expectRevert(ISweepRegistry.ZeroAddress.selector);
         vm.prank(master);
-        registry.setRecoverableOperator(address(0), true);
+        registry.setSweepOperator(address(0), true);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -154,10 +154,10 @@ contract RecoverableDepositRegistryTest is Test {
 
     function test_register_succeeds_and_resolves() public {
         vm.expectEmit(true, true, true, false, address(registry));
-        emit IRecoverableDepositRegistry.RecoverableDepositRegistered(deposit, master, master);
+        emit ISweepRegistry.SweepRegistered(deposit, master, master);
         _register(master);
 
-        (address m, bool enabled, uint256 nonce) = registry.getRecoverableDeposit(deposit);
+        (address m, bool enabled, uint256 nonce) = registry.getSweep(deposit);
         assertEq(m, master);
         assertTrue(enabled);
         assertEq(nonce, 1);
@@ -166,12 +166,12 @@ contract RecoverableDepositRegistryTest is Test {
 
     function test_register_via_operator() public {
         vm.prank(master);
-        registry.setRecoverableOperator(operator, true);
+        registry.setSweepOperator(operator, true);
 
         uint64 deadline = _deadline();
         bytes memory sig = _sign(depositPk, deposit, master, 0, deadline);
         vm.prank(operator);
-        registry.registerRecoverableDeposit(deposit, master, 0, deadline, sig);
+        registry.registerSweep(deposit, master, 0, deadline, sig);
 
         assertEq(registry.resolveSweep(token, deposit), master);
     }
@@ -179,35 +179,35 @@ contract RecoverableDepositRegistryTest is Test {
     function test_register_reverts_not_authorized() public {
         uint64 deadline = _deadline();
         bytes memory sig = _sign(depositPk, deposit, master, 0, deadline);
-        vm.expectRevert(IRecoverableDepositRegistry.NotAuthorized.selector);
+        vm.expectRevert(ISweepRegistry.NotAuthorized.selector);
         vm.prank(stranger);
-        registry.registerRecoverableDeposit(deposit, master, 0, deadline, sig);
+        registry.registerSweep(deposit, master, 0, deadline, sig);
     }
 
     function test_register_reverts_bad_signature() public {
         uint64 deadline = _deadline();
         // Sign with the wrong key -> recovers to a different address.
         bytes memory sig = _sign(0xB0B, deposit, master, 0, deadline);
-        vm.expectRevert(IRecoverableDepositRegistry.InvalidSignature.selector);
+        vm.expectRevert(ISweepRegistry.InvalidSignature.selector);
         vm.prank(master);
-        registry.registerRecoverableDeposit(deposit, master, 0, deadline, sig);
+        registry.registerSweep(deposit, master, 0, deadline, sig);
     }
 
     function test_register_reverts_expired() public {
         uint64 deadline = uint64(block.timestamp);
         bytes memory sig = _sign(depositPk, deposit, master, 0, deadline);
         vm.warp(block.timestamp + 2);
-        vm.expectRevert(IRecoverableDepositRegistry.SignatureExpired.selector);
+        vm.expectRevert(ISweepRegistry.SignatureExpired.selector);
         vm.prank(master);
-        registry.registerRecoverableDeposit(deposit, master, 0, deadline, sig);
+        registry.registerSweep(deposit, master, 0, deadline, sig);
     }
 
     function test_register_reverts_bad_nonce() public {
         uint64 deadline = _deadline();
         bytes memory sig = _sign(depositPk, deposit, master, 1, deadline);
-        vm.expectRevert(IRecoverableDepositRegistry.InvalidNonce.selector);
+        vm.expectRevert(ISweepRegistry.InvalidNonce.selector);
         vm.prank(master);
-        registry.registerRecoverableDeposit(deposit, master, 1, deadline, sig);
+        registry.registerSweep(deposit, master, 1, deadline, sig);
     }
 
     function test_register_reverts_deposit_has_code() public {
@@ -215,49 +215,49 @@ contract RecoverableDepositRegistryTest is Test {
         vm.etch(codeDeposit, hex"600060005360016000f3");
         uint64 deadline = _deadline();
         bytes memory sig = _sign(depositPk, codeDeposit, master, 0, deadline);
-        vm.expectRevert(IRecoverableDepositRegistry.DepositNotEOA.selector);
+        vm.expectRevert(ISweepRegistry.DepositNotEOA.selector);
         vm.prank(master);
-        registry.registerRecoverableDeposit(codeDeposit, master, 0, deadline, sig);
+        registry.registerSweep(codeDeposit, master, 0, deadline, sig);
     }
 
     function test_register_reverts_master_zero() public {
         uint64 deadline = _deadline();
         bytes memory sig = _sign(depositPk, deposit, address(0), 0, deadline);
-        vm.expectRevert(IRecoverableDepositRegistry.ZeroAddress.selector);
+        vm.expectRevert(ISweepRegistry.ZeroAddress.selector);
         vm.prank(master);
-        registry.registerRecoverableDeposit(deposit, address(0), 0, deadline, sig);
+        registry.registerSweep(deposit, address(0), 0, deadline, sig);
     }
 
     function test_register_reverts_master_in_system_segment() public {
         address sysMaster = 0x5300000000000000000000000000000000000001;
         uint64 deadline = _deadline();
         bytes memory sig = _sign(depositPk, deposit, sysMaster, 0, deadline);
-        vm.expectRevert(IRecoverableDepositRegistry.SystemAddressNotAllowed.selector);
+        vm.expectRevert(ISweepRegistry.SystemAddressNotAllowed.selector);
         vm.prank(sysMaster);
-        registry.registerRecoverableDeposit(deposit, sysMaster, 0, deadline, sig);
+        registry.registerSweep(deposit, sysMaster, 0, deadline, sig);
     }
 
     function test_register_reverts_deposit_in_system_segment() public {
         address sysDeposit = 0x5300000000000000000000000000000000000009;
         uint64 deadline = _deadline();
         bytes memory sig = _sign(depositPk, sysDeposit, master, 0, deadline);
-        vm.expectRevert(IRecoverableDepositRegistry.SystemAddressNotAllowed.selector);
+        vm.expectRevert(ISweepRegistry.SystemAddressNotAllowed.selector);
         vm.prank(master);
-        registry.registerRecoverableDeposit(sysDeposit, master, 0, deadline, sig);
+        registry.registerSweep(sysDeposit, master, 0, deadline, sig);
     }
 
     function test_register_reverts_master_is_active_deposit() public {
         // depositA becomes active with master `master`.
         _register(master);
 
-        // Now try to use `deposit` (an active recoverable deposit) as a master.
+        // Now try to use `deposit` (an active sweep deposit) as a master.
         uint256 pkB = 0xB0B0;
         address depositB = vm.addr(pkB);
         uint64 deadline = _deadline();
         bytes memory sig = _sign(pkB, depositB, deposit, 0, deadline);
-        vm.expectRevert(IRecoverableDepositRegistry.MasterIsRecoverableDeposit.selector);
+        vm.expectRevert(ISweepRegistry.MasterIsSweepDeposit.selector);
         vm.prank(deposit);
-        registry.registerRecoverableDeposit(depositB, deposit, 0, deadline, sig);
+        registry.registerSweep(depositB, deposit, 0, deadline, sig);
     }
 
     function test_register_reverts_already_registered() public {
@@ -265,9 +265,9 @@ contract RecoverableDepositRegistryTest is Test {
         // Second registration with a fresh (nonce=1) signature still rejected.
         uint64 deadline = _deadline();
         bytes memory sig = _sign(depositPk, deposit, master, 1, deadline);
-        vm.expectRevert(IRecoverableDepositRegistry.DepositAlreadyRegistered.selector);
+        vm.expectRevert(ISweepRegistry.DepositAlreadyRegistered.selector);
         vm.prank(master);
-        registry.registerRecoverableDeposit(deposit, master, 1, deadline, sig);
+        registry.registerSweep(deposit, master, 1, deadline, sig);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -288,7 +288,7 @@ contract RecoverableDepositRegistryTest is Test {
     function test_resolveSweep_zero_when_disabled() public {
         _register(master);
         vm.prank(master);
-        registry.disableRecoverableDeposit(deposit);
+        registry.disableSweep(deposit);
         assertEq(registry.resolveSweep(token, deposit), address(0));
     }
 
@@ -299,47 +299,47 @@ contract RecoverableDepositRegistryTest is Test {
     function test_disable_by_master_emits() public {
         _register(master);
         vm.expectEmit(true, true, true, false, address(registry));
-        emit IRecoverableDepositRegistry.RecoverableDepositDisabled(deposit, master, master);
+        emit ISweepRegistry.SweepDisabled(deposit, master, master);
         vm.prank(master);
-        registry.disableRecoverableDeposit(deposit);
+        registry.disableSweep(deposit);
 
-        (, bool enabled, ) = registry.getRecoverableDeposit(deposit);
+        (, bool enabled, ) = registry.getSweep(deposit);
         assertFalse(enabled);
     }
 
     function test_disable_by_operator() public {
         _register(master);
         vm.prank(master);
-        registry.setRecoverableOperator(operator, true);
+        registry.setSweepOperator(operator, true);
         vm.prank(operator);
-        registry.disableRecoverableDeposit(deposit);
-        (, bool enabled, ) = registry.getRecoverableDeposit(deposit);
+        registry.disableSweep(deposit);
+        (, bool enabled, ) = registry.getSweep(deposit);
         assertFalse(enabled);
     }
 
     function test_disable_reverts_not_authorized() public {
         _register(master);
-        vm.expectRevert(IRecoverableDepositRegistry.NotAuthorized.selector);
+        vm.expectRevert(ISweepRegistry.NotAuthorized.selector);
         vm.prank(stranger);
-        registry.disableRecoverableDeposit(deposit);
+        registry.disableSweep(deposit);
     }
 
     function test_disable_reverts_not_authorized_when_unregistered() public {
         // Unregistered deposit has master == address(0); a non-zero caller fails
         // the authorization check before the active check.
-        vm.expectRevert(IRecoverableDepositRegistry.NotAuthorized.selector);
+        vm.expectRevert(ISweepRegistry.NotAuthorized.selector);
         vm.prank(master);
-        registry.disableRecoverableDeposit(deposit);
+        registry.disableSweep(deposit);
     }
 
     function test_disable_reverts_not_active_on_double_disable() public {
         _register(master);
         vm.prank(master);
-        registry.disableRecoverableDeposit(deposit);
+        registry.disableSweep(deposit);
         // Second disable: authorized (master matches) but already inactive.
-        vm.expectRevert(IRecoverableDepositRegistry.DepositNotActive.selector);
+        vm.expectRevert(ISweepRegistry.DepositNotActive.selector);
         vm.prank(master);
-        registry.disableRecoverableDeposit(deposit);
+        registry.disableSweep(deposit);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -349,30 +349,30 @@ contract RecoverableDepositRegistryTest is Test {
     function test_poke_succeeds_permissionless() public {
         _register(master);
         vm.expectEmit(true, true, false, false, address(registry));
-        emit IRecoverableDepositRegistry.RecoverableSweepRequested(token, deposit);
+        emit ISweepRegistry.SweepRequested(token, deposit);
         vm.prank(stranger); // permissionless
-        registry.pokeRecoverableSweep(token, deposit);
+        registry.pokeSweep(token, deposit);
     }
 
     function test_poke_reverts_token_not_whitelisted() public {
         _register(master);
         address other = address(0xF00D);
-        vm.expectRevert(IRecoverableDepositRegistry.TokenNotWhitelisted.selector);
-        registry.pokeRecoverableSweep(other, deposit);
+        vm.expectRevert(ISweepRegistry.TokenNotWhitelisted.selector);
+        registry.pokeSweep(other, deposit);
     }
 
     function test_poke_reverts_deposit_not_active() public {
-        vm.expectRevert(IRecoverableDepositRegistry.DepositNotActive.selector);
-        registry.pokeRecoverableSweep(token, deposit);
+        vm.expectRevert(ISweepRegistry.DepositNotActive.selector);
+        registry.pokeSweep(token, deposit);
     }
 
     function test_poke_reverts_after_disable() public {
         _register(master);
         vm.prank(master);
-        registry.disableRecoverableDeposit(deposit);
+        registry.disableSweep(deposit);
         // v1: disabled deposits cannot be poked.
-        vm.expectRevert(IRecoverableDepositRegistry.DepositNotActive.selector);
-        registry.pokeRecoverableSweep(token, deposit);
+        vm.expectRevert(ISweepRegistry.DepositNotActive.selector);
+        registry.pokeSweep(token, deposit);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -384,16 +384,16 @@ contract RecoverableDepositRegistryTest is Test {
         address depositB = vm.addr(pkB);
         uint64 deadline = _deadline();
 
-        IRecoverableDepositRegistry.RecoverableDepositRegistration[]
-            memory regs = new IRecoverableDepositRegistry.RecoverableDepositRegistration[](2);
-        regs[0] = IRecoverableDepositRegistry.RecoverableDepositRegistration({
+        ISweepRegistry.SweepRegistration[]
+            memory regs = new ISweepRegistry.SweepRegistration[](2);
+        regs[0] = ISweepRegistry.SweepRegistration({
             deposit: deposit,
             master: master,
             nonce: 0,
             deadline: deadline,
             depositSignature: _sign(depositPk, deposit, master, 0, deadline)
         });
-        regs[1] = IRecoverableDepositRegistry.RecoverableDepositRegistration({
+        regs[1] = ISweepRegistry.SweepRegistration({
             deposit: depositB,
             master: master,
             nonce: 0,
@@ -402,7 +402,7 @@ contract RecoverableDepositRegistryTest is Test {
         });
 
         vm.prank(master);
-        registry.registerRecoverableDeposits(regs);
+        registry.registerSweeps(regs);
 
         assertEq(registry.resolveSweep(token, deposit), master);
         assertEq(registry.resolveSweep(token, depositB), master);
@@ -422,7 +422,7 @@ contract RecoverableDepositRegistryTest is Test {
 
         // Mutating entrypoints revert while paused.
         vm.expectRevert("Pausable: paused");
-        registry.pokeRecoverableSweep(token, deposit);
+        registry.pokeSweep(token, deposit);
 
         uint64 deadline = _deadline();
         uint256 pkB = 0xB0B0;
@@ -430,11 +430,11 @@ contract RecoverableDepositRegistryTest is Test {
         bytes memory sig = _sign(pkB, depositB, master, 0, deadline);
         vm.expectRevert("Pausable: paused");
         vm.prank(master);
-        registry.registerRecoverableDeposit(depositB, master, 0, deadline, sig);
+        registry.registerSweep(depositB, master, 0, deadline, sig);
 
         vm.expectRevert("Pausable: paused");
         vm.prank(master);
-        registry.disableRecoverableDeposit(deposit);
+        registry.disableSweep(deposit);
     }
 
     function test_setPause_onlyOwner() public {

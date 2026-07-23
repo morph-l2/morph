@@ -7,20 +7,20 @@ import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/
 import {ECDSAUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 
-import {IRecoverableDepositRegistry} from "./IRecoverableDepositRegistry.sol";
+import {ISweepRegistry} from "./ISweepRegistry.sol";
 
 /**
- * @title RecoverableDepositRegistry
- * @notice Registry of exchange-controlled "recoverable deposit" EOAs whose
+ * @title SweepRegistry
+ * @notice Registry of exchange-controlled "sweep deposit" EOAs whose
  *         whitelisted ERC-20 inflows are auto-swept to a master wallet by the
  *         Morph execution layer at transaction end (Onyx hardfork).
  * @dev Consensus surface: the EL calls {resolveSweep} through a frozen ABI and
- *      lifts {RecoverableSweepRequested} logs into sweep candidates. This
+ *      lifts {SweepRequested} logs into sweep candidates. This
  *      contract only records authorizations and emits requests — it never moves
- *      tokens itself. See the recoverable-deposit spec S0Z9 §5–§6.
+ *      tokens itself. See the sweep spec S0Z9 §5–§6.
  *
  *      Double authorization (§5.2): a deposit's private key signs an EIP-712
- *      {RecoverableDepositAuthorization} (proves consent, prevents hijacking a
+ *      {SweepAuthorization} (proves consent, prevents hijacking a
  *      third party's address) AND a master/operator submits it (prevents an
  *      outside user from attaching addresses to the exchange's book).
  *
@@ -28,8 +28,8 @@ import {IRecoverableDepositRegistry} from "./IRecoverableDepositRegistry.sol";
  *      Disabling is terminal; re-enable, master swaps and deposit-side revoke are
  *      intentionally NOT supported in v1.
  */
-contract RecoverableDepositRegistry is
-    IRecoverableDepositRegistry,
+contract SweepRegistry is
+    ISweepRegistry,
     OwnableUpgradeable,
     ReentrancyGuardUpgradeable,
     PausableUpgradeable,
@@ -44,12 +44,12 @@ contract RecoverableDepositRegistry is
     // solhint-disable-next-line var-name-mixedcase
     bytes32 private constant _AUTHORIZATION_TYPEHASH =
         keccak256(
-            "RecoverableDepositAuthorization(address deposit,address master,address registry,uint256 chainId,uint256 nonce,uint64 deadline,bytes32 mode,bytes32 sweepScope)"
+            "SweepAuthorization(address deposit,address master,address registry,uint256 chainId,uint256 nonce,uint64 deadline,bytes32 mode,bytes32 sweepScope)"
         );
 
-    /// @notice Authorization mode tag. Marks the signature as a recoverable-deposit
+    /// @notice Authorization mode tag. Marks the signature as a sweep
     ///         authorization, not a generic approval or arbitrary-call grant.
-    bytes32 public constant MODE = keccak256("MORPH_RECOVERABLE_DEPOSIT_V1");
+    bytes32 public constant MODE = keccak256("MORPH_SWEEP_V1");
 
     /// @notice Sweep-scope tag. Restricts the grant to `transfer(master, balance)`
     ///         of whitelisted ERC-20s only (spec §5.3).
@@ -92,7 +92,7 @@ contract RecoverableDepositRegistry is
         __Ownable_init();
         __ReentrancyGuard_init();
         __Pausable_init();
-        __EIP712_init("RecoverableDepositRegistry", "1");
+        __EIP712_init("SweepRegistry", "1");
 
         _transferOwnership(owner_);
     }
@@ -101,7 +101,7 @@ contract RecoverableDepositRegistry is
                             View Functions
     //////////////////////////////////////////////////////////////*/
 
-    /// @inheritdoc IRecoverableDepositRegistry
+    /// @inheritdoc ISweepRegistry
     /// @dev Not gated by pause: pausing halts new registrations/pokes but must not
     ///      silently strand already-authorized deposits mid-reconciliation. Sweep
     ///      of a specific token is stopped by de-whitelisting it instead.
@@ -113,8 +113,8 @@ contract RecoverableDepositRegistry is
         return address(0);
     }
 
-    /// @inheritdoc IRecoverableDepositRegistry
-    function getRecoverableDeposit(
+    /// @inheritdoc ISweepRegistry
+    function getSweep(
         address deposit
     ) external view returns (address master, bool enabled, uint256 nonce) {
         DepositRecord storage rec = deposits[deposit];
@@ -131,15 +131,15 @@ contract RecoverableDepositRegistry is
                           Mutating Functions
     //////////////////////////////////////////////////////////////*/
 
-    /// @inheritdoc IRecoverableDepositRegistry
-    function setRecoverableOperator(address operator, bool enabled) external {
+    /// @inheritdoc ISweepRegistry
+    function setSweepOperator(address operator, bool enabled) external {
         if (operator == address(0)) revert ZeroAddress();
         operators[msg.sender][operator] = enabled;
-        emit RecoverableOperatorSet(msg.sender, operator, enabled);
+        emit SweepOperatorSet(msg.sender, operator, enabled);
     }
 
-    /// @inheritdoc IRecoverableDepositRegistry
-    function registerRecoverableDeposit(
+    /// @inheritdoc ISweepRegistry
+    function registerSweep(
         address deposit,
         address master,
         uint256 nonce,
@@ -149,42 +149,42 @@ contract RecoverableDepositRegistry is
         _register(deposit, master, nonce, deadline, depositSignature);
     }
 
-    /// @inheritdoc IRecoverableDepositRegistry
-    function registerRecoverableDeposits(
-        RecoverableDepositRegistration[] calldata registrations
+    /// @inheritdoc ISweepRegistry
+    function registerSweeps(
+        SweepRegistration[] calldata registrations
     ) external whenNotPaused nonReentrant {
         for (uint256 i = 0; i < registrations.length; i++) {
-            RecoverableDepositRegistration calldata r = registrations[i];
+            SweepRegistration calldata r = registrations[i];
             _register(r.deposit, r.master, r.nonce, r.deadline, r.depositSignature);
         }
     }
 
-    /// @inheritdoc IRecoverableDepositRegistry
-    function disableRecoverableDeposit(address deposit) external whenNotPaused {
+    /// @inheritdoc ISweepRegistry
+    function disableSweep(address deposit) external whenNotPaused {
         DepositRecord storage rec = deposits[deposit];
         if (msg.sender != rec.master && !operators[rec.master][msg.sender]) revert NotAuthorized();
         if (!rec.enabled) revert DepositNotActive();
 
         rec.enabled = false;
-        emit RecoverableDepositDisabled(deposit, rec.master, msg.sender);
+        emit SweepDisabled(deposit, rec.master, msg.sender);
     }
 
-    /// @inheritdoc IRecoverableDepositRegistry
-    function pokeRecoverableSweep(address token, address deposit) external whenNotPaused {
+    /// @inheritdoc ISweepRegistry
+    function pokeSweep(address token, address deposit) external whenNotPaused {
         // Permissionless, but must not bypass the whitelist / active checks the
         // resolver enforces (§6.2). The EL still re-runs the full sweep path
         // (resolver + EOA/code recheck) after this request log is emitted.
         if (!tokenWhitelist[token]) revert TokenNotWhitelisted();
         if (!deposits[deposit].enabled) revert DepositNotActive();
 
-        emit RecoverableSweepRequested(token, deposit);
+        emit SweepRequested(token, deposit);
     }
 
     /*//////////////////////////////////////////////////////////////
                           Restricted Functions
     //////////////////////////////////////////////////////////////*/
 
-    /// @inheritdoc IRecoverableDepositRegistry
+    /// @inheritdoc ISweepRegistry
     function setTokenWhitelist(address token, bool enabled) external onlyOwner {
         if (token == address(0)) revert ZeroAddress();
         tokenWhitelist[token] = enabled;
@@ -223,7 +223,7 @@ contract RecoverableDepositRegistry is
         // Master: not a system address, not itself an active deposit (avoids
         // recursive collection and master-wallet ambiguity, §5.5).
         if (_isSystemSegment(master)) revert SystemAddressNotAllowed();
-        if (deposits[master].enabled) revert MasterIsRecoverableDeposit();
+        if (deposits[master].enabled) revert MasterIsSweepDeposit();
 
         // Deposit: non-zero, not a system address, plain EOA. A non-empty code
         // length also rejects EIP-7702 delegations, keeping error-chain recovery
@@ -266,7 +266,7 @@ contract RecoverableDepositRegistry is
         unchecked {
             rec.nonce = nonce + 1;
         }
-        emit RecoverableDepositRegistered(deposit, master, msg.sender);
+        emit SweepRegistered(deposit, master, msg.sender);
     }
 
     /// @dev True if `addr` falls in the reserved system address segment.

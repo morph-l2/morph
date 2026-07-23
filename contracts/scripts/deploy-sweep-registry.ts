@@ -1,16 +1,16 @@
 /**
- * Governance deployment script for the Onyx `RecoverableDepositRegistry`.
+ * Governance deployment script for the Onyx `SweepRegistry`.
  *
  * This Registry is NOT a genesis-injected predeploy and is intentionally kept
  * out of the L1 `deploy/010-022` numbered orchestration (that flow deploys the
  * L1 system contracts). Per spec S0Z9 §5/§181 the Registry is deployed by a
  * governance transaction BEFORE the Onyx hardfork activates, and its proxy
  * address is then fixed in the execution-layer chain config
- * (`recoverableDepositRegistryAddress`) that both morph-reth and go-ethereum read.
+ * (`sweepRegistryAddress`) that both morph-reth and go-ethereum read.
  *
  * Usage:
  *   REGISTRY_OWNER=0x..  PROXY_ADMIN=0x..  WHITELIST_TOKENS=0x..,0x.. \
- *     npx hardhat run scripts/deploy-recoverable-deposit-registry.ts --network <net>
+ *     npx hardhat run scripts/deploy-sweep-registry.ts --network <net>
  *
  * Environment:
  *   REGISTRY_OWNER    Governance owner (whitelist + pause). Defaults to deployer.
@@ -49,7 +49,7 @@ async function main() {
     console.log("ProxyAdmin:  ", proxyAdmin)
 
     // 1. Deploy the implementation (constructor disables initializers).
-    const Impl = await ethers.getContractFactory("RecoverableDepositRegistry")
+    const Impl = await ethers.getContractFactory("SweepRegistry")
     const impl = await Impl.deploy()
     await impl.deployed()
     console.log("Implementation:", impl.address)
@@ -81,7 +81,7 @@ async function main() {
 
     console.log("")
     console.log("Done. Next steps:")
-    console.log("  - Set recoverableDepositRegistryAddress =", proxy.address, "in the")
+    console.log("  - Set sweepRegistryAddress =", proxy.address, "in the")
     console.log("    morph-reth and go-ethereum chain config for the Onyx activation.")
     console.log("  - Whitelist production sweep tokens via setTokenWhitelist (owner).")
 }
