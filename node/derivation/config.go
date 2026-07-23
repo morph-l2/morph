@@ -84,6 +84,22 @@ type Config struct {
 	MetricsPort           uint64          `json:"metrics_port"`
 }
 
+// BeaconRpcList splits the configured beacon RPC endpoint(s) on commas and
+// returns them trimmed, in order (primary first). Operators can supply several
+// beacon nodes via a single comma-separated --l1.beaconrpc value; derivation
+// then falls back to the next endpoint when one temporarily fails to serve
+// blob sidecars. A plain single URL yields a one-element slice, so existing
+// configs keep working unchanged.
+func (c *Config) BeaconRpcList() []string {
+	var endpoints []string
+	for _, endpoint := range strings.Split(c.BeaconRpc, ",") {
+		if endpoint = strings.TrimSpace(endpoint); endpoint != "" {
+			endpoints = append(endpoints, endpoint)
+		}
+	}
+	return endpoints
+}
+
 // DefaultConfig returns the default derivation configuration.
 func DefaultConfig() *Config {
 	return &Config{
@@ -126,7 +142,7 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		c.RollupContractAddress = types.HoodiRollupContractAddress
 	}
 	c.BeaconRpc = ctx.GlobalString(flags.L1BeaconAddr.Name)
-	if c.BeaconRpc == "" {
+	if len(c.BeaconRpcList()) == 0 {
 		return errors.New("invalid L1BeaconAddr")
 	}
 
