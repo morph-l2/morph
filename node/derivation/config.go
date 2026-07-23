@@ -81,6 +81,7 @@ type Config struct {
 	FetchBlockRange       uint64          `json:"fetch_block_range"`
 	VerifyMode            string          `json:"verify_mode"`
 	ReorgCheckDepth       uint64          `json:"reorg_check_depth"`
+	MetricsPort           uint64          `json:"metrics_port"`
 }
 
 // BeaconRpcList splits the configured beacon RPC endpoint(s) on commas and
@@ -99,6 +100,7 @@ func (c *Config) BeaconRpcList() []string {
 	return endpoints
 }
 
+// DefaultConfig returns the default derivation configuration.
 func DefaultConfig() *Config {
 	return &Config{
 		L1: &types.L1Config{
@@ -119,6 +121,8 @@ func DefaultConfig() *Config {
 	}
 }
 
+// SetCliContext applies command-line and environment overrides to the
+// derivation configuration.
 func (c *Config) SetCliContext(ctx *cli.Context) error {
 	c.L1.Addr = ctx.GlobalString(flags.L1NodeAddr.Name)
 	// The current setting priority is greater than Env L1Confirmations
@@ -185,6 +189,10 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		return err
 	}
 	c.VerifyMode = normalized
+
+	if c.VerifyMode == VerifyModeLayer1 {
+		c.MetricsPort = ctx.GlobalUint64(flags.MetricsPort.Name)
+	}
 
 	// Layer1-verify validators historically derived only from finalized L1 data
 	// (the pre-centralized-sequencer default). Preserve that: unless the operator
