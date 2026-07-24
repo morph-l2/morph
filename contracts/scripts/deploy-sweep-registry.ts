@@ -1,12 +1,16 @@
 /**
- * Governance deployment script for the Onyx `SweepRegistry`.
+ * Deterministic CREATE2 deployment script for the Onyx `SweepRegistry`.
  *
- * This Registry is NOT a genesis-injected predeploy and is intentionally kept
- * out of the L1 `deploy/010-022` numbered orchestration (that flow deploys the
- * L1 system contracts). Per spec S0Z9 §5/§181 the Registry is deployed by a
- * governance transaction BEFORE the Onyx hardfork activates, and its proxy
- * address is then fixed in the execution-layer chain config
- * (`sweepRegistryAddress`) that both morph-reth and go-ethereum read.
+ * Both the implementation and the transparent proxy are deployed via the
+ * Solady deterministic CREATE2 factory (`0x4e59b44847b379578588920cA78FbF26c0B4956C`),
+ * which already exists on Morph Mainnet and Hoodi. Using fixed salts makes
+ * the proxy address predictable and identical across networks, so it can be
+ * precomputed and baked into the EL chain config
+ * (`sweepRegistryAddress`) before deployment.
+ *
+ * Proxy initialization is a separate transaction — the proxy is deployed
+ * with empty init-data so that the owner (which may differ between
+ * mainnet and testnet) does not affect the deterministic address.
  *
  * Usage:
  *   REGISTRY_OWNER=0x..  PROXY_ADMIN=0x..  WHITELIST_TOKENS=0x..,0x.. \
@@ -19,16 +23,40 @@
  *   WHITELIST_TOKENS  Optional comma-separated ERC-20s to whitelist immediately
  *                     (only applied when the deployer is the owner).
  *
- * OPEN COORDINATION POINT (see plan): if the EL/geth teams require a specific
- * deterministic address (e.g. 0x53..0023) rather than a plain CREATE address,
- * deploy the proxy via CREATE2 with a fixed salt, or inject it at genesis, and
- * update this script accordingly. The contract itself does not depend on its own
- * address (EIP-712 uses `address(this)`), so either path is safe.
+ * Precomputing the address before deployment:
+ *   npx hardhat run scripts/deploy-sweep-registry.ts --network <net> --dry-run
+ * or with cast:
+ *   FACTORY=0x4e59b44847b379578588920cA78FbF26c0B4956C
+ *   SALT_IMPL=$(cast keccak "morph.sweep-registry.impl.v1")
+ *   SALT_PROXY=$(cast keccak "morph.sweep-registry.proxy.v1")
+ *   IMPL_INITCODE=$(cat forge-artifacts/SweepRegistry.sol/SweepRegistry.json | jq -r .bytecode.object)
+ *   IMPL=$(cast create2 --deployer $FACTORY --salt $SALT_IMPL --init-code $IMPL_INITCODE)
+ *   PROXY_ARGS=$(cast abi-encode 'x(address,address,bytes)' "$IMPL" "$PROXY_ADMIN" "")
+ *   PROXY_BYTECODE=$(cat forge-artifacts/TransparentUpgradeableProxy.json | jq -r .bytecode.object)
+ *   PROXY_INITCODE=${PROXY_BYTECODE}${PROXY_ARGS#0x}
+ *   cast create2 --deployer $FACTORY --salt $SALT_PROXY --init-code $PROXY_INITCODE
  */
 import { ethers } from "hardhat"
 
 // L2 ProxyAdmin predeploy (Predeploys.PROXY_ADMIN).
 const DEFAULT_PROXY_ADMIN = "0x530000000000000000000000000000000000000b"
+
+// Solady deterministic CREATE2 factory. This address is identical on every
+// EVM chain where anyone has broadcast the one-time self-bootstrapping
+// transaction. Confirmed present on Morph Mainnet (2818) and Hoodi (2910).
+const CREATE2_FACTORY = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+
+const FACTORY_ABI = [
+    "function deploy(bytes _initCode, bytes32 _salt) external payable returns (address)",
+] as const
+
+// Fixed, versioned salts so the address is predictable and stable forever.
+const SALT_IMPL   = ethers.utils.keccak256(
+    ethers.utils.toUtf8Bytes("morph.sweep-registry.impl.v1"),
+)
+const SALT_PROXY  = ethers.utils.keccak256(
+    ethers.utils.toUtf8Bytes("morph.sweep-registry.proxy.v1"),
+)
 
 // OpenZeppelin transparent proxy, fully qualified to avoid name ambiguity.
 const PROXY_FQN =
@@ -36,41 +64,141 @@ const PROXY_FQN =
 
 async function main() {
     const [deployer] = await ethers.getSigners()
-    const owner = ethers.utils.getAddress(process.env.REGISTRY_OWNER ?? deployer.address)
-    const proxyAdmin = ethers.utils.getAddress(process.env.PROXY_ADMIN ?? DEFAULT_PROXY_ADMIN)
+    const owner = ethers.utils.getAddress(
+        process.env.REGISTRY_OWNER ?? deployer.address,
+    )
+    const proxyAdmin = ethers.utils.getAddress(
+        process.env.PROXY_ADMIN ?? DEFAULT_PROXY_ADMIN,
+    )
     const whitelistTokens = (process.env.WHITELIST_TOKENS ?? "")
         .split(",")
         .map((t) => t.trim())
         .filter((t) => t.length > 0)
         .map((t) => ethers.utils.getAddress(t))
 
-    console.log("Deployer:    ", deployer.address)
-    console.log("Owner:       ", owner)
-    console.log("ProxyAdmin:  ", proxyAdmin)
+    console.log("Deployer:        ", deployer.address)
+    console.log("Owner:           ", owner)
+    console.log("ProxyAdmin:      ", proxyAdmin)
+    console.log("CREATE2 factory: ", CREATE2_FACTORY)
+    console.log("")
 
-    // 1. Deploy the implementation (constructor disables initializers).
+    // ---- precompute deterministic addresses ---------------------------------
+    type AddrPair = { impl: string; proxy: string }
+
+    const precomputeAsync = async (): Promise<AddrPair> => {
+        const Impl = await ethers.getContractFactory("SweepRegistry")
+        const Proxy = await ethers.getContractFactory(PROXY_FQN)
+
+        const implInitcode = Impl.bytecode
+        const implAddr = ethers.utils.getCreate2Address(
+            CREATE2_FACTORY,
+            SALT_IMPL,
+            ethers.utils.keccak256(implInitcode),
+        )
+
+        const proxyConstructorArgs = ethers.utils.defaultAbiCoder.encode(
+            ["address", "address", "bytes"],
+            [implAddr, proxyAdmin, "0x"],
+        )
+        const proxyInitcode = ethers.utils.solidityPack(
+            ["bytes", "bytes"],
+            [Proxy.bytecode, proxyConstructorArgs],
+        )
+        const proxyAddr = ethers.utils.getCreate2Address(
+            CREATE2_FACTORY,
+            SALT_PROXY,
+            ethers.utils.keccak256(proxyInitcode),
+        )
+        return { impl: implAddr, proxy: proxyAddr }
+    }
+
+    const addrs = await precomputeAsync()
+    console.log("Impl (predicted):  ", addrs.impl)
+    console.log("Proxy (predicted): ", addrs.proxy)
+    console.log("saltImpl:          ", SALT_IMPL)
+    console.log("saltProxy:         ", SALT_PROXY)
+    console.log("")
+
+    // ---- verify factory exists ---------------------------------------------
+    const factory = new ethers.Contract(CREATE2_FACTORY, FACTORY_ABI, deployer)
+    const factoryCode = await ethers.provider.getCode(CREATE2_FACTORY)
+    if (factoryCode === "0x") {
+        throw new Error(
+            `CREATE2 factory ${CREATE2_FACTORY} does not exist on this network. ` +
+            "Deploy it first via the deterministic-deployment-proxy one-shot transaction.",
+        )
+    }
+    console.log(`Factory code: ${factoryCode.length - 2} bytes (confirmed present)`)
+
+    // ---- 1. Deploy the implementation via CREATE2 ---------------------------
+    {
+        const onChainCode = await ethers.provider.getCode(addrs.impl)
+        if (onChainCode !== "0x") {
+            console.log(`Impl already deployed at ${addrs.impl} — skipping`)
+        } else {
+            const Impl = await ethers.getContractFactory("SweepRegistry")
+            console.log(`Deploying impl via CREATE2 …`)
+            const tx = await factory.deploy(Impl.bytecode, SALT_IMPL)
+            console.log(`  tx: ${tx.hash}`)
+            await tx.wait()
+            console.log(`  deployed: ${addrs.impl}`)
+        }
+    }
+
+    // ---- 2. Deploy the transparent proxy via CREATE2 (no init data) --------
+    {
+        const onChainCode = await ethers.provider.getCode(addrs.proxy)
+        if (onChainCode !== "0x") {
+            console.log(`Proxy already deployed at ${addrs.proxy} — skipping`)
+        } else {
+            const Proxy = await ethers.getContractFactory(PROXY_FQN)
+            const proxyConstructorArgs = ethers.utils.defaultAbiCoder.encode(
+                ["address", "address", "bytes"],
+                [addrs.impl, proxyAdmin, "0x"],
+            )
+            const proxyInitcode = ethers.utils.solidityPack(
+                ["bytes", "bytes"],
+                [Proxy.bytecode, proxyConstructorArgs],
+            )
+            console.log(`Deploying proxy via CREATE2 …`)
+            const tx = await factory.deploy(proxyInitcode, SALT_PROXY)
+            console.log(`  tx: ${tx.hash}`)
+            await tx.wait()
+            console.log(`  deployed: ${addrs.proxy}`)
+        }
+    }
+
+    // ---- 3. Initialize the proxy (separate tx, after deployment) -----------
     const Impl = await ethers.getContractFactory("SweepRegistry")
-    const impl = await Impl.deploy()
-    await impl.deployed()
-    console.log("Implementation:", impl.address)
+    const registry = Impl.attach(addrs.proxy)
 
-    // 2. Deploy the transparent proxy and initialize it in the same tx.
-    const initData = Impl.interface.encodeFunctionData("initialize", [owner])
-    const Proxy = await ethers.getContractFactory(PROXY_FQN)
-    const proxy = await Proxy.deploy(impl.address, proxyAdmin, initData)
-    await proxy.deployed()
-    console.log("Proxy:         ", proxy.address)
+    // Check if already initialized (owner() call will revert if not).
+    let needsInit = true
+    try {
+        const currentOwner = await registry.owner()
+        needsInit = currentOwner === ethers.constants.AddressZero
+        console.log(`Proxy already initialized, owner = ${currentOwner}`)
+    } catch {
+        // owner() reverted — not yet initialized
+    }
 
-    // 3. Optionally whitelist the initial sweep tokens. Only possible here when
-    //    the deployer is the owner; otherwise the owner must call setTokenWhitelist.
+    if (needsInit) {
+        console.log(`Initializing proxy (owner = ${owner}) …`)
+        const tx = await registry.initialize(owner)
+        console.log(`  tx: ${tx.hash}`)
+        await tx.wait()
+        console.log(`  initialized`)
+    }
+
+    // ---- 4. Optionally whitelist initial tokens ----------------------------
     if (whitelistTokens.length > 0) {
         if (owner.toLowerCase() !== deployer.address.toLowerCase()) {
             console.log(
-                "Skipping token whitelist: deployer is not the owner. Have the owner call setTokenWhitelist for:",
-                whitelistTokens
+                "Skipping token whitelist: deployer is not the owner. " +
+                "Have the owner call setTokenWhitelist for:",
+                whitelistTokens,
             )
         } else {
-            const registry = Impl.attach(proxy.address)
             for (const token of whitelistTokens) {
                 const tx = await registry.setTokenWhitelist(token, true)
                 await tx.wait()
@@ -81,9 +209,12 @@ async function main() {
 
     console.log("")
     console.log("Done. Next steps:")
-    console.log("  - Set sweepRegistryAddress =", proxy.address, "in the")
-    console.log("    morph-reth and go-ethereum chain config for the Onyx activation.")
-    console.log("  - Whitelist production sweep tokens via setTokenWhitelist (owner).")
+    console.log("  - Set sweepRegistryAddress =", addrs.proxy, "in the")
+    console.log("    morph-reth and go-ethereum chain config for Onyx activation.")
+    console.log("  - Proxy admin is", proxyAdmin, "(predeploy ProxyAdmin).")
+    console.log("  - SweepRegistry owner is", owner, "(governs whitelist / pause).")
+    console.log("  - The proxy address is deterministic — " +
+                "it will be identical on every network that shares the same impl bytecode.")
 }
 
 main().catch((err) => {
