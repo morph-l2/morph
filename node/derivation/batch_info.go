@@ -13,8 +13,8 @@ import (
 	"github.com/morph-l2/go-ethereum/eth/catalyst"
 
 	commonbatch "morph-l2/common/batch"
+	"morph-l2/common/codec/zstd"
 	"morph-l2/node/types"
-	"morph-l2/node/zstd"
 )
 
 type BlockContext struct {

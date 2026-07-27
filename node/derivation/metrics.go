@@ -36,6 +36,12 @@ type Metrics struct {
 	FinalizedL2BlockNumber     metrics.Gauge
 	L1ReorgResetTotal          metrics.Counter
 	TagInvariantViolationTotal metrics.Counter
+
+	// BeaconRequestFailure counts beacons that failed to serve blob sidecars
+	// (unreachable, non-200, or an incomplete/empty result), labeled by
+	// endpoint, before the FallbackBeaconClient moved on to the next configured
+	// beacon. A rising count for one endpoint pinpoints the flaky beacon node.
+	BeaconRequestFailure metrics.Counter
 }
 
 func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
@@ -122,6 +128,14 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Name:      "tag_invariant_violation_total",
 			Help:      "Times the finalized <= safe <= unsafe invariant failed; SetBlockTags is skipped on each occurrence.",
 		}, labels).With(labelsAndValues...),
+		// The endpoint label is bound per-increment in IncBeaconRequestFailure,
+		// so it is declared here rather than pre-bound via With.
+		BeaconRequestFailure: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: metricsSubsystem,
+			Name:      "beacon_request_failure_total",
+			Help:      "Beacon requests that failed (transport error or non-200) per endpoint, before falling back to the next configured beacon.",
+		}, append(append([]string{}, labels...), "endpoint")),
 	}
 }
 
@@ -175,4 +189,8 @@ func (m *Metrics) IncL1ReorgReset() {
 
 func (m *Metrics) IncTagInvariantViolation() {
 	m.TagInvariantViolationTotal.Add(1)
+}
+
+func (m *Metrics) IncBeaconRequestFailure(endpoint string) {
+	m.BeaconRequestFailure.With("endpoint", endpoint).Add(1)
 }

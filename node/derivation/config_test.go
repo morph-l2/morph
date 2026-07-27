@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli"
 
 	"morph-l2/node/flags"
@@ -86,6 +87,26 @@ func TestVerifyMode_RejectsUnknown(t *testing.T) {
 
 	if _, err := validateAndDefaultVerifyMode("PATHA"); err == nil {
 		t.Fatal("verify-mode is case-sensitive; uppercase should be rejected")
+	}
+}
+
+func TestBeaconRpcList(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   string
+		want []string
+	}{
+		{"single", "http://a", []string{"http://a"}},
+		{"multiple", "http://a,http://b,http://c", []string{"http://a", "http://b", "http://c"}},
+		{"trims spaces", " http://a , http://b ", []string{"http://a", "http://b"}},
+		{"drops empties", "http://a,,http://b,", []string{"http://a", "http://b"}},
+		{"empty", "", nil},
+		{"only separators", " , , ", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := (&Config{BeaconRpc: tc.in}).BeaconRpcList()
+			require.Equal(t, tc.want, got)
+		})
 	}
 }
 

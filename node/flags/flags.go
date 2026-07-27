@@ -66,7 +66,7 @@ var (
 
 	L1BeaconAddr = cli.StringFlag{
 		Name:   "l1.beaconrpc",
-		Usage:  "Address of L1 Beacon JSON-RPC endpoint to use (eth namespace required)",
+		Usage:  "Address of L1 Beacon JSON-RPC endpoint(s) to use (eth namespace required). Supports a comma-separated list; endpoints are tried in order and derivation falls back to the next one when a beacon temporarily fails to serve blob sidecars",
 		EnvVar: prefixEnvVar("L1_ETH_BEACON_RPC"),
 	}
 
@@ -344,6 +344,21 @@ var (
 		Usage:  "Compress determines if the rotated log files should be compressed using gzip. The default is not to perform compression. It is used only when log.filename is provided.",
 		EnvVar: prefixEnvVar("LOG_COMPRESS"),
 	}
+
+	// metrics
+	MetricsServerEnable = cli.BoolFlag{
+		Name:   "metrics-server-enable",
+		Usage:  "Whether the layer1 validator serves Prometheus metrics. Overrides [instrumentation] prometheus from config.toml when explicitly set.",
+		EnvVar: prefixEnvVar("METRICS_SERVER_ENABLE"),
+	}
+	// MetricsPort optionally overrides the layer1 validator metrics port. When
+	// unset, the complete Tendermint instrumentation address is preserved.
+	MetricsPort = cli.Uint64Flag{
+		Name:   "metrics-port",
+		Usage:  "Port the validator metrics server binds to. Overrides [instrumentation] prometheus_listen_addr from config.toml when set (layer1 verify mode only).",
+		Value:  26660,
+		EnvVar: prefixEnvVar("METRICS_PORT"),
+	}
 )
 
 var Flags = []cli.Flag{
@@ -412,4 +427,8 @@ var Flags = []cli.Flag{
 	LogFileMaxSize,
 	LogFileMaxAge,
 	LogCompress,
+
+	// metrics
+	MetricsServerEnable,
+	MetricsPort,
 }

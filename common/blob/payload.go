@@ -3,7 +3,7 @@ package blob
 import (
 	"fmt"
 
-	"morph-l2/node/zstd"
+	"morph-l2/common/codec/zstd"
 
 	"github.com/morph-l2/go-ethereum/common"
 	eth "github.com/morph-l2/go-ethereum/core/types"

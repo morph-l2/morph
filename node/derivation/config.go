@@ -81,8 +81,26 @@ type Config struct {
 	FetchBlockRange       uint64          `json:"fetch_block_range"`
 	VerifyMode            string          `json:"verify_mode"`
 	ReorgCheckDepth       uint64          `json:"reorg_check_depth"`
+	MetricsPort           uint64          `json:"metrics_port"`
 }
 
+// BeaconRpcList splits the configured beacon RPC endpoint(s) on commas and
+// returns them trimmed, in order (primary first). Operators can supply several
+// beacon nodes via a single comma-separated --l1.beaconrpc value; derivation
+// then falls back to the next endpoint when one temporarily fails to serve
+// blob sidecars. A plain single URL yields a one-element slice, so existing
+// configs keep working unchanged.
+func (c *Config) BeaconRpcList() []string {
+	var endpoints []string
+	for _, endpoint := range strings.Split(c.BeaconRpc, ",") {
+		if endpoint = strings.TrimSpace(endpoint); endpoint != "" {
+			endpoints = append(endpoints, endpoint)
+		}
+	}
+	return endpoints
+}
+
+// DefaultConfig returns the default derivation configuration.
 func DefaultConfig() *Config {
 	return &Config{
 		L1: &types.L1Config{
@@ -103,6 +121,8 @@ func DefaultConfig() *Config {
 	}
 }
 
+// SetCliContext applies command-line and environment overrides to the
+// derivation configuration.
 func (c *Config) SetCliContext(ctx *cli.Context) error {
 	c.L1.Addr = ctx.GlobalString(flags.L1NodeAddr.Name)
 	// The current setting priority is greater than Env L1Confirmations
@@ -122,7 +142,7 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		c.RollupContractAddress = types.HoodiRollupContractAddress
 	}
 	c.BeaconRpc = ctx.GlobalString(flags.L1BeaconAddr.Name)
-	if c.BeaconRpc == "" {
+	if len(c.BeaconRpcList()) == 0 {
 		return errors.New("invalid L1BeaconAddr")
 	}
 
@@ -169,6 +189,10 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		return err
 	}
 	c.VerifyMode = normalized
+
+	if c.VerifyMode == VerifyModeLayer1 {
+		c.MetricsPort = ctx.GlobalUint64(flags.MetricsPort.Name)
+	}
 
 	// Layer1-verify validators historically derived only from finalized L1 data
 	// (the pre-centralized-sequencer default). Preserve that: unless the operator

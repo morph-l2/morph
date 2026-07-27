@@ -16,6 +16,7 @@ import (
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	"github.com/morph-l2/go-ethereum/params"
+	tmlog "github.com/tendermint/tendermint/libs/log"
 )
 
 const (
@@ -206,6 +207,64 @@ func dataAndHashesFromTxs(txs types.Transactions, targetTx *types.Transaction) [
 		}
 	}
 	return hashes
+}
+
+// FallbackBeaconClient queries several beacon nodes in order for blob sidecars.
+// A beacon is skipped and the next one tried when it errors, is unreachable, or
+// answers with too few sidecars — a beacon that pruned the slot or has not
+// indexed it yet still replies 200 with an empty/partial list, which is exactly
+// the "temporarily failed to fetch blob" case seen in production and which a
+// transport-level fallback would miss. The failing endpoint is recorded in the
+// beacon_request_failure_total metric so a flaky node is visible on dashboards.
+// With a single endpoint it behaves like a bare L1BeaconClient.
+type FallbackBeaconClient struct {
+	clients   []*L1BeaconClient
+	endpoints []string // parallel to clients, used only for logs/metrics
+	log       tmlog.Logger
+	metrics   *Metrics
+}
+
+func NewFallbackBeaconClient(endpoints []string, log tmlog.Logger, metrics *Metrics) *FallbackBeaconClient {
+	clients := make([]*L1BeaconClient, 0, len(endpoints))
+	for _, endpoint := range endpoints {
+		clients = append(clients, NewL1BeaconClient(NewBasicHTTPClient(endpoint, log)))
+	}
+	return &FallbackBeaconClient{
+		clients:   clients,
+		endpoints: endpoints,
+		log:       log,
+		metrics:   metrics,
+	}
+}
+
+// GetBlobSidecarsEnhanced tries each configured beacon in order and returns the
+// first response that actually carries the requested blobs (at least len(hashes)
+// sidecars, or at least one when no explicit hashes are requested). A beacon
+// that errors or returns an incomplete set is recorded as a failure and skipped.
+// If every beacon fails, the last error is returned.
+func (c *FallbackBeaconClient) GetBlobSidecarsEnhanced(ctx context.Context, ref L1BlockRef, hashes []IndexedBlobHash) ([]*BlobSidecar, error) {
+	var lastErr error
+	for i, cl := range c.clients {
+		sidecars, err := cl.GetBlobSidecarsEnhanced(ctx, ref, hashes)
+		if err == nil && len(sidecars) > 0 && len(sidecars) >= len(hashes) {
+			return sidecars, nil
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if err == nil {
+			err = fmt.Errorf("beacon returned %d sidecars, want at least %d", len(sidecars), len(hashes))
+		}
+		if c.metrics != nil {
+			c.metrics.IncBeaconRequestFailure(c.endpoints[i])
+		}
+		if c.log != nil {
+			c.log.Error("beacon failed to serve blob sidecars, trying next endpoint",
+				"endpoint", c.endpoints[i], "err", err)
+		}
+		lastErr = err
+	}
+	return nil, lastErr
 }
 
 // Note: ForceGetAllBlobs is defined in derivation.go in the same package

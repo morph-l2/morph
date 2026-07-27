@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"morph-l2/node/zstd"
+	"morph-l2/common/codec/zstd"
 
 	eth "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
