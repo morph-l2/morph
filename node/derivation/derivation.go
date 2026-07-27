@@ -47,7 +47,7 @@ type Derivation struct {
 	logger                tmlog.Logger
 	rollup                *bindings.Rollup
 	metrics               *Metrics
-	l1BeaconClient        *L1BeaconClient
+	l1BeaconClient        *FallbackBeaconClient
 	L2ToL1MessagePasser   *bindings.L2ToL1MessagePasser
 
 	rollupABI             *abi.ABI
@@ -124,8 +124,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	// itself is started once at the top level (cmd/node/main.go) so every
 	// verify-mode and sequencer-mode produces exactly one /metrics URL.
 	metrics := PrometheusMetrics("morphnode")
-	baseHttp := NewBasicHTTPClient(cfg.BeaconRpc, logger)
-	l1BeaconClient := NewL1BeaconClient(baseHttp)
+	l1BeaconClient := NewFallbackBeaconClient(cfg.BeaconRpcList(), logger, metrics)
 
 	l2Client := types.NewRetryableClient(aClient, eClient, logger)
 	tagAdv := newTagAdvancer(l2Client, metrics, logger)
@@ -389,7 +388,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 				// or fails — without it, a deriveForce error would leave
 				// reactors stopped indefinitely (Stop is idempotent on
 				// retry, but Start is never reached).
-				err = d.withReactorsQuiesced(ctx, batchInfo.batchIndex, func() error {
+				err = d.withReactorsQuiesced(batchInfo.batchIndex, func() error {
 					var derErr error
 					lastHeader, derErr = d.deriveForce(batchInfoFull)
 					return derErr
@@ -433,7 +432,7 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 					// so the deferred Start runs whether deriveForce succeeds
 					// or fails — without it, a deriveForce error would leave
 					// reactors stopped indefinitely.
-					err = d.withReactorsQuiesced(ctx, batchInfo.batchIndex, func() error {
+					err = d.withReactorsQuiesced(batchInfo.batchIndex, func() error {
 						var derErr error
 						lastHeader, derErr = d.deriveForce(batchInfoFull)
 						return derErr
@@ -484,17 +483,26 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		if err := d.verifyBatchRoots(batchInfo, lastHeader); err != nil {
 			// stateException only when the verifier produced a real mismatch
 			// verdict (root or withdrawal root). Transient failures (e.g.
-			// MessageRoot RPC error) just log and retry next poll.
+			// MessageRoot RPC error) must not be reported as divergence.
 			if errors.Is(err, ErrBatchVerifyDivergence) {
 				d.metrics.SetBatchStatus(stateException)
 			}
-			d.logger.Error("batch roots verification failed", "batchIndex", batchInfo.batchIndex, "error", err)
-			return
+			if enforceBatchRootVerification(d.verifyMode) {
+				d.logger.Error("batch roots verification failed", "batchIndex", batchInfo.batchIndex, "error", err)
+				return
+			}
+			// Tendermint's logger exposes debug/info/error but no warning
+			// method, so retain warning semantics as a structured info event.
+			d.logger.Info("batch roots verification warning; continuing in non-validator mode",
+				"severity", "warning", "batchIndex", batchInfo.batchIndex, "error", err)
+		} else {
+			d.metrics.SetBatchStatus(stateNormal)
 		}
-		d.metrics.SetBatchStatus(stateNormal)
 		d.metrics.SetL1SyncHeight(lg.BlockNumber)
 
-		// SPEC-005 section 4.7.3: a verified batch (layer1 or local verify) advances safe.
+		// SPEC-005 section 4.7.3: a content-verified batch advances safe.
+		// Regular nodes treat root verification as an observational check;
+		// layer1 validator nodes enforce it above.
 		d.tagAdvancer.advanceSafe(d.ctx, batchInfo.batchIndex, lastHeader)
 	}
 
@@ -509,6 +517,14 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 	d.db.WriteLatestDerivationL1Height(end)
 	d.metrics.SetL1SyncHeight(end)
 	d.logger.Info("write latest derivation l1 height success", "l1BlockNumber", end)
+}
+
+// enforceBatchRootVerification reports whether a root verification failure must
+// stop derivation. Layer1 mode is the validator deployment mode; local mode is
+// used by regular nodes, which still verify roots for observability but must not
+// lose sync when historical state is unavailable.
+func enforceBatchRootVerification(verifyMode string) bool {
+	return verifyMode == VerifyModeLayer1
 }
 
 func (d *Derivation) fetchRollupLog(ctx context.Context, from, to uint64) ([]eth.Log, error) {
@@ -838,7 +854,7 @@ func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 // zero (which would tell blocksync to re-fetch from genesis). HA
 // sequencers and mock-mode skip (d.node == nil): sequencers don't
 // auto-reorg, mock has no reactors.
-func (d *Derivation) withReactorsQuiesced(ctx context.Context, batchIndex uint64, body func() error) error {
+func (d *Derivation) withReactorsQuiesced(batchIndex uint64, body func() error) error {
 	if d.node == nil {
 		return body()
 	}

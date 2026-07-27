@@ -12,7 +12,6 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/hashicorp/raft v1.7.3
 	github.com/hashicorp/raft-boltdb/v2 v2.3.1
-	github.com/klauspost/compress v1.17.9
 	github.com/mdlayher/vsock v1.2.1
 	github.com/morph-l2/go-ethereum v1.10.14-0.20260709072051-ffa95e0670a3
 	github.com/pkg/errors v0.9.1
@@ -80,6 +79,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jmhodges/levigo v1.0.0 // indirect
+	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/lib/pq v1.10.7 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"morph-l2/node/zstd"
+	"morph-l2/common/codec/zstd"
 
 	eth "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
@@ -234,6 +234,13 @@ func extractInnerTxFullBytes(firstByte byte, reader io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	size := binary.BigEndian.Uint32(append(make([]byte, 4-len(sizeByte)), sizeByte...))
+
+	// Reject malformed lengths before allocating attacker-controlled memory.
+	// Batch decoding currently passes a *bytes.Reader, whose remaining length
+	// provides a strict upper bound for the encoded transaction payload.
+	if lr, ok := reader.(interface{ Len() int }); ok && uint64(size) > uint64(lr.Len()) {
+		return nil, fmt.Errorf("declared tx size %d exceeds remaining %d bytes", size, lr.Len())
+	}
 
 	txRaw := make([]byte, size)
 	if err := binary.Read(reader, binary.BigEndian, txRaw); err != nil {
