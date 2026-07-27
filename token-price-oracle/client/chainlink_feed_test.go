@@ -48,6 +48,49 @@ func TestValidateChainlinkRound(t *testing.T) {
 			answeredInRound: big.NewInt(9),
 			wantErr:         true,
 		},
+		{
+			name:            "future timestamp",
+			answer:          big.NewInt(2000_00000000),
+			updatedAt:       big.NewInt(now.Add(time.Second).Unix()),
+			roundID:         big.NewInt(10),
+			answeredInRound: big.NewInt(10),
+			wantErr:         true,
+		},
+		{
+			name:            "nil answer",
+			updatedAt:       big.NewInt(now.Unix()),
+			roundID:         big.NewInt(10),
+			answeredInRound: big.NewInt(10),
+			wantErr:         true,
+		},
+		{
+			name:            "nil updatedAt",
+			answer:          big.NewInt(2000_00000000),
+			roundID:         big.NewInt(10),
+			answeredInRound: big.NewInt(10),
+			wantErr:         true,
+		},
+		{
+			name:            "nil round ID",
+			answer:          big.NewInt(2000_00000000),
+			updatedAt:       big.NewInt(now.Unix()),
+			answeredInRound: big.NewInt(10),
+			wantErr:         true,
+		},
+		{
+			name:      "nil answered in round",
+			answer:    big.NewInt(2000_00000000),
+			updatedAt: big.NewInt(now.Unix()),
+			roundID:   big.NewInt(10),
+			wantErr:   true,
+		},
+		{
+			name:            "at staleness boundary",
+			answer:          big.NewInt(2000_00000000),
+			updatedAt:       big.NewInt(now.Add(-time.Hour).Unix()),
+			roundID:         big.NewInt(10),
+			answeredInRound: big.NewInt(10),
+		},
 	}
 
 	for _, tt := range tests {

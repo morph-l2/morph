@@ -8,6 +8,32 @@ import (
 	"testing"
 )
 
+func TestCEXGetTokenPriceInitializesETHPrice(t *testing.T) {
+	fetcher := func(_ context.Context, _ *http.Client, _ string, symbol string) (*big.Float, error) {
+		switch symbol {
+		case "ETHUSDT":
+			return big.NewFloat(3000), nil
+		case "BTCUSDT":
+			return big.NewFloat(60000), nil
+		default:
+			t.Fatalf("unexpected symbol: %s", symbol)
+			return nil, nil
+		}
+	}
+	feed := newCEXPriceFeed("test", map[uint16]string{1: "BTCUSDT"}, "", "ETHUSDT", fetcher)
+
+	price, err := feed.GetTokenPrice(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if price.EthPriceUSD.Cmp(big.NewFloat(3000)) != 0 {
+		t.Fatalf("ETH price = %s, want 3000", price.EthPriceUSD.String())
+	}
+	if price.TokenPriceUSD.Cmp(big.NewFloat(60000)) != 0 {
+		t.Fatalf("token price = %s, want 60000", price.TokenPriceUSD.String())
+	}
+}
+
 func TestFetchBinancePrice(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != binanceTickerPath {

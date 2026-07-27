@@ -2,9 +2,11 @@ package updater
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/log"
+
 	"morph-l2/bindings/bindings"
 	"morph-l2/token-price-oracle/client"
 	"morph-l2/token-price-oracle/config"
@@ -117,7 +119,7 @@ func createSinglePriceFeed(feedType config.PriceFeedType, cfg *config.Config) (c
 		}
 		log.Info("Chainlink price feed created",
 			"type", "chainlink",
-			"rpc", cfg.ChainlinkRPC,
+			"rpc", redactRPCForLog(cfg.ChainlinkRPC),
 			"eth_usd_feed", cfg.ChainlinkETHUSDFeed.Hex(),
 			"max_staleness", cfg.ChainlinkMaxStaleness,
 			"mapping", mapping)
@@ -180,6 +182,14 @@ func createSinglePriceFeed(feedType config.PriceFeedType, cfg *config.Config) (c
 	default:
 		return nil, "", fmt.Errorf("unsupported price feed type: %s", feedType)
 	}
+}
+
+func redactRPCForLog(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "<invalid_rpc_url>"
+	}
+	return fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host)
 }
 
 // CreateTxManager creates transaction manager

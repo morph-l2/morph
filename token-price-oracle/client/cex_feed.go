@@ -70,7 +70,12 @@ func (f *CEXPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) (*Toke
 		return nil, fmt.Errorf("token ID %d not mapped to %s trading pair", tokenID, f.source)
 	}
 	if ethPrice.Cmp(big.NewFloat(0)) == 0 {
-		return nil, fmt.Errorf("ETH price not initialized, please call GetBatchTokenPrices first")
+		if err := f.updateETHPrice(ctx); err != nil {
+			return nil, fmt.Errorf("failed to initialize ETH price: %w", err)
+		}
+		f.mu.RLock()
+		ethPrice = new(big.Float).Copy(f.ethPrice)
+		f.mu.RUnlock()
 	}
 
 	tokenPrice, err := f.fetchMappedPrice(ctx, symbol)

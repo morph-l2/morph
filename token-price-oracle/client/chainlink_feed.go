@@ -240,8 +240,8 @@ func validateChainlinkRound(answer, updatedAt, roundID, answeredInRound *big.Int
 	}
 
 	updated := time.Unix(updatedAt.Int64(), 0)
-	if updated.After(now.Add(maxStaleness)) {
-		return fmt.Errorf("updatedAt %s is too far in the future", updated.UTC().Format(time.RFC3339))
+	if updated.After(now) {
+		return fmt.Errorf("updatedAt %s is in the future", updated.UTC().Format(time.RFC3339))
 	}
 	if now.Sub(updated) > maxStaleness {
 		return fmt.Errorf("price is stale: updatedAt=%s maxStaleness=%s", updated.UTC().Format(time.RFC3339), maxStaleness)

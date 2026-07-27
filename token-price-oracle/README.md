@@ -71,9 +71,9 @@ docker run -d \
 | Environment Variable | Description |
 |---------------------|-------------|
 | `TOKEN_PRICE_ORACLE_L2_ETH_RPC` | L2 node RPC endpoint |
-| `TOKEN_PRICE_ORACLE_PRICE_FEED_PRIORITY` | Enabled price feeds in fallback order |
 
-Each enabled price feed also requires its own mapping/configuration in the feed sections below.
+The optional price-feed priority defaults to `bitget`. Each enabled feed
+requires its own mapping and configuration from the feed sections below.
 
 ### Required (Local Signing Mode Only)
 
