@@ -483,17 +483,26 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 		if err := d.verifyBatchRoots(batchInfo, lastHeader); err != nil {
 			// stateException only when the verifier produced a real mismatch
 			// verdict (root or withdrawal root). Transient failures (e.g.
-			// MessageRoot RPC error) just log and retry next poll.
+			// MessageRoot RPC error) must not be reported as divergence.
 			if errors.Is(err, ErrBatchVerifyDivergence) {
 				d.metrics.SetBatchStatus(stateException)
 			}
-			d.logger.Error("batch roots verification failed", "batchIndex", batchInfo.batchIndex, "error", err)
-			return
+			if enforceBatchRootVerification(d.verifyMode) {
+				d.logger.Error("batch roots verification failed", "batchIndex", batchInfo.batchIndex, "error", err)
+				return
+			}
+			// Tendermint's logger exposes debug/info/error but no warning
+			// method, so retain warning semantics as a structured info event.
+			d.logger.Info("batch roots verification warning; continuing in non-validator mode",
+				"severity", "warning", "batchIndex", batchInfo.batchIndex, "error", err)
+		} else {
+			d.metrics.SetBatchStatus(stateNormal)
 		}
-		d.metrics.SetBatchStatus(stateNormal)
 		d.metrics.SetL1SyncHeight(lg.BlockNumber)
 
-		// SPEC-005 section 4.7.3: a verified batch (layer1 or local verify) advances safe.
+		// SPEC-005 section 4.7.3: a content-verified batch advances safe.
+		// Regular nodes treat root verification as an observational check;
+		// layer1 validator nodes enforce it above.
 		d.tagAdvancer.advanceSafe(d.ctx, batchInfo.batchIndex, lastHeader)
 	}
 
@@ -508,6 +517,14 @@ func (d *Derivation) derivationBlock(ctx context.Context) {
 	d.db.WriteLatestDerivationL1Height(end)
 	d.metrics.SetL1SyncHeight(end)
 	d.logger.Info("write latest derivation l1 height success", "l1BlockNumber", end)
+}
+
+// enforceBatchRootVerification reports whether a root verification failure must
+// stop derivation. Layer1 mode is the validator deployment mode; local mode is
+// used by regular nodes, which still verify roots for observability but must not
+// lose sync when historical state is unavailable.
+func enforceBatchRootVerification(verifyMode string) bool {
+	return verifyMode == VerifyModeLayer1
 }
 
 func (d *Derivation) fetchRollupLog(ctx context.Context, from, to uint64) ([]eth.Log, error) {
