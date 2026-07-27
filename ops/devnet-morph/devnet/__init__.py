@@ -55,6 +55,28 @@ log = logging.getLogger()
 GWEI = 1e9
 ETH = GWEI * GWEI
 
+# ---- Onyx sweep (hardfork) devnet bootstrap --------------------------------
+# Solady deterministic-deployment-proxy: same address on every EVM chain.
+ONYX_CREATE2_FACTORY = '0x4e59b44847b379578588920cA78FbF26c0B4956C'
+# Keyless deployer of that factory (Nick's method); only needs gas funding.
+ONYX_CREATE2_FACTORY_SENDER = '0x3fab184622dc19b6109349b94811493bf2a45362'
+# Canonical PRE-EIP155 (chain-id-agnostic) creation tx: v=0x1b, r=s=0x2222….
+# It recovers to the sender on ANY chain id, so it works on the 53077 devnet just
+# as it did on Morph mainnet / Hoodi. A chain-id-bound (EIP-155) variant would be
+# rejected here ("Failed to decode transaction"). Mirrors ONYX_FACTORY_RAW_TX in
+# contracts/scripts/lib/onyx-sweep-common.sh — keep the two byte-identical.
+ONYX_CREATE2_FACTORY_RAW_TX = (
+    '0xf8a58085174876e800830186a08080b853604580600e600039806000f350fe'
+    '7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe'
+    '03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3'
+    '1b'
+    'a02222222222222222222222222222222222222222222222222222222222222222'
+    'a02222222222222222222222222222222222222222222222222222222222222222'
+)
+def _onyx_enabled():
+    """True when the Onyx sweep devnet path is requested (DEVNET_ONYX=1/true/yes)."""
+    return os.environ.get('DEVNET_ONYX', '').lower() in ('1', 'true', 'yes')
+
 
 def compose_file_args(execution_client, cluster=False):
     """Return docker-compose -f flags for the chosen L2 execution client."""
@@ -223,24 +245,21 @@ def devnet_deploy(paths, args):
     ], cwd=paths.L2_dir)
     write_json(done_file, {})
 
-    # Onyx sweep: inject the hardfork activation timestamp.
-    # morph-reth hardcodes the Registry address (SWEEP_REGISTRY_ADDRESS
-    # constant); go-ethereum / morphnode reads it from genesis config, so
-    # we still write it for cross-client compatibility.  Enable with
-    # DEVNET_ONYX=1; the deterministic CREATE2 factory is bootstrapped
-    # automatically after L2 comes up.
-    if os.environ.get('DEVNET_ONYX', '').lower() in ('1', 'true', 'yes'):
+    # Onyx sweep: patch the L2 genesis *config* only (safe — config fields do not
+    # affect the genesis state root, unlike alloc, so it stays consistent with the
+    # l2_genesis_state_root already committed to L1). Only `onyxTime` is written: it
+    # activates the hardfork and, like every other fork time, is read from chain
+    # config by the EL. The Registry ADDRESS is a hardcoded consensus constant on
+    # both clients (morph-reth SWEEP_REGISTRY_ADDRESS; go-ethereum will hardcode it
+    # too per the Onyx spec), so it is deliberately NOT written to config. Enable
+    # with DEVNET_ONYX=1; the CREATE2 factory is bootstrapped after L2 comes up.
+    if _onyx_enabled():
         onyx_time = int(os.environ.get('DEVNET_ONYX_TIME', '0'))
-        registry_addr = os.environ.get(
-            'DEVNET_SWEEP_REGISTRY', '0x7aE8bEf666D1D0aB9C0ac5d636f375E46f8AE71A')
         genesis_l2 = read_json(paths.genesis_l2_path)
         cfg = genesis_l2.setdefault('config', {})
         cfg['onyxTime'] = onyx_time
-        cfg.setdefault('morph', {})['sweepRegistryAddress'] = registry_addr
         write_json(paths.genesis_l2_path, genesis_l2)
-        log.info(
-            f'[onyx] patched L2 genesis config: onyxTime={onyx_time}, '
-            f'sweepRegistryAddress={registry_addr}')
+        log.info(f'[onyx] patched L2 genesis config: onyxTime={onyx_time}')
 
     log.info('Deploying L1 Impl contracts and initialize contracts...')
     rollup_cfg = read_json(paths.rollup_config_path)
@@ -352,74 +371,58 @@ def devnet_deploy(paths, args):
     wait_up(8545)
     wait_for_rpc_server('127.0.0.1:8545')
 
-    if os.environ.get('DEVNET_ONYX', '').lower() in ('1', 'true', 'yes'):
+    if _onyx_enabled():
         _bootstrap_onyx_l2_infra(paths, args.sequencer_private_key)
 
 
-def _bootstrap_onyx_l2_infra(paths, sequencer_private_key):
-    """Deploy the deterministic CREATE2 factory (if absent) on the L2 devnet.
+def _bootstrap_onyx_l2_infra(paths, funder_private_key):
+    """Bootstrap the deterministic CREATE2 factory on the L2 devnet (if absent).
 
-    The Solady deterministic-deployment-proxy factory
-    (0x4e59b44847b379578588920cA78FbF26c0B4956C) is required for CREATE2
-    deployment of the SweepRegistry. On a fresh Anvil devnet it must be
-    bootstrapped via a one-shot presigned transaction — no private key is
-    needed for the deployer, only gas funding for the sender address.
+    The Solady deterministic-deployment-proxy factory (ONYX_CREATE2_FACTORY) is a
+    prerequisite for CREATE2-deploying the SweepRegistry. On a fresh devnet it is
+    installed via the canonical keyless one-shot transaction: fund the presigned
+    sender for gas, then broadcast ONYX_CREATE2_FACTORY_RAW_TX.
 
-    The SweepRegistry itself is deployed separately by the demo script
-    or the deploy-sweep-registry.ts hardhat task.
+    The SweepRegistry itself is NOT deployed here — that is a contracts concern
+    handled by scripts/deploy-sweep-registry.ts (production) or the devnet demo /
+    comprehensive scripts (which source scripts/lib/onyx-sweep-common.sh).
     """
-    import time as _time
-
-    factory = '0x4e59b44847b379578588920cA78FbF26c0B4956C'
     l2_rpc = 'http://127.0.0.1:8545'
 
-    code = run_command_capture_output(
-        ['cast', 'code', '--rpc-url', l2_rpc, factory],
-        cwd=paths.contracts_dir,
-    ).stdout.strip()
+    def _factory_code():
+        return run_command_capture_output(
+            ['cast', 'code', '--rpc-url', l2_rpc, ONYX_CREATE2_FACTORY],
+            cwd=paths.contracts_dir,
+        ).stdout.strip()
 
-    if code and code != '0x':
+    if _factory_code() not in ('', '0x'):
         log.info('[onyx] CREATE2 factory already present on L2')
         return
 
     log.info('[onyx] deploying CREATE2 factory on L2…')
 
-    # 1. Fund the presigned sender so the one-shot transaction can pay gas.
-    sender = '0x3fab184622dc19b6109349b94811493bf2a45362'
+    # 1. Fund the presigned sender so its one-shot creation tx can pay gas.
     run_command([
         'cast', 'send', '--rpc-url', l2_rpc,
-        '--private-key', sequencer_private_key,
-        '--value', '0.5ether', sender,
-    ], env={}, cwd=paths.contracts_dir)
+        '--private-key', funder_private_key,
+        '--value', '0.1ether', ONYX_CREATE2_FACTORY_SENDER,
+    ], cwd=paths.contracts_dir)
 
-    # 2. Broadcast the well-known raw transaction.  It is identical on every
-    #    EVM chain and reliably deploys the factory at the deterministic address.
-    raw_tx = (
-        '0xf8a58085174876e800830186a08080b853604580600e600039806000f350fe'
-        '7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe'
-        '03601600081602082378035828234f58015156039578182fd5b80825250505060'
-        '14600cf3820e1da053edb6323539302ee2e91844c4a7d8c59303dec73b2b12692d'
-        '4a52805bddb018a00a8cb751043801076f50e7841e6789b6d644ed66471ab70175'
-        '5c373fdef8f020'
-    )
+    # 2. Broadcast the canonical chain-id-agnostic creation tx.
     run_command(
-        ['cast', 'publish', '--rpc-url', l2_rpc, raw_tx],
-        env={}, cwd=paths.contracts_dir,
+        ['cast', 'publish', '--rpc-url', l2_rpc, ONYX_CREATE2_FACTORY_RAW_TX],
+        check=False, cwd=paths.contracts_dir,
     )
 
-    # 3. Wait for the transaction to be mined and verify.
+    # 3. Wait for it to be mined and verify.
     for _retry in range(30):
-        _time.sleep(1)
-        code_after = run_command_capture_output(
-            ['cast', 'code', '--rpc-url', l2_rpc, factory],
-            cwd=paths.contracts_dir,
-        ).stdout.strip()
-        if code_after and code_after != '0x':
-            log.info('[onyx] CREATE2 factory deployed on L2')
+        time.sleep(1)
+        if _factory_code() not in ('', '0x'):
+            log.info(f'[onyx] CREATE2 factory deployed at {ONYX_CREATE2_FACTORY}')
             return
 
     raise RuntimeError(
-        f'Timed out waiting for CREATE2 factory {factory} on L2'
+        f'Timed out waiting for CREATE2 factory {ONYX_CREATE2_FACTORY} on L2'
     )
 
 

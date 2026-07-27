@@ -25,7 +25,4 @@ export const predeploys = {
     L2ReverseERC20Gateway: "0x5300000000000000000000000000000000000018",
     L2WithdrawLockERC20Gateway: "0x5300000000000000000000000000000000000019",
     L2USDCGateway: "0x5300000000000000000000000000000000000020",
-    // Onyx sweep Registry. NOT genesis-injected: governance-deployed
-    // pre-Onyx and fixed in the EL chain config (sweepRegistryAddress).
-    SweepRegistry: "0x5300000000000000000000000000000000000023",
 };

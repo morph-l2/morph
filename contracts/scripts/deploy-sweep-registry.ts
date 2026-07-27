@@ -4,9 +4,11 @@
  * Both the implementation and the transparent proxy are deployed via the
  * Solady deterministic CREATE2 factory (`0x4e59b44847b379578588920cA78FbF26c0B4956C`),
  * which already exists on Morph Mainnet and Hoodi. Using fixed salts makes
- * the proxy address predictable and identical across networks, so it can be
- * precomputed and baked into the EL chain config
- * (`sweepRegistryAddress`) before deployment.
+ * the proxy address predictable and identical across networks, so it matches
+ * the hardcoded consensus constant every EL client pins (morph-reth
+ * `SWEEP_REGISTRY_ADDRESS`; go-ethereum likewise per the Onyx spec). The
+ * address is NOT read from chain config — this script asserts the deployed
+ * proxy equals that constant.
  *
  * Proxy initialization is a separate transaction — the proxy is deployed
  * with empty init-data so that the owner (which may differ between
@@ -61,6 +63,12 @@ const SALT_PROXY  = ethers.utils.keccak256(
 // OpenZeppelin transparent proxy, fully qualified to avoid name ambiguity.
 const PROXY_FQN =
     "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy"
+
+// Deterministic proxy address when proxyAdmin == DEFAULT_PROXY_ADMIN. This MUST
+// equal the morph-reth SWEEP_REGISTRY_ADDRESS constant (crates/chainspec/src/
+// constants.rs); otherwise the execution layer will never find the registry.
+// Only enforced for the default admin — a custom PROXY_ADMIN legitimately changes it.
+const EXPECTED_REGISTRY = "0x7aE8bEf666D1D0aB9C0ac5d636f375E46f8AE71A"
 
 async function main() {
     const [deployer] = await ethers.getSigners()
@@ -118,6 +126,20 @@ async function main() {
     console.log("saltImpl:          ", SALT_IMPL)
     console.log("saltProxy:         ", SALT_PROXY)
     console.log("")
+
+    // Guard cross-network consistency: with the default ProxyAdmin the proxy must
+    // land on the address morph-reth hardcodes, or the EL will never find it.
+    if (
+        proxyAdmin.toLowerCase() === DEFAULT_PROXY_ADMIN.toLowerCase() &&
+        addrs.proxy.toLowerCase() !== EXPECTED_REGISTRY.toLowerCase()
+    ) {
+        throw new Error(
+            `Predicted proxy ${addrs.proxy} != expected ${EXPECTED_REGISTRY}. ` +
+            "morph-reth hardcodes the expected address (SWEEP_REGISTRY_ADDRESS); a " +
+            "mismatch means the EL will never find the registry. Check the SweepRegistry " +
+            "bytecode / solc version / OZ version / salts against the locked deployment.",
+        )
+    }
 
     // ---- verify factory exists ---------------------------------------------
     const factory = new ethers.Contract(CREATE2_FACTORY, FACTORY_ABI, deployer)
@@ -209,8 +231,8 @@ async function main() {
 
     console.log("")
     console.log("Done. Next steps:")
-    console.log("  - Set sweepRegistryAddress =", addrs.proxy, "in the")
-    console.log("    morph-reth and go-ethereum chain config for Onyx activation.")
+    console.log("  - Registry address", addrs.proxy, "matches the hardcoded")
+    console.log("    consensus constant on every EL client (not set in chain config).")
     console.log("  - Proxy admin is", proxyAdmin, "(predeploy ProxyAdmin).")
     console.log("  - SweepRegistry owner is", owner, "(governs whitelist / pause).")
     console.log("  - The proxy address is deterministic — " +
