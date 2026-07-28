@@ -36,11 +36,6 @@ pub struct BlockInput {
 
 impl BlockInput {
     pub fn witness_db(&self) -> Result<TrieDB<'_>, ClientError> {
-        // verify the state root
-        // if self.prev_state_root != self.parent_state.state_root() {
-        //     return Err(ClientError::InvalidHeaderStateRoot);
-        // }
-
         let bytecodes_by_hash =
             self.bytecodes.iter().map(|code| (code.hash_slow(), code)).collect::<HashMap<_, _>>();
 

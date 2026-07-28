@@ -21,10 +21,8 @@ type MorphConsensusBlock = alloy_consensus::Block<MorphTxEnvelope, MorphHeader>;
 
 /// Predeployed contract (address, slot) pairs that must always be present in the state,
 /// regardless of whether the block touches them.
-const PREDEPLOYED_FORCE_INCLUDE: [(Address, U256); 2] = [
-    (WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT),
-    (SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT),
-];
+const PREDEPLOYED_FORCE_INCLUDE: [(Address, U256); 2] =
+    [(WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT), (SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT)];
 
 /// An executor that fetches data from a [Provider] to execute blocks in the [ClientExecutor].
 #[derive(Debug, Clone)]
@@ -39,7 +37,8 @@ impl HostExecutor {
         block_number: u64,
         provider: &DynProvider,
     ) -> Result<HostExecutorOutput, anyhow::Error> {
-        let ctx = ExecutionContext::fetch(block_number, provider, "HostExecutor::execute_block").await?;
+        let ctx =
+            ExecutionContext::fetch(block_number, provider, "HostExecutor::execute_block").await?;
 
         // Init DB (RPC-backed, rooted at previous block).
         let rpc_db = BasicRpcDb::new(
@@ -63,11 +62,7 @@ impl HostExecutor {
 
         verify_post_state_root(&state, &bundle_state, ctx.post_state_root, block_number, "")?;
 
-        log::debug!(
-            "success execute block_{} in host, txns.len: {}",
-            ctx.block_num,
-            ctx.tx_count
-        );
+        log::debug!("success execute block_{} in host, txns.len: {}", ctx.block_num, ctx.tx_count);
 
         Ok(HostExecutorOutput {
             chain_id: ctx.chain_id,
@@ -89,7 +84,8 @@ impl HostExecutor {
         block_number: u64,
         provider: &DynProvider,
     ) -> Result<HostExecutorOutput, anyhow::Error> {
-        let ctx = ExecutionContext::fetch(block_number, provider, "execute_block_with_witness").await?;
+        let ctx =
+            ExecutionContext::fetch(block_number, provider, "execute_block_with_witness").await?;
 
         // Build the witness-backed DB.  This issues a single `debug_executionWitness` RPC call
         // and pre-populates the entire pre-state trie in memory.

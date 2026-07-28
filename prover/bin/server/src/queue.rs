@@ -6,10 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{
-    PROVER_L2_RPC, PROVER_PROOF_DIR, PROVER_USE_RPC_DB, PROVE_RESULT,
-    PROVE_TIME,
-};
+use crate::{PROVER_L2_RPC, PROVER_PROOF_DIR, PROVER_USE_RPC_DB, PROVE_RESULT, PROVE_TIME};
 use alloy_primitives::Keccak256;
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use morph_prove::{

@@ -1,7 +1,4 @@
-use crate::types::{
-    blob::{decode_blob_scalars, decompress_batch, get_origin_batch},
-    input::BlobInfo,
-};
+use crate::types::{blob::decode_blob_scalars, error::ClientError, input::BlobInfo};
 use anyhow::anyhow;
 use kzg_rs::{get_kzg_settings, Blob as KzgRsBlob, Bytes48};
 use prover_primitives::B256;
@@ -15,23 +12,15 @@ impl BlobVerifier {
     /// - Concatenate all raw scalar bytes, then decompress once
     ///
     /// Returns `(versioned_hashes, decompressed_batch_data)`.
-    pub fn verify_blobs(blob_infos: &[BlobInfo]) -> Result<(Vec<B256>, Vec<u8>), anyhow::Error> {
+    pub fn verify_blobs(blob_infos: &[BlobInfo]) -> Result<(Vec<B256>, Vec<u8>), ClientError> {
         let mut hashes = Vec::new();
         let mut raw_bytes = Vec::new();
         for info in blob_infos {
-            let (hash, raw) = Self::verify_raw(info)?;
+            let (hash, raw) = Self::verify_raw(info).map_err(ClientError::VerifyRawError)?;
             hashes.push(hash);
             raw_bytes.extend(raw);
         }
-        let batch_data = decompress_batch(&raw_bytes)?;
-        Ok((hashes, batch_data))
-    }
-
-    /// KZG-verify a single blob and unpack + decompress its payload (V0/V1 single-blob path).
-    pub fn verify(blob_info: &BlobInfo) -> Result<(B256, Vec<u8>), anyhow::Error> {
-        let hash = Self::verify_kzg(blob_info)?;
-        let origin_batch = get_origin_batch(&blob_info.blob_data)?;
-        Ok((hash, origin_batch))
+        Ok((hashes, raw_bytes))
     }
 
     /// KZG-verify a single blob and decode its BLS scalars without decompression.

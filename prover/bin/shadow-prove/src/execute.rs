@@ -310,11 +310,8 @@ mod tests {
         println!("Saved executor input to proof/shadow_input.json");
 
         let batch_info = prover_executor_client::types::batch::BatchInfo::from_block_inputs(
+            B256::default(),
             &inputs,
-            B256::default(),
-            B256::default(),
-            B256::default(),
-            B256::default(),
         );
         println!("batch_info: {batch_info:?}");
         println!("batch_info.data_hash: {:?}", hex::encode_prefixed(batch_info.data_hash()));
@@ -327,11 +324,8 @@ mod tests {
         let reader = BufReader::new(file);
         let inputs: Vec<BlockInput> = serde_json::from_reader(reader).unwrap();
         let batch_info = prover_executor_client::types::batch::BatchInfo::from_block_inputs(
+            B256::default(),
             &inputs,
-            B256::default(),
-            B256::default(),
-            B256::default(),
-            B256::default(),
         );
         println!("batch_info: {batch_info:?}");
         println!("batch_info.data_hash: {:?}", hex::encode_prefixed(batch_info.data_hash()));
