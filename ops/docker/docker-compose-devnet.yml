@@ -26,7 +26,7 @@ services:
         else
           echo "Genesis already initialized, skipping init"
         fi
-        exec geth --networkid=900 --datadir=/data/geth/execution-data --http --http.addr=0.0.0.0 --http.port=8545 --http.api=admin,engine,net,eth,web3,debug,txpool --http.vhosts=* --http.corsdomain=* --ws --ws.addr=0.0.0.0 --ws.port=8546 --ws.api=admin,engine,net,eth,web3,debug,txpool --ws.origins=* --allow-insecure-unlock --authrpc.port=8551 --authrpc.addr=0.0.0.0 --authrpc.vhosts=* --authrpc.jwtsecret=/jwt/jwtsecret --syncmode=full --miner.gasprice=1 --rpc.allow-unprotected-txs --metrics --metrics.addr=0.0.0.0 --metrics.port=9001 --discovery.port=30303 --port=30303
+        exec geth --networkid=900 --datadir=/data/geth/execution-data --http --http.addr=0.0.0.0 --http.port=8545 --http.api=admin,engine,net,eth,web3,debug,txpool --http.vhosts=* --http.corsdomain=* --ws --ws.addr=0.0.0.0 --ws.port=8546 --ws.api=admin,engine,net,eth,web3,debug,txpool --ws.origins=* --authrpc.port=8551 --authrpc.addr=0.0.0.0 --authrpc.vhosts=* --authrpc.jwtsecret=/jwt/jwtsecret --syncmode=full --miner.gasprice=1 --rpc.allow-unprotected-txs --metrics --metrics.addr=0.0.0.0 --metrics.port=9001 --discovery.port=30303 --port=30303
     restart: unless-stopped
 
   layer1-cl:
