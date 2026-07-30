@@ -73,6 +73,19 @@ ONYX_CREATE2_FACTORY_RAW_TX = (
     'a02222222222222222222222222222222222222222222222222222222222222222'
     'a02222222222222222222222222222222222222222222222222222222222222222'
 )
+# Dedicated L2 funder for the bootstrap above. This MUST NOT be the sequencer key
+# (anvil #0): gas-price-oracle signs L2 txs from that same account every 28s — plus
+# one the instant it starts — so sharing it makes the funding tx race the oracle for
+# the same nonce and get rejected with "replacement transaction underpriced".
+# anvil #2 is prefunded in the L2 genesis (morph-chain-ops genesis.DevAccounts) and is
+# not a sender for any devnet service or demo script (scripts/onyx-sweep-*.sh deploy
+# the SweepRegistry from anvil #1).
+ONYX_L2_FUNDER_KEY = os.environ.get(
+    'DEVNET_ONYX_FUNDER_KEY',
+    '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a',
+)
+
+
 def _onyx_enabled():
     """True when the Onyx sweep devnet path is requested (DEVNET_ONYX=1/true/yes)."""
     return os.environ.get('DEVNET_ONYX', '').lower() in ('1', 'true', 'yes')
@@ -372,10 +385,10 @@ def devnet_deploy(paths, args):
     wait_for_rpc_server('127.0.0.1:8545')
 
     if _onyx_enabled():
-        _bootstrap_onyx_l2_infra(paths, args.sequencer_private_key)
+        _bootstrap_onyx_l2_infra(paths)
 
 
-def _bootstrap_onyx_l2_infra(paths, funder_private_key):
+def _bootstrap_onyx_l2_infra(paths):
     """Bootstrap the deterministic CREATE2 factory on the L2 devnet (if absent).
 
     The Solady deterministic-deployment-proxy factory (ONYX_CREATE2_FACTORY) is a
@@ -402,17 +415,18 @@ def _bootstrap_onyx_l2_infra(paths, funder_private_key):
     log.info('[onyx] deploying CREATE2 factory on L2…')
 
     # 1. Fund the presigned sender so its one-shot creation tx can pay gas.
-    run_command([
-        'cast', 'send', '--rpc-url', l2_rpc,
-        '--private-key', funder_private_key,
-        '--value', '0.1ether', ONYX_CREATE2_FACTORY_SENDER,
-    ], cwd=paths.contracts_dir)
+    _fund_onyx_factory_sender(paths, l2_rpc)
 
-    # 2. Broadcast the canonical chain-id-agnostic creation tx.
-    run_command(
+    # 2. Broadcast the canonical chain-id-agnostic creation tx. Output is captured to
+    #    keep the raw receipt JSON (and foundry's foundry.toml warnings) out of the
+    #    devnet log. A failure is not fatal: "already known" is the expected error when
+    #    the tx is re-broadcast, and step 3 is the real verification either way.
+    published = run_command(
         ['cast', 'publish', '--rpc-url', l2_rpc, ONYX_CREATE2_FACTORY_RAW_TX],
-        check=False, cwd=paths.contracts_dir,
+        check=False, cwd=paths.contracts_dir, output=True,
     )
+    if published.returncode != 0:
+        log.warning(f'[onyx] cast publish reported: {_last_line(published)}')
 
     # 3. Wait for it to be mined and verify.
     for _retry in range(30):
@@ -424,6 +438,52 @@ def _bootstrap_onyx_l2_infra(paths, funder_private_key):
     raise RuntimeError(
         f'Timed out waiting for CREATE2 factory {ONYX_CREATE2_FACTORY} on L2'
     )
+
+
+def _fund_onyx_factory_sender(paths, l2_rpc, retries=5, wait_secs=3):
+    """Give the keyless CREATE2 deployer enough L2 gas money, retrying on RPC errors.
+
+    The sender's balance — not cast's exit code — is the success criterion, so a send
+    that lands but whose receipt wait fails is not retried needlessly, and a transient
+    rejection (nonce clash with another L2 sender, node still catching up) does not
+    abort the whole devnet.
+    """
+    def _sender_balance():
+        return int(run_command_capture_output(
+            ['cast', 'balance', '--rpc-url', l2_rpc, ONYX_CREATE2_FACTORY_SENDER],
+            cwd=paths.contracts_dir,
+        ).stdout.strip() or '0')
+
+    for attempt in range(retries + 1):
+        balance = _sender_balance()
+        if balance > 0:
+            origin = 'was already funded' if attempt == 0 else 'funded'
+            log.info(f'[onyx] CREATE2 factory sender {origin} ({balance} wei)')
+            return
+        if attempt == retries:
+            break
+
+        result = run_command([
+            'cast', 'send', '--rpc-url', l2_rpc,
+            '--private-key', ONYX_L2_FUNDER_KEY,
+            '--value', '0.1ether', ONYX_CREATE2_FACTORY_SENDER,
+        ], check=False, cwd=paths.contracts_dir, output=True)
+        if result.returncode != 0:
+            log.warning(
+                f'[onyx] funding attempt {attempt + 1}/{retries} failed '
+                f'({_last_line(result)}); retrying in {wait_secs}s')
+            time.sleep(wait_secs)
+
+    raise RuntimeError(
+        f'Failed to fund CREATE2 factory sender {ONYX_CREATE2_FACTORY_SENDER} on L2 '
+        f'after {retries} attempts'
+    )
+
+
+def _last_line(result):
+    """Summarise a captured CompletedProcess as its last non-empty output line."""
+    lines = (result.stderr or result.stdout or '').strip().splitlines()
+    return lines[-1] if lines else 'no output'
 
 
 def configure_l1_sequencer(paths, args, addresses, deploy_config):
