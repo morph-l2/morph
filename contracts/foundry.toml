@@ -9,13 +9,24 @@ bytecode_hash = 'none'
 build_info = true
 build_info_path = 'artifacts/build-info'
 ffi = true
-fuzz_runs = 16
 evm_version = 'cancun'
 
 fs_permissions = [{ access = 'read-write', path = './' }]
 
-[profile.ci]
-fuzz_runs = 512
+# Fuzz runs live in a nested [profile.<name>.fuzz] table. The old flat `fuzz_runs` key
+# was silently ignored by current foundry — it only produced "Found unknown `fuzz_runs`
+# config" on every forge/cast invocation in this directory — so fuzz tests have really
+# been running at foundry's default of 256 all along.
+#
+# 256 is kept here rather than restoring the old literal 16: CI runs the default profile
+# (.github/workflows/contracts.yml sets no FOUNDRY_PROFILE), so 16 would cut fuzz
+# coverage 16x across the ~82 fuzz tests. Use FOUNDRY_FUZZ_RUNS=16 for a fast local run.
+[profile.default.fuzz]
+runs = 256
+
+# Only applies when FOUNDRY_PROFILE=ci is set explicitly; CI does not set it today.
+[profile.ci.fuzz]
+runs = 512
 
 [profile.echidna]
 bytecode_hash = 'ipfs'
