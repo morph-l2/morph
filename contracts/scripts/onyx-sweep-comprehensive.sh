@@ -50,8 +50,40 @@ PASS=0; FAIL=0; SKIP=0
 # code at the end instead.
 run_test() { printf "  %s... " "$1"; shift; if "$@"; then echo "PASS"; PASS=$((PASS+1)); else echo "FAIL"; FAIL=$((FAIL+1)); fi; }
 skip_test() { echo "  $1... SKIP ($2)"; SKIP=$((SKIP+1)); }
-send0()  { cast send --rpc-url "$L2_RPC" --private-key "$ACCT0_KEY" "$@"; }
 call0()  { cast call --rpc-url "$L2_RPC" "$@"; }
+
+# Send a tx from ACCT0 and echo its hash; fail loudly instead of silently.
+#
+# `cast send` has TWO silent-failure paths, and under a balance-only assertion both
+# are indistinguishable from "the tx landed but the sweep did not run":
+#   1. The tx never gets mined — gas estimation reverts, or the nonce is taken. The
+#      devnet's gas-price-oracle signs L2 txs from ACCT0 too (it shares
+#      L2_GAS_ORACLE_PRIVATE_KEY with $ACCT0_KEY) and fires one every ~35s for the
+#      first minutes after startup while the L1 base fee decays, so a concurrent send
+#      loses the nonce race and is rejected with "replacement transaction
+#      underpriced". Exit code is 1 here.
+#   2. The tx IS mined but reverts — exit code is still 0; only receipt.status is 0x0.
+# The previous `cast send … >/dev/null 2>&1` swallowed both and then compared balances,
+# so every assertion expecting "balance == 0" passed spuriously and only 4.3, which
+# expects "balance > 0", failed — reporting a nonce race as broken disableSweep logic.
+onyx_send_tx() {
+  local out hash st
+  if ! out=$(cast send --rpc-url "$L2_RPC" --private-key "$ACCT0_KEY" --json "$@" 2>&1); then
+    echo "!! cast send failed, tx never mined: $(echo "$out" | tr '\n' ' ' | cut -c1-200)" >&2
+    return 1
+  fi
+  hash=$(echo "$out" | jq -r '.transactionHash // empty')
+  st=$(echo "$out" | jq -r '.status // empty')
+  [ -n "$hash" ] || { echo "!! cast send returned no tx hash: $out" >&2; return 1; }
+  [ "$st" = "0x1" ] || { echo "!! tx $hash reverted (status=$st)" >&2; return 1; }
+  echo "$hash"
+}
+# Exported (with $L2_RPC/$ACCT0_KEY, which the function body resolves at call time)
+# so the `run_test … bash -c "…"` subshells can use it. Guarded for the same reason as
+# onyx_forge_create in onyx-sweep-common.sh: zsh has no `export -f` and would dump the
+# function body to stdout instead of exporting it.
+export L2_RPC ACCT0_KEY
+[ -n "${BASH_VERSION:-}" ] && export -f onyx_send_tx
 
 onyx_require_tools
 
@@ -80,7 +112,7 @@ echo ""
 echo "--- Phase 1: CREATE2 Factory & Registry ---"
 
 # Fund the Registry deployer.
-send0 --value 10ether "$DEPLOYER" >/dev/null
+onyx_send_tx --value 10ether "$DEPLOYER" >/dev/null
 
 run_test "CREATE2 factory present" onyx_ensure_create2_factory "$L2_RPC" "$ACCT0_KEY"
 
@@ -108,16 +140,16 @@ NON_WHITELIST=$(onyx_forge_create "$L2_RPC" "$ACCT0_KEY" "$ONYX_MOCK_ERC20" \
   "NonSweepToken" "NST" 18)
 echo "  Non-whitelist token: $NON_WHITELIST"
 
-send0 "$TOKEN" "mint(address,uint256)" "$ACCT0" "$AMOUNT" >/dev/null
-send0 "$NON_WHITELIST" "mint(address,uint256)" "$ACCT0" "$AMOUNT" >/dev/null
-send0 "$REGISTRY" "setTokenWhitelist(address,bool)" "$TOKEN" true >/dev/null
+onyx_send_tx "$TOKEN" "mint(address,uint256)" "$ACCT0" "$AMOUNT" >/dev/null
+onyx_send_tx "$NON_WHITELIST" "mint(address,uint256)" "$ACCT0" "$AMOUNT" >/dev/null
+onyx_send_tx "$REGISTRY" "setTokenWhitelist(address,bool)" "$TOKEN" true >/dev/null
 
 # ---- Phase 3: Sweep flow verification -------------------------------------
 echo ""
 echo "--- Phase 3: Sweep Flow ---"
 
 # Fund deposit for gas headroom (sweep itself is gasless, this is for safety).
-send0 --value 1ether "$DEPOSIT" >/dev/null
+onyx_send_tx --value 1ether "$DEPOSIT" >/dev/null
 
 # 3.1 Register deposit
 echo "  [3.1] Register deposit..."
@@ -128,30 +160,50 @@ SIG=$(cast wallet sign --private-key "$DEPOSIT_KEY" --data --from-file "$TYPED")
 rm -f "$TYPED"
 
 run_test "register deposit" bash -c "
-  cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' \
-    '$REGISTRY' 'registerSweep(address,address,uint256,uint64,bytes)' \
-    '$DEPOSIT' '$MASTER' 0 '$DEADLINE' \"$SIG\" >/dev/null 2>&1
+  onyx_send_tx '$REGISTRY' 'registerSweep(address,address,uint256,uint64,bytes)' \
+    '$DEPOSIT' '$MASTER' 0 '$DEADLINE' \"$SIG\" >/dev/null || exit 1
   RES=\$(cast call --rpc-url '$L2_RPC' '$REGISTRY' 'resolveSweep(address,address)(address)' '$TOKEN' '$DEPOSIT')
   [ \"\$(echo \"\$RES\" | tr 'A-Z' 'a-z')\" = \"\$(echo '$MASTER' | tr 'A-Z' 'a-z')\" ]
 "
 
-# 3.2 Transfer whitelisted token -> sweep
+# 3.2 Transfer whitelisted token -> sweep. Baseline captured BEFORE the transfer: MASTER
+# is also the sender here, so the round trip (MASTER -AMOUNT to the deposit, then sweep
+# +AMOUNT back) must return it to exactly this value.
+MASTER_BAL_BEFORE=$(cast to-dec "$(call0 "$TOKEN" 'balanceOf(address)(uint256)' "$MASTER" | cut -d' ' -f1)")
+
+# 3.2 records its tx hash here so the master-balance assertion below can tie itself to
+# that specific transfer. Without the handoff the two run_test subshells are independent
+# and the balance check cannot distinguish "swept back to master" from "the transfer
+# never happened, so the balance never moved" — both leave it at MASTER_BAL_BEFORE.
+SWEEP_TX_FILE=$(mktemp)
+trap 'rm -f "$SWEEP_TX_FILE"' EXIT
+
 run_test "transfer triggers sweep" bash -c "
-  send0() { cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' \"\$@\"; }
-  send0 '$TOKEN' 'transfer(address,uint256)' '$DEPOSIT' '$AMOUNT' >/dev/null 2>&1
+  TX=\$(onyx_send_tx '$TOKEN' 'transfer(address,uint256)' '$DEPOSIT' '$AMOUNT') || exit 1
+  echo \"\$TX\" > '$SWEEP_TX_FILE'
   DEP_BAL=\$(cast call --rpc-url '$L2_RPC' '$TOKEN' 'balanceOf(address)(uint256)' '$DEPOSIT')
   [ \"\${DEP_BAL%% *}\" = '0' ]
 "
 
+# Balance is compared for EQUALITY against the pre-transfer baseline, not '>= AMOUNT':
+# MASTER is ACCT0, the very account the tokens were sent from, so '>= AMOUNT' also holds
+# when the tokens never moved — it cannot tell a completed sweep from a no-op. A sweep
+# that did not run leaves the balance at baseline-AMOUNT. The Swept-log check pins the
+# credit to 3.2's actual transaction rather than to any balance that merely looks right.
 run_test "master received sweep amount" bash -c "
-  MASTER_BAL=\$(cast call --rpc-url '$L2_RPC' '$TOKEN' 'balanceOf(address)(uint256)' '$MASTER')
-  echo \"master_bal=\$MASTER_BAL\"
-  [ \"\$(cast to-dec \"\${MASTER_BAL%% *}\")\" -ge '$AMOUNT' ]
+  TX=\$(cat '$SWEEP_TX_FILE' 2>/dev/null)
+  [ -n \"\$TX\" ] || { echo 'no sweep tx recorded — 3.2 never landed a transfer'; exit 1; }
+  cast receipt --rpc-url '$L2_RPC' \"\$TX\" --json 2>/dev/null \
+    | jq -r '.logs[].topics[0]' | grep -qi '${ONYX_SWEPT_TOPIC#0x}' \
+    || { echo \"no Swept log in 3.2 tx \$TX\"; exit 1; }
+  MASTER_BAL=\$(cast to-dec \"\$(cast call --rpc-url '$L2_RPC' '$TOKEN' 'balanceOf(address)(uint256)' '$MASTER' | cut -d' ' -f1)\")
+  echo \"master_bal=\$MASTER_BAL (baseline before sweep: $MASTER_BAL_BEFORE)\"
+  [ \"\$MASTER_BAL\" = '$MASTER_BAL_BEFORE' ]
 "
 
 # 3.3 Swept event in receipt
 run_test "Swept event in receipt" bash -c "
-  TX=\$(cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' '$TOKEN' 'transfer(address,uint256)' '$DEPOSIT' '$AMOUNT' --json 2>/dev/null | jq -r .transactionHash)
+  TX=\$(onyx_send_tx '$TOKEN' 'transfer(address,uint256)' '$DEPOSIT' '$AMOUNT') || exit 1
   LOGS=\$(cast receipt --rpc-url '$L2_RPC' \"\$TX\" --json 2>/dev/null | jq -r '.logs[].topics[0]')
   echo -n \"\$LOGS\" | grep -qi '${ONYX_SWEPT_TOPIC#0x}'
 "
@@ -161,7 +213,7 @@ echo ""
 echo "--- Phase 4: Edge Cases ---"
 
 # 4.1 Non-whitelisted token does NOT sweep
-send0 "$NON_WHITELIST" "transfer(address,uint256)" "$DEPOSIT" "$AMOUNT" >/dev/null
+onyx_send_tx "$NON_WHITELIST" "transfer(address,uint256)" "$DEPOSIT" "$AMOUNT" >/dev/null
 run_test "non-whitelisted token not swept" bash -c "
   BAL=\$(cast call --rpc-url '$L2_RPC' '$NON_WHITELIST' 'balanceOf(address)(uint256)' '$DEPOSIT')
   echo \"non-wl balance=\$BAL\"
@@ -173,10 +225,10 @@ run_test "non-whitelisted token not swept" bash -c "
 if [ -f 'crates/node/tests/assets/SweepFixtures.sol' ]; then
   run_test "multiple transfers in one tx" bash -c "
     ROUTER=\$(onyx_forge_create '$L2_RPC' '$ACCT0_KEY' \
-      'crates/node/tests/assets/SweepFixtures.sol:TestSweepRouter' '$REGISTRY' '$TOKEN')
-    cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' '$TOKEN' 'mint(address,uint256)' \"\$ROUTER\" '$AMOUNT' >/dev/null
-    cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' \
-      \"\$ROUTER\" 'batchTest(address,address,uint256)' '$REGISTRY' '$DEPOSIT' '$AMOUNT' >/dev/null 2>&1
+      'crates/node/tests/assets/SweepFixtures.sol:TestSweepRouter' '$REGISTRY' '$TOKEN') || exit 1
+    onyx_send_tx '$TOKEN' 'mint(address,uint256)' \"\$ROUTER\" '$AMOUNT' >/dev/null || exit 1
+    onyx_send_tx \"\$ROUTER\" 'batchTest(address,address,uint256)' \
+      '$REGISTRY' '$DEPOSIT' '$AMOUNT' >/dev/null || exit 1
     BAL=\$(cast call --rpc-url '$L2_RPC' '$TOKEN' 'balanceOf(address)(uint256)' '$DEPOSIT')
     [ \"\${BAL%% *}\" = '0' ]
   "
@@ -186,10 +238,12 @@ fi
 
 # 4.3 Disabled deposit
 echo "  [4.3] Disable sweep..."
-send0 "$REGISTRY" "disableSweep(address)" "$DEPOSIT" >/dev/null
+onyx_send_tx "$REGISTRY" "disableSweep(address)" "$DEPOSIT" >/dev/null
+# This is the one assertion in the script that expects a NON-zero balance, which made it
+# the sole canary for a swallowed send: any send that never landed left the balance at 0
+# and got reported here as broken disableSweep logic. onyx_send_tx now separates the two.
 run_test "disabled deposit not swept" bash -c "
-  send0() { cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' \"\$@\"; }
-  send0 '$TOKEN' 'transfer(address,uint256)' '$DEPOSIT' '$AMOUNT' >/dev/null 2>&1
+  onyx_send_tx '$TOKEN' 'transfer(address,uint256)' '$DEPOSIT' '$AMOUNT' >/dev/null || exit 1
   BAL=\$(cast call --rpc-url '$L2_RPC' '$TOKEN' 'balanceOf(address)(uint256)' '$DEPOSIT')
   echo \"disabled dep balance=\$BAL\"
   [ \"\$(cast to-dec \"\${BAL%% *}\")\" -gt 0 ]
@@ -231,18 +285,17 @@ echo "--- Phase 6: Poke Sweep ---"
 # only now keeps Phase 5.1's "reject registration without deposit sig" test meaningful:
 # an already-registered DEPOSIT_2 would revert there for the wrong reason.
 echo "  [6.0] Register DEPOSIT_2 + mint..."
-send0 --value 1ether "$DEPOSIT_2" >/dev/null   # gas headroom, same as DEPOSIT in 3.0
-send0 "$TOKEN" "mint(address,uint256)" "$ACCT0" "$AMOUNT" >/dev/null
+onyx_send_tx --value 1ether "$DEPOSIT_2" >/dev/null   # gas headroom, same as DEPOSIT in 3.0
+onyx_send_tx "$TOKEN" "mint(address,uint256)" "$ACCT0" "$AMOUNT" >/dev/null
 TYPED2=$(mktemp)
 onyx_typed_data "$CHAIN_ID" "$REGISTRY" "$DEPOSIT_2" "$MASTER" 0 "$DEADLINE" > "$TYPED2"
 SIG2=$(cast wallet sign --private-key "$DEPOSIT_2_KEY" --data --from-file "$TYPED2")
 rm -f "$TYPED2"
-send0 "$REGISTRY" "registerSweep(address,address,uint256,uint64,bytes)" \
+onyx_send_tx "$REGISTRY" "registerSweep(address,address,uint256,uint64,bytes)" \
   "$DEPOSIT_2" "$MASTER" 0 "$DEADLINE" "$SIG2" >/dev/null
 
 run_test "poke sweep triggers SweepRequested" bash -c "
-  TX=\$(cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' \
-    '$REGISTRY' 'pokeSweep(address,address)' '$TOKEN' '$DEPOSIT_2' --json 2>/dev/null | jq -r .transactionHash)
+  TX=\$(onyx_send_tx '$REGISTRY' 'pokeSweep(address,address)' '$TOKEN' '$DEPOSIT_2') || exit 1
   LOGS=\$(cast receipt --rpc-url '$L2_RPC' \"\$TX\" --json 2>/dev/null | jq -r '.logs[].topics[0]')
   echo -n \"\$LOGS\" | grep -qi '${ONYX_REQUEST_TOPIC#0x}'
 "
@@ -254,7 +307,7 @@ echo "--- Phase 7: Fresh Deposit + Receipt Swept Log ---"
 # DEPOSIT_2 was registered and freshly minted in Phase 6.0; pokeSweep there was a
 # no-op sweep (zero balance), so it still has an empty balance to sweep into here.
 run_test "fresh deposit sweeps + Swept log in receipt" bash -c "
-  TX=\$(cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' '$TOKEN' 'transfer(address,uint256)' '$DEPOSIT_2' '$AMOUNT' --json 2>/dev/null | jq -r .transactionHash)
+  TX=\$(onyx_send_tx '$TOKEN' 'transfer(address,uint256)' '$DEPOSIT_2' '$AMOUNT') || exit 1
   rec_json=\$(cast receipt --rpc-url '$L2_RPC' \"\$TX\" --json 2>/dev/null)
   has_swept=\$(echo \"\$rec_json\" | jq -r '.logs[].topics[0]' | grep -ci '${ONYX_SWEPT_TOPIC#0x}' || true)
   bal=\$(cast call --rpc-url '$L2_RPC' '$TOKEN' 'balanceOf(address)(uint256)' '$DEPOSIT_2')
