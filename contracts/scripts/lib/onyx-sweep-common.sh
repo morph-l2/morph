@@ -106,6 +106,25 @@ onyx_forge_create() {
 # sources this file from an interactive zsh to poke at the helpers by hand.
 [ -n "${BASH_VERSION:-}" ] && export -f onyx_forge_create
 
+# Generate a throwaway deposit EOA; echoes "<address> <private_key>".
+#
+# Deposits are single-use per chain: SweepRegistry._register rejects any address whose
+# master is already set, and disableSweep is terminal (no re-enable in v1). A script
+# that registers or disables a FIXED account therefore cannot be run twice against the
+# same chain — it fails with DepositAlreadyRegistered / DepositNotActive until the
+# devnet is wiped. Generating a fresh keypair per run removes that coupling.
+#
+# A brand-new address needs no prefunding to be a valid deposit: registration only
+# requires code.length == 0, the deposit never sends a transaction (it signs the EIP-712
+# authorization offline), and the sweep itself is performed by the EL.
+# onyx-sweep-comprehensive.sh still sends each deposit 1 ether for headroom;
+# onyx-sweep-demo.sh sends none and passes.
+onyx_new_deposit() {
+  local json
+  json=$(cast wallet new --json) || return 1
+  echo "$json" | jq -r '.[0] | "\(.address) \(.private_key)"'
+}
+
 onyx_code_present() {
   local rpc="$1" addr="$2" code
   code=$(cast code --rpc-url "$rpc" "$addr" 2>/dev/null || echo "0x")

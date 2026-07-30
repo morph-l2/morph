@@ -35,13 +35,12 @@ ACCT0=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266   # owner / master / gas provid
 ACCT0_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 DEPLOYER=0x70997970C51812dc3A010C7d01b50e0d17dc79C8  # acct1: Registry deployer
 DEPLOYER_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
-# acct3: deposit EOA (plain, no code). Overridable because a deposit can be registered
-# exactly once per chain and disableSweep is terminal (SweepRegistry._register rejects
-# any address with a non-zero master), so re-running this demo against a chain where
-# acct3 was already used — e.g. by onyx-sweep-comprehensive.sh — needs a fresh EOA:
-#   DEPOSIT=0x99.. DEPOSIT_KEY=0x8b.. bash scripts/onyx-sweep-demo.sh
-DEPOSIT="${DEPOSIT:-0x90F79bf6EB2c4f870365E785982E1f101E93b906}"
-DEPOSIT_KEY="${DEPOSIT_KEY:-0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6}"
+# Deposit EOA, generated fresh on every run (see onyx_new_deposit) so the demo can be
+# re-run against the same chain: a deposit can be registered exactly once per address
+# and disableSweep is terminal. Override to use a specific still-unused EOA:
+#   DEPOSIT=0x.. DEPOSIT_KEY=0x.. bash scripts/onyx-sweep-demo.sh
+DEPOSIT="${DEPOSIT:-}"
+DEPOSIT_KEY="${DEPOSIT_KEY:-}"
 
 MASTER=$ACCT0
 OWNER="${REGISTRY_OWNER:-$ACCT0}"
@@ -50,6 +49,11 @@ AMOUNT=1000000000000000000  # 1e18
 send0() { cast send --rpc-url "$L2_RPC" --private-key "$ACCT0_KEY" "$@"; }
 
 onyx_require_tools
+
+# After onyx_require_tools so a missing cast/jq is reported as such rather than as an
+# empty keypair.
+[ -n "$DEPOSIT" ] && [ -n "$DEPOSIT_KEY" ] || read -r DEPOSIT DEPOSIT_KEY < <(onyx_new_deposit)
+
 echo "==> L2 RPC $L2_RPC (chainId $L2_CHAIN_ID)"
 [ "$(cast chain-id --rpc-url "$L2_RPC" 2>/dev/null)" = "$L2_CHAIN_ID" ] || {
   echo "L2 RPC unreachable or wrong chain (expected $L2_CHAIN_ID)"; exit 1;

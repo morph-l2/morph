@@ -27,10 +27,15 @@ ACCT0_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 DEPLOYER=0x70997970C51812dc3A010C7d01b50e0d17dc79C8
 DEPLOYER_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
 
-DEPOSIT=0x90F79bf6EB2c4f870365E785982E1f101E93b906
-DEPOSIT_KEY=0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
-DEPOSIT_2=0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65
-DEPOSIT_2_KEY=0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
+# Deposit EOAs are generated fresh on every run (see onyx_new_deposit) so this script
+# can be re-run against the same chain: Phase 3.1 registers DEPOSIT and Phase 4.3
+# disables it permanently, both of which are one-shot per address. Override to replay a
+# specific run against a chain where those addresses are still unused:
+#   DEPOSIT=0x.. DEPOSIT_KEY=0x.. DEPOSIT_2=0x.. DEPOSIT_2_KEY=0x.. bash scripts/…
+DEPOSIT="${DEPOSIT:-}"
+DEPOSIT_KEY="${DEPOSIT_KEY:-}"
+DEPOSIT_2="${DEPOSIT_2:-}"
+DEPOSIT_2_KEY="${DEPOSIT_2_KEY:-}"
 
 MASTER=$ACCT0
 OWNER=$ACCT0
@@ -50,9 +55,15 @@ call0()  { cast call --rpc-url "$L2_RPC" "$@"; }
 
 onyx_require_tools
 
+# After onyx_require_tools so a missing cast/jq is reported as such rather than as an
+# empty keypair.
+[ -n "$DEPOSIT" ] && [ -n "$DEPOSIT_KEY" ] || read -r DEPOSIT DEPOSIT_KEY < <(onyx_new_deposit)
+[ -n "$DEPOSIT_2" ] && [ -n "$DEPOSIT_2_KEY" ] || read -r DEPOSIT_2 DEPOSIT_2_KEY < <(onyx_new_deposit)
+
 echo "============================================================"
 echo "  Onyx Sweep — Comprehensive Devnet Verification"
 echo "  Expected Registry: $ONYX_EXPECTED_REGISTRY"
+echo "  Deposits (this run): $DEPOSIT  /  $DEPOSIT_2"
 echo "============================================================"
 
 # ---- Phase 0: Prerequisites ------------------------------------------------
@@ -220,6 +231,7 @@ echo "--- Phase 6: Poke Sweep ---"
 # only now keeps Phase 5.1's "reject registration without deposit sig" test meaningful:
 # an already-registered DEPOSIT_2 would revert there for the wrong reason.
 echo "  [6.0] Register DEPOSIT_2 + mint..."
+send0 --value 1ether "$DEPOSIT_2" >/dev/null   # gas headroom, same as DEPOSIT in 3.0
 send0 "$TOKEN" "mint(address,uint256)" "$ACCT0" "$AMOUNT" >/dev/null
 TYPED2=$(mktemp)
 onyx_typed_data "$CHAIN_ID" "$REGISTRY" "$DEPOSIT_2" "$MASTER" 0 "$DEADLINE" > "$TYPED2"
