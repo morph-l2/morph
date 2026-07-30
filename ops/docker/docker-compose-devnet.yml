@@ -6,7 +6,10 @@ volumes:
 services:
   # ========== Layer1 Ethereum Node ==========
   layer1-el:
-    image: ethereum/client-go:latest
+    # Pinned to a geth stable release (NOT :latest, which drifts — a newer geth
+    # removed --allow-insecure-unlock and crash-looped the L1). v1.17.5 is the
+    # latest stable (2026-07-27), same 1.17 line as the build verified with this devnet.
+    image: ethereum/client-go:v1.17.5
     container_name: layer1-el
     ports:
       - "9545:8545"
@@ -30,7 +33,8 @@ services:
     restart: unless-stopped
 
   layer1-cl:
-    image: sigp/lighthouse:latest
+    # Pinned lighthouse stable v8.2.1 (2026-07-21), paired with geth v1.17.5; avoid :latest (it drifts).
+    image: sigp/lighthouse:v8.2.1
     container_name: layer1-cl
     depends_on:
       - layer1-el
@@ -74,7 +78,8 @@ services:
     restart: unless-stopped
 
   layer1-vc:
-    image: sigp/lighthouse:latest
+    # Pinned lighthouse stable v8.2.1 (2026-07-21), paired with geth v1.17.5; avoid :latest (it drifts).
+    image: sigp/lighthouse:v8.2.1
     container_name: layer1-vc
     depends_on:
       - layer1-cl
