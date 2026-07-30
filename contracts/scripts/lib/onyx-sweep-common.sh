@@ -11,7 +11,9 @@
 
 # ---- deterministic deployment inputs ---------------------------------------
 
-# Solady deterministic-deployment-proxy — identical address on every EVM chain.
+# Arachnid deterministic-deployment-proxy — identical address on every EVM chain.
+# It has NO ABI: calldata[0:32] is the CREATE2 salt, calldata[32:] is the initcode.
+# See onyx_factory_deploy() before changing how deployments are encoded.
 ONYX_FACTORY="0x4e59b44847b379578588920cA78FbF26c0B4956C"
 
 # Keyless deployer of that factory (Nick's method). Its nonce-0 contract-creation
@@ -53,6 +55,12 @@ ONYX_REQUEST_TOPIC="0x24e3f180db341974dcd99a5e223d9d944422e303230ddde6659302f862
 ONYX_IMPL_ARTIFACT="forge-artifacts/SweepRegistry.sol/SweepRegistry.json"
 ONYX_PROXY_ARTIFACT="forge-artifacts/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json"
 
+# solmate's MockERC20, used by the devnet scripts as a whitelistable test token.
+# The node_modules/ prefix is REQUIRED: foundry.toml sets remappings=[] and src=contracts,
+# so forge cannot resolve a bare '@rari-capital/...' target and fails with
+# "No such file or directory".
+ONYX_MOCK_ERC20='node_modules/@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20'
+
 # ---- derived globals (populated by onyx_precompute_addresses) --------------
 ONYX_SALT_IMPL=""
 ONYX_SALT_PROXY=""
@@ -67,6 +75,36 @@ onyx_require_tools() {
     command -v "$t" >/dev/null 2>&1 || { echo "!! required tool not on PATH: $t" >&2; return 1; }
   done
 }
+
+# Deploy "<path>:<Name>" ($3) with constructor args ($4…) and echo the address.
+#
+# forge's stderr is captured rather than discarded: under `set -euo pipefail` a piped
+# `forge create ... 2>/dev/null | jq` collapses a compile or RPC failure into an empty
+# result and aborts the caller with no diagnostic at all, which makes the script look
+# like it simply stopped mid-phase.
+onyx_forge_create() {
+  local rpc="$1" key="$2" target="$3"; shift 3
+  local errfile out addr
+  errfile=$(mktemp)
+  if ! out=$(forge create "$target" --rpc-url "$rpc" --private-key "$key" \
+               --broadcast --json --constructor-args "$@" 2>"$errfile"); then
+    echo "!! forge create $target failed:" >&2
+    sed 's/^/     /' "$errfile" >&2
+    rm -f "$errfile"
+    return 1
+  fi
+  rm -f "$errfile"
+  addr=$(echo "$out" | jq -r '.deployedTo // empty')
+  if [ -z "$addr" ]; then
+    echo "!! forge create $target returned no address; output was: $out" >&2
+    return 1
+  fi
+  echo "$addr"
+}
+# Exported so `run_test ... bash -c "…"` subshells can call it too. Guarded because
+# zsh has no `export -f` and would dump the function body to stdout when a developer
+# sources this file from an interactive zsh to poke at the helpers by hand.
+[ -n "${BASH_VERSION:-}" ] && export -f onyx_forge_create
 
 onyx_code_present() {
   local rpc="$1" addr="$2" code
@@ -131,6 +169,22 @@ onyx_ensure_create2_factory() {
   return 1
 }
 
+# CREATE2-deploy $4 (initcode) under salt $3 through ONYX_FACTORY.
+#
+# The payload is RAW CALLDATA — salt ++ initcode — because the factory is not a
+# Solidity contract and exposes no deploy() function; it CREATE2s calldata[32:] under
+# the salt in calldata[0:32]. Wrapping this in a "deploy(bytes,bytes32)" signature
+# prepends a 4-byte selector and ABI headers, which shifts the whole payload: the
+# factory then reads a garbage salt and an initcode starting with 0x00 (STOP), so it
+# happily deploys an EMPTY contract at an address unrelated to ONYX_EXPECTED_REGISTRY.
+# `cast create2 --deployer/--salt/--init-code` predicts the raw-calldata address, so
+# raw calldata is the only encoding consistent with our precomputed addresses.
+onyx_factory_deploy() {
+  local rpc="$1" deployer_key="$2" salt="$3" initcode="$4"
+  cast send --rpc-url "$rpc" --private-key "$deployer_key" \
+    "$ONYX_FACTORY" "${salt}${initcode#0x}" >/dev/null
+}
+
 # Deploy impl + proxy via the factory (idempotent). Requires onyx_precompute_addresses.
 onyx_deploy_registry() {
   local rpc="$1" deployer_key="$2"
@@ -138,15 +192,13 @@ onyx_deploy_registry() {
     echo "    impl already deployed at $ONYX_IMPL"
   else
     echo "    deploying impl via CREATE2 …"
-    cast send --rpc-url "$rpc" --private-key "$deployer_key" \
-      "$ONYX_FACTORY" "deploy(bytes,bytes32)" "$ONYX_IMPL_INITCODE" "$ONYX_SALT_IMPL" >/dev/null
+    onyx_factory_deploy "$rpc" "$deployer_key" "$ONYX_SALT_IMPL" "$ONYX_IMPL_INITCODE"
   fi
   if onyx_code_present "$rpc" "$ONYX_REGISTRY"; then
     echo "    proxy already deployed at $ONYX_REGISTRY"
   else
     echo "    deploying proxy via CREATE2 …"
-    cast send --rpc-url "$rpc" --private-key "$deployer_key" \
-      "$ONYX_FACTORY" "deploy(bytes,bytes32)" "$ONYX_PROXY_INITCODE" "$ONYX_SALT_PROXY" >/dev/null
+    onyx_factory_deploy "$rpc" "$deployer_key" "$ONYX_SALT_PROXY" "$ONYX_PROXY_INITCODE"
   fi
 }
 

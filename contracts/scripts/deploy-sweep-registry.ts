@@ -1,8 +1,8 @@
 /**
  * Deterministic CREATE2 deployment script for the Onyx `SweepRegistry`.
  *
- * Both the implementation and the transparent proxy are deployed via the
- * Solady deterministic CREATE2 factory (`0x4e59b44847b379578588920cA78FbF26c0B4956C`),
+ * Both the implementation and the transparent proxy are deployed via the Arachnid
+ * deterministic-deployment-proxy (`0x4e59b44847b379578588920cA78FbF26c0B4956C`),
  * which already exists on Morph Mainnet and Hoodi. Using fixed salts makes
  * the proxy address predictable and identical across networks, so it matches
  * the hardcoded consensus constant every EL client pins (morph-reth
@@ -43,14 +43,20 @@ import { ethers } from "hardhat"
 // L2 ProxyAdmin predeploy (Predeploys.PROXY_ADMIN).
 const DEFAULT_PROXY_ADMIN = "0x530000000000000000000000000000000000000b"
 
-// Solady deterministic CREATE2 factory. This address is identical on every
+// Arachnid deterministic-deployment-proxy. This address is identical on every
 // EVM chain where anyone has broadcast the one-time self-bootstrapping
 // transaction. Confirmed present on Morph Mainnet (2818) and Hoodi (2910).
 const CREATE2_FACTORY = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 
-const FACTORY_ABI = [
-    "function deploy(bytes _initCode, bytes32 _salt) external payable returns (address)",
-] as const
+// The factory is raw EVM bytecode, NOT a Solidity contract — it has no ABI and no
+// deploy() function. It reads calldata[0:32] as the CREATE2 salt and CREATE2s
+// calldata[32:] as the initcode, which is exactly what getCreate2Address() above
+// predicts. Encoding a "deploy(bytes,bytes32)" call instead prepends a 4-byte selector
+// plus ABI headers and shifts the payload, so the factory reads a garbage salt and an
+// initcode beginning with 0x00 (STOP) — deploying an EMPTY contract at an address
+// unrelated to EXPECTED_REGISTRY.
+const factoryCalldata = (salt: string, initcode: string): string =>
+    ethers.utils.hexConcat([salt, initcode])
 
 // Fixed, versioned salts so the address is predictable and stable forever.
 const SALT_IMPL   = ethers.utils.keccak256(
@@ -142,7 +148,6 @@ async function main() {
     }
 
     // ---- verify factory exists ---------------------------------------------
-    const factory = new ethers.Contract(CREATE2_FACTORY, FACTORY_ABI, deployer)
     const factoryCode = await ethers.provider.getCode(CREATE2_FACTORY)
     if (factoryCode === "0x") {
         throw new Error(
@@ -160,7 +165,10 @@ async function main() {
         } else {
             const Impl = await ethers.getContractFactory("SweepRegistry")
             console.log(`Deploying impl via CREATE2 …`)
-            const tx = await factory.deploy(Impl.bytecode, SALT_IMPL)
+            const tx = await deployer.sendTransaction({
+                to: CREATE2_FACTORY,
+                data: factoryCalldata(SALT_IMPL, Impl.bytecode),
+            })
             console.log(`  tx: ${tx.hash}`)
             await tx.wait()
             console.log(`  deployed: ${addrs.impl}`)
@@ -183,7 +191,10 @@ async function main() {
                 [Proxy.bytecode, proxyConstructorArgs],
             )
             console.log(`Deploying proxy via CREATE2 …`)
-            const tx = await factory.deploy(proxyInitcode, SALT_PROXY)
+            const tx = await deployer.sendTransaction({
+                to: CREATE2_FACTORY,
+                data: factoryCalldata(SALT_PROXY, proxyInitcode),
+            })
             console.log(`  tx: ${tx.hash}`)
             await tx.wait()
             console.log(`  deployed: ${addrs.proxy}`)

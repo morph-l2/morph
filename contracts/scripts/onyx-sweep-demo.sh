@@ -35,8 +35,13 @@ ACCT0=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266   # owner / master / gas provid
 ACCT0_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 DEPLOYER=0x70997970C51812dc3A010C7d01b50e0d17dc79C8  # acct1: Registry deployer
 DEPLOYER_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
-DEPOSIT=0x90F79bf6EB2c4f870365E785982E1f101E93b906    # acct3: deposit EOA (plain, no code)
-DEPOSIT_KEY=0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
+# acct3: deposit EOA (plain, no code). Overridable because a deposit can be registered
+# exactly once per chain and disableSweep is terminal (SweepRegistry._register rejects
+# any address with a non-zero master), so re-running this demo against a chain where
+# acct3 was already used — e.g. by onyx-sweep-comprehensive.sh — needs a fresh EOA:
+#   DEPOSIT=0x99.. DEPOSIT_KEY=0x8b.. bash scripts/onyx-sweep-demo.sh
+DEPOSIT="${DEPOSIT:-0x90F79bf6EB2c4f870365E785982E1f101E93b906}"
+DEPOSIT_KEY="${DEPOSIT_KEY:-0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6}"
 
 MASTER=$ACCT0
 OWNER="${REGISTRY_OWNER:-$ACCT0}"
@@ -67,9 +72,8 @@ onyx_initialize_registry "$L2_RPC" "$DEPLOYER_KEY" "$OWNER"
 
 # ---- 3. deploy MockERC20, whitelist it -------------------------------------
 echo "==> [3] deploy MockERC20 + whitelist"
-TOKEN=$(forge create '@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20' \
-  --rpc-url "$L2_RPC" --private-key "$ACCT0_KEY" --broadcast --json \
-  --constructor-args "Onyx Demo" "ODM" 18 | jq -r .deployedTo)
+TOKEN=$(onyx_forge_create "$L2_RPC" "$ACCT0_KEY" "$ONYX_MOCK_ERC20" \
+  "Onyx Demo" "ODM" 18)
 echo "    token = $TOKEN"
 send0 "$TOKEN" "mint(address,uint256)" "$ACCT0" "$AMOUNT" >/dev/null
 send0 "$ONYX_REGISTRY" "setTokenWhitelist(address,bool)" "$TOKEN" true >/dev/null

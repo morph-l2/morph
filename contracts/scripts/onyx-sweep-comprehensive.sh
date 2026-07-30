@@ -39,7 +39,11 @@ AMOUNT=1000000000000000000  # 1e18
 
 PASS=0; FAIL=0; SKIP=0
 
-run_test() { printf "  %s... " "$1"; shift; if "$@"; then echo "PASS"; PASS=$((PASS+1)); else echo "FAIL"; FAIL=$((FAIL+1)); return 1; fi; }
+# No `return 1` on failure: this runs under `set -e`, so a non-zero return would abort
+# the script at the first FAIL and the summary below could never report more than one
+# failure (nor print at all). Failures are tallied in $FAIL and surfaced by the exit
+# code at the end instead.
+run_test() { printf "  %s... " "$1"; shift; if "$@"; then echo "PASS"; PASS=$((PASS+1)); else echo "FAIL"; FAIL=$((FAIL+1)); fi; }
 skip_test() { echo "  $1... SKIP ($2)"; SKIP=$((SKIP+1)); }
 send0()  { cast send --rpc-url "$L2_RPC" --private-key "$ACCT0_KEY" "$@"; }
 call0()  { cast call --rpc-url "$L2_RPC" "$@"; }
@@ -85,14 +89,12 @@ run_test "owner is set correctly" bash -c "
 echo ""
 echo "--- Phase 2: Token Setup ---"
 
-TOKEN=$(forge create '@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20' \
-  --rpc-url "$L2_RPC" --private-key "$ACCT0_KEY" --broadcast --json \
-  --constructor-args "Sweep Test Token" "STT" 18 2>/dev/null | jq -r .deployedTo)
+TOKEN=$(onyx_forge_create "$L2_RPC" "$ACCT0_KEY" "$ONYX_MOCK_ERC20" \
+  "Sweep Test Token" "STT" 18)
 echo "  MockERC20 deployed: $TOKEN"
 
-NON_WHITELIST=$(forge create '@rari-capital/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20' \
-  --rpc-url "$L2_RPC" --private-key "$ACCT0_KEY" --broadcast --json \
-  --constructor-args "NonSweepToken" "NST" 18 2>/dev/null | jq -r .deployedTo)
+NON_WHITELIST=$(onyx_forge_create "$L2_RPC" "$ACCT0_KEY" "$ONYX_MOCK_ERC20" \
+  "NonSweepToken" "NST" 18)
 echo "  Non-whitelist token: $NON_WHITELIST"
 
 send0 "$TOKEN" "mint(address,uint256)" "$ACCT0" "$AMOUNT" >/dev/null
@@ -159,9 +161,8 @@ run_test "non-whitelisted token not swept" bash -c "
 #     morph-reth repo (crates/node/tests/assets), not here, so skip unless present.
 if [ -f 'crates/node/tests/assets/SweepFixtures.sol' ]; then
   run_test "multiple transfers in one tx" bash -c "
-    ROUTER=\$(forge create 'crates/node/tests/assets/SweepFixtures.sol:TestSweepRouter' \
-      --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' --broadcast --json \
-      --constructor-args '$REGISTRY' '$TOKEN' 2>/dev/null | jq -r .deployedTo)
+    ROUTER=\$(onyx_forge_create '$L2_RPC' '$ACCT0_KEY' \
+      'crates/node/tests/assets/SweepFixtures.sol:TestSweepRouter' '$REGISTRY' '$TOKEN')
     cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' '$TOKEN' 'mint(address,uint256)' \"\$ROUTER\" '$AMOUNT' >/dev/null
     cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' \
       \"\$ROUTER\" 'batchTest(address,address,uint256)' '$REGISTRY' '$DEPOSIT' '$AMOUNT' >/dev/null 2>&1
@@ -212,21 +213,13 @@ run_test "double register fails" bash -c "
 echo ""
 echo "--- Phase 6: Poke Sweep ---"
 
-run_test "poke sweep triggers SweepRequested" bash -c "
-  TX=\$(cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' \
-    '$REGISTRY' 'pokeSweep(address,address)' '$TOKEN' '$DEPOSIT' --json 2>/dev/null | jq -r .transactionHash)
-  LOGS=\$(cast receipt --rpc-url '$L2_RPC' \"\$TX\" --json 2>/dev/null | jq -r '.logs[].topics[0]')
-  echo -n \"\$LOGS\" | grep -qi '${ONYX_REQUEST_TOPIC#0x}'
-"
-
-# ---- Phase 7: Fresh deposit end-to-end + receipt Swept log -----------------
-echo ""
-echo "--- Phase 7: Fresh Deposit + Receipt Swept Log ---"
-
-# DEPOSIT was disabled in Phase 4.3 (and re-enable is forbidden), so exercise a
-# brand-new deposit here. ACCT0's TOKEN balance was drained into the disabled
-# DEPOSIT in 4.3, so mint a fresh supply first.
-echo "  [7.0] Register DEPOSIT_2 + mint..."
+# Phase 4.3 disabled DEPOSIT permanently (disableSweep is irreversible), and pokeSweep
+# reverts with DepositNotActive() on a disabled deposit — so register the fresh
+# DEPOSIT_2 here and use it for this phase and Phase 7. ACCT0's TOKEN balance was
+# drained into the disabled DEPOSIT in 4.3, so mint a fresh supply too. Registering
+# only now keeps Phase 5.1's "reject registration without deposit sig" test meaningful:
+# an already-registered DEPOSIT_2 would revert there for the wrong reason.
+echo "  [6.0] Register DEPOSIT_2 + mint..."
 send0 "$TOKEN" "mint(address,uint256)" "$ACCT0" "$AMOUNT" >/dev/null
 TYPED2=$(mktemp)
 onyx_typed_data "$CHAIN_ID" "$REGISTRY" "$DEPOSIT_2" "$MASTER" 0 "$DEADLINE" > "$TYPED2"
@@ -235,6 +228,19 @@ rm -f "$TYPED2"
 send0 "$REGISTRY" "registerSweep(address,address,uint256,uint64,bytes)" \
   "$DEPOSIT_2" "$MASTER" 0 "$DEADLINE" "$SIG2" >/dev/null
 
+run_test "poke sweep triggers SweepRequested" bash -c "
+  TX=\$(cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' \
+    '$REGISTRY' 'pokeSweep(address,address)' '$TOKEN' '$DEPOSIT_2' --json 2>/dev/null | jq -r .transactionHash)
+  LOGS=\$(cast receipt --rpc-url '$L2_RPC' \"\$TX\" --json 2>/dev/null | jq -r '.logs[].topics[0]')
+  echo -n \"\$LOGS\" | grep -qi '${ONYX_REQUEST_TOPIC#0x}'
+"
+
+# ---- Phase 7: Fresh deposit end-to-end + receipt Swept log -----------------
+echo ""
+echo "--- Phase 7: Fresh Deposit + Receipt Swept Log ---"
+
+# DEPOSIT_2 was registered and freshly minted in Phase 6.0; pokeSweep there was a
+# no-op sweep (zero balance), so it still has an empty balance to sweep into here.
 run_test "fresh deposit sweeps + Swept log in receipt" bash -c "
   TX=\$(cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' '$TOKEN' 'transfer(address,uint256)' '$DEPOSIT_2' '$AMOUNT' --json 2>/dev/null | jq -r .transactionHash)
   rec_json=\$(cast receipt --rpc-url '$L2_RPC' \"\$TX\" --json 2>/dev/null)
