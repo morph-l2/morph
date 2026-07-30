@@ -305,6 +305,21 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(committedBatches[_batchIndex] == _parentBatchHash, "incorrect parent batch hash");
         require(committedStateRoots[_batchIndex] == batchDataInput.prevStateRoot, "incorrect previous state root");
 
+        // Reject batches with an empty block span (blockCount == 0). Derivation
+        // computes blockCount as (lastBlockNumber - parentLastBlockNumber); a
+        // lastBlockNumber that is not strictly greater than the parent's yields
+        // a zero span that previously crashed / stalled layer1-verify nodes
+        // during batch parsing (see issue #996). Enforce a non-empty, monotonic
+        // span at the source. Only the parent header carries a lastBlockNumber
+        // from V1 onward; the V0->V1 transition (parent version 0) carries none
+        // and is a historical one-time event, so it is not guarded here.
+        if (BatchHeaderCodecV0.getVersion(_batchPtr) >= 1) {
+            require(
+                batchDataInput.lastBlockNumber > BatchHeaderCodecV1.getLastBlockNumber(_batchPtr),
+                "empty block span"
+            );
+        }
+
         uint256 _totalL1MessagesPoppedOverall = BatchHeaderCodecV0.getTotalL1MessagePopped(_batchPtr);
         // compute the data hash for batch
         bytes32 dataHash = _commitBatch(
