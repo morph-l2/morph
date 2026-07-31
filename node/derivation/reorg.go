@@ -20,11 +20,10 @@ import (
 // derivation cursor + clears stale records.
 //
 // This is always-on regardless of the --derivation.confirmations setting.
-// When confirmations=finalized (default), L1 finalized doesn't reorg by
-// Ethereum consensus assumption, so detectReorg's fast path always returns
-// (no reorg) at one L1 RPC per poll. When confirmations is configured below
-// finalized (e.g. safe), detection becomes load-bearing without any code
-// path divergence.
+// At the fixed-depth default it is load-bearing; when an operator sets
+// confirmations=finalized, L1 finalized doesn't reorg by Ethereum consensus
+// assumption, so detectReorg's fast path always returns (no reorg) at one L1
+// RPC per poll. Neither case diverges in code path.
 //
 // L1 reorg does NOT directly trigger an L2 chain rollback in this PR. The
 // L2 rollback executor (verifyBlockContext + halted state machine +
