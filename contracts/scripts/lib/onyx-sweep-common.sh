@@ -39,14 +39,16 @@ ONYX_SALT_PROXY_STR="morph.sweep-registry.proxy.v1"
 
 # Deterministic proxy address given ONYX_PROXY_ADMIN=0x53..000b. MUST equal the
 # morph-reth SWEEP_REGISTRY_ADDRESS constant (crates/chainspec/src/constants.rs).
-ONYX_EXPECTED_REGISTRY="0x7aE8bEf666D1D0aB9C0ac5d636f375E46f8AE71A"
+ONYX_EXPECTED_REGISTRY="0xDdb0b56D29D121aD0FEFfb10395FC34b4eeA0692"
 
 # EIP-712 / event topics — consensus values shared with morph-reth.
 ONYX_MODE_STR="MORPH_SWEEP_V1"
-ONYX_SCOPE_STR="WHITELISTED_ERC20_TO_MASTER_ONLY"
+ONYX_SCOPE_STR="WHITELISTED_ERC20_TO_DESTINATION_ONLY"
 # keccak256("Swept(address,address,address,uint256,uint32)")   (sweep.rs SWEEP_TOPIC)
 ONYX_SWEPT_TOPIC="0x035b37215a69e14a80883933d6aa84f0919a67af9410a4a73e8a23baeca011f0"
 # keccak256("Transfer(address,address,uint256)")
+# keccak256("SweepFailed(address,address,address,bytes32)") — EL-appended failure record.
+ONYX_SWEEP_FAILED_TOPIC="0x0f64fa58e4261d8832b5ea6c262c691ef36e73cb21998c4fb01a83997940797c"
 ONYX_TRANSFER_TOPIC="0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 # keccak256("SweepRequested(address,address)")
 ONYX_REQUEST_TOPIC="0x24e3f180db341974dcd99a5e223d9d944422e303230ddde6659302f8620bbcff"
@@ -106,20 +108,20 @@ onyx_forge_create() {
 # sources this file from an interactive zsh to poke at the helpers by hand.
 [ -n "${BASH_VERSION:-}" ] && export -f onyx_forge_create
 
-# Generate a throwaway deposit EOA; echoes "<address> <private_key>".
+# Generate a throwaway source EOA; echoes "<address> <private_key>".
 #
-# Deposits are single-use per chain: SweepRegistry._register rejects any address whose
-# master is already set, and disableSweep is terminal (no re-enable in v1). A script
+# Sources are single-use per chain: SweepRegistry._register rejects any address whose
+# destination is already set, and disableSweep is terminal (no re-enable in v1). A script
 # that registers or disables a FIXED account therefore cannot be run twice against the
-# same chain — it fails with DepositAlreadyRegistered / DepositNotActive until the
+# same chain — it fails with SourceAlreadyRegistered / SourceNotActive until the
 # devnet is wiped. Generating a fresh keypair per run removes that coupling.
 #
-# A brand-new address needs no prefunding to be a valid deposit: registration only
-# requires code.length == 0, the deposit never sends a transaction (it signs the EIP-712
+# A brand-new address needs no prefunding to be a valid source: registration only
+# requires code.length == 0, the source never sends a transaction (it signs the EIP-712
 # authorization offline), and the sweep itself is performed by the EL.
-# onyx-sweep-comprehensive.sh still sends each deposit 1 ether for headroom;
+# onyx-sweep-comprehensive.sh still sends each source 1 ether for headroom;
 # onyx-sweep-demo.sh sends none and passes.
-onyx_new_deposit() {
+onyx_new_source() {
   local json
   json=$(cast wallet new --json) || return 1
   echo "$json" | jq -r '.[0] | "\(.address) \(.private_key)"'
@@ -234,9 +236,17 @@ onyx_initialize_registry() {
   fi
 }
 
+# Left-pad an address into a 32-byte indexed log topic (lowercase, 0x-prefixed).
+onyx_address_topic() {
+  printf '0x%064s\n' "$(echo "${1#0x}" | tr 'A-Z' 'a-z')" | tr ' ' '0'
+}
+# Exported for the same reason as onyx_forge_create: `run_test … bash -c "…"` runs
+# in a subshell that does not inherit shell functions.
+[ -n "${BASH_VERSION:-}" ] && export -f onyx_address_topic
+
 # Emit the EIP-712 SweepAuthorization typed-data JSON to stdout (for cast wallet sign).
 onyx_typed_data() {
-  local chain_id="$1" registry="$2" deposit="$3" master="$4" nonce="$5" deadline="$6"
+  local chain_id="$1" registry="$2" source="$3" destination="$4" nonce="$5" deadline="$6"
   local mode scope
   mode=$(cast keccak "$ONYX_MODE_STR")
   scope=$(cast keccak "$ONYX_SCOPE_STR")
@@ -250,8 +260,8 @@ onyx_typed_data() {
       {"name":"verifyingContract","type":"address"}
     ],
     "SweepAuthorization": [
-      {"name":"deposit","type":"address"},
-      {"name":"master","type":"address"},
+      {"name":"source","type":"address"},
+      {"name":"destination","type":"address"},
       {"name":"registry","type":"address"},
       {"name":"chainId","type":"uint256"},
       {"name":"nonce","type":"uint256"},
@@ -268,8 +278,8 @@ onyx_typed_data() {
     "verifyingContract": "$registry"
   },
   "message": {
-    "deposit": "$deposit",
-    "master": "$master",
+    "source": "$source",
+    "destination": "$destination",
     "registry": "$registry",
     "chainId": $chain_id,
     "nonce": $nonce,

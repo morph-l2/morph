@@ -74,7 +74,7 @@ const PROXY_FQN =
 // equal the morph-reth SWEEP_REGISTRY_ADDRESS constant (crates/chainspec/src/
 // constants.rs); otherwise the execution layer will never find the registry.
 // Only enforced for the default admin — a custom PROXY_ADMIN legitimately changes it.
-const EXPECTED_REGISTRY = "0x7aE8bEf666D1D0aB9C0ac5d636f375E46f8AE71A"
+const EXPECTED_REGISTRY = "0xDdb0b56D29D121aD0FEFfb10395FC34b4eeA0692"
 
 async function main() {
     const [deployer] = await ethers.getSigners()
