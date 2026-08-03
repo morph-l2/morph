@@ -125,20 +125,34 @@ func (c *ChainlinkPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) 
 	}, nil
 }
 
-// GetBatchTokenPrices returns token prices in USD for multiple tokens.
+// GetBatchTokenPrices returns token prices in USD for multiple tokens. Tokens with no
+// configured feed are omitted rather than failing the batch, so that a mapping which
+// covers only part of the requested set still contributes what it can and the caller
+// can source the rest elsewhere.
 func (c *ChainlinkPriceFeed) GetBatchTokenPrices(ctx context.Context, tokenIDs []uint16) (map[uint16]*TokenPrice, error) {
+	c.mu.RLock()
+	mapped := make(map[uint16]common.Address, len(tokenIDs))
+	for _, tokenID := range tokenIDs {
+		if feedAddress, exists := c.tokenFeeds[tokenID]; exists {
+			mapped[tokenID] = feedAddress
+		}
+	}
+	c.mu.RUnlock()
+
+	if len(mapped) == 0 {
+		return map[uint16]*TokenPrice{}, nil
+	}
+
 	ethPrice, err := c.fetchFeedPrice(ctx, c.ethUSDFeed)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch ETH/USD price from Chainlink: %w", err)
 	}
 
-	prices := make(map[uint16]*TokenPrice, len(tokenIDs))
+	prices := make(map[uint16]*TokenPrice, len(mapped))
 	for _, tokenID := range tokenIDs {
-		c.mu.RLock()
-		feedAddress, exists := c.tokenFeeds[tokenID]
-		c.mu.RUnlock()
+		feedAddress, exists := mapped[tokenID]
 		if !exists {
-			return nil, fmt.Errorf("token ID %d not mapped to Chainlink feed", tokenID)
+			continue
 		}
 
 		tokenPrice, err := c.fetchFeedPrice(ctx, feedAddress)

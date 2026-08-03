@@ -86,60 +86,77 @@ func (f *FallbackPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) (
 	return nil, lastErr
 }
 
-// GetBatchTokenPrices tries to get batch token prices from feeds in priority order
+// GetBatchTokenPrices resolves prices across feeds in priority order, passing each
+// feed only the tokens still unresolved. Discarding a whole response because one
+// token was missing meant a provider that covers only part of the active set could
+// never contribute: with any active token absent from the Chainlink or Pyth mapping,
+// those feeds failed every cycle and every token silently came from a CEX instead.
+//
+// A token no feed can price is reported to the caller by its absence from the
+// returned map. Only a cycle that resolves nothing at all is an error.
 func (f *FallbackPriceFeed) GetBatchTokenPrices(ctx context.Context, tokenIDs []uint16) (map[uint16]*TokenPrice, error) {
+	resolved := make(map[uint16]*TokenPrice, len(tokenIDs))
+	pending := make([]uint16, len(tokenIDs))
+	copy(pending, tokenIDs)
 	var lastErr error
 
 	for i, feed := range f.feeds {
+		if len(pending) == 0 {
+			break
+		}
+
 		feedName := "unknown"
 		if i < len(f.names) {
 			feedName = f.names[i]
 		}
 
-		prices, err := feed.GetBatchTokenPrices(ctx, tokenIDs)
-		if err == nil {
-			// Validate all returned prices to prevent nil pointer panics
-			hasInvalidPrice := false
-			for _, tokenID := range tokenIDs {
-				price, exists := prices[tokenID]
-				if !exists {
-					f.log.Warn("Feed did not return price for requested token, treating as failure",
-						"token_id", tokenID,
-						"feed", feedName,
-						"priority", i)
-					hasInvalidPrice = true
-					break
-				}
-				if price == nil || price.TokenPriceUSD == nil || price.EthPriceUSD == nil {
-					f.log.Warn("Feed returned nil price or components for token, treating as failure",
-						"token_id", tokenID,
-						"feed", feedName,
-						"priority", i)
-					hasInvalidPrice = true
-					break
-				}
-			}
-
-			if hasInvalidPrice {
-				lastErr = fmt.Errorf("feed %s returned incomplete prices", feedName)
-				continue
-			}
-
-			f.log.Info("Successfully fetched batch prices from feed",
-				"token_count", len(prices),
-				"requested_count", len(tokenIDs),
+		prices, err := feed.GetBatchTokenPrices(ctx, pending)
+		if err != nil {
+			f.log.Warn("Failed to fetch batch prices from feed, trying next",
+				"token_count", len(pending),
 				"feed", feedName,
-				"priority", i)
-			return prices, nil
+				"priority", i,
+				"error", err.Error())
+			lastErr = err
+			continue
 		}
 
-		f.log.Warn("Failed to fetch batch prices from feed, trying next",
-			"token_count", len(tokenIDs),
-			"feed", feedName,
-			"priority", i,
-			"error", err.Error())
-		lastErr = err
+		stillPending := make([]uint16, 0, len(pending))
+		for _, tokenID := range pending {
+			price, exists := prices[tokenID]
+			if !exists || price == nil || price.TokenPriceUSD == nil || price.EthPriceUSD == nil {
+				stillPending = append(stillPending, tokenID)
+				continue
+			}
+			resolved[tokenID] = price
+		}
+
+		if resolvedHere := len(pending) - len(stillPending); resolvedHere > 0 {
+			f.log.Info("Fetched batch prices from feed",
+				"resolved_count", resolvedHere,
+				"requested_count", len(pending),
+				"feed", feedName,
+				"priority", i)
+		}
+		if len(stillPending) > 0 {
+			lastErr = fmt.Errorf("feed %s did not return prices for tokens %v", feedName, stillPending)
+		}
+		pending = stillPending
 	}
 
-	return nil, lastErr
+	if len(resolved) == 0 {
+		if lastErr != nil {
+			return nil, fmt.Errorf("no price feed returned any of the %d requested tokens: %w", len(tokenIDs), lastErr)
+		}
+		return nil, fmt.Errorf("no price feed returned any of the %d requested tokens", len(tokenIDs))
+	}
+
+	if len(pending) > 0 {
+		f.log.Warn("No price feed could resolve some tokens",
+			"unresolved_token_ids", pending,
+			"resolved_count", len(resolved),
+			"requested_count", len(tokenIDs))
+	}
+
+	return resolved, nil
 }

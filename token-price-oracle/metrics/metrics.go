@@ -45,6 +45,16 @@ var (
 		},
 		[]string{"type"}, // type: "updated" or "skipped"
 	)
+
+	// UnresolvedTokens tracks how many active tokens no configured feed could price in
+	// the last cycle. A cycle that resolves some tokens still counts as successful, so
+	// this is the signal that a token is going stale while the oracle looks healthy.
+	UnresolvedTokens = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "unresolved_tokens",
+			Help: "Number of active tokens no price feed could resolve in the last update cycle",
+		},
+	)
 )
 
 // init registers all metrics
@@ -53,6 +63,7 @@ func init() {
 	prometheus.MustRegister(AccountBalance)
 	prometheus.MustRegister(LastSuccessfulUpdateTimestamp)
 	prometheus.MustRegister(UpdatesTotal)
+	prometheus.MustRegister(UnresolvedTokens)
 
 	// Initialize metrics with default values to avoid nil pointer issues in alerting systems
 	// Set initial timestamp to current time (program start time)
@@ -63,6 +74,8 @@ func init() {
 	UpdatesTotal.WithLabelValues("skipped").Add(0)
 	// Initialize error counter labels
 	UpdateErrors.WithLabelValues("price").Add(0)
+	UpdateErrors.WithLabelValues("unresolved_token").Add(0)
+	UnresolvedTokens.Set(0)
 	// Note: AccountBalance is NOT initialized here to avoid triggering low balance alerts
 	// It will be set with the real value on the first update cycle
 }

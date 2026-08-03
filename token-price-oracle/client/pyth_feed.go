@@ -113,7 +113,10 @@ func (p *PythHermesPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16)
 	}, nil
 }
 
-// GetBatchTokenPrices returns token prices in USD for multiple tokens.
+// GetBatchTokenPrices returns token prices in USD for multiple tokens. Tokens with no
+// configured price ID are omitted rather than failing the batch, so that a mapping
+// which covers only part of the requested set still contributes what it can and the
+// caller can source the rest elsewhere.
 func (p *PythHermesPriceFeed) GetBatchTokenPrices(ctx context.Context, tokenIDs []uint16) (map[uint16]*TokenPrice, error) {
 	p.mu.RLock()
 	priceIDs := make([]string, 0, len(tokenIDs)+1)
@@ -122,13 +125,16 @@ func (p *PythHermesPriceFeed) GetBatchTokenPrices(ctx context.Context, tokenIDs 
 	for _, tokenID := range tokenIDs {
 		priceID, exists := p.tokenPriceIDs[tokenID]
 		if !exists {
-			p.mu.RUnlock()
-			return nil, fmt.Errorf("token ID %d not mapped to Pyth price ID", tokenID)
+			continue
 		}
 		tokenPriceIDs[tokenID] = priceID
 		priceIDs = append(priceIDs, priceID)
 	}
 	p.mu.RUnlock()
+
+	if len(tokenPriceIDs) == 0 {
+		return map[uint16]*TokenPrice{}, nil
+	}
 
 	priceMap, err := p.fetchPrices(ctx, priceIDs)
 	if err != nil {
@@ -140,9 +146,12 @@ func (p *PythHermesPriceFeed) GetBatchTokenPrices(ctx context.Context, tokenIDs 
 		return nil, fmt.Errorf("failed to convert ETH/USD Pyth price: %w", err)
 	}
 
-	prices := make(map[uint16]*TokenPrice, len(tokenIDs))
+	prices := make(map[uint16]*TokenPrice, len(tokenPriceIDs))
 	for _, tokenID := range tokenIDs {
-		priceID := tokenPriceIDs[tokenID]
+		priceID, exists := tokenPriceIDs[tokenID]
+		if !exists {
+			continue
+		}
 		tokenPrice, err := pythPriceToFloat(priceMap[priceID])
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert token Pyth price for token %d: %w", tokenID, err)
