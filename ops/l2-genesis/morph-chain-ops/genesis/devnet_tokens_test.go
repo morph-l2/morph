@@ -75,6 +75,33 @@ func TestDevnetTestTokenDefinitions(t *testing.T) {
 	for _, token := range byID {
 		require.Positive(t, new(big.Int).SetBytes(token.TokenAddress.Bytes()).Cmp(lowestNonPrecompile),
 			"token %d address %s falls in the precompile range", token.TokenID, token.TokenAddress)
+
+		// A scale of 10^(18-decimals) reads plausibly but double-applies the decimals
+		// adjustment the oracle already makes, which collapses to 1 for an 18-decimal
+		// token and truncates every priceRatio below ETH to zero.
+		want := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(token.Decimals)), nil)
+		require.Zero(t, want.Cmp(token.Scale),
+			"token %d scale must be 10^decimals, got %s", token.TokenID, token.Scale)
+	}
+}
+
+// TestDevnetTestTokenPriceRatioKeepsPrecision walks the oracle's priceRatio formula for
+// the cheapest pre-registered token. The registry stores priceRatio as a uint256, so a
+// scale that leaves the ratio below 1 makes the token permanently unpriceable.
+func TestDevnetTestTokenPriceRatioKeepsPrecision(t *testing.T) {
+	// BGB near its spot price against ETH, the widest token/ETH gap in the set.
+	tokenPriceUSD := big.NewFloat(1.5954)
+	ethPriceUSD := big.NewFloat(1845.55)
+
+	for _, token := range GetDevnetTestTokens() {
+		ratio := new(big.Float).SetInt(token.Scale)
+		ratio.Mul(ratio, tokenPriceUSD)
+		ratio.Mul(ratio, new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(18-token.Decimals)), nil)))
+		ratio.Quo(ratio, ethPriceUSD)
+
+		truncated, _ := ratio.Int(nil)
+		require.Positive(t, truncated.Sign(),
+			"token %d priceRatio truncates to zero with scale %s", token.TokenID, token.Scale)
 	}
 }
 

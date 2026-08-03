@@ -22,7 +22,14 @@ type DevnetTestToken struct {
 	// OpenZeppelin ERC-20 puts _balances, so it cannot double as "no slot".
 	NeedBalanceSlot bool
 	Decimals        uint8
-	Scale           *big.Int
+	// Scale must be 10^Decimals, matching how L2TokenRegistry's own tests register
+	// USDC (1e6) and DAI (1e18). Scale cancels out of calculateTokenAmount, so its
+	// only job is to keep priceRatio from losing significant digits: the oracle
+	// computes scale * (tokenPrice/ethPrice) * 10^(18-decimals) and truncates to an
+	// integer, and 10^Decimals is what makes that product settle at 10^18 *
+	// tokenPrice/ethPrice, i.e. the wei value of one whole token. Scale is *not* the
+	// decimals adjustment; the oracle already applies 10^(18-decimals) separately.
+	Scale *big.Int
 }
 
 // GetDevnetTestTokens returns the list of test tokens to pre-register in devnet.
@@ -39,7 +46,7 @@ func GetDevnetTestTokens() []DevnetTestToken {
 			TokenAddress:    common.HexToAddress("0x1111111111111111111111111111111111111111"), // Mock BTC address
 			NeedBalanceSlot: false,
 			Decimals:        8,
-			Scale:           big.NewInt(1e10), // 10^(18-8) for ETH decimals adjustment
+			Scale:           big.NewInt(1e8),
 		},
 		{
 			TokenID:      2,
@@ -48,14 +55,14 @@ func GetDevnetTestTokens() []DevnetTestToken {
 			BalanceSlot:     common.Hash{},
 			NeedBalanceSlot: true,
 			Decimals:        18,
-			Scale:           big.NewInt(1), // 1:1 ratio
+			Scale:           big.NewInt(1e18),
 		},
 		{
 			TokenID:         3,
 			TokenAddress:    common.HexToAddress("0x3333333333333333333333333333333333333333"), // Mock BGB address
 			NeedBalanceSlot: false,
 			Decimals:        18,
-			Scale:           big.NewInt(1),
+			Scale:           big.NewInt(1e18),
 		},
 	}
 }

@@ -8,13 +8,23 @@ activate them and allow the oracle signer before starting `token-price-oracle`.
 
 | Token ID | Symbol | Address | Decimals | Scale | Purpose |
 |----------|--------|---------|----------|-------|---------|
-| 1 | BTC | `0x1111111111111111111111111111111111111111` | 8 | 10^10 | High-value asset feed testing |
-| 2 | ETH | `0x5300000000000000000000000000000000000011` | 18 | 1 | L2WETH benchmark |
-| 3 | BGB | `0x3333333333333333333333333333333333333333` | 18 | 1 | CEX-specific feed testing |
+| 1 | BTC | `0x1111111111111111111111111111111111111111` | 8 | 10^8 | High-value asset feed testing |
+| 2 | ETH | `0x5300000000000000000000000000000000000011` | 18 | 10^18 | L2WETH benchmark |
+| 3 | BGB | `0x3333333333333333333333333333333333333333` | 18 | 10^18 | CEX-specific feed testing |
 
 BTC and BGB use placeholder addresses and are not deployed ERC-20 contracts.
 They are kept clear of the `0x01`-`0x0a` precompile range so that a call to
 `balanceOf` cannot silently dispatch to a precompile.
+
+Scale is `10^decimals`, the same convention `L2TokenRegistry`'s tests use for
+USDC and DAI. It is not the decimals adjustment: the oracle already multiplies by
+`10^(18-decimals)` on its own, and scale cancels out of `calculateTokenAmount`
+entirely. What it does control is how much of `priceRatio` survives truncation to
+a uint256, and `10^decimals` is what makes the stored ratio equal
+`10^18 * tokenPrice/ethPrice` for every token regardless of its decimals. Setting
+it to `10^(18-decimals)` instead yields a scale of 1 for an 18-decimal token,
+which truncates the ratio of anything cheaper than ETH to zero and leaves the
+token permanently unpriceable.
 
 ## Storage initialization
 
@@ -80,7 +90,7 @@ export TOKEN_PRICE_ORACLE_PRICE_FEED_PRIORITY=chainlink,pyth,bitget,okx
 
 export TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BITGET="1:BTCUSDT,2:ETHUSDT,3:BGBUSDT"
 export TOKEN_PRICE_ORACLE_BITGET_API_BASE_URL=https://api.bitget.com
-export TOKEN_PRICE_ORACLE_TOKEN_MAPPING_OKX="1:BTC-USDT,2:ETH-USDT,3:BGB-USDT"
+export TOKEN_PRICE_ORACLE_TOKEN_MAPPING_OKX="1:BTC-USDT,2:ETH-USDT"
 export TOKEN_PRICE_ORACLE_OKX_API_BASE_URL=https://www.okx.com
 
 export TOKEN_PRICE_ORACLE_CHAINLINK_RPC=https://ethereum-rpc.publicnode.com
@@ -98,6 +108,11 @@ export TOKEN_PRICE_ORACLE_PYTH_MAX_CONFIDENCE_BPS=500
 export TOKEN_PRICE_ORACLE_METRICS_SERVER_ENABLE=true
 export TOKEN_PRICE_ORACLE_METRICS_PORT=6060
 ```
+
+BGB is only listed on Bitget, so token 3 is deliberately absent from the Chainlink,
+Pyth, and OKX mappings. Feeds omit tokens they cannot map rather than failing the
+batch, so the higher-priority feeds resolve tokens 1 and 2 and Bitget resolves
+token 3.
 
 Use an isolated devnet-only oracle private key. For production, use the external
 signing mode described in `token-price-oracle/README.md`.
@@ -135,7 +150,11 @@ tests:
 - [ ] The owner adds the oracle signer to the allowlist.
 - [ ] The oracle fetches all configured prices.
 - [ ] `batchUpdatePrices` succeeds on-chain.
-- [ ] The metrics endpoint reports the successful update.
+- [ ] `priceRatio()` is non-zero for all three token IDs, and the oracle logs no
+      `Skipping zero price`. A ratio that truncates to zero is dropped with only a
+      warning, so a scale mistake surfaces here rather than as a failed update.
+- [ ] The metrics endpoint reports the successful update and `unresolved_tokens`
+      is 0.
 
 ## Troubleshooting
 
