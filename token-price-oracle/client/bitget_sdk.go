@@ -66,8 +66,13 @@ func NewBitgetSDKPriceFeed(tokenMap map[uint16]string, baseURL string) *BitgetSD
 	}
 }
 
-// GetTokenPrice returns token price in USD
-// Note: Caller should ensure ETH price is updated via GetBatchTokenPrices for batch operations
+// GetTokenPrice returns token price in USD.
+//
+// The token price is always fetched fresh. The ETH leg is not: GetBatchTokenPrices
+// samples it once per cycle and every token in that cycle divides by that one sample,
+// which keeps a cycle at N+1 requests rather than 2N against a rate-limited endpoint.
+// A standalone call fetches ETH only when it has never been fetched, so outside the
+// batch path the ETH leg can be arbitrarily older than the token leg.
 //
 // Stablecoin handling:
 // - If the symbol starts with "$" (e.g., "$1.0"), it's treated as a stablecoin with fixed price
@@ -82,9 +87,13 @@ func (b *BitgetSDKPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) 
 		return nil, fmt.Errorf("token ID %d not mapped to trading pair", tokenID)
 	}
 
-	// Use cached ETH price (should be updated by GetBatchTokenPrices)
 	if ethPrice.Cmp(big.NewFloat(0)) == 0 {
-		return nil, fmt.Errorf("ETH price not initialized, please call GetBatchTokenPrices first")
+		if err := b.updateETHPrice(ctx); err != nil {
+			return nil, fmt.Errorf("failed to initialize ETH price: %w", err)
+		}
+		b.mu.RLock()
+		ethPrice = new(big.Float).Copy(b.ethPrice)
+		b.mu.RUnlock()
 	}
 
 	var tokenPrice *big.Float

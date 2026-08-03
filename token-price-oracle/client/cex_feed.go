@@ -60,6 +60,12 @@ func newCEXPriceFeed(source string, tokenMap map[uint16]string, baseURL string, 
 }
 
 // GetTokenPrice returns token price in USD.
+//
+// The token price is always fetched fresh. The ETH leg is not: GetBatchTokenPrices
+// samples it once per cycle and every token in that cycle divides by that one sample,
+// which keeps a cycle at N+1 requests rather than 2N against a rate-limited endpoint.
+// A standalone call fetches ETH only when it has never been fetched, so outside the
+// batch path the ETH leg can be arbitrarily older than the token leg.
 func (f *CEXPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) (*TokenPrice, error) {
 	f.mu.RLock()
 	symbol, exists := f.tokenMap[tokenID]
