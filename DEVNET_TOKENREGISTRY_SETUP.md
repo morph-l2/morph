@@ -139,17 +139,24 @@ cd token-price-oracle
 ./build/bin/token-price-oracle
 ```
 
-Or run the container with an explicit name:
+Or run the container with an explicit name. `--env-file` takes `KEY=value` lines
+rather than shell exports, so write the settings above to `devnet.env` first and
+pass the path explicitly:
 
 ```bash
+cd token-price-oracle
+env | grep '^TOKEN_PRICE_ORACLE_' > devnet.env
+
 docker run -d \
   --name token-price-oracle \
   --network docker_default \
-  --env-file devnet.env \
+  --env-file ./devnet.env \
   morph/token-price-oracle:latest
 
 docker logs -f token-price-oracle
 ```
+
+`devnet.env` holds a private key, so keep it out of version control.
 
 ## Verification checklist
 
