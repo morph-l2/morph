@@ -64,8 +64,8 @@ func TestValidatePythPrice(t *testing.T) {
 		},
 		{
 			// A publish time ahead of the local clock used to be accepted anywhere
-			// inside the staleness window, unlike the Chainlink path.
-			name: "future publish time",
+			// inside the staleness window, which with the default meant nearly an hour.
+			name: "future publish time beyond skew",
 			price: pythPrice{
 				Price:       "175500000000",
 				Confidence:  "100000000",
@@ -74,6 +74,17 @@ func TestValidatePythPrice(t *testing.T) {
 			},
 			maxConfidenceBPS: 100,
 			wantErr:          true,
+		},
+		{
+			// Host clock drift against the publisher must not reject a fresh price.
+			name: "future publish time within skew",
+			price: pythPrice{
+				Price:       "175500000000",
+				Confidence:  "100000000",
+				Exponent:    -8,
+				PublishTime: now.Add(pythMaxClockSkew / 2).Unix(),
+			},
+			maxConfidenceBPS: 100,
 		},
 	}
 

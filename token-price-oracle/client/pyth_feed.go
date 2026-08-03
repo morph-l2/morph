@@ -20,6 +20,14 @@ const pythLatestPricePath = "/v2/updates/price/latest"
 // inside this range (typically -12..0).
 const pythMaxExponentMagnitude = 32
 
+// pythMaxClockSkew is how far ahead of the local clock a publish time may sit before
+// it is rejected. Unlike the Chainlink path, which reads an L1 block timestamp and so
+// is always in the past, publish_time is the publisher's near-real-time wall clock at
+// second granularity. Rejecting anything ahead of the local clock would turn a small
+// amount of host clock drift into a total Pyth outage, so allow a bounded skew while
+// still refusing prices dated far into the future.
+const pythMaxClockSkew = 30 * time.Second
+
 // PythHermesPriceFeed reads Pyth prices from Hermes as an off-chain data source.
 type PythHermesPriceFeed struct {
 	httpClient       *http.Client
@@ -252,8 +260,8 @@ func validatePythPrice(price pythPrice, maxStaleness time.Duration, maxConfidenc
 	if price.PublishTime <= 0 {
 		return fmt.Errorf("publish_time must be positive")
 	}
-	if published.After(now) {
-		return fmt.Errorf("publish_time %s is in the future", published.UTC().Format(time.RFC3339))
+	if published.After(now.Add(pythMaxClockSkew)) {
+		return fmt.Errorf("publish_time %s is more than %s in the future", published.UTC().Format(time.RFC3339), pythMaxClockSkew)
 	}
 	if now.Sub(published) > maxStaleness {
 		return fmt.Errorf("price is stale: publish_time=%s maxStaleness=%s", published.UTC().Format(time.RFC3339), maxStaleness)
