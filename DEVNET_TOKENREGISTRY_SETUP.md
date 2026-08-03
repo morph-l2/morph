@@ -50,6 +50,19 @@ rm -rf ops/docker/.devnet
 make devnet-up
 ```
 
+This is enough to pick up a new L2 genesis, which is regenerated on every run.
+It does not reset L1: `make devnet-down` removes the containers and the network
+but not the named volumes, so `layer1-el-data` survives and the L1 chain resumes
+where it left off. The L1 contracts are then redeployed from the same account at
+higher nonces, so every L1 address in `ops/docker/.env` shifts between runs. That
+is expected — those are plain `CREATE` addresses derived from the deployer nonce,
+unlike the L2 predeploys, which are fixed by genesis. To start L1 from scratch as
+well:
+
+```bash
+cd ops/docker && docker compose -f docker-compose-devnet.yml down --volumes
+```
+
 Verify the registered IDs with the `getSupportedIDList()` selector or a contract
 binding. The expected decoded result is `[1, 2, 3]`.
 
