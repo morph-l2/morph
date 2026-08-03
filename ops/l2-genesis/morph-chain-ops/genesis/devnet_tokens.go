@@ -17,8 +17,12 @@ type DevnetTestToken struct {
 	TokenID      uint16
 	TokenAddress common.Address
 	BalanceSlot  common.Hash
-	Decimals     uint8
-	Scale        *big.Int
+	// NeedBalanceSlot mirrors the flag L2TokenRegistry.registerToken takes. It is
+	// required because a zero BalanceSlot is ambiguous on its own: slot 0 is where
+	// OpenZeppelin ERC-20 puts _balances, so it cannot double as "no slot".
+	NeedBalanceSlot bool
+	Decimals        uint8
+	Scale           *big.Int
 }
 
 // GetDevnetTestTokens returns the list of test tokens to pre-register in devnet.
@@ -28,25 +32,30 @@ type DevnetTestToken struct {
 func GetDevnetTestTokens() []DevnetTestToken {
 	return []DevnetTestToken{
 		{
-			TokenID:      1,
-			TokenAddress: common.HexToAddress("0x0000000000000000000000000000000000000001"), // Mock BTC address
-			BalanceSlot:  common.Hash{},                                                     // zero hash (no balance slot needed for mock)
-			Decimals:     8,
-			Scale:        big.NewInt(1e10), // 10^(18-8) for ETH decimals adjustment
+			TokenID: 1,
+			// Placeholder address for a token with no deployed contract. It must stay
+			// clear of the 0x01-0x0a precompile range, where balanceOf and transfer
+			// would dispatch to ecRecover and friends instead of failing.
+			TokenAddress:    common.HexToAddress("0x1111111111111111111111111111111111111111"), // Mock BTC address
+			NeedBalanceSlot: false,
+			Decimals:        8,
+			Scale:           big.NewInt(1e10), // 10^(18-8) for ETH decimals adjustment
 		},
 		{
 			TokenID:      2,
 			TokenAddress: common.HexToAddress("0x5300000000000000000000000000000000000011"), // L2WETH predeploy address
-			BalanceSlot:  common.BigToHash(big.NewInt(3)),                                   // WETH standard balance slot
-			Decimals:     18,
-			Scale:        big.NewInt(1), // 1:1 ratio
+			// WrappedEther keeps _balances at slot 0; slot 3 is _name.
+			BalanceSlot:     common.Hash{},
+			NeedBalanceSlot: true,
+			Decimals:        18,
+			Scale:           big.NewInt(1), // 1:1 ratio
 		},
 		{
-			TokenID:      3,
-			TokenAddress: common.HexToAddress("0x0000000000000000000000000000000000000003"), // Mock BGB address
-			BalanceSlot:  common.Hash{},                                                     // zero hash
-			Decimals:     18,
-			Scale:        big.NewInt(1),
+			TokenID:         3,
+			TokenAddress:    common.HexToAddress("0x3333333333333333333333333333333333333333"), // Mock BGB address
+			NeedBalanceSlot: false,
+			Decimals:        18,
+			Scale:           big.NewInt(1),
 		},
 	}
 }
@@ -115,9 +124,10 @@ func setTokenInfo(db vm.StateDB, contractAddr common.Address, registrySlot *big.
 	slot0Value := new(big.Int).SetBytes(token.TokenAddress.Bytes())
 	db.SetState(contractAddr, baseSlot, common.BigToHash(slot0Value))
 
-	// Slot+1: encode a requested balance slot as actual slot + 1.
-	storedBalanceSlot := token.BalanceSlot
-	if token.BalanceSlot != (common.Hash{}) {
+	// Slot+1: mirror L2TokenRegistry._toStoredBalanceSlot, which stores the actual
+	// slot plus one when a slot is needed and zero when it is not.
+	storedBalanceSlot := common.Hash{}
+	if token.NeedBalanceSlot {
 		if token.BalanceSlot == common.HexToHash("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff") {
 			return fmt.Errorf("balance slot cannot be max uint256")
 		}

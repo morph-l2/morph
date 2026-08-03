@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -155,10 +156,21 @@ func parseFixedStablecoinPrice(symbol string) (*big.Float, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid stablecoin price format '%s': %w", symbol, err)
 	}
-	if fixedPrice <= 0 {
-		return nil, fmt.Errorf("stablecoin price must be positive, got '%s'", symbol)
+	price, ok := newFinitePositiveFloat(fixedPrice)
+	if !ok {
+		return nil, fmt.Errorf("stablecoin price must be a positive finite number, got '%s'", symbol)
 	}
-	return big.NewFloat(fixedPrice), nil
+	return price, nil
+}
+
+// newFinitePositiveFloat rejects values that survive a bare `<= 0` test but cannot be
+// used as a price. strconv.ParseFloat accepts "NaN" and "Inf" without error; NaN then
+// panics big.NewFloat, and an Inf propagates until big.Float.Int returns nil.
+func newFinitePositiveFloat(value float64) (*big.Float, bool) {
+	if math.IsNaN(value) || math.IsInf(value, 0) || value <= 0 {
+		return nil, false
+	}
+	return big.NewFloat(value), true
 }
 
 type binanceTickerResponse struct {
@@ -253,8 +265,9 @@ func parsePositiveFloat(priceStr string, symbol string) (*big.Float, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse price '%s': %w", priceStr, err)
 	}
-	if price <= 0 {
-		return nil, fmt.Errorf("price must be positive for symbol %s, got %s", symbol, priceStr)
+	value, ok := newFinitePositiveFloat(price)
+	if !ok {
+		return nil, fmt.Errorf("price must be a positive finite number for symbol %s, got %s", symbol, priceStr)
 	}
-	return big.NewFloat(price), nil
+	return value, nil
 }

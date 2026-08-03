@@ -136,14 +136,14 @@ var (
 
 	PythHermesBaseURLFlag = cli.StringFlag{
 		Name:   "pyth-hermes-base-url",
-		Usage:  "Pyth Hermes API base URL (required if pyth feed is enabled)",
+		Usage:  "Pyth Hermes API base URL (required if pyth feed is enabled). Set https://pyth.dourolabs.app/hermes to move to the upgraded endpoint ahead of the 2026-08-18 cutover",
 		Value:  "https://hermes.pyth.network",
 		EnvVar: prefixEnvVar("PYTH_HERMES_BASE_URL"),
 	}
 
 	PythAPIKeyFlag = cli.StringFlag{
 		Name:   "pyth-api-key",
-		Usage:  "Pyth Hermes API key for authenticated requests",
+		Usage:  "Pyth Hermes API key (required if pyth feed is enabled; Hermes rejects unauthenticated requests from 2026-08-18)",
 		Value:  "",
 		EnvVar: prefixEnvVar("PYTH_API_KEY"),
 	}

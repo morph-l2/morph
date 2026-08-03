@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -16,6 +15,10 @@ import (
 )
 
 const pythLatestPricePath = "/v2/updates/price/latest"
+
+// pythMaxExponentMagnitude caps |expo| from a Hermes response. Real feeds sit well
+// inside this range (typically -12..0).
+const pythMaxExponentMagnitude = 32
 
 // PythHermesPriceFeed reads Pyth prices from Hermes as an off-chain data source.
 type PythHermesPriceFeed struct {
@@ -39,6 +42,12 @@ func NewPythHermesPriceFeed(tokenPriceIDs map[uint16]string, baseURL string, api
 	if maxStaleness <= 0 {
 		return nil, fmt.Errorf("pyth max staleness must be positive")
 	}
+	// Hermes requires authentication from 2026-08-18 onwards, on both the current
+	// and the upgraded endpoint, so an unauthenticated feed is not a usable config.
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return nil, fmt.Errorf("pyth price feed requires --pyth-api-key")
+	}
 
 	normalized := make(map[uint16]string, len(tokenPriceIDs))
 	for tokenID, priceID := range tokenPriceIDs {
@@ -59,7 +68,7 @@ func NewPythHermesPriceFeed(tokenPriceIDs map[uint16]string, baseURL string, api
 		maxStaleness:     maxStaleness,
 		maxConfidenceBPS: maxConfidenceBPS,
 		baseURL:          strings.TrimRight(baseURL, "/"),
-		apiKey:           strings.TrimSpace(apiKey),
+		apiKey:           apiKey,
 		log:              log.New("component", "pyth_price_feed"),
 	}, nil
 }
@@ -164,9 +173,9 @@ func (p *PythHermesPriceFeed) fetchPrices(ctx context.Context, priceIDs []string
 	}
 
 	requestURL := fmt.Sprintf("%s%s?%s", p.baseURL, pythLatestPricePath, values.Encode())
-	headers := map[string]string{"Accept": "application/json"}
-	if p.apiKey != "" {
-		headers["Authorization"] = "Bearer " + p.apiKey
+	headers := map[string]string{
+		"Accept":        "application/json",
+		"Authorization": "Bearer " + p.apiKey,
 	}
 	body, err := getJSONWithHeaders(ctx, p.httpClient, requestURL, headers)
 	if err != nil {
@@ -234,8 +243,8 @@ func validatePythPrice(price pythPrice, maxStaleness time.Duration, maxConfidenc
 	if price.PublishTime <= 0 {
 		return fmt.Errorf("publish_time must be positive")
 	}
-	if published.After(now.Add(maxStaleness)) {
-		return fmt.Errorf("publish_time %s is too far in the future", published.UTC().Format(time.RFC3339))
+	if published.After(now) {
+		return fmt.Errorf("publish_time %s is in the future", published.UTC().Format(time.RFC3339))
 	}
 	if now.Sub(published) > maxStaleness {
 		return fmt.Errorf("price is stale: publish_time=%s maxStaleness=%s", published.UTC().Format(time.RFC3339), maxStaleness)
@@ -263,17 +272,23 @@ func pythPriceToFloat(price pythPrice) (*big.Float, error) {
 		return value, nil
 	}
 
+	// Bound the magnitude before exponentiating. Exponent is an int32, so the
+	// previous MaxInt32 check could never fire, and a hostile or malformed expo
+	// of -2147483648 would ask big.Int to materialize 10^2147483648.
 	exponent := int64(price.Exponent)
-	if exponent > 0 {
-		if exponent > math.MaxInt32 {
-			return nil, fmt.Errorf("pyth exponent too large: %d", exponent)
-		}
-		scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(exponent), nil)
-		return value.Mul(value, new(big.Float).SetPrec(256).SetInt(scale)), nil
+	magnitude := exponent
+	if magnitude < 0 {
+		magnitude = -magnitude
+	}
+	if magnitude > pythMaxExponentMagnitude {
+		return nil, fmt.Errorf("pyth exponent out of range: %d", exponent)
 	}
 
-	scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(-exponent), nil)
-	return value.Quo(value, new(big.Float).SetPrec(256).SetInt(scale)), nil
+	scale := new(big.Float).SetPrec(256).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(magnitude), nil))
+	if exponent > 0 {
+		return value.Mul(value, scale), nil
+	}
+	return value.Quo(value, scale), nil
 }
 
 func normalizePythPriceID(priceID string) string {

@@ -50,9 +50,13 @@ func BuildL2DeveloperGenesis(config *DeployConfig, l1StartBlock *types.Block, cu
 		return nil, common.Hash{}, err
 	}
 
-	// Pre-register test tokens in TokenRegistry for devnet
-	if err := SetDevnetTestTokens(db); err != nil {
-		return nil, common.Hash{}, fmt.Errorf("failed to pre-register devnet test tokens: %w", err)
+	// Pre-register test tokens in TokenRegistry for devnet. Gated on the same flag as
+	// the dev accounts: on mainnet and testnet these would occupy token IDs 1-3 and
+	// change the genesis state root.
+	if config.FundDevAccounts {
+		if err := SetDevnetTestTokens(db); err != nil {
+			return nil, common.Hash{}, fmt.Errorf("failed to pre-register devnet test tokens: %w", err)
+		}
 	}
 
 	withdrawRoot := withdrawtrie.ReadWTRSlot(rcfg.L2MessageQueueAddress, db)

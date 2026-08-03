@@ -8,6 +8,28 @@ import (
 	"testing"
 )
 
+func TestParsePriceRejectsNonFiniteValues(t *testing.T) {
+	// strconv.ParseFloat accepts these without error, and a bare `<= 0` test lets them
+	// through: NaN then panics big.NewFloat, and an Inf survives until big.Float.Int
+	// returns nil.
+	for _, priceStr := range []string{"NaN", "nan", "Inf", "+Inf", "-Inf", "0", "-1"} {
+		if _, err := parsePositiveFloat(priceStr, "BTCUSDT"); err == nil {
+			t.Errorf("parsePositiveFloat(%q) succeeded, want error", priceStr)
+		}
+		if _, err := parseFixedStablecoinPrice(StablecoinPrefix + priceStr); err == nil {
+			t.Errorf("parseFixedStablecoinPrice(%q) succeeded, want error", priceStr)
+		}
+	}
+
+	price, err := parsePositiveFloat("60000.5", "BTCUSDT")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if price.Cmp(big.NewFloat(60000.5)) != 0 {
+		t.Fatalf("parsePositiveFloat() = %s, want 60000.5", price.String())
+	}
+}
+
 func TestCEXGetTokenPriceInitializesETHPrice(t *testing.T) {
 	fetcher := func(_ context.Context, _ *http.Client, _ string, symbol string) (*big.Float, error) {
 		switch symbol {

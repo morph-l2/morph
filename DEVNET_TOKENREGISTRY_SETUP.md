@@ -8,24 +8,29 @@ activate them and allow the oracle signer before starting `token-price-oracle`.
 
 | Token ID | Symbol | Address | Decimals | Scale | Purpose |
 |----------|--------|---------|----------|-------|---------|
-| 1 | BTC | `0x0000000000000000000000000000000000000001` | 8 | 10^10 | High-value asset feed testing |
+| 1 | BTC | `0x1111111111111111111111111111111111111111` | 8 | 10^10 | High-value asset feed testing |
 | 2 | ETH | `0x5300000000000000000000000000000000000011` | 18 | 1 | L2WETH benchmark |
-| 3 | BGB | `0x0000000000000000000000000000000000000003` | 18 | 1 | CEX-specific feed testing |
+| 3 | BGB | `0x3333333333333333333333333333333333333333` | 18 | 1 | CEX-specific feed testing |
 
-BTC and BGB use mock addresses and are not deployed ERC-20 contracts.
+BTC and BGB use placeholder addresses and are not deployed ERC-20 contracts.
+They are kept clear of the `0x01`-`0x0a` precompile range so that a call to
+`balanceOf` cannot silently dispatch to a precompile.
 
 ## Storage initialization
 
 `SetDevnetTestTokens` runs after the system contract implementations are
-installed by `BuildL2DeveloperGenesis`. It initializes:
+installed by `BuildL2DeveloperGenesis`, and only when `fundDevAccounts` is set,
+so non-developer genesis is unaffected. It initializes:
 
 - `tokenRegistry[tokenID]`
 - `tokenRegistration[tokenAddress]`
 - `supportedTokenSet`
 
-Tokens are deliberately initialized with `isActive=false`. A non-zero balance
-slot is stored as `balanceSlot + 1`, matching the encoding used by
-`L2TokenRegistry`; zero remains zero.
+Tokens are deliberately initialized with `isActive=false`. Balance slots follow
+the `L2TokenRegistry` encoding: a token that needs one stores `balanceSlot + 1`
+and a token that does not stores zero. The `NeedBalanceSlot` flag carries that
+distinction, because slot 0 is a real balance slot (it is where `WrappedEther`
+keeps `_balances`) and cannot be represented by a zero value alone.
 
 ## Start and verify the devnet
 
@@ -68,9 +73,7 @@ it on a public network or commit it to the repository.
 
 ```bash
 export TOKEN_PRICE_ORACLE_L2_ETH_RPC=http://localhost:8545
-export TOKEN_PRICE_ORACLE_L2_TOKEN_REGISTRY_ADDRESS=0x5300000000000000000000000000000000000021
 export TOKEN_PRICE_ORACLE_PRIVATE_KEY="<DEVNET_ORACLE_PRIVATE_KEY>"
-export TOKEN_PRICE_ORACLE_TOKEN_IDS=1,2,3
 export TOKEN_PRICE_ORACLE_PRICE_UPDATE_INTERVAL=30s
 export TOKEN_PRICE_ORACLE_PRICE_THRESHOLD=100
 export TOKEN_PRICE_ORACLE_PRICE_FEED_PRIORITY=chainlink,pyth,bitget,okx
@@ -86,6 +89,7 @@ export TOKEN_PRICE_ORACLE_CHAINLINK_ETH_USD_FEED=0x5f4eC3Df9cbd43714FE2740f5E361
 export TOKEN_PRICE_ORACLE_CHAINLINK_MAX_STALENESS=1h
 
 export TOKEN_PRICE_ORACLE_PYTH_HERMES_BASE_URL=https://hermes.pyth.network
+export TOKEN_PRICE_ORACLE_PYTH_API_KEY="<PYTH_API_KEY>"
 export TOKEN_PRICE_ORACLE_TOKEN_MAPPING_PYTH="1:0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43,2:0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace"
 export TOKEN_PRICE_ORACLE_PYTH_ETH_USD_PRICE_ID=0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace
 export TOKEN_PRICE_ORACLE_PYTH_MAX_STALENESS=1m

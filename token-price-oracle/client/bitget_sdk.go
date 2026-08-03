@@ -27,9 +27,9 @@ const (
 // This type is safe for concurrent use by multiple goroutines
 type BitgetSDKPriceFeed struct {
 	httpClient *http.Client
-	mu         sync.RWMutex          // protects tokenMap and ethPrice
-	tokenMap   map[uint16]string     // guarded by mu
-	ethPrice   *big.Float            // guarded by mu
+	mu         sync.RWMutex      // protects tokenMap and ethPrice
+	tokenMap   map[uint16]string // guarded by mu
+	ethPrice   *big.Float        // guarded by mu
 	log        log.Logger
 	baseURL    string
 }
@@ -105,10 +105,11 @@ func (b *BitgetSDKPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) 
 		if err != nil {
 			return nil, fmt.Errorf("invalid stablecoin price format '%s': %w", symbol, err)
 		}
-		if fixedPrice <= 0 {
-			return nil, fmt.Errorf("stablecoin price must be positive, got '%s'", symbol)
+		price, ok := newFinitePositiveFloat(fixedPrice)
+		if !ok {
+			return nil, fmt.Errorf("stablecoin price must be a positive finite number, got '%s'", symbol)
 		}
-		tokenPrice = big.NewFloat(fixedPrice)
+		tokenPrice = price
 
 		b.log.Info("Using fixed stablecoin price",
 			"source", "stablecoin",
@@ -270,12 +271,16 @@ func (b *BitgetSDKPriceFeed) fetchPriceOnce(ctx context.Context, symbol string) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse price '%s': %w", lastPriceStr, err)
 	}
+	price, ok := newFinitePositiveFloat(lastPrice)
+	if !ok {
+		return nil, fmt.Errorf("price must be a positive finite number for symbol %s, got %s", symbol, lastPriceStr)
+	}
 
 	b.log.Debug("Fetched price from Bitget API",
 		"symbol", symbol,
 		"price", lastPrice)
 
-	return big.NewFloat(lastPrice), nil
+	return price, nil
 }
 
 // UpdateTokenMap updates token mapping

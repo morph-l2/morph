@@ -6,6 +6,21 @@ import (
 	"time"
 )
 
+func TestNewPythHermesPriceFeedRequiresAPIKey(t *testing.T) {
+	const ethUSDPriceID = "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace"
+	mapping := map[uint16]string{1: "0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43"}
+
+	for _, apiKey := range []string{"", "   "} {
+		if _, err := NewPythHermesPriceFeed(mapping, "https://hermes.pyth.network", apiKey, ethUSDPriceID, time.Hour, 0); err == nil {
+			t.Fatalf("NewPythHermesPriceFeed(apiKey=%q) succeeded, want error", apiKey)
+		}
+	}
+
+	if _, err := NewPythHermesPriceFeed(mapping, "https://hermes.pyth.network", "key", ethUSDPriceID, time.Hour, 0); err != nil {
+		t.Fatalf("NewPythHermesPriceFeed with an API key failed: %v", err)
+	}
+}
+
 func TestValidatePythPrice(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 
@@ -47,6 +62,19 @@ func TestValidatePythPrice(t *testing.T) {
 			maxConfidenceBPS: 100,
 			wantErr:          true,
 		},
+		{
+			// A publish time ahead of the local clock used to be accepted anywhere
+			// inside the staleness window, unlike the Chainlink path.
+			name: "future publish time",
+			price: pythPrice{
+				Price:       "175500000000",
+				Confidence:  "100000000",
+				Exponent:    -8,
+				PublishTime: now.Add(30 * time.Minute).Unix(),
+			},
+			maxConfidenceBPS: 100,
+			wantErr:          true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -71,6 +99,19 @@ func TestPythPriceToFloat(t *testing.T) {
 	want := big.NewFloat(1755)
 	if price.Cmp(want) != 0 {
 		t.Fatalf("pythPriceToFloat() = %s, want %s", price.String(), want.String())
+	}
+}
+
+func TestPythPriceToFloatRejectsOutOfRangeExponent(t *testing.T) {
+	// math.MinInt32 previously reached big.Int.Exp as 10^2147483648.
+	for _, exponent := range []int32{-2147483648, 2147483647, pythMaxExponentMagnitude + 1, -(pythMaxExponentMagnitude + 1)} {
+		if _, err := pythPriceToFloat(pythPrice{Price: "1", Exponent: exponent}); err == nil {
+			t.Fatalf("pythPriceToFloat(expo=%d) succeeded, want error", exponent)
+		}
+	}
+
+	if _, err := pythPriceToFloat(pythPrice{Price: "1", Exponent: -pythMaxExponentMagnitude}); err != nil {
+		t.Fatalf("pythPriceToFloat at the exponent bound failed: %v", err)
 	}
 }
 

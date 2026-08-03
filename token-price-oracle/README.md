@@ -34,6 +34,8 @@ export TOKEN_PRICE_ORACLE_PYTH_API_KEY="..."
 export TOKEN_PRICE_ORACLE_PYTH_ETH_USD_PRICE_ID="0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace"
 export TOKEN_PRICE_ORACLE_PYTH_MAX_STALENESS="1h"
 export TOKEN_PRICE_ORACLE_TOKEN_MAPPING_PYTH="1:0x...,2:0x..."
+export TOKEN_PRICE_ORACLE_TOKEN_MAPPING_BINANCE="1:BTCUSDT,2:ETHUSDT"
+export TOKEN_PRICE_ORACLE_TOKEN_MAPPING_OKX="1:BTC-USDT,2:ETH-USDT"
 
 # Optional
 export TOKEN_PRICE_ORACLE_PRICE_UPDATE_INTERVAL="1m"
@@ -107,10 +109,12 @@ requires its own mapping and configuration from the feed sections below.
 
 Pyth is consumed as an off-chain Hermes data source. The service reads parsed prices from Hermes and still writes the existing `priceRatio` to `L2TokenRegistry`; it does not submit Pyth updates on-chain.
 
+Hermes requires authentication from 2026-08-18 on both the current and the upgraded endpoint, so `PYTH_API_KEY` is mandatory whenever the pyth feed is enabled. Register for a key at [Pyth Terminal](https://terminal.pyth.network) and see the [upgrade guide](https://docs.pyth.network/price-feeds/core/upgrade/preparing) for the endpoint migration.
+
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
-| `TOKEN_PRICE_ORACLE_PYTH_HERMES_BASE_URL` | `https://hermes.pyth.network` | Pyth Hermes API base URL |
-| `TOKEN_PRICE_ORACLE_PYTH_API_KEY` | - | Optional Pyth Hermes API key for authenticated requests |
+| `TOKEN_PRICE_ORACLE_PYTH_HERMES_BASE_URL` | `https://hermes.pyth.network` | Pyth Hermes API base URL. Set `https://pyth.dourolabs.app/hermes` to move to the upgraded endpoint ahead of the cutover |
+| `TOKEN_PRICE_ORACLE_PYTH_API_KEY` | - | Pyth Hermes API key, required whenever `pyth` is in the priority list |
 | `TOKEN_PRICE_ORACLE_PYTH_ETH_USD_PRICE_ID` | - | Pyth ETH/USD price ID |
 | `TOKEN_PRICE_ORACLE_PYTH_MAX_STALENESS` | `1h` | Maximum accepted age of Pyth publish time |
 | `TOKEN_PRICE_ORACLE_PYTH_MAX_CONFIDENCE_BPS` | `0` | Maximum confidence interval relative to price in BPS; `0` disables the check |

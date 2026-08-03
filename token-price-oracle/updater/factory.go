@@ -93,14 +93,17 @@ func createFallbackPriceFeed(cfg *config.Config) (client.PriceFeed, error) {
 		return nil, fmt.Errorf("no valid price feeds could be created")
 	}
 
+	// Wrap even a single feed: FallbackPriceFeed is what enforces that a batch came
+	// back complete and non-nil. Returning feeds[0] directly let a CEX feed's partial
+	// or empty map through as a success, which the updater then recorded as a
+	// successful cycle.
 	if len(feeds) == 1 {
 		log.Info("Single price feed configured (no fallback)", "feed", feedNames[0])
-		return feeds[0], nil
+	} else {
+		log.Info("Fallback price feed configured with multiple sources",
+			"feeds", feedNames,
+			"priority", "first to last")
 	}
-
-	log.Info("Fallback price feed configured with multiple sources",
-		"feeds", feedNames,
-		"priority", "first to last")
 
 	return client.NewFallbackPriceFeed(feeds, feedNames), nil
 }

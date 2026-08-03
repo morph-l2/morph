@@ -21,6 +21,9 @@ const chainlinkAggregatorV3ABI = `[
 	{"inputs":[],"name":"latestRoundData","outputs":[{"internalType":"uint80","name":"roundId","type":"uint80"},{"internalType":"int256","name":"answer","type":"int256"},{"internalType":"uint256","name":"startedAt","type":"uint256"},{"internalType":"uint256","name":"updatedAt","type":"uint256"},{"internalType":"uint80","name":"answeredInRound","type":"uint80"}],"stateMutability":"view","type":"function"}
 ]`
 
+// chainlinkCallTimeout bounds a single eth_call against the configured RPC endpoint.
+const chainlinkCallTimeout = 10 * time.Second
+
 var parsedChainlinkAggregatorABI = mustParseChainlinkAggregatorABI()
 
 // ChainlinkPriceFeed reads Chainlink AggregatorV3 feeds over RPC.
@@ -154,11 +157,21 @@ func (c *ChainlinkPriceFeed) GetBatchTokenPrices(ctx context.Context, tokenIDs [
 	return prices, nil
 }
 
+// callContract invokes a read-only method under its own deadline. The service-level
+// context has no deadline of its own, and the RPC transport does not impose one, so
+// without this a single unresponsive endpoint would stall the updater loop forever
+// and the configured fallback feeds would never be reached.
+func callContract(ctx context.Context, contract *bind.BoundContract, out *[]interface{}, method string) error {
+	callCtx, cancel := context.WithTimeout(ctx, chainlinkCallTimeout)
+	defer cancel()
+	return contract.Call(&bind.CallOpts{Context: callCtx}, out, method)
+}
+
 func (c *ChainlinkPriceFeed) fetchFeedPrice(ctx context.Context, feedAddress common.Address) (*big.Float, error) {
 	contract := bind.NewBoundContract(feedAddress, parsedChainlinkAggregatorABI, c.caller, nil, nil)
 
 	var roundData []interface{}
-	if err := contract.Call(&bind.CallOpts{Context: ctx}, &roundData, "latestRoundData"); err != nil {
+	if err := callContract(ctx, contract, &roundData, "latestRoundData"); err != nil {
 		return nil, fmt.Errorf("latestRoundData call failed for feed %s: %w", feedAddress.Hex(), err)
 	}
 
@@ -171,7 +184,7 @@ func (c *ChainlinkPriceFeed) fetchFeedPrice(ctx context.Context, feedAddress com
 	}
 
 	var decimalsOut []interface{}
-	if err := contract.Call(&bind.CallOpts{Context: ctx}, &decimalsOut, "decimals"); err != nil {
+	if err := callContract(ctx, contract, &decimalsOut, "decimals"); err != nil {
 		return nil, fmt.Errorf("decimals call failed for feed %s: %w", feedAddress.Hex(), err)
 	}
 	decimals, err := parseChainlinkDecimals(decimalsOut)

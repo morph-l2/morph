@@ -34,12 +34,11 @@ func TestSetDevnetTestTokensStorageLayout(t *testing.T) {
 		require.Equal(t, common.BytesToHash(token.TokenAddress.Bytes()), db.GetState(contractAddr, baseSlot))
 		storedBalanceSlot := db.GetState(contractAddr, offsetSlot(baseSlot, 1))
 		hasBalanceSlot := storedBalanceSlot != (common.Hash{})
-		require.Equal(t, token.BalanceSlot != (common.Hash{}), hasBalanceSlot)
-		actualBalanceSlot := storedBalanceSlot
+		require.Equal(t, token.NeedBalanceSlot, hasBalanceSlot)
 		if hasBalanceSlot {
-			actualBalanceSlot = common.BigToHash(new(big.Int).Sub(storedBalanceSlot.Big(), common.Big1))
+			actualBalanceSlot := common.BigToHash(new(big.Int).Sub(storedBalanceSlot.Big(), common.Big1))
+			require.Equal(t, token.BalanceSlot, actualBalanceSlot)
 		}
-		require.Equal(t, token.BalanceSlot, actualBalanceSlot)
 
 		statusAndDecimals := db.GetState(contractAddr, offsetSlot(baseSlot, 2)).Big().Uint64()
 		require.Zero(t, statusAndDecimals&0xff, "tokens must start inactive")
@@ -55,6 +54,27 @@ func TestSetDevnetTestTokensStorageLayout(t *testing.T) {
 		require.Equal(t, common.BigToHash(new(big.Int).SetUint64(uint64(token.TokenID))), db.GetState(contractAddr, valueSlot))
 		indexSlot := mappingSlot(new(big.Int).SetUint64(uint64(token.TokenID)), new(big.Int).Add(supportedSetSlot, common.Big1))
 		require.Equal(t, common.BigToHash(new(big.Int).SetInt64(int64(i+1))), db.GetState(contractAddr, indexSlot))
+	}
+}
+
+// TestDevnetTestTokenDefinitions pins the two properties that cannot be derived from
+// the encoding itself: WETH's balance slot is a real slot 0 rather than "no slot", and
+// the placeholder addresses stay out of the precompile range.
+func TestDevnetTestTokenDefinitions(t *testing.T) {
+	byID := make(map[uint16]DevnetTestToken)
+	for _, token := range GetDevnetTestTokens() {
+		byID[token.TokenID] = token
+	}
+
+	weth := byID[2]
+	require.Equal(t, predeploys.L2WETHAddr, weth.TokenAddress)
+	require.True(t, weth.NeedBalanceSlot, "WrappedEther keeps _balances at slot 0, which still needs to be registered")
+	require.Equal(t, common.Hash{}, weth.BalanceSlot)
+
+	lowestNonPrecompile := big.NewInt(0xff)
+	for _, token := range byID {
+		require.Positive(t, new(big.Int).SetBytes(token.TokenAddress.Bytes()).Cmp(lowestNonPrecompile),
+			"token %d address %s falls in the precompile range", token.TokenID, token.TokenAddress)
 	}
 }
 

@@ -306,6 +306,9 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 			if cfg.PythETHUSDPriceID == "" {
 				return nil, fmt.Errorf("pyth feed is configured but --pyth-eth-usd-price-id is not set")
 			}
+			if cfg.PythAPIKey == "" {
+				return nil, fmt.Errorf("pyth feed is configured but --pyth-api-key is not set")
+			}
 			if cfg.PythMaxStaleness <= 0 {
 				return nil, fmt.Errorf("pyth max staleness must be positive")
 			}
