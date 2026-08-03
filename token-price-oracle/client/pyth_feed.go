@@ -51,7 +51,11 @@ func NewPythHermesPriceFeed(tokenPriceIDs map[uint16]string, baseURL string, api
 		return nil, fmt.Errorf("pyth max staleness must be positive")
 	}
 	// Hermes requires authentication from 2026-08-18 onwards, on both the current
-	// and the upgraded endpoint, so an unauthenticated feed is not a usable config.
+	// and the upgraded endpoint. Unauthenticated requests still succeed until then,
+	// but an updater configured today keeps running past the cutover, at which point
+	// every Hermes request starts failing with nothing having changed on our side.
+	// Refusing to start is the earlier and louder failure, so the key is required
+	// rather than merely recommended.
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" {
 		return nil, fmt.Errorf("pyth price feed requires --pyth-api-key")

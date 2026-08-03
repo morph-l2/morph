@@ -75,7 +75,7 @@ type Config struct {
 	ChainlinkETHUSDFeed   common.Address                      // ETH/USD AggregatorV3 feed address
 	ChainlinkMaxStaleness time.Duration                       // Maximum accepted age for Chainlink feed rounds
 	PythHermesBaseURL     string                              // Pyth Hermes API base URL
-	PythAPIKey            string                              // Optional Pyth Hermes API key
+	PythAPIKey            string                              // Pyth Hermes API key, required when the Pyth feed is enabled
 	PythETHUSDPriceID     string                              // Pyth ETH/USD price ID
 	PythMaxStaleness      time.Duration                       // Maximum accepted age for Pyth prices
 	PythMaxConfidenceBPS  uint64                              // Maximum accepted Pyth confidence interval in BPS (0 disables)
