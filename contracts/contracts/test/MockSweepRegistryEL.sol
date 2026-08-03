@@ -4,16 +4,14 @@ pragma solidity =0.8.24;
 /**
  * @title MockSweepRegistryEL
  * @notice Minimal SweepRegistry test double for the morph-reth execution-layer tests.
- * @dev The EL resolves sweep candidates by reading Registry storage DIRECTLY rather
- *      than calling {resolveSweep} (spec §14 item 10 ③). A test double is therefore
- *      only useful if its storage LAYOUT matches production: the padding below puts
- *      `sources` on slot 253 and `tokenWhitelist` on slot 254, and `SourceRecord`
- *      packs identically to the real one (`destination` in the low 20 bytes of
- *      `base + 0`, `enabled` at byte offset 20, `nonce` at `base + 1`).
+ * @dev The EL resolves sweep candidates through the production
+ *      {resolveSweep(address,address)} ABI. The fixture retains the production
+ *      storage layout as an additional compatibility check, but the EL does not
+ *      depend on those slot numbers.
  *
  *      Unlike production this exposes an unauthenticated {setSweep} so EL tests can
  *      register without building EIP-712 signatures. Everything the EL actually
- *      reads is byte-for-byte faithful; only the write path is relaxed.
+ *      calls is byte-for-byte faithful; only the write path is relaxed.
  *
  *      Regenerate the runtime hex embedded in
  *      `morph-reth/crates/node/tests/it/sweep.rs` as `TEST_REGISTRY_RUNTIME` with:
@@ -29,15 +27,13 @@ contract MockSweepRegistryEL {
         uint256 nonce;
     }
 
-    /// @dev Occupies slots 0..252 so the mappings below land on the production slots.
-    ///      Keep in sync with `SweepRegistry`; the storage-layout invariant test in
-    ///      `SweepRegistry.t.sol` pins the values this must match.
+    /// @dev Occupies slots 0..252 so the mappings below retain the production layout.
     uint256[253] private __layoutPad;
 
-    /// @notice Source address => registration record. MUST be slot 253.
+    /// @notice Source address => registration record.
     mapping(address source => SourceRecord record) public sources;
 
-    /// @notice ERC-20 token => whether it is sweepable. MUST be slot 254.
+    /// @notice ERC-20 token => whether it is sweepable.
     mapping(address token => bool enabled) public tokenWhitelist;
 
     event SweepRequested(address indexed token, address indexed source);

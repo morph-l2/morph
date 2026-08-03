@@ -5,14 +5,11 @@ pragma solidity =0.8.24;
  * @title ISweepRegistry
  * @notice Interface for the Onyx sweep auto-sweep Registry.
  * @dev The execution layer (EL) consumes this contract through a frozen surface;
- *      the storage layout and event topics below MUST match the EL byte-for-byte
- *      (see the Morph sweep spec S0Z9 §5.4 and §6):
- *        - the EL resolves every sweep candidate by reading this contract's
- *          storage slots directly (`sources` and `tokenWhitelist`); a zero
- *          destination means "not sweepable". {resolveSweep} mirrors that logic
- *          in Solidity for tooling and tests but is NOT on the EL hot path,
- *          so the STORAGE LAYOUT — not this function's ABI — is the frozen
- *          consensus surface. See the storage note in {SweepRegistry};
+ *      the resolver ABI and event topics below MUST match the EL byte-for-byte:
+ *        - the EL resolves every sweep candidate through a bounded `STATICCALL`
+ *          to {resolveSweep}; a zero destination means "not sweepable". The
+ *          selector, exact 32-byte address encoding, and resolver semantics are
+ *          the frozen consensus surface;
  *        - `SweepRequested` logs are lifted into candidates by the EL
  *          at transaction end and replayed through the same sweep path;
  *        - `Swept` and `SweepFailed` are appended BY THE EL (with the Registry
@@ -24,9 +21,6 @@ interface ISweepRegistry {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Per-source registration record.
-    /// @dev Field order and packing are a consensus surface: the EL reads
-    ///      `destination` and `enabled` from `base + 0` (offsets 0 and 20) and
-    ///      `nonce` from `base + 1`. Changing this layout is a hardfork.
     struct SourceRecord {
         address destination; // Collection destination resolved by the EL.
         bool enabled; // Whether the source is currently sweepable (active).
@@ -64,7 +58,7 @@ interface ISweepRegistry {
     ///         `transfer` drains the source balance. NEVER emitted from Solidity.
     /// @dev `transferLogOffset` is the zero-based index of the paired
     ///      `Transfer(source, destination, amount)` within the same receipt's log
-    ///      array — not a block-global RPC logIndex (see spec §6.3).
+    ///      array — not a block-global RPC logIndex.
     event Swept(
         address indexed token,
         address indexed source,
@@ -78,7 +72,7 @@ interface ISweepRegistry {
     ///         to a non-zero destination did not complete its sweep. NEVER
     ///         emitted from Solidity.
     /// @dev Makes sweep failures an on-chain, indexable fact so reconciliation
-    ///      does not depend on any single node's metrics (spec §14 item 1).
+    ///      does not depend on any single node's metrics.
     ///      The indexed layout deliberately mirrors {Swept} so an indexer can
     ///      use one filter for both outcomes.
     ///
@@ -133,7 +127,7 @@ interface ISweepRegistry {
     /// @notice Register a single source for sweeping, collecting to `destination`.
     /// @dev Caller must be `destination` or one of its authorized operators. The
     ///      `sourceSignature` must be an EIP-712 `SweepAuthorization`
-    ///      signed by `source` (see spec §5.3).
+    ///      signed by `source`.
     /// @param source          The plain-EOA source address (no code/delegation).
     /// @param destination     The collection destination.
     /// @param nonce           Must equal the source's current nonce.
@@ -153,8 +147,8 @@ interface ISweepRegistry {
 
     /// @notice Disable an active sweep source. Caller must be the source's
     ///         destination or one of its authorized operators.
-    /// @dev v1: a disabled source cannot be re-enabled and cannot be poked; a
-    ///      destination/operator must poke to drain any residual balance BEFORE
+    /// @dev A disabled source cannot be re-enabled and cannot be poked; a
+    ///      destination/operator must poke to drain any residual balance before
     ///      disabling.
     /// @param source The source to disable.
     function disableSweep(address source) external;
@@ -162,7 +156,7 @@ interface ISweepRegistry {
     /// @notice Permissionless request to re-scan `source` for `token`. Emits
     ///         {SweepRequested} so the EL retries the sweep at tx end.
     /// @dev Does NOT bypass whitelist/active checks and does NOT move tokens
-    ///      itself (see spec §6.2). Reverts if the pair is not currently sweepable.
+    ///      itself. Reverts if the pair is not currently sweepable.
     /// @param token  The whitelisted ERC-20 token.
     /// @param source The active sweep source.
     function pokeSweep(address token, address source) external;
@@ -187,12 +181,10 @@ interface ISweepRegistry {
     ///         collection destination for a (token, source) pair, or the zero
     ///         address if not sweepable.
     /// @dev MUST return zero unless ALL hold: `token` is whitelisted, `source`
-    ///      is active, and its destination is non-zero (spec §5.5 / §7.5.2).
-    ///      The EL does NOT call this function — it reads the same two storage
-    ///      slots directly (spec §14 item 10 ③). This function and the EL's slot
-    ///      read MUST stay semantically identical; the storage-layout invariant
-    ///      test in `SweepRegistry.t.sol` guards the layout half of that
-    ///      contract.
+    ///      is active, and its destination is non-zero.
+    ///      The EL calls this function with a fixed gas limit and requires an
+    ///      exact 32-byte canonical address result. Reverting or malformed
+    ///      output classifies the candidate as a resolver failure.
     /// @param token  The ERC-20 token being swept.
     /// @param source The source address receiving the inflow.
     /// @return destination The collection destination, or `address(0)` if not sweepable.

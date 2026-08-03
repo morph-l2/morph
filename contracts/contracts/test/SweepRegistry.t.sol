@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.24;
 
-import "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
 import {SweepRegistry} from "../l2/system/SweepRegistry.sol";
 import {ISweepRegistry} from "../l2/system/ISweepRegistry.sol";
@@ -24,11 +24,6 @@ contract SweepRegistryTest is Test {
 
     address internal destination = address(0x11115);
     address internal token = address(0xDEADBEEF);
-
-    // Storage slots the execution layer reads directly (spec §14 item 10 ③).
-    // Asserted against the live layout in test_storage_layout_frozen_for_el.
-    uint256 internal constant SOURCES_SLOT = 253;
-    uint256 internal constant TOKEN_WHITELIST_SLOT = 254;
 
     // Must match the contract's frozen tags (asserted in a dedicated test).
     bytes32 internal constant AUTH_TYPEHASH =
@@ -102,22 +97,6 @@ contract SweepRegistryTest is Test {
         bytes memory sig = _sign(sourcePk, source, destination, 0, deadline);
         vm.prank(caller);
         registry.registerSweep(source, destination, 0, deadline, sig);
-    }
-
-    /// @dev Reimplements the execution layer's resolver exactly as it will run:
-    ///      two raw storage reads, no contract call. Used to prove the EL's slot
-    ///      read and {ISweepRegistry.resolveSweep} cannot drift apart.
-    function _resolveViaSlots(address token_, address source_) internal view returns (address) {
-        bytes32 recordBase = keccak256(abi.encode(source_, SOURCES_SLOT));
-        uint256 word0 = uint256(vm.load(address(registry), recordBase));
-        address dest = address(uint160(word0));
-        bool enabled = ((word0 >> 160) & 0xFF) != 0;
-
-        bytes32 whitelistSlot = keccak256(abi.encode(token_, TOKEN_WHITELIST_SLOT));
-        bool listed = uint256(vm.load(address(registry), whitelistSlot)) != 0;
-
-        if (listed && enabled && dest != address(0)) return dest;
-        return address(0);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -281,7 +260,7 @@ contract SweepRegistryTest is Test {
         registry.registerSweep(sourceB, source, 0, deadline, sig);
     }
 
-    /// @dev §14 item 9: self-reference is refused at registration. Sweeping an
+    /// @dev Self-reference is refused at registration. Sweeping an address to itself
     ///      address to itself is a guaranteed no-op that would still burn a
     ///      candidate slot on every inflow.
     function test_register_reverts_self_reference() public {
@@ -335,64 +314,19 @@ contract SweepRegistryTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
-                    EL storage-layout consensus surface
+                         EL resolver ABI surface
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev The execution layer resolves candidates with two raw SLOADs instead
-    ///      of calling {ISweepRegistry.resolveSweep} (spec §14 item 10 ③). This
-    ///      contract sits behind a proxy, so an upgrade that reorders or repacks
-    ///      the storage declarations would silently change what the EL reads —
-    ///      a hardfork disguised as an upgrade. This test fails if that happens.
-    function test_storage_layout_frozen_for_el() public {
+    function test_resolveSweep_returns_exact_canonical_address_word() public {
         _register(destination);
 
-        bytes32 recordBase = keccak256(abi.encode(source, SOURCES_SLOT));
-        uint256 word0 = uint256(vm.load(address(registry), recordBase));
-
-        // base + 0, low 20 bytes -> destination
-        assertEq(address(uint160(word0)), destination, "destination must sit at base+0 offset 0");
-        // base + 0, byte offset 20 -> enabled
-        assertEq((word0 >> 160) & 0xFF, 1, "enabled must sit at base+0 offset 20");
-        // Nothing else may share the first word.
-        assertEq(word0 >> 168, 0, "base+0 must hold only destination and enabled");
-        // base + 1 -> nonce
-        assertEq(
-            uint256(vm.load(address(registry), bytes32(uint256(recordBase) + 1))),
-            1,
-            "nonce must sit at base+1"
+        (bool success, bytes memory output) = address(registry).staticcall(
+            abi.encodeCall(ISweepRegistry.resolveSweep, (token, source))
         );
 
-        // tokenWhitelist lives one slot after sources.
-        bytes32 whitelistSlot = keccak256(abi.encode(token, TOKEN_WHITELIST_SLOT));
-        assertEq(uint256(vm.load(address(registry), whitelistSlot)), 1, "whitelist flag slot moved");
-    }
-
-    /// @dev The EL's slot read and the Solidity resolver must agree in every
-    ///      state, otherwise the two clients of this layout can disagree about
-    ///      whether a candidate is sweepable.
-    function test_el_slot_read_matches_resolveSweep_in_every_state() public {
-        // Unregistered.
-        assertEq(_resolveViaSlots(token, source), registry.resolveSweep(token, source));
-        assertEq(_resolveViaSlots(token, source), address(0));
-
-        // Registered and whitelisted.
-        _register(destination);
-        assertEq(_resolveViaSlots(token, source), registry.resolveSweep(token, source));
-        assertEq(_resolveViaSlots(token, source), destination);
-
-        // Token de-whitelisted.
-        vm.prank(owner);
-        registry.setTokenWhitelist(token, false);
-        assertEq(_resolveViaSlots(token, source), registry.resolveSweep(token, source));
-        assertEq(_resolveViaSlots(token, source), address(0));
-
-        // Re-whitelisted, then source disabled.
-        vm.prank(owner);
-        registry.setTokenWhitelist(token, true);
-        vm.prank(destination);
-        registry.disableSweep(source);
-        assertEq(_resolveViaSlots(token, source), registry.resolveSweep(token, source));
-        assertEq(_resolveViaSlots(token, source), address(0));
+        assertTrue(success);
+        assertEq(output.length, 32);
+        assertEq(abi.decode(output, (address)), destination);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -473,7 +407,7 @@ contract SweepRegistryTest is Test {
         _register(destination);
         vm.prank(destination);
         registry.disableSweep(source);
-        // v1: disabled sources cannot be poked.
+        // Disabled sources cannot be poked.
         vm.expectRevert(ISweepRegistry.SourceNotActive.selector);
         registry.pokeSweep(token, source);
     }

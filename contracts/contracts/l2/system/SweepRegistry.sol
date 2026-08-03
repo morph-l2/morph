@@ -14,19 +14,19 @@ import {ISweepRegistry} from "./ISweepRegistry.sol";
  * @notice Registry of destination-controlled "sweep source" EOAs whose
  *         whitelisted ERC-20 inflows are auto-swept to a destination wallet by
  *         the Morph execution layer at transaction end (Onyx hardfork).
- * @dev Consensus surface: the EL resolves candidates by reading this contract's
- *      storage directly and lifts {SweepRequested} logs into sweep candidates.
- *      This contract only records authorizations and emits requests — it never
- *      moves tokens itself. See the sweep spec S0Z9 §5–§6.
+ * @dev Consensus surface: the EL resolves candidates through a bounded
+ *      `STATICCALL` to {resolveSweep} and lifts {SweepRequested} logs into sweep
+ *      candidates. This contract only records authorizations and emits requests
+ *      — it never moves tokens itself.
  *
- *      Double authorization (§5.2): a source's private key signs an EIP-712
+ *      Double authorization: a source's private key signs an EIP-712
  *      {SweepAuthorization} (proves consent, prevents hijacking a
  *      third party's address) AND a destination/operator submits it (prevents an
  *      outside user from attaching addresses to someone else's book).
  *
- *      v1 lifecycle is one-way: register -> (poke to drain residuals) -> disable.
- *      Disabling is terminal; re-enable, destination swaps and source-side revoke
- *      are intentionally NOT supported in v1.
+ *      The lifecycle is one-way: register -> (poke to drain residuals) -> disable.
+ *      Disabling is terminal; the registry does not support re-enabling a source,
+ *      changing its destination, or revocation by the source.
  */
 contract SweepRegistry is
     ISweepRegistry,
@@ -39,8 +39,8 @@ contract SweepRegistry is
                                Constants
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev EIP-712 type hash for the source authorization (spec §5.3). The
-    ///      field order/types are frozen and must match signer tooling exactly.
+    /// @dev EIP-712 type hash for the source authorization. The field order and
+    ///      types are frozen and must match signer tooling exactly.
     // solhint-disable-next-line var-name-mixedcase
     bytes32 private constant _AUTHORIZATION_TYPEHASH =
         keccak256(
@@ -53,41 +53,29 @@ contract SweepRegistry is
 
     /// @notice Sweep-scope tag. Restricts the grant to
     ///         `transfer(destination, balance)` of whitelisted ERC-20s only
-    ///         (spec §5.3).
+    ///         (the declared sweep scope).
     /// @dev Adding a token to the whitelist retroactively widens the scope of
     ///      every authorization already signed under this tag. The grant can only
     ///      ever move tokens to the destination the source itself designated, so
     ///      it cannot be used to steal — but whitelist additions are a governance
-    ///      decision that needs a published policy (spec §14 item 7).
+    ///      decision that needs a published policy.
     bytes32 public constant SWEEP_SCOPE = keccak256("WHITELISTED_ERC20_TO_DESTINATION_ONLY");
 
     /// @dev High 144 bits of the reserved system address segment (0x5300…0000).
     ///      Any address sharing this prefix (0x5300…0000 – 0x5300…FFFF) is a
     ///      system/predeploy slot and may not be a source or destination.
-    /// @dev TODO(onyx): keep this range aligned with the go-ethereum system
-    ///      address definition when the geth sweep implementation lands.
+    /// @dev The system address range must remain aligned with the execution-layer
+    ///      system address definition.
     uint160 private constant _SYSTEM_SEGMENT_PREFIX = uint160(0x5300000000000000000000000000000000000000) >> 16;
 
     /*//////////////////////////////////////////////////////////////
                                 Storage
     //////////////////////////////////////////////////////////////*/
 
-    // WARNING — the two mappings below are a CONSENSUS SURFACE.
-    //
-    // The EL resolves sweep candidates by reading these slots directly rather
-    // than by calling {resolveSweep} (spec §14 item 10 ③), so their slot numbers
-    // AND the field packing of {SourceRecord} are frozen:
-    //
-    //   keccak256(abi.encode(source, 253))  -> SourceRecord
-    //       base + 0, low 20 bytes = destination
-    //       base + 0, offset 20    = enabled
-    //       base + 1               = nonce
-    //   keccak256(abi.encode(token,  254))  -> tokenWhitelist (non-zero = listed)
-    //
-    // This contract sits behind a TransparentUpgradeableProxy. Any upgrade that
-    // reorders, inserts, or repacks these declarations silently changes what the
-    // EL reads and is therefore a hardfork, not an upgrade. The storage-layout
-    // invariant test in `SweepRegistry.t.sol` fails the build if the slots move.
+    // This contract sits behind a TransparentUpgradeableProxy, so upgrades must
+    // follow the ordinary OpenZeppelin storage-compatibility rules. The EL does
+    // not read these slots directly; its frozen surface is the `resolveSweep`
+    // ABI and semantics below.
 
     /// @notice Source address => registration record.
     mapping(address source => SourceRecord record) public sources;
@@ -128,9 +116,8 @@ contract SweepRegistry is
     /// @dev Not gated by pause: pausing halts new registrations/pokes but must not
     ///      silently strand already-authorized sources mid-reconciliation. Sweep
     ///      of a specific token is stopped by de-whitelisting it instead.
-    ///
-    ///      Must stay semantically identical to the EL's slot read: same two
-    ///      mappings, same three conditions.
+    ///      The return encoding and three conditions below are consensus-facing
+    ///      because every EL client calls this function during sweep preflight.
     function resolveSweep(address token, address source) external view returns (address destination) {
         SourceRecord storage rec = sources[source];
         if (tokenWhitelist[token] && rec.enabled && rec.destination != address(0)) {
@@ -197,9 +184,9 @@ contract SweepRegistry is
 
     /// @inheritdoc ISweepRegistry
     function pokeSweep(address token, address source) external whenNotPaused {
-        // Permissionless, but must not bypass the whitelist / active checks the
-        // resolver enforces (§6.2). The EL still re-runs the full sweep path
-        // (registry read + EOA/code recheck) after this request log is emitted.
+    // Permissionless, but must not bypass the whitelist / active checks the
+        // resolver enforces. The EL still re-runs the full sweep path (registry
+        // read + EOA/code recheck) after this request log is emitted.
         if (!tokenWhitelist[token]) revert TokenNotWhitelisted();
         if (!sources[source].enabled) revert SourceNotActive();
 
@@ -231,7 +218,7 @@ contract SweepRegistry is
                           Internal Functions
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev Shared registration path enforcing the spec §5.5 validation rules.
+    /// @dev Shared registration path enforcing the registry validation rules.
     function _register(
         address source,
         address destination,
@@ -244,31 +231,31 @@ contract SweepRegistry is
         // NotAuthorized.
         if (destination == address(0)) revert ZeroAddress();
 
-        // Caller must be the destination or one of its authorized operators (§5.5).
+        // Caller must be the destination or one of its authorized operators.
         if (msg.sender != destination && !operators[destination][msg.sender]) revert NotAuthorized();
 
         // Destination: not a system address, not itself an active source (avoids
-        // recursive collection and destination-wallet ambiguity, §5.5).
+        // recursive collection and destination-wallet ambiguity).
         if (_isSystemSegment(destination)) revert SystemAddressNotAllowed();
         if (sources[destination].enabled) revert DestinationIsActiveSource();
 
         // Source: non-zero, not a system address, plain EOA. A non-empty code
         // length also rejects EIP-7702 delegations, keeping error-chain recovery
-        // and EOA semantics intact (§5.5). The EL rechecks this at sweep time.
+        // and EOA semantics intact. The EL rechecks this at sweep time.
         if (source == address(0)) revert ZeroAddress();
         if (_isSystemSegment(source)) revert SystemAddressNotAllowed();
         if (source.code.length != 0) revert SourceNotEOA();
 
-        // Reject self-reference (§14 item 9). Sweeping an address to itself is a
+        // Reject self-reference. Sweeping an address to itself is a guaranteed
         // guaranteed no-op that still consumes a candidate slot on every inflow,
         // so it is refused at registration rather than skipped at sweep time. The
         // EL keeps its own skip guard as defence in depth.
         if (source == destination) revert DestinationIsSource();
 
         SourceRecord storage rec = sources[source];
-        // v1: a source may be registered exactly once. A non-zero destination
+        // A source may be registered exactly once. A non-zero destination
         // means it is currently active or already disabled (terminal) — neither
-        // may be re-registered (no re-enable / destination swap in v1).
+        // may be re-registered.
         if (rec.destination != address(0)) revert SourceAlreadyRegistered();
 
         // Replay protection: nonce must match and the signature must be unexpired.
@@ -276,7 +263,7 @@ contract SweepRegistry is
         // solhint-disable-next-line not-rely-on-time
         if (block.timestamp > deadline) revert SignatureExpired();
 
-        // EIP-712 authorization must recover to the source key (§5.3). `registry`
+        // EIP-712 authorization must recover to the source key. `registry`
         // and `chainId` in the struct bind the signature to this contract/chain.
         bytes32 structHash = keccak256(
             abi.encode(
@@ -307,13 +294,6 @@ contract SweepRegistry is
         return (uint160(addr) >> 16) == _SYSTEM_SEGMENT_PREFIX;
     }
 
-    /*//////////////////////////////////////////////////////////////
-        v2 TODO (intentionally NOT in v1): destination staking / commercial
-        onboarding gate before a destination may register (§5.6/§6.x), source
-        re-enable, destination swap, and source-side revoke. Adding any of these
-        must preserve the frozen storage layout and event topics above.
-    //////////////////////////////////////////////////////////////*/
-
-    /// @dev Reserved storage gap for future upgrades.
+    /// @dev Reserved storage gap preserving proxy storage compatibility.
     uint256[50] private __gap;
 }
