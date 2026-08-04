@@ -1,12 +1,23 @@
 package derivation
 
 import (
+	"context"
+	"math/big"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
+	eth "github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/ethclient"
+	"github.com/morph-l2/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
+	tmlog "github.com/tendermint/tendermint/libs/log"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/node/db"
+	nodesync "morph-l2/node/sync"
 	"morph-l2/node/types"
 )
 
@@ -40,4 +51,97 @@ func TestUnPackData(t *testing.T) {
 	require.NoError(t, err)
 	_, err = d.UnPackData(beforeMoveBctxTxData)
 	require.NoError(t, err)
+}
+
+type testBlockSyncStatus struct {
+	catchingUp atomic.Bool
+	waitCalls  atomic.Int64
+}
+
+func (s *testBlockSyncStatus) WaitSync() bool {
+	s.waitCalls.Add(1)
+	return s.catchingUp.Load()
+}
+
+type recordingEthAPI struct {
+	blockNumberCalls atomic.Int64
+	getLogsCalls     atomic.Int64
+}
+
+func (api *recordingEthAPI) BlockNumber() hexutil.Uint64 {
+	api.blockNumberCalls.Add(1)
+	return hexutil.Uint64(100)
+}
+
+func (api *recordingEthAPI) GetLogs(context.Context, map[string]interface{}) ([]eth.Log, error) {
+	api.getLogsCalls.Add(1)
+	return nil, nil
+}
+
+func (api *recordingEthAPI) Call(context.Context, map[string]interface{}, string) (hexutil.Bytes, error) {
+	return make(hexutil.Bytes, 32), nil
+}
+
+func (api *recordingEthAPI) GetBlockByNumber(context.Context, string, bool) (*eth.Header, error) {
+	return &eth.Header{
+		UncleHash:   eth.EmptyUncleHash,
+		TxHash:      eth.EmptyRootHash,
+		ReceiptHash: eth.EmptyRootHash,
+		Difficulty:  big.NewInt(0),
+		Number:      big.NewInt(100),
+		GasLimit:    30_000_000,
+		Time:        1,
+		Extra:       []byte{},
+	}, nil
+}
+
+func TestDerivationStartDefersL1PollingUntilBlockSyncCompletes(t *testing.T) {
+	server := rpc.NewServer()
+	api := new(recordingEthAPI)
+	require.NoError(t, server.RegisterName("eth", api))
+	rpcClient := rpc.DialInProc(server)
+	t.Cleanup(func() {
+		rpcClient.Close()
+		server.Stop()
+	})
+
+	l1Client := ethclient.NewClient(rpcClient)
+	rollup, err := bindings.NewRollup(common.Address{}, l1Client)
+	require.NoError(t, err)
+	store := db.NewMemoryStore()
+	syncStatus := new(testBlockSyncStatus)
+	syncStatus.catchingUp.Store(true)
+	ctx, cancel := context.WithCancel(context.Background())
+	d := &Derivation{
+		ctx:             ctx,
+		cancel:          cancel,
+		nodeSyncStatus:  syncStatus,
+		syncer:          nodesync.NewFakeSyncer(store),
+		db:              store,
+		l1Client:        l1Client,
+		l2Client:        types.NewRetryableClient(nil, l1Client, tmlog.NewNopLogger()),
+		rollup:          rollup,
+		metrics:         newDiscardMetrics(),
+		confirmations:   rpc.LatestBlockNumber,
+		logger:          tmlog.NewNopLogger(),
+		stop:            make(chan struct{}),
+		pollInterval:    5 * time.Millisecond,
+		fetchBlockRange: 500,
+	}
+	d.Start()
+	t.Cleanup(d.Stop)
+
+	require.Eventually(t, func() bool {
+		return syncStatus.waitCalls.Load() >= 2
+	}, time.Second, 5*time.Millisecond, "derivation must observe more than one catching-up cycle")
+	require.Zero(t, api.blockNumberCalls.Load(), "catching-up derivation must not pin an L1 start height")
+	require.Zero(t, api.getLogsCalls.Load(), "catching-up derivation must not poll Rollup logs")
+	require.Nil(t, store.ReadLatestDerivationL1Height(), "catching-up derivation must not persist an L1 cursor")
+
+	syncStatus.catchingUp.Store(false)
+	require.Eventually(t, func() bool {
+		cursor := store.ReadLatestDerivationL1Height()
+		return cursor != nil && *cursor == 100
+	}, time.Second, 5*time.Millisecond, "derivation must resume and advance its L1 cursor after block sync")
+	require.Positive(t, api.getLogsCalls.Load(), "resumed derivation must poll Rollup logs")
 }
