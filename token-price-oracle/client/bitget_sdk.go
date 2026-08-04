@@ -27,9 +27,9 @@ const (
 // This type is safe for concurrent use by multiple goroutines
 type BitgetSDKPriceFeed struct {
 	httpClient *http.Client
-	mu         sync.RWMutex          // protects tokenMap and ethPrice
-	tokenMap   map[uint16]string     // guarded by mu
-	ethPrice   *big.Float            // guarded by mu
+	mu         sync.RWMutex      // protects tokenMap and ethPrice
+	tokenMap   map[uint16]string // guarded by mu
+	ethPrice   *big.Float        // guarded by mu
 	log        log.Logger
 	baseURL    string
 }
@@ -66,8 +66,13 @@ func NewBitgetSDKPriceFeed(tokenMap map[uint16]string, baseURL string) *BitgetSD
 	}
 }
 
-// GetTokenPrice returns token price in USD
-// Note: Caller should ensure ETH price is updated via GetBatchTokenPrices for batch operations
+// GetTokenPrice returns token price in USD.
+//
+// The token price is always fetched fresh. The ETH leg is not: GetBatchTokenPrices
+// samples it once per cycle and every token in that cycle divides by that one sample,
+// which keeps a cycle at N+1 requests rather than 2N against a rate-limited endpoint.
+// A standalone call fetches ETH only when it has never been fetched, so outside the
+// batch path the ETH leg can be arbitrarily older than the token leg.
 //
 // Stablecoin handling:
 // - If the symbol starts with "$" (e.g., "$1.0"), it's treated as a stablecoin with fixed price
@@ -82,9 +87,13 @@ func (b *BitgetSDKPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) 
 		return nil, fmt.Errorf("token ID %d not mapped to trading pair", tokenID)
 	}
 
-	// Use cached ETH price (should be updated by GetBatchTokenPrices)
 	if ethPrice.Cmp(big.NewFloat(0)) == 0 {
-		return nil, fmt.Errorf("ETH price not initialized, please call GetBatchTokenPrices first")
+		if err := b.updateETHPrice(ctx); err != nil {
+			return nil, fmt.Errorf("failed to initialize ETH price: %w", err)
+		}
+		b.mu.RLock()
+		ethPrice = new(big.Float).Copy(b.ethPrice)
+		b.mu.RUnlock()
 	}
 
 	var tokenPrice *big.Float
@@ -96,10 +105,11 @@ func (b *BitgetSDKPriceFeed) GetTokenPrice(ctx context.Context, tokenID uint16) 
 		if err != nil {
 			return nil, fmt.Errorf("invalid stablecoin price format '%s': %w", symbol, err)
 		}
-		if fixedPrice <= 0 {
-			return nil, fmt.Errorf("stablecoin price must be positive, got '%s'", symbol)
+		price, ok := newFinitePositiveFloat(fixedPrice)
+		if !ok {
+			return nil, fmt.Errorf("stablecoin price must be a positive finite number, got '%s'", symbol)
 		}
-		tokenPrice = big.NewFloat(fixedPrice)
+		tokenPrice = price
 
 		b.log.Info("Using fixed stablecoin price",
 			"source", "stablecoin",
@@ -261,12 +271,16 @@ func (b *BitgetSDKPriceFeed) fetchPriceOnce(ctx context.Context, symbol string) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse price '%s': %w", lastPriceStr, err)
 	}
+	price, ok := newFinitePositiveFloat(lastPrice)
+	if !ok {
+		return nil, fmt.Errorf("price must be a positive finite number for symbol %s, got %s", symbol, lastPriceStr)
+	}
 
 	b.log.Debug("Fetched price from Bitget API",
 		"symbol", symbol,
 		"price", lastPrice)
 
-	return big.NewFloat(lastPrice), nil
+	return price, nil
 }
 
 // UpdateTokenMap updates token mapping

@@ -108,8 +108,11 @@ func DefaultConfig() *Config {
 			// tag: 10 blocks (~2 min on mainnet) keeps lag low, and the always-on
 			// L1 reorg detector (SPEC-005 §4.7.6 in reorg.go) rewinds the
 			// derivation cursor on hash mismatch so a deeper reorg is recoverable.
-			// Operators wanting strict no-reorg-possible reads can still set
-			// --derivation.confirmations=-3 (rpc.FinalizedBlockNumber).
+			// Applies to every verify mode. Layer1 validators derive their whole
+			// chain from L1, so a deeper default translates directly into head
+			// lag and into delayed batch-divergence alerts; deployments that
+			// want a consensus-backed read instead set
+			// --derivation.confirmations=-4 (safe) or -3 (finalized) explicitly.
 			Confirmations: DefaultConfirmations,
 		},
 		PollInterval:        DefaultPollInterval,
@@ -192,14 +195,6 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 
 	if c.VerifyMode == VerifyModeLayer1 {
 		c.MetricsPort = ctx.GlobalUint64(flags.MetricsPort.Name)
-	}
-
-	// Layer1-verify validators historically derived only from finalized L1 data
-	// (the pre-centralized-sequencer default). Preserve that: unless the operator
-	// explicitly set --derivation.confirmations, a layer1 node reads finalized
-	// rather than the fixed-depth latest-N default that consensus fullnodes use.
-	if c.VerifyMode == VerifyModeLayer1 && !ctx.GlobalIsSet(flags.DerivationConfirmations.Name) {
-		c.L1.Confirmations = rpc.FinalizedBlockNumber
 	}
 
 	if ctx.GlobalIsSet(flags.DerivationReorgCheckDepth.Name) {

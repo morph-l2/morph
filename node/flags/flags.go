@@ -292,7 +292,7 @@ var (
 
 	DerivationConfirmations = cli.Int64Flag{
 		Name:   "derivation.confirmations",
-		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
+		Usage:  "How deep derivation reads L1: a positive number is a fixed depth below latest, -1 latest, -3 finalized, -4 safe. Applies to every verify mode; defaults to 10 blocks paired with the L1 reorg detector",
 		EnvVar: prefixEnvVar("DERIVATION_CONFIRMATIONS"),
 	}
 
