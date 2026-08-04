@@ -185,6 +185,12 @@ services:
       - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
       - MORPH_NODE_SEQUENCER_PRIVATE_KEY=${ACTIVE_SEQUENCER_PRIVATE_KEY}
       - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
+      # TEST-ONLY: make node-0 a local-verify follower of the start-in-sequencer-mode
+      # ha cluster. verify_mode=local drives P2P block-sync from the ha peers; born
+      # skips the PBFT/upgrade path so it matches the cluster's consensus mode.
+      # Never enable on a production network.
+      - MORPH_NODE_DERIVATION_VERIFY_MODE=local
+      - MORPH_NODE_START_IN_SEQUENCER_MODE=${START_IN_SEQUENCER_MODE:-true}
     volumes:
       - ".devnet/node0:${NODE_DATA_DIR}"
       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
