@@ -4,6 +4,8 @@ Developer genesis pre-registers three tokens in `L2TokenRegistry`. Registration
 alone does not make the tokens immediately updateable: the contract owner must
 activate them and allow the oracle signer before starting `token-price-oracle`.
 
+Shell commands below run from the repository root unless stated otherwise.
+
 ## Pre-registered tokens
 
 | Token ID | Symbol | Address | Decimals | Scale | Purpose |
@@ -128,7 +130,7 @@ batch, so the higher-priority feeds resolve tokens 1 and 2 and Bitget resolves
 token 3.
 
 Use an isolated devnet-only oracle private key. For production, use the external
-signing mode described in `token-price-oracle/README.md`.
+signing mode described in [`README.md`](README.md).
 
 ## Start the oracle
 

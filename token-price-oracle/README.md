@@ -248,6 +248,9 @@ cp env.example .env
 source .env && make run
 ```
 
+To run against a local devnet, where genesis pre-registers the test tokens the
+oracle prices, see [`DEVNET_SETUP.md`](DEVNET_SETUP.md).
+
 ## License
 
 MIT

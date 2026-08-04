@@ -17,7 +17,7 @@
 # 1 bps = 0.01%, 10 bps = 0.1%, 100 bps = 1%, 500 bps = 5%, 1000 bps = 10%
 
 # The mapping above matches the devnet genesis, which pre-registers ID 1 as BTC,
-# ID 2 as ETH and ID 3 as BGB. See DEVNET_TOKENREGISTRY_SETUP.md.
+# ID 2 as ETH and ID 3 as BGB. See DEVNET_SETUP.md.
 
 # Token mapping format:
 #   - Regular tokens: tokenID:SYMBOL (e.g., 1:BTCUSDT, 2:ETHUSDT)
