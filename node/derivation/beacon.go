@@ -235,26 +235,26 @@ func NewFallbackBeaconClient(endpoints []string, log tmlog.Logger, metrics *Metr
 	}
 }
 
-// GetBlobSidecarsEnhanced tries each configured beacon in order and returns
-// the first response carrying all requested blobs with verified content.
-// A failing beacon is recorded and skipped; if every beacon fails, the last
-// error is returned.
-func (c *FallbackBeaconClient) GetBlobSidecarsEnhanced(ctx context.Context, ref L1BlockRef, hashes []IndexedBlobHash) ([]*BlobSidecar, error) {
+// GetVerifiedBlobs tries each configured beacon in order and returns the
+// requested blobs, content-verified and in request order. A beacon that
+// errors or serves an incomplete/invalid set is recorded as a failure and
+// skipped; if every beacon fails, the last error is returned.
+func (c *FallbackBeaconClient) GetVerifiedBlobs(ctx context.Context, ref L1BlockRef, hashes []IndexedBlobHash) (types.BlobTxSidecar, error) {
+	if len(hashes) == 0 {
+		return types.BlobTxSidecar{}, nil
+	}
 	var lastErr error
 	for i, cl := range c.clients {
 		sidecars, err := cl.GetBlobSidecarsEnhanced(ctx, ref, hashes)
 		if err == nil {
-			if len(sidecars) == 0 || len(sidecars) < len(hashes) {
-				err = fmt.Errorf("beacon returned %d sidecars, want at least %d", len(sidecars), len(hashes))
-			} else {
-				err = verifySidecars(sidecars, hashes)
+			var verified types.BlobTxSidecar
+			verified, err = blobsFromSidecars(sidecars, hashes)
+			if err == nil {
+				return verified, nil
 			}
 		}
-		if err == nil {
-			return sidecars, nil
-		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, ctxErr
+			return types.BlobTxSidecar{}, ctxErr
 		}
 		if c.metrics != nil {
 			c.metrics.IncBeaconRequestFailure(c.endpoints[i])
@@ -265,42 +265,50 @@ func (c *FallbackBeaconClient) GetBlobSidecarsEnhanced(ctx context.Context, ref 
 		}
 		lastErr = err
 	}
-	return nil, lastErr
+	return types.BlobTxSidecar{}, lastErr
 }
 
-// verifySidecars checks that sidecars contains, for every requested hash, a
-// blob whose bytes commit to that hash (matched via the commitment-derived
-// versioned hash, authenticated by verifyBlob). Extra sidecars are ignored.
-func verifySidecars(sidecars []*BlobSidecar, hashes []IndexedBlobHash) error {
-	if len(hashes) == 0 {
-		return nil
-	}
+// blobsFromSidecars matches each requested hash to a sidecar via its
+// commitment-derived versioned hash, authenticates the blob bytes with
+// verifyBlob, and assembles the result in request (i.e. tx) order — batches
+// are decoded by concatenating blob bodies, so order matters. Extra sidecars
+// are ignored. Proofs are intentionally left empty: no consumer needs them
+// and computing them costs an extra KZG op per blob.
+func blobsFromSidecars(sidecars []*BlobSidecar, hashes []IndexedBlobHash) (types.BlobTxSidecar, error) {
 	byHash := make(map[common.Hash]*BlobSidecar, len(sidecars))
 	for _, sidecar := range sidecars {
 		var commitment kzg4844.Commitment
 		copy(commitment[:], sidecar.KZGCommitment[:])
 		byHash[KZGToVersionedHash(commitment)] = sidecar
 	}
+	out := types.BlobTxSidecar{
+		Blobs:       make([]kzg4844.Blob, 0, len(hashes)),
+		Commitments: make([]kzg4844.Commitment, 0, len(hashes)),
+	}
 	for i := range hashes {
 		expected := hashes[i].Hash
 		sidecar, ok := byHash[expected]
 		if !ok {
-			return fmt.Errorf("blob (hash=%s) not found in beacon response", expected.Hex())
+			return types.BlobTxSidecar{}, fmt.Errorf("blob (hash=%s) not found in beacon response", expected.Hex())
 		}
 		b, err := hexutil.Decode(sidecar.Blob)
 		if err != nil {
-			return fmt.Errorf("failed to decode blob (hash=%s): %w", expected.Hex(), err)
+			return types.BlobTxSidecar{}, fmt.Errorf("failed to decode blob (hash=%s): %w", expected.Hex(), err)
 		}
 		if len(b) != BlobSize {
-			return fmt.Errorf("blob (hash=%s): unexpected length %d (want %d)", expected.Hex(), len(b), BlobSize)
+			return types.BlobTxSidecar{}, fmt.Errorf("blob (hash=%s): unexpected length %d (want %d)", expected.Hex(), len(b), BlobSize)
 		}
 		var blob Blob
 		copy(blob[:], b)
 		if err := verifyBlob(&blob, expected); err != nil {
-			return err
+			return types.BlobTxSidecar{}, err
 		}
+		var commitment kzg4844.Commitment
+		copy(commitment[:], sidecar.KZGCommitment[:])
+		out.Blobs = append(out.Blobs, *blob.KZGBlob())
+		out.Commitments = append(out.Commitments, commitment)
 	}
-	return nil
+	return out, nil
 }
 
 // Note: ForceGetAllBlobs is defined in derivation.go in the same package

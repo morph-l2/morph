@@ -12,10 +12,8 @@ import (
 	"github.com/morph-l2/go-ethereum/accounts/abi"
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/common/hexutil"
 	eth "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
-	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	geth "github.com/morph-l2/go-ethereum/eth"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/ethclient/authclient"
@@ -575,77 +573,16 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 		indexedBlobHashes := dataAndHashesFromTxs(block.Transactions(), tx)
 		d.logger.Info("Built IndexedBlobHash array", "count", len(indexedBlobHashes))
 
-		// The fallback client only returns sidecars whose content verified
-		// against indexedBlobHashes.
-		blobSidecars, err := d.l1BeaconClient.GetBlobSidecarsEnhanced(d.ctx, L1BlockRef{
+		// Blobs come back content-verified against indexedBlobHashes and in
+		// tx order; a beacon serving bad data was already rotated away.
+		sidecar, err := d.l1BeaconClient.GetVerifiedBlobs(d.ctx, L1BlockRef{
 			Time: header.Time,
 		}, indexedBlobHashes)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get blobs, continuing processing:%v", err)
 		}
-		if len(blobSidecars) > 0 {
-			// Index beacon sidecars by their KZG-derived versioned hash so we
-			// can assemble the local sidecar in the exact order the L1 tx
-			// declared its blobs. Multi-blob batches are decoded by
-			// concatenating blob bodies in tx order; any reordering here
-			// would corrupt the resulting zstd stream. The map key is
-			// derived from the beacon-supplied commitment; verifyBlob below
-			// re-derives the same hash from the actual blob bytes, so a
-			// malicious beacon cannot forge an entry by lying about the
-			// commitment.
-			byHash := make(map[common.Hash]*BlobSidecar, len(blobSidecars))
-			for _, sidecar := range blobSidecars {
-				var commitment kzg4844.Commitment
-				copy(commitment[:], sidecar.KZGCommitment[:])
-				byHash[KZGToVersionedHash(commitment)] = sidecar
-			}
-
-			// Downstream (ParseBatch) only consumes Sidecar.Blobs and
-			// Sidecar.Commitments; Proofs is intentionally left empty to
-			// avoid an extra ~O(n) KZG op per blob per batch on every
-			// sync. If a future consumer needs Proofs, compute them
-			// lazily there or call kzg4844.ComputeBlobProof here.
-			var blobTxSidecar eth.BlobTxSidecar
-			for i, expectedHash := range blobHashes {
-				sidecar, ok := byHash[expectedHash]
-				if !ok {
-					return nil, fmt.Errorf("blob %d (hash=%s) not found in beacon sidecars", i, expectedHash.Hex())
-				}
-
-				b, err := hexutil.Decode(sidecar.Blob)
-				if err != nil {
-					return nil, fmt.Errorf("failed to decode blob %d: %w", i, err)
-				}
-				// Reject malformed beacon responses up front. copy(blob[:], b)
-				// silently:
-				//   - zero-pads when len(b) < BlobSize (tail of the
-				//     zero-initialized array stays zero)
-				//   - truncates when len(b) > BlobSize (extra bytes dropped)
-				// Either case would otherwise surface later as a confusing
-				// blob-hash mismatch instead of a clear length error.
-				if len(b) != BlobSize {
-					return nil, fmt.Errorf("blob %d: unexpected length %d (want %d, hash=%s)", i, len(b), BlobSize, expectedHash.Hex())
-				}
-				var blob Blob
-				copy(blob[:], b)
-
-				if err := verifyBlob(&blob, expectedHash); err != nil {
-					return nil, fmt.Errorf("blob %d: %w", i, err)
-				}
-
-				var commitment kzg4844.Commitment
-				copy(commitment[:], sidecar.KZGCommitment[:])
-
-				d.logger.Info("Matched blob", "txOrder", i, "beaconIndex", sidecar.Index, "hash", expectedHash.Hex())
-				blobTxSidecar.Blobs = append(blobTxSidecar.Blobs, *blob.KZGBlob())
-				blobTxSidecar.Commitments = append(blobTxSidecar.Commitments, commitment)
-			}
-
-			d.logger.Info("Blob matching results", "matched", len(blobTxSidecar.Blobs), "expected", len(blobHashes))
-			batch.Sidecar = blobTxSidecar
-		} else {
-			return nil, fmt.Errorf("not matched blob,txHash:%v,blockNumber:%v", txHash, blockNumber)
-		}
+		d.logger.Info("Fetched verified blobs", "count", len(sidecar.Blobs))
+		batch.Sidecar = sidecar
 	}
 
 	rollupData, err := d.parseBatch(batch)

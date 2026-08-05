@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/morph-l2/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	"github.com/stretchr/testify/require"
 )
@@ -101,9 +102,9 @@ func (h canceledHTTP) Get(ctx context.Context, _ string, _ http.Header) (*http.R
 	return nil, ctx.Err()
 }
 
-func fetch(t *testing.T, c *FallbackBeaconClient) ([]*BlobSidecar, error) {
+func fetch(t *testing.T, c *FallbackBeaconClient) (types.BlobTxSidecar, error) {
 	t.Helper()
-	return c.GetBlobSidecarsEnhanced(context.Background(), L1BlockRef{Time: 12}, oneHash())
+	return c.GetVerifiedBlobs(context.Background(), L1BlockRef{Time: 12}, oneHash())
 }
 
 // The primary serves the blob and the fallback is never queried.
@@ -114,7 +115,7 @@ func TestFallbackBeacon_PrimaryServesBlob(t *testing.T) {
 	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
 	sidecars, err := fetch(t, c)
 	require.NoError(t, err)
-	require.Len(t, sidecars, 1)
+	require.Len(t, sidecars.Blobs, 1)
 	require.EqualValues(t, 1, atomic.LoadInt32(primaryHits))
 	require.EqualValues(t, 0, atomic.LoadInt32(fallbackHits), "fallback must not be queried while primary serves the blob")
 }
@@ -128,7 +129,7 @@ func TestFallbackBeacon_FallsBackOnEmptyResult(t *testing.T) {
 	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
 	sidecars, err := fetch(t, c)
 	require.NoError(t, err)
-	require.Len(t, sidecars, 1)
+	require.Len(t, sidecars.Blobs, 1)
 	require.Positive(t, atomic.LoadInt32(primaryHits))
 	require.Positive(t, atomic.LoadInt32(fallbackHits))
 }
@@ -141,7 +142,7 @@ func TestFallbackBeacon_FallsBackOnServerError(t *testing.T) {
 	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
 	sidecars, err := fetch(t, c)
 	require.NoError(t, err)
-	require.Len(t, sidecars, 1)
+	require.Len(t, sidecars.Blobs, 1)
 	require.Positive(t, atomic.LoadInt32(fallbackHits))
 }
 
@@ -152,7 +153,7 @@ func TestFallbackBeacon_FallsBackOnTransportError(t *testing.T) {
 	c := NewFallbackBeaconClient([]string{"http://127.0.0.1:0", fallback}, nil, nil)
 	sidecars, err := fetch(t, c)
 	require.NoError(t, err)
-	require.Len(t, sidecars, 1)
+	require.Len(t, sidecars.Blobs, 1)
 	require.Positive(t, atomic.LoadInt32(fallbackHits))
 }
 
@@ -165,7 +166,7 @@ func TestFallbackBeacon_FallsBackOnCorruptBlobContent(t *testing.T) {
 	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
 	sidecars, err := fetch(t, c)
 	require.NoError(t, err)
-	require.Len(t, sidecars, 1)
+	require.Len(t, sidecars.Blobs, 1)
 	require.Positive(t, atomic.LoadInt32(primaryHits))
 	require.Positive(t, atomic.LoadInt32(fallbackHits), "corrupt blob content must trigger fallback")
 }
@@ -179,7 +180,7 @@ func TestFallbackBeacon_FallsBackOnMissingRequestedHash(t *testing.T) {
 	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
 	sidecars, err := fetch(t, c)
 	require.NoError(t, err)
-	require.Len(t, sidecars, 1)
+	require.Len(t, sidecars.Blobs, 1)
 	require.Positive(t, atomic.LoadInt32(primaryHits))
 	require.Positive(t, atomic.LoadInt32(fallbackHits), "missing requested hash must trigger fallback")
 }
@@ -196,10 +197,10 @@ func TestFallbackBeacon_StopsOnContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	sidecars, err := c.GetBlobSidecarsEnhanced(ctx, L1BlockRef{Time: 12}, oneHash())
+	sidecars, err := c.GetVerifiedBlobs(ctx, L1BlockRef{Time: 12}, oneHash())
 
 	require.ErrorIs(t, err, context.Canceled)
-	require.Nil(t, sidecars)
+	require.Empty(t, sidecars.Blobs)
 	require.Positive(t, atomic.LoadInt32(&primaryCalls))
 	require.Zero(t, atomic.LoadInt32(&fallbackCalls))
 }
@@ -214,7 +215,7 @@ func TestFallbackBeacon_AllFailReturnsError(t *testing.T) {
 	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, m)
 	sidecars, err := fetch(t, c)
 	require.Error(t, err)
-	require.Nil(t, sidecars)
+	require.Empty(t, sidecars.Blobs)
 	require.Positive(t, atomic.LoadInt32(primaryHits))
 	require.Positive(t, atomic.LoadInt32(fallbackHits))
 }
