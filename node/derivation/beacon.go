@@ -210,11 +210,17 @@ func dataAndHashesFromTxs(txs types.Transactions, targetTx *types.Transaction) [
 	return hashes
 }
 
-// FallbackBeaconClient queries several beacon nodes in order for blob sidecars.
-// A beacon is skipped and the next one tried when it errors, is unreachable,
-// answers with too few sidecars, or serves blob content that fails
-// verification against the requested hashes. Failing endpoints are recorded
+// FallbackBeaconClient queries several beacon nodes in order and rotates to
+// the next one when an endpoint cannot serve verified blobs (error, missing
+// data, or content failing hash verification). Failing endpoints are recorded
 // in the beacon_request_failure_total metric.
+//
+// Scope: fallback only covers per-endpoint data faults (corruption, pruned or
+// unsynced data, client bugs). It is not a consistency mechanism and should
+// not grow into one — safety against bad data comes from the KZG hash
+// verification itself, and EL/CL fork mismatches near the chain head are
+// eliminated by running derivation with confirmations=finalized, not by
+// trying more beacons.
 type FallbackBeaconClient struct {
 	clients   []*L1BeaconClient
 	endpoints []string // parallel to clients, used only for logs/metrics
