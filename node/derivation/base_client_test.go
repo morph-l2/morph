@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
@@ -96,6 +97,12 @@ func oneHash() []IndexedBlobHash {
 	return []IndexedBlobHash{{Index: 0, Hash: zeroBlobHash}}
 }
 
+// wantHashes is the verification set the caller always has (tx.BlobHashes()),
+// independent of whether index hints could be built.
+func wantHashes() []common.Hash {
+	return []common.Hash{zeroBlobHash}
+}
+
 type canceledHTTP struct {
 	calls *int32
 }
@@ -107,7 +114,7 @@ func (h canceledHTTP) Get(ctx context.Context, _ string, _ http.Header) (*http.R
 
 func fetch(t *testing.T, c *FallbackBeaconClient) (types.BlobTxSidecar, error) {
 	t.Helper()
-	return c.GetVerifiedBlobs(context.Background(), L1BlockRef{Time: 12}, oneHash())
+	return c.GetVerifiedBlobSidecar(context.Background(), L1BlockRef{Time: 12}, wantHashes(), oneHash())
 }
 
 // The primary serves the blob and the fallback is never queried.
@@ -202,6 +209,35 @@ func TestFallbackBeacon_FallsBackOnNullSidecar(t *testing.T) {
 	require.Positive(t, atomic.LoadInt32(fallbackHits), "null sidecar must trigger fallback")
 }
 
+// The #745 self-heal: when the caller cannot build index hints (the L1 block
+// body was unavailable), it passes nil hints. The client must still fetch all
+// sidecars at the slot and authenticate them by hash — a nil hint is NOT a
+// failure. Guards against turning a BlockByNumber failure back into a hard
+// error; see the DO NOT comment in fetchRollupDataByTxHash.
+func TestFallbackBeacon_VerifiesWithoutIndexHints(t *testing.T) {
+	primary, primaryHits := newStubBeacon(t, beaconServesBlob)
+
+	c := NewFallbackBeaconClient([]string{primary}, nil, nil)
+	sidecar, err := c.GetVerifiedBlobSidecar(context.Background(), L1BlockRef{Time: 12}, wantHashes(), nil)
+	require.NoError(t, err)
+	require.Len(t, sidecar.Blobs, 1)
+	require.Positive(t, atomic.LoadInt32(primaryHits))
+}
+
+// Verification stays active on the no-index fetch-all path: a corrupt primary
+// must still rotate to a healthy fallback even without index hints.
+func TestFallbackBeacon_FallsBackWithoutIndexHintsOnCorruptContent(t *testing.T) {
+	primary, primaryHits := newStubBeacon(t, beaconServesCorruptBlob)
+	fallback, fallbackHits := newStubBeacon(t, beaconServesBlob)
+
+	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
+	sidecar, err := c.GetVerifiedBlobSidecar(context.Background(), L1BlockRef{Time: 12}, wantHashes(), nil)
+	require.NoError(t, err)
+	require.Len(t, sidecar.Blobs, 1)
+	require.Positive(t, atomic.LoadInt32(primaryHits))
+	require.Positive(t, atomic.LoadInt32(fallbackHits), "corrupt content must trigger fallback even without index hints")
+}
+
 func TestFallbackBeacon_StopsOnContextCancellation(t *testing.T) {
 	var primaryCalls, fallbackCalls int32
 	c := &FallbackBeaconClient{
@@ -214,7 +250,7 @@ func TestFallbackBeacon_StopsOnContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	sidecars, err := c.GetVerifiedBlobs(ctx, L1BlockRef{Time: 12}, oneHash())
+	sidecars, err := c.GetVerifiedBlobSidecar(ctx, L1BlockRef{Time: 12}, wantHashes(), oneHash())
 
 	require.ErrorIs(t, err, context.Canceled)
 	require.Empty(t, sidecars.Blobs)

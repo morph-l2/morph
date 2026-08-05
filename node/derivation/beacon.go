@@ -241,20 +241,33 @@ func NewFallbackBeaconClient(endpoints []string, log tmlog.Logger, metrics *Metr
 	}
 }
 
-// GetVerifiedBlobs tries each configured beacon in order and returns the
-// requested blobs, content-verified and in request order. A beacon that
-// errors or serves an incomplete/invalid set is recorded as a failure and
-// skipped; if every beacon fails, the last error is returned.
-func (c *FallbackBeaconClient) GetVerifiedBlobs(ctx context.Context, ref L1BlockRef, hashes []IndexedBlobHash) (types.BlobTxSidecar, error) {
-	if len(hashes) == 0 {
+// GetVerifiedBlobSidecar fetches and content-verifies the blobs identified by
+// wantHashes — the L1 tx's versioned blob hashes, in tx order — trying each
+// configured beacon in turn. It returns the assembled BlobTxSidecar (blobs +
+// commitments, in wantHashes order). A beacon that errors or serves an
+// incomplete/invalid set is recorded as a failure and skipped; if every
+// beacon fails, the last error is returned.
+//
+// indexHints is an optional optimization, NOT a correctness input: when
+// non-empty, the first fetch attempt asks the beacon for only those sidecar
+// indices (?indices=) instead of the whole slot. Verification is purely by
+// hash — verifyBlob re-derives each commitment from the blob bytes and checks
+// it against wantHashes — so a caller that cannot build indices (e.g. the L1
+// block body is unavailable) may pass nil and every sidecar at the slot is
+// fetched and matched by hash instead. Keeping index (a data-fetch detail)
+// and hash (the security check) apart is deliberate: conflating them is what
+// previously made a block-body fetch failure look "unverifiable" and led to
+// dropping the fetch-all self-heal.
+func (c *FallbackBeaconClient) GetVerifiedBlobSidecar(ctx context.Context, ref L1BlockRef, wantHashes []common.Hash, indexHints []IndexedBlobHash) (types.BlobTxSidecar, error) {
+	if len(wantHashes) == 0 {
 		return types.BlobTxSidecar{}, nil
 	}
 	var lastErr error
 	for i, cl := range c.clients {
-		sidecars, err := cl.GetBlobSidecarsEnhanced(ctx, ref, hashes)
+		sidecars, err := cl.GetBlobSidecarsEnhanced(ctx, ref, indexHints)
 		if err == nil {
 			var verified types.BlobTxSidecar
-			verified, err = blobsFromSidecars(sidecars, hashes)
+			verified, err = blobsFromSidecars(sidecars, wantHashes)
 			if err == nil {
 				return verified, nil
 			}
@@ -274,13 +287,13 @@ func (c *FallbackBeaconClient) GetVerifiedBlobs(ctx context.Context, ref L1Block
 	return types.BlobTxSidecar{}, lastErr
 }
 
-// blobsFromSidecars matches each requested hash to a sidecar via its
+// blobsFromSidecars matches each wanted versioned hash to a sidecar via its
 // commitment-derived versioned hash, authenticates the blob bytes with
-// verifyBlob, and assembles the result in request (i.e. tx) order — batches
+// verifyBlob, and assembles the result in wantHashes (i.e. tx) order — batches
 // are decoded by concatenating blob bodies, so order matters. Extra sidecars
 // are ignored. Proofs are intentionally left empty: no consumer needs them
 // and computing them costs an extra KZG op per blob.
-func blobsFromSidecars(sidecars []*BlobSidecar, hashes []IndexedBlobHash) (types.BlobTxSidecar, error) {
+func blobsFromSidecars(sidecars []*BlobSidecar, wantHashes []common.Hash) (types.BlobTxSidecar, error) {
 	byHash := make(map[common.Hash]*BlobSidecar, len(sidecars))
 	for _, sidecar := range sidecars {
 		// JSON null entries decode to nil; skipping them surfaces as a
@@ -293,11 +306,10 @@ func blobsFromSidecars(sidecars []*BlobSidecar, hashes []IndexedBlobHash) (types
 		byHash[KZGToVersionedHash(commitment)] = sidecar
 	}
 	out := types.BlobTxSidecar{
-		Blobs:       make([]kzg4844.Blob, 0, len(hashes)),
-		Commitments: make([]kzg4844.Commitment, 0, len(hashes)),
+		Blobs:       make([]kzg4844.Blob, 0, len(wantHashes)),
+		Commitments: make([]kzg4844.Commitment, 0, len(wantHashes)),
 	}
-	for i := range hashes {
-		expected := hashes[i].Hash
+	for _, expected := range wantHashes {
 		sidecar, ok := byHash[expected]
 		if !ok {
 			return types.BlobTxSidecar{}, fmt.Errorf("blob (hash=%s) not found in beacon response", expected.Hex())
