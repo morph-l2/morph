@@ -565,22 +565,22 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	if len(blobHashes) > 0 {
 		d.logger.Info("Transaction contains blobs", "txHash", txHash, "blobCount", len(blobHashes))
 
-		// Initialize indexedBlobHashes as nil
-		var indexedBlobHashes []IndexedBlobHash
-
-		// Only try to build IndexedBlobHash array if not forcing get all blobs
-		// Try to get the block to build IndexedBlobHash array
+		// The block body is required to compute each blob's index within the
+		// block's sidecar list, and the resulting IndexedBlobHash set is what
+		// lets the beacon fallback verify blob content per endpoint. A fetch
+		// failure here is treated as fatal for this attempt: the caller's
+		// poll loop retries the whole batch next round, which is preferable
+		// to querying beacons with no hashes to authenticate against.
 		block, err := d.l1Client.BlockByNumber(d.ctx, big.NewInt(int64(blockNumber)))
-		if err == nil {
-			// Successfully got the block, now build IndexedBlobHash array
-			d.logger.Info("Building IndexedBlobHash array from block", "blockNumber", blockNumber)
-			indexedBlobHashes = dataAndHashesFromTxs(block.Transactions(), tx)
-			d.logger.Info("Built IndexedBlobHash array", "count", len(indexedBlobHashes))
-		} else {
-			d.logger.Info("Failed to get block, will try fetching all blobs", "blockNumber", blockNumber, "error", err)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get block %d for blob indices: %w", blockNumber, err)
 		}
+		indexedBlobHashes := dataAndHashesFromTxs(block.Transactions(), tx)
+		d.logger.Info("Built IndexedBlobHash array", "count", len(indexedBlobHashes))
 
-		// Get all blobs corresponding to this timestamp
+		// Fetch the batch's blobs; the fallback client only returns sidecars
+		// whose content already verified against indexedBlobHashes, rotating
+		// to the next beacon endpoint on any invalid response.
 		blobSidecars, err := d.l1BeaconClient.GetBlobSidecarsEnhanced(d.ctx, L1BlockRef{
 			Time: header.Time,
 		}, indexedBlobHashes)

@@ -9,30 +9,54 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	"github.com/stretchr/testify/require"
 )
 
-// zero-value but correctly-sized hex so the beacon JSON decodes into a
-// BlobSidecar. GetBlobSidecarsEnhanced does not verify blob contents (that
-// happens downstream), it only counts sidecars, so dummy bytes are fine here.
+// GetBlobSidecarsEnhanced authenticates blob content against the requested
+// versioned hashes, so the accept-path stubs must serve a real
+// (blob, commitment) pair. The all-zero blob is the cheapest valid one: its
+// KZG commitment is computed once here and its versioned hash is what tests
+// request.
 var (
 	hex32 = "0x" + strings.Repeat("00", 32)
 	hex48 = "0x" + strings.Repeat("00", 48)
+
+	zeroBlobHex        = "0x" + strings.Repeat("00", BlobSize)
+	zeroBlobCommitment = mustZeroBlobCommitment()
+	zeroBlobHash       = KZGToVersionedHash(zeroBlobCommitment)
+
+	// Valid field elements (first byte 0x01 < BLS modulus high byte) but not
+	// the zero blob, served under the zero blob's commitment: the count and
+	// the commitment lookup both pass, only the KZG round-trip in verifyBlob
+	// can catch it.
+	corruptBlobHex = "0x01" + strings.Repeat("00", BlobSize-1)
 )
 
-func sidecarJSON(index int) string {
-	return fmt.Sprintf(`{"block_root":%q,"slot":"1","blob":"0x00","index":"%d","kzg_commitment":%q,"kzg_proof":%q}`,
-		hex32, index, hex48, hex48)
+func mustZeroBlobCommitment() kzg4844.Commitment {
+	var blob Blob
+	commitment, err := kzg4844.BlobToCommitment(blob.KZGBlob())
+	if err != nil {
+		panic(err)
+	}
+	return commitment
+}
+
+func sidecarJSON(index int, blobHex, commitmentHex string) string {
+	return fmt.Sprintf(`{"block_root":%q,"slot":"1","blob":%q,"index":"%d","kzg_commitment":%q,"kzg_proof":%q}`,
+		hex32, blobHex, index, commitmentHex, hex48)
 }
 
 // beaconBehavior controls what a stub beacon returns for blob_sidecars.
 type beaconBehavior int
 
 const (
-	beaconServesBlob  beaconBehavior = iota // 200 with one sidecar
-	beaconServesEmpty                       // 200 with an empty list (pruned / not indexed)
-	beaconServerError                       // 500
+	beaconServesBlob             beaconBehavior = iota // 200 with one valid sidecar
+	beaconServesEmpty                                  // 200 with an empty list (pruned / not indexed)
+	beaconServerError                                  // 500
+	beaconServesCorruptBlob                            // 200, right count and commitment, blob bytes do not match
+	beaconServesWrongCommitment                        // 200, right count, commitment of some other blob
 )
 
 // newStubBeacon serves the genesis + spec endpoints (needed for slot math) and
@@ -51,11 +75,15 @@ func newStubBeacon(t *testing.T, behavior beaconBehavior) (string, *int32) {
 			atomic.AddInt32(&blobHits, 1)
 			switch behavior {
 			case beaconServesBlob:
-				_, _ = w.Write([]byte(`{"data":[` + sidecarJSON(0) + `]}`))
+				_, _ = w.Write([]byte(`{"data":[` + sidecarJSON(0, zeroBlobHex, hexutil.Encode(zeroBlobCommitment[:])) + `]}`))
 			case beaconServesEmpty:
 				_, _ = w.Write([]byte(`{"data":[]}`))
 			case beaconServerError:
 				w.WriteHeader(http.StatusInternalServerError)
+			case beaconServesCorruptBlob:
+				_, _ = w.Write([]byte(`{"data":[` + sidecarJSON(0, corruptBlobHex, hexutil.Encode(zeroBlobCommitment[:])) + `]}`))
+			case beaconServesWrongCommitment:
+				_, _ = w.Write([]byte(`{"data":[` + sidecarJSON(0, zeroBlobHex, hex48) + `]}`))
 			}
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -66,7 +94,7 @@ func newStubBeacon(t *testing.T, behavior beaconBehavior) (string, *int32) {
 }
 
 func oneHash() []IndexedBlobHash {
-	return []IndexedBlobHash{{Index: 0, Hash: common.Hash{}}}
+	return []IndexedBlobHash{{Index: 0, Hash: zeroBlobHash}}
 }
 
 type canceledHTTP struct {
@@ -133,6 +161,37 @@ func TestFallbackBeacon_FallsBackOnTransportError(t *testing.T) {
 	require.Positive(t, atomic.LoadInt32(fallbackHits))
 }
 
+// The primary replies 200 with the right sidecar count and the right
+// commitment, but the blob bytes do not commit to the requested hash
+// (corrupted storage, wrong fork, etc.). Content verification must reject it
+// and fall back instead of handing bad bytes downstream.
+func TestFallbackBeacon_FallsBackOnCorruptBlobContent(t *testing.T) {
+	primary, primaryHits := newStubBeacon(t, beaconServesCorruptBlob)
+	fallback, fallbackHits := newStubBeacon(t, beaconServesBlob)
+
+	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
+	sidecars, err := fetch(t, c)
+	require.NoError(t, err)
+	require.Len(t, sidecars, 1)
+	require.Positive(t, atomic.LoadInt32(primaryHits))
+	require.Positive(t, atomic.LoadInt32(fallbackHits), "corrupt blob content must trigger fallback")
+}
+
+// The primary replies 200 with the right sidecar count but none of the
+// sidecars carries the requested versioned hash (e.g. sidecars of another
+// block at the same slot during a reorg). Must fall back.
+func TestFallbackBeacon_FallsBackOnMissingRequestedHash(t *testing.T) {
+	primary, primaryHits := newStubBeacon(t, beaconServesWrongCommitment)
+	fallback, fallbackHits := newStubBeacon(t, beaconServesBlob)
+
+	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
+	sidecars, err := fetch(t, c)
+	require.NoError(t, err)
+	require.Len(t, sidecars, 1)
+	require.Positive(t, atomic.LoadInt32(primaryHits))
+	require.Positive(t, atomic.LoadInt32(fallbackHits), "missing requested hash must trigger fallback")
+}
+
 func TestFallbackBeacon_StopsOnContextCancellation(t *testing.T) {
 	var primaryCalls, fallbackCalls int32
 	c := &FallbackBeaconClient{
@@ -153,11 +212,13 @@ func TestFallbackBeacon_StopsOnContextCancellation(t *testing.T) {
 	require.Zero(t, atomic.LoadInt32(&fallbackCalls))
 }
 
-// When every beacon fails to serve the blob, an error is returned and every
-// endpoint's failure is recorded in metrics (exercised via a real *Metrics).
+// When every beacon fails to serve a valid blob, an error is returned and
+// every endpoint's failure is recorded in metrics (exercised via a real
+// *Metrics). The corrupt-content endpoint proves verification failures are
+// counted the same way as availability failures.
 func TestFallbackBeacon_AllFailReturnsError(t *testing.T) {
 	primary, primaryHits := newStubBeacon(t, beaconServesEmpty)
-	fallback, fallbackHits := newStubBeacon(t, beaconServerError)
+	fallback, fallbackHits := newStubBeacon(t, beaconServesCorruptBlob)
 
 	m := PrometheusMetrics("morphnode_test_" + t.Name())
 	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, m)
