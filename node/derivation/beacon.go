@@ -283,6 +283,11 @@ func (c *FallbackBeaconClient) GetVerifiedBlobs(ctx context.Context, ref L1Block
 func blobsFromSidecars(sidecars []*BlobSidecar, hashes []IndexedBlobHash) (types.BlobTxSidecar, error) {
 	byHash := make(map[common.Hash]*BlobSidecar, len(sidecars))
 	for _, sidecar := range sidecars {
+		// JSON null entries decode to nil; skipping them surfaces as a
+		// "not found" error below instead of a panic.
+		if sidecar == nil {
+			continue
+		}
 		var commitment kzg4844.Commitment
 		copy(commitment[:], sidecar.KZGCommitment[:])
 		byHash[KZGToVersionedHash(commitment)] = sidecar

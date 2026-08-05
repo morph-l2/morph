@@ -53,6 +53,7 @@ const (
 	beaconServerError                                  // 500
 	beaconServesCorruptBlob                            // 200, right count and commitment, blob bytes do not match
 	beaconServesWrongCommitment                        // 200, right count, commitment of some other blob
+	beaconServesNullSidecar                            // 200, JSON null entry in the sidecar list
 )
 
 // newStubBeacon serves the genesis + spec endpoints (needed for slot math) and
@@ -80,6 +81,8 @@ func newStubBeacon(t *testing.T, behavior beaconBehavior) (string, *int32) {
 				_, _ = w.Write([]byte(`{"data":[` + sidecarJSON(0, corruptBlobHex, hexutil.Encode(zeroBlobCommitment[:])) + `]}`))
 			case beaconServesWrongCommitment:
 				_, _ = w.Write([]byte(`{"data":[` + sidecarJSON(0, zeroBlobHex, hex48) + `]}`))
+			case beaconServesNullSidecar:
+				_, _ = w.Write([]byte(`{"data":[null]}`))
 			}
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -183,6 +186,20 @@ func TestFallbackBeacon_FallsBackOnMissingRequestedHash(t *testing.T) {
 	require.Len(t, sidecars.Blobs, 1)
 	require.Positive(t, atomic.LoadInt32(primaryHits))
 	require.Positive(t, atomic.LoadInt32(fallbackHits), "missing requested hash must trigger fallback")
+}
+
+// A JSON null in the sidecar list decodes to a nil pointer; it must count as
+// a verification failure and trigger fallback, not panic.
+func TestFallbackBeacon_FallsBackOnNullSidecar(t *testing.T) {
+	primary, primaryHits := newStubBeacon(t, beaconServesNullSidecar)
+	fallback, fallbackHits := newStubBeacon(t, beaconServesBlob)
+
+	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
+	sidecars, err := fetch(t, c)
+	require.NoError(t, err)
+	require.Len(t, sidecars.Blobs, 1)
+	require.Positive(t, atomic.LoadInt32(primaryHits))
+	require.Positive(t, atomic.LoadInt32(fallbackHits), "null sidecar must trigger fallback")
 }
 
 func TestFallbackBeacon_StopsOnContextCancellation(t *testing.T) {
