@@ -14,11 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// GetBlobSidecarsEnhanced authenticates blob content against the requested
-// versioned hashes, so the accept-path stubs must serve a real
-// (blob, commitment) pair. The all-zero blob is the cheapest valid one: its
-// KZG commitment is computed once here and its versioned hash is what tests
-// request.
+// The fallback verifies blob content, so accept-path stubs must serve a real
+// (blob, commitment) pair; the all-zero blob is the cheapest valid one.
 var (
 	hex32 = "0x" + strings.Repeat("00", 32)
 	hex48 = "0x" + strings.Repeat("00", 48)
@@ -27,10 +24,8 @@ var (
 	zeroBlobCommitment = mustZeroBlobCommitment()
 	zeroBlobHash       = KZGToVersionedHash(zeroBlobCommitment)
 
-	// Valid field elements (first byte 0x01 < BLS modulus high byte) but not
-	// the zero blob, served under the zero blob's commitment: the count and
-	// the commitment lookup both pass, only the KZG round-trip in verifyBlob
-	// can catch it.
+	// Valid blob bytes served under the zero blob's commitment: count and
+	// commitment lookup pass, only verifyBlob catches it.
 	corruptBlobHex = "0x01" + strings.Repeat("00", BlobSize-1)
 )
 
@@ -161,10 +156,8 @@ func TestFallbackBeacon_FallsBackOnTransportError(t *testing.T) {
 	require.Positive(t, atomic.LoadInt32(fallbackHits))
 }
 
-// The primary replies 200 with the right sidecar count and the right
-// commitment, but the blob bytes do not commit to the requested hash
-// (corrupted storage, wrong fork, etc.). Content verification must reject it
-// and fall back instead of handing bad bytes downstream.
+// 200 with the right count and commitment but corrupted blob bytes must
+// trigger fallback instead of handing bad bytes downstream.
 func TestFallbackBeacon_FallsBackOnCorruptBlobContent(t *testing.T) {
 	primary, primaryHits := newStubBeacon(t, beaconServesCorruptBlob)
 	fallback, fallbackHits := newStubBeacon(t, beaconServesBlob)
@@ -177,9 +170,8 @@ func TestFallbackBeacon_FallsBackOnCorruptBlobContent(t *testing.T) {
 	require.Positive(t, atomic.LoadInt32(fallbackHits), "corrupt blob content must trigger fallback")
 }
 
-// The primary replies 200 with the right sidecar count but none of the
-// sidecars carries the requested versioned hash (e.g. sidecars of another
-// block at the same slot during a reorg). Must fall back.
+// 200 with the right count but none of the sidecars carries the requested
+// hash (e.g. another fork's sidecars at the same slot) must trigger fallback.
 func TestFallbackBeacon_FallsBackOnMissingRequestedHash(t *testing.T) {
 	primary, primaryHits := newStubBeacon(t, beaconServesWrongCommitment)
 	fallback, fallbackHits := newStubBeacon(t, beaconServesBlob)
@@ -213,9 +205,7 @@ func TestFallbackBeacon_StopsOnContextCancellation(t *testing.T) {
 }
 
 // When every beacon fails to serve a valid blob, an error is returned and
-// every endpoint's failure is recorded in metrics (exercised via a real
-// *Metrics). The corrupt-content endpoint proves verification failures are
-// counted the same way as availability failures.
+// every endpoint's failure is recorded in metrics.
 func TestFallbackBeacon_AllFailReturnsError(t *testing.T) {
 	primary, primaryHits := newStubBeacon(t, beaconServesEmpty)
 	fallback, fallbackHits := newStubBeacon(t, beaconServesCorruptBlob)

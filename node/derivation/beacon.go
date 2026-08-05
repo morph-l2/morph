@@ -212,13 +212,9 @@ func dataAndHashesFromTxs(txs types.Transactions, targetTx *types.Transaction) [
 
 // FallbackBeaconClient queries several beacon nodes in order for blob sidecars.
 // A beacon is skipped and the next one tried when it errors, is unreachable,
-// answers with too few sidecars, or serves blob bytes that do not commit to
-// the requested versioned hashes — a beacon that pruned the slot, has not
-// indexed it yet, or holds corrupted blob data still replies 200 with a
-// plausible-looking list, which a transport-level fallback would miss. The
-// failing endpoint is recorded in the beacon_request_failure_total metric so
-// a flaky node is visible on dashboards. With a single endpoint it behaves
-// like a bare L1BeaconClient.
+// answers with too few sidecars, or serves blob content that fails
+// verification against the requested hashes. Failing endpoints are recorded
+// in the beacon_request_failure_total metric.
 type FallbackBeaconClient struct {
 	clients   []*L1BeaconClient
 	endpoints []string // parallel to clients, used only for logs/metrics
@@ -240,13 +236,8 @@ func NewFallbackBeaconClient(endpoints []string, log tmlog.Logger, metrics *Metr
 }
 
 // GetBlobSidecarsEnhanced tries each configured beacon in order and returns
-// the first response that actually carries all requested blobs: at least
-// len(hashes) sidecars (at least one when no explicit hashes are requested),
-// every requested versioned hash present among them, and each matched blob's
-// bytes authenticated against its hash via verifySidecars. A beacon that
-// errors, returns an incomplete set, or serves invalid blob content is
-// recorded as a failure and skipped, so callers never receive unverified
-// data while a healthy fallback exists. If every beacon fails, the last
+// the first response carrying all requested blobs with verified content.
+// A failing beacon is recorded and skipped; if every beacon fails, the last
 // error is returned.
 func (c *FallbackBeaconClient) GetBlobSidecarsEnhanced(ctx context.Context, ref L1BlockRef, hashes []IndexedBlobHash) ([]*BlobSidecar, error) {
 	var lastErr error
@@ -277,15 +268,9 @@ func (c *FallbackBeaconClient) GetBlobSidecarsEnhanced(ctx context.Context, ref 
 	return nil, lastErr
 }
 
-// verifySidecars checks that, for every requested versioned hash, sidecars
-// contains a blob whose bytes actually commit to that hash. Sidecars are
-// matched by the versioned hash derived from their beacon-supplied
-// commitment, then authenticated with verifyBlob's local KZG commitment
-// round-trip, so a beacon can neither omit a requested blob nor serve
-// corrupted bytes under a correct-looking commitment. Extra sidecars (e.g.
-// from a beacon that ignores the indices filter) are tolerated and simply
-// not inspected. With no requested hashes there is nothing to authenticate
-// and the response is accepted as-is.
+// verifySidecars checks that sidecars contains, for every requested hash, a
+// blob whose bytes commit to that hash (matched via the commitment-derived
+// versioned hash, authenticated by verifyBlob). Extra sidecars are ignored.
 func verifySidecars(sidecars []*BlobSidecar, hashes []IndexedBlobHash) error {
 	if len(hashes) == 0 {
 		return nil
