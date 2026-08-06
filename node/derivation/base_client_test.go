@@ -49,12 +49,12 @@ func sidecarJSON(index int, blobHex, commitmentHex string) string {
 type beaconBehavior int
 
 const (
-	beaconServesBlob             beaconBehavior = iota // 200 with one valid sidecar
-	beaconServesEmpty                                  // 200 with an empty list (pruned / not indexed)
-	beaconServerError                                  // 500
-	beaconServesCorruptBlob                            // 200, right count and commitment, blob bytes do not match
-	beaconServesWrongCommitment                        // 200, right count, commitment of some other blob
-	beaconServesNullSidecar                            // 200, JSON null entry in the sidecar list
+	beaconServesBlob            beaconBehavior = iota // 200 with one valid sidecar
+	beaconServesEmpty                                 // 200 with an empty list (pruned / not indexed)
+	beaconServerError                                 // 500
+	beaconServesCorruptBlob                           // 200, right count and commitment, blob bytes do not match
+	beaconServesWrongCommitment                       // 200, right count, commitment of some other blob
+	beaconServesNullSidecar                           // 200, JSON null entry in the sidecar list
 )
 
 // newStubBeacon serves the genesis + spec endpoints (needed for slot math) and
