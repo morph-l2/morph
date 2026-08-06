@@ -11,10 +11,19 @@
 # What it does (all on L2):
 #   1. deploy impl + TransparentUpgradeableProxy via the deterministic CREATE2
 #      factory (network-identical address) then call initialize()
-#   2. deploy a MockERC20, whitelist it, register a source EOA via EIP-712
-#   3. transfer whitelisted tokens INTO the source -> the EL auto-sweeps them
-#      to destination and appends a Swept log
-#   4. assert: Swept log present, source balance == 0
+#   2. deploy a MockERC20, whitelist it
+#   3. the controller sets its single destination pointer (route), then a source
+#      EOA signs an EIP-712 SweepAuthorization binding itself to that controller,
+#      and the controller registers it
+#   4. transfer whitelisted tokens INTO the source -> the EL auto-sweeps them
+#      to the controller's current destination and appends a Swept log
+#   5. assert: Swept log present, source balance == 0
+#
+# Controller model: the source's signature binds a *controller*, not a concrete
+# address. The controller owns the destination pointer (setSweepDestination) and
+# may move it without new source signatures; here ACCT0 doubles as owner,
+# destination and controller for a compact demo. Override CONTROLLER to exercise
+# the separated-keys layout.
 #
 # Deterministic-deployment plumbing (factory raw tx, salts, proxy admin, topics,
 # EXPECTED_REGISTRY) lives in scripts/lib/onyx-sweep-common.sh — single source of
@@ -43,10 +52,17 @@ SOURCE="${SOURCE:-}"
 SOURCE_KEY="${SOURCE_KEY:-}"
 
 DESTINATION=$ACCT0
+# Route controller: holds the destination pointer and is who the source signs
+# for. Defaults to ACCT0 (owner/destination) for a compact demo; override to
+# exercise separated keys (a production controller must be secured like the
+# destination itself — the Onyx spec §11.2).
+CONTROLLER="${CONTROLLER:-$ACCT0}"
+CONTROLLER_KEY="${CONTROLLER_KEY:-$ACCT0_KEY}"
 OWNER="${REGISTRY_OWNER:-$ACCT0}"
 AMOUNT=1000000000000000000  # 1e18
 
 send0() { cast send --rpc-url "$L2_RPC" --private-key "$ACCT0_KEY" "$@"; }
+send_controller() { cast send --rpc-url "$L2_RPC" --private-key "$CONTROLLER_KEY" "$@"; }
 
 onyx_require_tools
 
@@ -85,25 +101,29 @@ send0 "$ONYX_REGISTRY" "setTokenWhitelist(address,bool)" "$TOKEN" true >/dev/nul
 pre=$(cast call --rpc-url "$L2_RPC" "$ONYX_REGISTRY" "resolveSweep(address,address)(address)" "$TOKEN" "$SOURCE")
 echo "    resolveSweep(before register) = $pre"
 
-# ---- 4. source signs EIP-712 authorization, owner registers it ------------
-echo "==> [4] EIP-712 register source $SOURCE -> destination $DESTINATION"
+# ---- 4. controller points its route at the destination ----------------------
+echo "==> [4] controller $CONTROLLER sets destination $DESTINATION"
+send_controller "$ONYX_REGISTRY" "setSweepDestination(address)" "$DESTINATION" >/dev/null
+
+# ---- 5. source signs EIP-712 authorization, controller registers it --------
+echo "==> [5] EIP-712 register source $SOURCE -> controller $CONTROLLER (dest $DESTINATION)"
 DEADLINE=$(( $(date +%s) + 31536000 ))
 TYPED=$(mktemp)
-onyx_typed_data "$L2_CHAIN_ID" "$ONYX_REGISTRY" "$SOURCE" "$DESTINATION" 0 "$DEADLINE" > "$TYPED"
+onyx_typed_data "$L2_CHAIN_ID" "$ONYX_REGISTRY" "$SOURCE" "$CONTROLLER" "$DEADLINE" > "$TYPED"
 SIG=$(cast wallet sign --private-key "$SOURCE_KEY" --data --from-file "$TYPED")
 rm -f "$TYPED"
-send0 "$ONYX_REGISTRY" "registerSweep(address,address,uint256,uint64,bytes)" \
-  "$SOURCE" "$DESTINATION" 0 "$DEADLINE" "$SIG" >/dev/null
+send_controller "$ONYX_REGISTRY" "registerSweep(address,address,uint64,bytes)" \
+  "$SOURCE" "$CONTROLLER" "$DEADLINE" "$SIG" >/dev/null
 post=$(cast call --rpc-url "$L2_RPC" "$ONYX_REGISTRY" "resolveSweep(address,address)(address)" "$TOKEN" "$SOURCE")
 echo "    resolveSweep(after register) = $post"
 
-# ---- 5. transfer whitelisted tokens INTO the source -> EL auto-sweeps ------
-echo "==> [5] transfer $AMOUNT of $TOKEN into source -> expect sweep"
+# ---- 6. transfer whitelisted tokens INTO the source -> EL auto-sweeps ------
+echo "==> [6] transfer $AMOUNT of $TOKEN into source -> expect sweep"
 TXHASH=$(send0 "$TOKEN" "transfer(address,uint256)" "$SOURCE" "$AMOUNT" --json | jq -r .transactionHash)
 echo "    tx = $TXHASH"
 
-# ---- 6. assertions ----------------------------------------------------------
-echo "==> [6] assert"
+# ---- 7. assertions ----------------------------------------------------------
+echo "==> [7] assert"
 LOGS=$(cast receipt --rpc-url "$L2_RPC" "$TXHASH" --json | jq -r '.logs[].topics[0]')
 if echo "$LOGS" | grep -qi "${ONYX_SWEPT_TOPIC#0x}"; then
   echo "    OK: Swept log present"

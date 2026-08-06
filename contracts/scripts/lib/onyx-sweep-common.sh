@@ -39,11 +39,16 @@ ONYX_SALT_PROXY_STR="morph.sweep-registry.proxy.v1"
 
 # Deterministic proxy address given ONYX_PROXY_ADMIN=0x53..000b. MUST equal the
 # morph-reth SWEEP_REGISTRY_ADDRESS constant (crates/chainspec/src/constants.rs).
-ONYX_EXPECTED_REGISTRY="0xDdb0b56D29D121aD0FEFfb10395FC34b4eeA0692"
+#
+# Re-derived for the audit-fixed controller model: dynamic self-reference / cycle
+# guard in the resolver (no sticky flag), disable restricted to controller/source.
+#   cast create2 --deployer $ONYX_FACTORY --salt <impl salt> --init-code <impl initcode>
+#   cast create2 --deployer $ONYX_FACTORY --salt <proxy salt> --init-code <proxy initcode>
+# Any future SweepRegistry bytecode change requires re-deriving this value AND
+# syncing the morph-reth constant + EL test assets (see the Onyx spec §3.2).
+ONYX_EXPECTED_REGISTRY="0x0fF2Ea62eBca29E70aE2b0551a54eFFa4ea7DeEa"
 
 # EIP-712 / event topics — consensus values shared with morph-reth.
-ONYX_MODE_STR="MORPH_SWEEP_V1"
-ONYX_SCOPE_STR="WHITELISTED_ERC20_TO_DESTINATION_ONLY"
 # keccak256("Swept(address,address,address,uint256,uint32)")   (sweep.rs SWEEP_TOPIC)
 ONYX_SWEPT_TOPIC="0x035b37215a69e14a80883933d6aa84f0919a67af9410a4a73e8a23baeca011f0"
 # keccak256("Transfer(address,address,uint256)")
@@ -110,11 +115,11 @@ onyx_forge_create() {
 
 # Generate a throwaway source EOA; echoes "<address> <private_key>".
 #
-# Sources are single-use per chain: SweepRegistry._register rejects any address whose
-# destination is already set, and disableSweep is terminal (no re-enable in v1). A script
-# that registers or disables a FIXED account therefore cannot be run twice against the
-# same chain — it fails with SourceAlreadyRegistered / SourceNotActive until the
-# devnet is wiped. Generating a fresh keypair per run removes that coupling.
+# Sources are single-use per chain: SweepRegistry._register rejects any already-bound
+# source (SourceAlreadyRegistered), and disableSweep is terminal (no re-enable in v1).
+# A script that registers or disables a FIXED account therefore cannot be run twice
+# against the same chain — it fails with SourceAlreadyRegistered / SourceNotActive
+# until the devnet is wiped. Generating a fresh keypair per run removes that coupling.
 #
 # A brand-new address needs no prefunding to be a valid source: registration only
 # requires code.length == 0, the source never sends a transaction (it signs the EIP-712
@@ -245,11 +250,16 @@ onyx_address_topic() {
 [ -n "${BASH_VERSION:-}" ] && export -f onyx_address_topic
 
 # Emit the EIP-712 SweepAuthorization typed-data JSON to stdout (for cast wallet sign).
+#
+# The v1 struct is frozen as
+#   SweepAuthorization(address source, address controller, uint64 deadline)
+# matching SweepRegistry._AUTHORIZATION_TYPEHASH exactly. The EIP-712 domain
+# ("SweepRegistry", "1") binds chainId + verifyingContract, so the signature
+# cannot be replayed on another chain or against another registry. There is no
+# nonce: registration is strictly one-shot per source (SourceAlreadyRegistered
+# on any second attempt), so a replay has no window to be valid again.
 onyx_typed_data() {
-  local chain_id="$1" registry="$2" source="$3" destination="$4" nonce="$5" deadline="$6"
-  local mode scope
-  mode=$(cast keccak "$ONYX_MODE_STR")
-  scope=$(cast keccak "$ONYX_SCOPE_STR")
+  local chain_id="$1" registry="$2" source="$3" controller="$4" deadline="$5"
   cat <<JSON
 {
   "types": {
@@ -261,13 +271,8 @@ onyx_typed_data() {
     ],
     "SweepAuthorization": [
       {"name":"source","type":"address"},
-      {"name":"destination","type":"address"},
-      {"name":"registry","type":"address"},
-      {"name":"chainId","type":"uint256"},
-      {"name":"nonce","type":"uint256"},
-      {"name":"deadline","type":"uint64"},
-      {"name":"mode","type":"bytes32"},
-      {"name":"sweepScope","type":"bytes32"}
+      {"name":"controller","type":"address"},
+      {"name":"deadline","type":"uint64"}
     ]
   },
   "primaryType": "SweepAuthorization",
@@ -279,13 +284,8 @@ onyx_typed_data() {
   },
   "message": {
     "source": "$source",
-    "destination": "$destination",
-    "registry": "$registry",
-    "chainId": $chain_id,
-    "nonce": $nonce,
-    "deadline": $deadline,
-    "mode": "$mode",
-    "sweepScope": "$scope"
+    "controller": "$controller",
+    "deadline": $deadline
   }
 }
 JSON

@@ -39,6 +39,14 @@ SOURCE_2_KEY="${SOURCE_2_KEY:-}"
 
 DESTINATION=$ACCT0
 OWNER=$ACCT0
+# Route controller: holds the destination pointer and is who each source signs
+# for. Defaults to ACCT0 (owner/destination) so every send in this script can go
+# through the ACCT0 key; a production controller should be a separate,
+# destination-grade key (Onyx spec §11.2). Override with CONTROLLER=…/CONTROLLER_KEY=…
+# to exercise the separated layout — registration / disable then submit from
+# CONTROLLER_KEY, and sources bind to CONTROLLER.
+CONTROLLER="${CONTROLLER:-$ACCT0}"
+CONTROLLER_KEY="${CONTROLLER_KEY:-$ACCT0_KEY}"
 
 AMOUNT=1000000000000000000  # 1e18
 
@@ -52,7 +60,7 @@ run_test() { printf "  %s... " "$1"; shift; if "$@"; then echo "PASS"; PASS=$((P
 skip_test() { echo "  $1... SKIP ($2)"; SKIP=$((SKIP+1)); }
 call0()  { cast call --rpc-url "$L2_RPC" "$@"; }
 
-# Send a tx from ACCT0 and echo its hash; fail loudly instead of silently.
+# Send a tx from a given key and echo its hash; fail loudly instead of silently.
 #
 # `cast send` has TWO silent-failure paths, and under a balance-only assertion both
 # are indistinguishable from "the tx landed but the sweep did not run":
@@ -66,9 +74,10 @@ call0()  { cast call --rpc-url "$L2_RPC" "$@"; }
 # The previous `cast send … >/dev/null 2>&1` swallowed both and then compared balances,
 # so every assertion expecting "balance == 0" passed spuriously and only 4.3, which
 # expects "balance > 0", failed — reporting a nonce race as broken disableSweep logic.
-onyx_send_tx() {
+onyx_send_tx_from() {
+  local key="$1"; shift
   local out hash st
-  if ! out=$(cast send --rpc-url "$L2_RPC" --private-key "$ACCT0_KEY" --json "$@" 2>&1); then
+  if ! out=$(cast send --rpc-url "$L2_RPC" --private-key "$key" --json "$@" 2>&1); then
     echo "!! cast send failed, tx never mined: $(echo "$out" | tr '\n' ' ' | cut -c1-200)" >&2
     return 1
   fi
@@ -78,12 +87,15 @@ onyx_send_tx() {
   [ "$st" = "0x1" ] || { echo "!! tx $hash reverted (status=$st)" >&2; return 1; }
   echo "$hash"
 }
-# Exported (with $L2_RPC/$ACCT0_KEY, which the function body resolves at call time)
-# so the `run_test … bash -c "…"` subshells can use it. Guarded for the same reason as
-# onyx_forge_create in onyx-sweep-common.sh: zsh has no `export -f` and would dump the
-# function body to stdout instead of exporting it.
-export L2_RPC ACCT0_KEY
-[ -n "${BASH_VERSION:-}" ] && export -f onyx_send_tx
+# Default: send from ACCT0. Registration / disable / destination-pointer calls that
+# must act as the controller use onyx_send_tx_from "$CONTROLLER_KEY" instead.
+onyx_send_tx() { onyx_send_tx_from "$ACCT0_KEY" "$@"; }
+# Exported (with $L2_RPC/$ACCT0_KEY/$CONTROLLER_KEY, which the function bodies resolve
+# at call time) so the `run_test … bash -c "…"` subshells can use them. Guarded for the
+# same reason as onyx_forge_create in onyx-sweep-common.sh: zsh has no `export -f` and
+# would dump the function body to stdout instead of exporting it.
+export L2_RPC ACCT0_KEY CONTROLLER_KEY
+[ -n "${BASH_VERSION:-}" ] && export -f onyx_send_tx onyx_send_tx_from
 
 onyx_require_tools
 
@@ -151,17 +163,29 @@ echo "--- Phase 3: Sweep Flow ---"
 # Fund source for gas headroom (sweep itself is gasless, this is for safety).
 onyx_send_tx --value 1ether "$SOURCE" >/dev/null
 
+# 3.0 Establish the route: the controller points its single destination at the
+#     recipient. Without this, every registerSweep below reverts with
+#     DestinationNotConfigured. A controller may move this pointer at any time —
+#     which is exactly why each source binds to the controller, not to a concrete
+#     address (Onyx spec §4.1).
+echo "  [3.0] Controller $CONTROLLER sets destination..."
+# A separated controller key (CONTROLLER != ACCT0) needs its own gas headroom.
+if [ "$CONTROLLER" != "$ACCT0" ]; then
+  onyx_send_tx --value 1ether "$CONTROLLER" >/dev/null
+fi
+onyx_send_tx_from "$CONTROLLER_KEY" "$REGISTRY" "setSweepDestination(address)" "$DESTINATION" >/dev/null
+
 # 3.1 Register source
 echo "  [3.1] Register source..."
 DEADLINE=$(( $(date +%s) + 31536000 ))
 TYPED=$(mktemp)
-onyx_typed_data "$CHAIN_ID" "$REGISTRY" "$SOURCE" "$DESTINATION" 0 "$DEADLINE" > "$TYPED"
+onyx_typed_data "$CHAIN_ID" "$REGISTRY" "$SOURCE" "$CONTROLLER" "$DEADLINE" > "$TYPED"
 SIG=$(cast wallet sign --private-key "$SOURCE_KEY" --data --from-file "$TYPED")
 rm -f "$TYPED"
 
 run_test "register source" bash -c "
-  onyx_send_tx '$REGISTRY' 'registerSweep(address,address,uint256,uint64,bytes)' \
-    '$SOURCE' '$DESTINATION' 0 '$DEADLINE' \"$SIG\" >/dev/null || exit 1
+  onyx_send_tx_from '$CONTROLLER_KEY' '$REGISTRY' 'registerSweep(address,address,uint64,bytes)' \
+    '$SOURCE' '$CONTROLLER' '$DEADLINE' \"$SIG\" >/dev/null || exit 1
   RES=\$(cast call --rpc-url '$L2_RPC' '$REGISTRY' 'resolveSweep(address,address)(address)' '$TOKEN' '$SOURCE')
   [ \"\$(echo \"\$RES\" | tr 'A-Z' 'a-z')\" = \"\$(echo '$DESTINATION' | tr 'A-Z' 'a-z')\" ]
 "
@@ -238,7 +262,8 @@ fi
 
 # 4.3 Disabled source
 echo "  [4.3] Disable sweep..."
-onyx_send_tx "$REGISTRY" "disableSweep(address)" "$SOURCE" >/dev/null
+# disableSweep is controller/operator-only; ACCT0 is the controller in the default layout.
+onyx_send_tx_from "$CONTROLLER_KEY" "$REGISTRY" "disableSweep(address)" "$SOURCE" >/dev/null
 # This is the one assertion in the script that expects a NON-zero balance, which made it
 # the sole canary for a swallowed send: any send that never landed left the balance at 0
 # and got reported here as broken disableSweep logic. onyx_send_tx now separates the two.
@@ -253,25 +278,28 @@ run_test "disabled source not swept" bash -c "
 echo ""
 echo "--- Phase 5: Security ---"
 
-# 5.1 Unauthorized registration (no source signature)
+# 5.1 Unauthorized registration (no source signature). The caller is the controller,
+#     so the rejection comes from ECDSA recovery of the garbage signature.
 run_test "reject registration without source sig" bash -c "
-  cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' \
-    '$REGISTRY' 'registerSweep(address,address,uint256,uint64,bytes)' \
-    '$SOURCE_2' '$DESTINATION' 0 '$DEADLINE' 0x0000 >/dev/null 2>&1 && false || true
+  cast send --rpc-url '$L2_RPC' --private-key '$CONTROLLER_KEY' \
+    '$REGISTRY' 'registerSweep(address,address,uint64,bytes)' \
+    '$SOURCE_2' '$CONTROLLER' '$DEADLINE' 0x0000 >/dev/null 2>&1 && false || true
 "
 
 # 5.2 Code check: attempt to register a contract as source
 run_test "reject contract-as-source" bash -c "
-  cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' \
-    '$REGISTRY' 'registerSweep(address,address,uint256,uint64,bytes)' \
-    '$TOKEN' '$DESTINATION' 0 '$DEADLINE' 0x0000 >/dev/null 2>&1 && false || true
+  cast send --rpc-url '$L2_RPC' --private-key '$CONTROLLER_KEY' \
+    '$REGISTRY' 'registerSweep(address,address,uint64,bytes)' \
+    '$TOKEN' '$CONTROLLER' '$DEADLINE' 0x0000 >/dev/null 2>&1 && false || true
 "
 
-# 5.3 Double registration protection
+# 5.3 Double registration protection: registration is one-shot per source, so a
+#     replay of the same signed authorization is rejected (the binding survives
+#     disable — there is no re-register path in v1). There is no nonce to bump.
 run_test "double register fails" bash -c "
-  cast send --rpc-url '$L2_RPC' --private-key '$ACCT0_KEY' \
-    '$REGISTRY' 'registerSweep(address,address,uint256,uint64,bytes)' \
-    '$SOURCE' '$DESTINATION' 1 '$DEADLINE' \"$SIG\" >/dev/null 2>&1 && false || true
+  cast send --rpc-url '$L2_RPC' --private-key '$CONTROLLER_KEY' \
+    '$REGISTRY' 'registerSweep(address,address,uint64,bytes)' \
+    '$SOURCE' '$CONTROLLER' '$DEADLINE' \"$SIG\" >/dev/null 2>&1 && false || true
 "
 
 # ---- Phase 6: Poke Sweep --------------------------------------------------
@@ -279,7 +307,7 @@ echo ""
 echo "--- Phase 6: Poke Sweep ---"
 
 # Phase 4.3 disabled SOURCE permanently (disableSweep is irreversible), and pokeSweep
-# reverts with SourceNotActive() on a disabled source — so register the fresh
+# reverts with NotSweepable() on a disabled source — so register the fresh
 # SOURCE_2 here and use it for this phase and Phase 7. ACCT0's TOKEN balance was
 # drained into the disabled SOURCE in 4.3, so mint a fresh supply too. Registering
 # only now keeps Phase 5.1's "reject registration without source sig" test meaningful:
@@ -288,11 +316,11 @@ echo "  [6.0] Register SOURCE_2 + mint..."
 onyx_send_tx --value 1ether "$SOURCE_2" >/dev/null   # gas headroom, same as SOURCE in 3.0
 onyx_send_tx "$TOKEN" "mint(address,uint256)" "$ACCT0" "$AMOUNT" >/dev/null
 TYPED2=$(mktemp)
-onyx_typed_data "$CHAIN_ID" "$REGISTRY" "$SOURCE_2" "$DESTINATION" 0 "$DEADLINE" > "$TYPED2"
+onyx_typed_data "$CHAIN_ID" "$REGISTRY" "$SOURCE_2" "$CONTROLLER" "$DEADLINE" > "$TYPED2"
 SIG2=$(cast wallet sign --private-key "$SOURCE_2_KEY" --data --from-file "$TYPED2")
 rm -f "$TYPED2"
-onyx_send_tx "$REGISTRY" "registerSweep(address,address,uint256,uint64,bytes)" \
-  "$SOURCE_2" "$DESTINATION" 0 "$DEADLINE" "$SIG2" >/dev/null
+onyx_send_tx_from "$CONTROLLER_KEY" "$REGISTRY" "registerSweep(address,address,uint64,bytes)" \
+  "$SOURCE_2" "$CONTROLLER" "$DEADLINE" "$SIG2" >/dev/null
 
 run_test "poke sweep triggers SweepRequested" bash -c "
   TX=\$(onyx_send_tx '$REGISTRY' 'pokeSweep(address,address)' '$TOKEN' '$SOURCE_2') || exit 1
@@ -333,11 +361,11 @@ echo "  fail-on-sweep token: $FAIL_TOKEN   source: $SOURCE_3"
 
 onyx_send_tx "$REGISTRY" "setTokenWhitelist(address,bool)" "$FAIL_TOKEN" true >/dev/null
 TYPED3=$(mktemp)
-onyx_typed_data "$CHAIN_ID" "$REGISTRY" "$SOURCE_3" "$DESTINATION" 0 "$DEADLINE" > "$TYPED3"
+onyx_typed_data "$CHAIN_ID" "$REGISTRY" "$SOURCE_3" "$CONTROLLER" "$DEADLINE" > "$TYPED3"
 SIG3=$(cast wallet sign --private-key "$SOURCE_3_KEY" --data --from-file "$TYPED3")
 rm -f "$TYPED3"
-onyx_send_tx "$REGISTRY" "registerSweep(address,address,uint256,uint64,bytes)" \
-  "$SOURCE_3" "$DESTINATION" 0 "$DEADLINE" "$SIG3" >/dev/null
+onyx_send_tx_from "$CONTROLLER_KEY" "$REGISTRY" "registerSweep(address,address,uint64,bytes)" \
+  "$SOURCE_3" "$CONTROLLER" "$DEADLINE" "$SIG3" >/dev/null
 
 run_test "failed sweep appends SweepFailed with hashed reason" bash -c "
   TX=\$(onyx_send_tx '$FAIL_TOKEN' 'mint(address,uint256)' '$SOURCE_3' '$AMOUNT') || exit 1

@@ -25,9 +25,7 @@
  *   WHITELIST_TOKENS  Optional comma-separated ERC-20s to whitelist immediately
  *                     (only applied when the deployer is the owner).
  *
- * Precomputing the address before deployment:
- *   npx hardhat run scripts/deploy-sweep-registry.ts --network <net> --dry-run
- * or with cast:
+ * Precomputing the address before deployment with cast:
  *   FACTORY=0x4e59b44847b379578588920cA78FbF26c0B4956C
  *   SALT_IMPL=$(cast keccak "morph.sweep-registry.impl.v1")
  *   SALT_PROXY=$(cast keccak "morph.sweep-registry.proxy.v1")
@@ -74,7 +72,11 @@ const PROXY_FQN =
 // equal the morph-reth SWEEP_REGISTRY_ADDRESS constant (crates/chainspec/src/
 // constants.rs); otherwise the execution layer will never find the registry.
 // Only enforced for the default admin — a custom PROXY_ADMIN legitimately changes it.
-const EXPECTED_REGISTRY = "0xDdb0b56D29D121aD0FEFfb10395FC34b4eeA0692"
+// Re-derived for the controller model with the sticky everDestination flag:
+// any SweepRegistry bytecode change invalidates this address (impl → proxy
+// CREATE2 chain) and requires re-syncing constants.rs, onyx-sweep-common.sh and
+// the morph-reth EL test assets (Onyx spec §3.2).
+const EXPECTED_REGISTRY = "0x0fF2Ea62eBca29E70aE2b0551a54eFFa4ea7DeEa"
 
 async function main() {
     const [deployer] = await ethers.getSigners()
