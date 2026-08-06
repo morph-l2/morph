@@ -212,8 +212,7 @@ func TestFallbackBeacon_FallsBackOnNullSidecar(t *testing.T) {
 // The #745 self-heal: when the caller cannot build index hints (the L1 block
 // body was unavailable), it passes nil hints. The client must still fetch all
 // sidecars at the slot and authenticate them by hash — a nil hint is NOT a
-// failure. Guards against turning a BlockByNumber failure back into a hard
-// error; see the DO NOT comment in fetchRollupDataByTxHash.
+// failure and must not become a hard error.
 func TestFallbackBeacon_VerifiesWithoutIndexHints(t *testing.T) {
 	primary, primaryHits := newStubBeacon(t, beaconServesBlob)
 

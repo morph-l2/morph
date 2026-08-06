@@ -281,9 +281,13 @@ func (c *FallbackBeaconClient) GetVerifiedBlobSidecar(ctx context.Context, ref L
 		if c.metrics != nil {
 			c.metrics.IncBeaconRequestFailure(c.endpoints[i])
 		}
+		// indexHints is logged because stale hints (e.g. a reorg between the
+		// header and block fetches) make every healthy beacon fail hash
+		// matching; the hint count distinguishes that from real endpoint
+		// faults when reading beacon_request_failure_total spikes.
 		if c.log != nil {
 			c.log.Error("beacon failed to serve blob sidecars, trying next endpoint",
-				"endpoint", c.endpoints[i], "err", err)
+				"endpoint", c.endpoints[i], "indexHints", len(indexHints), "err", err)
 		}
 		lastErr = err
 	}
@@ -336,8 +340,6 @@ func blobsFromSidecars(sidecars []*BlobSidecar, wantHashes []common.Hash) (types
 	}
 	return out, nil
 }
-
-// Note: ForceGetAllBlobs is defined in derivation.go in the same package
 
 // GetBlobSidecarsEnhanced is an enhanced version of GetBlobSidecars method, combining two approaches to fetch blob data
 // If the first method fails or returns no blobs, it will try the second method
