@@ -238,6 +238,15 @@ func TestFallbackBeacon_FallsBackWithoutIndexHintsOnCorruptContent(t *testing.T)
 	require.Positive(t, atomic.LoadInt32(fallbackHits), "corrupt content must trigger fallback even without index hints")
 }
 
+// A client constructed with no endpoints must error instead of silently
+// returning an empty sidecar as success.
+func TestFallbackBeacon_NoEndpointsReturnsError(t *testing.T) {
+	c := NewFallbackBeaconClient(nil, nil, nil)
+	sidecar, err := c.GetVerifiedBlobSidecar(context.Background(), L1BlockRef{Time: 12}, wantHashes(), nil)
+	require.Error(t, err)
+	require.Empty(t, sidecar.Blobs)
+}
+
 func TestFallbackBeacon_StopsOnContextCancellation(t *testing.T) {
 	var primaryCalls, fallbackCalls int32
 	c := &FallbackBeaconClient{

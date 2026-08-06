@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -261,6 +262,12 @@ func NewFallbackBeaconClient(endpoints []string, log tmlog.Logger, metrics *Metr
 func (c *FallbackBeaconClient) GetVerifiedBlobSidecar(ctx context.Context, ref L1BlockRef, wantHashes []common.Hash, indexHints []IndexedBlobHash) (types.BlobTxSidecar, error) {
 	if len(wantHashes) == 0 {
 		return types.BlobTxSidecar{}, nil
+	}
+	// Config validation rejects an empty beacon list at startup; this guards
+	// direct construction, where falling through would silently return an
+	// empty sidecar as success.
+	if len(c.clients) == 0 {
+		return types.BlobTxSidecar{}, errors.New("no beacon endpoints configured")
 	}
 	var lastErr error
 	for i, cl := range c.clients {
