@@ -563,40 +563,30 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 	if len(blobHashes) > 0 {
 		d.logger.Info("Transaction contains blobs", "txHash", txHash, "blobCount", len(blobHashes))
 
-		// indexHints lets GetVerifiedBlobSidecar ask the beacon for only the
-		// sidecars we need (?indices=) instead of the whole slot. Building it needs the
-		// full L1 block body via BlockByNumber — a heavy fullTx=true call that
-		// can fail *persistently* for a given historical block (oversized
-		// batcher-tx bodies time out, get rate-limited, or simply aren't served
-		// by some providers) even while the lighter HeaderByNumber and
-		// TransactionByHash above succeed.
-		//
-		// So a BlockByNumber failure MUST NOT be fatal: we drop the hint and let
-		// GetVerifiedBlobSidecar fetch every sidecar at the slot and match them
-		// by hash. Verification is purely hash-based against blobHashes (the
-		// L1-signed versioned hashes), so it is exactly as safe with or without
-		// the hint. This is the #745 self-heal — DO NOT turn a BlockByNumber
-		// failure back into a hard error, it can wedge derivation on a block
-		// whose body never loads. Locked in by
-		// TestFallbackBeacon_VerifiesWithoutIndexHints.
-		var indexHints []IndexedBlobHash
-		if block, err := d.l1Client.BlockByNumber(d.ctx, big.NewInt(int64(blockNumber))); err == nil {
-			indexHints = dataAndHashesFromTxs(block.Transactions(), tx)
-			d.logger.Info("Built blob index hints from block", "count", len(indexHints))
+		// Initialize indexedBlobHashes as nil
+		var indexedBlobHashes []IndexedBlobHash
+
+		// Only try to build IndexedBlobHash array if not forcing get all blobs
+		// Try to get the block to build IndexedBlobHash array
+		block, err := d.l1Client.BlockByNumber(d.ctx, big.NewInt(int64(blockNumber)))
+		if err == nil {
+			// Successfully got the block, now build IndexedBlobHash array
+			d.logger.Info("Building IndexedBlobHash array from block", "blockNumber", blockNumber)
+			indexedBlobHashes = dataAndHashesFromTxs(block.Transactions(), tx)
+			d.logger.Info("Built IndexedBlobHash array", "count", len(indexedBlobHashes))
 		} else {
-			d.logger.Info("could not fetch L1 block body for blob index hints; fetching all sidecars at the slot and verifying by hash",
-				"blockNumber", blockNumber, "err", err)
+			d.logger.Info("Failed to get block, will try fetching all blobs", "blockNumber", blockNumber, "error", err)
 		}
 
-		// Blobs come back content-verified against blobHashes and in tx order;
-		// a beacon serving bad data was already rotated away.
+		// Get all blobs corresponding to this timestamp, content-verified
+		// against the tx's blob hashes inside the fallback client.
 		sidecar, err := d.l1BeaconClient.GetVerifiedBlobSidecar(d.ctx, L1BlockRef{
 			Time: header.Time,
-		}, blobHashes, indexHints)
+		}, blobHashes, indexedBlobHashes)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get verified blobs for tx %s: %w", txHash.Hex(), err)
+			return nil, fmt.Errorf("failed to get blobs, continuing processing:%v", err)
 		}
-		d.logger.Info("Fetched verified blobs", "count", len(sidecar.Blobs))
+		d.logger.Info("Blob matching results", "matched", len(sidecar.Blobs), "expected", len(blobHashes))
 		batch.Sidecar = sidecar
 	}
 

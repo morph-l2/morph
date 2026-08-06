@@ -244,37 +244,27 @@ func NewFallbackBeaconClient(endpoints []string, log tmlog.Logger, metrics *Metr
 
 // GetVerifiedBlobSidecar fetches and content-verifies the blobs identified by
 // wantHashes — the L1 tx's versioned blob hashes, in tx order — trying each
-// configured beacon in turn. It returns the assembled BlobTxSidecar (blobs +
-// commitments, in wantHashes order). A beacon that errors or serves an
-// incomplete/invalid set is recorded as a failure and skipped; if every
-// beacon fails, the last error is returned.
+// configured beacon in turn and returning the assembled BlobTxSidecar. A
+// beacon that errors or serves an incomplete/invalid set is recorded as a
+// failure and skipped; if every beacon fails, the last error is returned.
 //
-// indexHints is an optional optimization, NOT a correctness input: when
-// non-empty, the first fetch attempt asks the beacon for only those sidecar
-// indices (?indices=) instead of the whole slot. Verification is purely by
-// hash — verifyBlob re-derives each commitment from the blob bytes and checks
-// it against wantHashes — so a caller that cannot build indices (e.g. the L1
-// block body is unavailable) may pass nil and every sidecar at the slot is
-// fetched and matched by hash instead. Keeping index (a data-fetch detail)
-// and hash (the security check) apart is deliberate: conflating them is what
-// previously made a block-body fetch failure look "unverifiable" and led to
-// dropping the fetch-all self-heal.
+// indexHints is an optional fetch optimization (?indices= filter), not a
+// correctness input: verification is purely by hash, so callers that cannot
+// build indices may pass nil and the whole slot is fetched and matched.
 func (c *FallbackBeaconClient) GetVerifiedBlobSidecar(ctx context.Context, ref L1BlockRef, wantHashes []common.Hash, indexHints []IndexedBlobHash) (types.BlobTxSidecar, error) {
 	if len(wantHashes) == 0 {
 		return types.BlobTxSidecar{}, nil
 	}
-	// Config validation rejects an empty beacon list at startup; this guards
-	// direct construction, where falling through would silently return an
-	// empty sidecar as success.
+	// Guards direct construction; config validation already rejects an empty
+	// beacon list at startup.
 	if len(c.clients) == 0 {
 		return types.BlobTxSidecar{}, errors.New("no beacon endpoints configured")
 	}
 	var lastErr error
 	for i, cl := range c.clients {
 		sidecars, err := cl.GetBlobSidecarsEnhanced(ctx, ref, indexHints)
-		// An empty list (slot pruned / not yet indexed) is an availability
-		// failure of this endpoint; report it as such rather than as a
-		// hash-match failure inside blobsFromSidecars.
+		// Empty list (slot pruned / not yet indexed) is an availability
+		// failure of this endpoint.
 		if err == nil && len(sidecars) == 0 {
 			err = errors.New("beacon returned no sidecars for slot")
 		}
@@ -292,7 +282,7 @@ func (c *FallbackBeaconClient) GetVerifiedBlobSidecar(ctx context.Context, ref L
 			c.metrics.IncBeaconRequestFailure(c.endpoints[i])
 		}
 		if c.log != nil {
-			c.log.Error("beacon failed to serve valid blob sidecars, trying next endpoint",
+			c.log.Error("beacon failed to serve blob sidecars, trying next endpoint",
 				"endpoint", c.endpoints[i], "err", err)
 		}
 		lastErr = err
@@ -322,22 +312,22 @@ func blobsFromSidecars(sidecars []*BlobSidecar, wantHashes []common.Hash) (types
 		Blobs:       make([]kzg4844.Blob, 0, len(wantHashes)),
 		Commitments: make([]kzg4844.Commitment, 0, len(wantHashes)),
 	}
-	for _, expected := range wantHashes {
+	for i, expected := range wantHashes {
 		sidecar, ok := byHash[expected]
 		if !ok {
-			return types.BlobTxSidecar{}, fmt.Errorf("blob (hash=%s) not found in beacon response", expected.Hex())
+			return types.BlobTxSidecar{}, fmt.Errorf("blob %d (hash=%s) not found in beacon sidecars", i, expected.Hex())
 		}
 		b, err := hexutil.Decode(sidecar.Blob)
 		if err != nil {
-			return types.BlobTxSidecar{}, fmt.Errorf("failed to decode blob (hash=%s): %w", expected.Hex(), err)
+			return types.BlobTxSidecar{}, fmt.Errorf("failed to decode blob %d: %w", i, err)
 		}
 		if len(b) != BlobSize {
-			return types.BlobTxSidecar{}, fmt.Errorf("blob (hash=%s): unexpected length %d (want %d)", expected.Hex(), len(b), BlobSize)
+			return types.BlobTxSidecar{}, fmt.Errorf("blob %d: unexpected length %d (want %d, hash=%s)", i, len(b), BlobSize, expected.Hex())
 		}
 		var blob Blob
 		copy(blob[:], b)
 		if err := verifyBlob(&blob, expected); err != nil {
-			return types.BlobTxSidecar{}, err
+			return types.BlobTxSidecar{}, fmt.Errorf("blob %d: %w", i, err)
 		}
 		var commitment kzg4844.Commitment
 		copy(commitment[:], sidecar.KZGCommitment[:])
