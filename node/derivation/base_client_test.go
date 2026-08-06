@@ -277,7 +277,7 @@ func TestFallbackBeacon_AllEmptyReturnsError(t *testing.T) {
 	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
 	sidecar, err := fetch(t, c)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "not found in beacon response")
+	require.Contains(t, err.Error(), "no sidecars")
 	require.Empty(t, sidecar.Blobs)
 	require.Positive(t, atomic.LoadInt32(primaryHits))
 	require.Positive(t, atomic.LoadInt32(fallbackHits))

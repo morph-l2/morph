@@ -272,6 +272,12 @@ func (c *FallbackBeaconClient) GetVerifiedBlobSidecar(ctx context.Context, ref L
 	var lastErr error
 	for i, cl := range c.clients {
 		sidecars, err := cl.GetBlobSidecarsEnhanced(ctx, ref, indexHints)
+		// An empty list (slot pruned / not yet indexed) is an availability
+		// failure of this endpoint; report it as such rather than as a
+		// hash-match failure inside blobsFromSidecars.
+		if err == nil && len(sidecars) == 0 {
+			err = errors.New("beacon returned no sidecars for slot")
+		}
 		if err == nil {
 			var verified types.BlobTxSidecar
 			verified, err = blobsFromSidecars(sidecars, wantHashes)
