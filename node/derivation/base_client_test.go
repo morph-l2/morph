@@ -267,6 +267,22 @@ func TestFallbackBeacon_StopsOnContextCancellation(t *testing.T) {
 	require.Zero(t, atomic.LoadInt32(&fallbackCalls))
 }
 
+// Every configured beacon answers 200 with an empty sidecar list (blob
+// pruned everywhere / not yet indexed): the caller must get an error, never
+// an empty sidecar as success.
+func TestFallbackBeacon_AllEmptyReturnsError(t *testing.T) {
+	primary, primaryHits := newStubBeacon(t, beaconServesEmpty)
+	fallback, fallbackHits := newStubBeacon(t, beaconServesEmpty)
+
+	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
+	sidecar, err := fetch(t, c)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not found in beacon response")
+	require.Empty(t, sidecar.Blobs)
+	require.Positive(t, atomic.LoadInt32(primaryHits))
+	require.Positive(t, atomic.LoadInt32(fallbackHits))
+}
+
 // When every beacon fails to serve a valid blob, an error is returned and
 // every endpoint's failure is recorded in metrics.
 func TestFallbackBeacon_AllFailReturnsError(t *testing.T) {
