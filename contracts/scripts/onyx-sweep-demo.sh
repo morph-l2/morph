@@ -103,7 +103,15 @@ echo "    resolveSweep(before register) = $pre"
 
 # ---- 4. controller points its route at the destination ----------------------
 echo "==> [4] controller $CONTROLLER sets destination $DESTINATION"
-send_controller "$ONYX_REGISTRY" "setSweepDestination(address)" "$DESTINATION" >/dev/null
+# setSweepDestination reverts with DestinationUnchanged when the pointer already
+# matches — normal on a re-run or after the comprehensive script used the same
+# controller. Resolve first and skip the no-op call.
+CUR_DEST=$(cast call --rpc-url "$L2_RPC" "$ONYX_REGISTRY" "destinations(address)(address)" "$CONTROLLER" 2>/dev/null || echo "")
+if [ "$(echo "$CUR_DEST" | tr 'A-Z' 'a-z')" = "$(echo "$DESTINATION" | tr 'A-Z' 'a-z')" ]; then
+  echo "    destination already set to $DESTINATION — skipping"
+else
+  send_controller "$ONYX_REGISTRY" "setSweepDestination(address)" "$DESTINATION" >/dev/null
+fi
 
 # ---- 5. source signs EIP-712 authorization, controller registers it --------
 echo "==> [5] EIP-712 register source $SOURCE -> controller $CONTROLLER (dest $DESTINATION)"

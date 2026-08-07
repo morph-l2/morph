@@ -173,7 +173,16 @@ echo "  [3.0] Controller $CONTROLLER sets destination..."
 if [ "$CONTROLLER" != "$ACCT0" ]; then
   onyx_send_tx --value 1ether "$CONTROLLER" >/dev/null
 fi
-onyx_send_tx_from "$CONTROLLER_KEY" "$REGISTRY" "setSweepDestination(address)" "$DESTINATION" >/dev/null
+# setSweepDestination reverts with DestinationUnchanged when the pointer already
+# equals the target — which is normal when this script re-runs on a Registry
+# where an earlier run (or the demo script) already pointed the controller there.
+# Resolve the current destination first and skip the call when it already matches.
+CUR_DEST=$(cast call --rpc-url "$L2_RPC" "$REGISTRY" "destinations(address)(address)" "$CONTROLLER" 2>/dev/null || echo "")
+if [ "$(echo "$CUR_DEST" | tr 'A-Z' 'a-z')" = "$(echo "$DESTINATION" | tr 'A-Z' 'a-z')" ]; then
+  echo "    destination already set to $DESTINATION — skipping"
+else
+  onyx_send_tx_from "$CONTROLLER_KEY" "$REGISTRY" "setSweepDestination(address)" "$DESTINATION" >/dev/null
+fi
 
 # 3.1 Register source
 echo "  [3.1] Register source..."

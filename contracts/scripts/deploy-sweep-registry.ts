@@ -1,20 +1,31 @@
 /**
  * Deterministic CREATE2 deployment script for the Onyx `SweepRegistry`.
  *
- * Both the implementation and the transparent proxy are deployed via the Arachnid
- * deterministic-deployment-proxy (`0x4e59b44847b379578588920cA78FbF26c0B4956C`),
- * which already exists on Morph Mainnet and Hoodi. Using fixed salts makes
- * the proxy address predictable and identical across networks, so it matches
- * the hardcoded consensus constant every EL client pins (morph-reth
- * `SWEEP_REGISTRY_ADDRESS`; go-ethereum likewise per the Onyx spec). The
- * address is NOT read from chain config — this script asserts the deployed
- * proxy equals that constant.
+ * Both the implementation and the transparent proxy are compiled with the
+ * FOUNDRY toolchain (`forge build`, foundry.toml optimizer_runs=999999) and
+ * deployed via the Arachnid deterministic-deployment-proxy
+ * (`0x4e59b44847b379578588920cA78FbF26c0B4956C`), which already exists on Morph
+ * Mainnet and Hoodi. Using fixed salts makes the proxy address predictable and
+ * identical across networks, so it matches the hardcoded consensus constant
+ * every EL client pins (morph-reth `SWEEP_REGISTRY_ADDRESS`; go-ethereum
+ * likewise per the Onyx spec). The address is NOT read from chain config —
+ * this script asserts the deployed proxy equals that constant.
+ *
+ * WHY FORGE, NOT HARDHAT: the hardhat optimizer runs setting is deliberately
+ * left at the repo default (10_000) so the legacy L1 contracts (e.g. Rollup,
+ * ~25.8k runtime bytes) stay under the EIP-170 24,576-byte deploy limit. The
+ * new Onyx contracts need optimizer_runs=999999 to byte-for-byte match the
+ * bytecode the EL clients and the devnet scripts (onyx-sweep-common.sh) lock
+ * onto for the deterministic `SWEEP_REGISTRY_ADDRESS`. The two toolchains must
+ * never be mixed for the same contract — a different optimizer setting would
+ * change the CREATE2 address and break the hardcoded consensus constant.
  *
  * Proxy initialization is a separate transaction — the proxy is deployed
  * with empty init-data so that the owner (which may differ between
  * mainnet and testnet) does not affect the deterministic address.
  *
  * Usage:
+ *   forge build
  *   REGISTRY_OWNER=0x..  PROXY_ADMIN=0x..  WHITELIST_TOKENS=0x..,0x.. \
  *     npx hardhat run scripts/deploy-sweep-registry.ts --network <net>
  *
@@ -32,10 +43,12 @@
  *   IMPL_INITCODE=$(cat forge-artifacts/SweepRegistry.sol/SweepRegistry.json | jq -r .bytecode.object)
  *   IMPL=$(cast create2 --deployer $FACTORY --salt $SALT_IMPL --init-code $IMPL_INITCODE)
  *   PROXY_ARGS=$(cast abi-encode 'x(address,address,bytes)' "$IMPL" "$PROXY_ADMIN" "")
- *   PROXY_BYTECODE=$(cat forge-artifacts/TransparentUpgradeableProxy.json | jq -r .bytecode.object)
+ *   PROXY_BYTECODE=$(cat forge-artifacts/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json | jq -r .bytecode.object)
  *   PROXY_INITCODE=${PROXY_BYTECODE}${PROXY_ARGS#0x}
  *   cast create2 --deployer $FACTORY --salt $SALT_PROXY --init-code $PROXY_INITCODE
  */
+import fs from "fs"
+import path from "path"
 import { ethers } from "hardhat"
 
 // L2 ProxyAdmin predeploy (Predeploys.PROXY_ADMIN).
@@ -64,10 +77,6 @@ const SALT_PROXY  = ethers.utils.keccak256(
     ethers.utils.toUtf8Bytes("morph.sweep-registry.proxy.v1"),
 )
 
-// OpenZeppelin transparent proxy, fully qualified to avoid name ambiguity.
-const PROXY_FQN =
-    "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy"
-
 // Deterministic proxy address when proxyAdmin == DEFAULT_PROXY_ADMIN. This MUST
 // equal the morph-reth SWEEP_REGISTRY_ADDRESS constant (crates/chainspec/src/
 // constants.rs); otherwise the execution layer will never find the registry.
@@ -77,6 +86,33 @@ const PROXY_FQN =
 // CREATE2 chain) and requires re-syncing constants.rs, onyx-sweep-common.sh and
 // the morph-reth EL test assets (Onyx spec §3.2).
 const EXPECTED_REGISTRY = "0x0fF2Ea62eBca29E70aE2b0551a54eFFa4ea7DeEa"
+
+/**
+ * Reads a contract's creation initcode from its FORGE artifact.
+ *
+ * The SweepRegistry and its transparent proxy are compiled and deployed with the
+ * foundry toolchain (`forge build`, foundry.toml optimizer_runs=999999), NOT with
+ * hardhat's optimizer. This is deliberate: the hardhat optimizer runs setting is
+ * left at the repo default (10_000) so the legacy L1 contracts stay deployable,
+ * while the new Onyx contracts keep the runs=999999 bytecode that the EL clients
+ * and the devnet scripts (onyx-sweep-common.sh) lock onto for the deterministic
+ * `SWEEP_REGISTRY_ADDRESS`. Mixing the two toolchains would produce a different
+ * CREATE2 address and break the hardcoded consensus constant.
+ */
+function readForgeInitcode(artifactPath: string): string {
+    const json = JSON.parse(fs.readFileSync(artifactPath, "utf8"))
+    const initcode = json?.bytecode?.object
+    if (typeof initcode !== "string" || !initcode.startsWith("0x")) {
+        throw new Error(
+            `Forge artifact ${artifactPath} has no creation bytecode; run 'forge build' first.`,
+        )
+    }
+    return initcode
+}
+
+const IMPL_ARTIFACT = path.join(__dirname, "../forge-artifacts/SweepRegistry.sol/SweepRegistry.json")
+const PROXY_ARTIFACT =
+    path.join(__dirname, "../forge-artifacts/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json")
 
 async function main() {
     const [deployer] = await ethers.getSigners()
@@ -102,10 +138,9 @@ async function main() {
     type AddrPair = { impl: string; proxy: string }
 
     const precomputeAsync = async (): Promise<AddrPair> => {
-        const Impl = await ethers.getContractFactory("SweepRegistry")
-        const Proxy = await ethers.getContractFactory(PROXY_FQN)
+        const implInitcode = readForgeInitcode(IMPL_ARTIFACT)
+        const proxyInitcode = readForgeInitcode(PROXY_ARTIFACT)
 
-        const implInitcode = Impl.bytecode
         const implAddr = ethers.utils.getCreate2Address(
             CREATE2_FACTORY,
             SALT_IMPL,
@@ -116,14 +151,14 @@ async function main() {
             ["address", "address", "bytes"],
             [implAddr, proxyAdmin, "0x"],
         )
-        const proxyInitcode = ethers.utils.solidityPack(
+        const proxyFullInitcode = ethers.utils.solidityPack(
             ["bytes", "bytes"],
-            [Proxy.bytecode, proxyConstructorArgs],
+            [proxyInitcode, proxyConstructorArgs],
         )
         const proxyAddr = ethers.utils.getCreate2Address(
             CREATE2_FACTORY,
             SALT_PROXY,
-            ethers.utils.keccak256(proxyInitcode),
+            ethers.utils.keccak256(proxyFullInitcode),
         )
         return { impl: implAddr, proxy: proxyAddr }
     }
@@ -165,11 +200,11 @@ async function main() {
         if (onChainCode !== "0x") {
             console.log(`Impl already deployed at ${addrs.impl} — skipping`)
         } else {
-            const Impl = await ethers.getContractFactory("SweepRegistry")
+            const implInitcode = readForgeInitcode(IMPL_ARTIFACT)
             console.log(`Deploying impl via CREATE2 …`)
             const tx = await deployer.sendTransaction({
                 to: CREATE2_FACTORY,
-                data: factoryCalldata(SALT_IMPL, Impl.bytecode),
+                data: factoryCalldata(SALT_IMPL, implInitcode),
             })
             console.log(`  tx: ${tx.hash}`)
             await tx.wait()
@@ -183,19 +218,19 @@ async function main() {
         if (onChainCode !== "0x") {
             console.log(`Proxy already deployed at ${addrs.proxy} — skipping`)
         } else {
-            const Proxy = await ethers.getContractFactory(PROXY_FQN)
+            const proxyInitcode = readForgeInitcode(PROXY_ARTIFACT)
             const proxyConstructorArgs = ethers.utils.defaultAbiCoder.encode(
                 ["address", "address", "bytes"],
                 [addrs.impl, proxyAdmin, "0x"],
             )
-            const proxyInitcode = ethers.utils.solidityPack(
+            const proxyFullInitcode = ethers.utils.solidityPack(
                 ["bytes", "bytes"],
-                [Proxy.bytecode, proxyConstructorArgs],
+                [proxyInitcode, proxyConstructorArgs],
             )
             console.log(`Deploying proxy via CREATE2 …`)
             const tx = await deployer.sendTransaction({
                 to: CREATE2_FACTORY,
-                data: factoryCalldata(SALT_PROXY, proxyInitcode),
+                data: factoryCalldata(SALT_PROXY, proxyFullInitcode),
             })
             console.log(`  tx: ${tx.hash}`)
             await tx.wait()
