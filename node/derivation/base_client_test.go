@@ -10,29 +10,51 @@ import (
 	"testing"
 
 	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
+	"github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	"github.com/stretchr/testify/require"
 )
 
-// zero-value but correctly-sized hex so the beacon JSON decodes into a
-// BlobSidecar. GetBlobSidecarsEnhanced does not verify blob contents (that
-// happens downstream), it only counts sidecars, so dummy bytes are fine here.
+// The fallback verifies blob content, so accept-path stubs must serve a real
+// (blob, commitment) pair; the all-zero blob is the cheapest valid one.
 var (
 	hex32 = "0x" + strings.Repeat("00", 32)
 	hex48 = "0x" + strings.Repeat("00", 48)
+
+	zeroBlobHex        = "0x" + strings.Repeat("00", BlobSize)
+	zeroBlobCommitment = mustZeroBlobCommitment()
+	zeroBlobHash       = KZGToVersionedHash(zeroBlobCommitment)
+
+	// Valid blob bytes served under the zero blob's commitment: count and
+	// commitment lookup pass, only verifyBlob catches it.
+	corruptBlobHex = "0x01" + strings.Repeat("00", BlobSize-1)
 )
 
-func sidecarJSON(index int) string {
-	return fmt.Sprintf(`{"block_root":%q,"slot":"1","blob":"0x00","index":"%d","kzg_commitment":%q,"kzg_proof":%q}`,
-		hex32, index, hex48, hex48)
+func mustZeroBlobCommitment() kzg4844.Commitment {
+	var blob Blob
+	commitment, err := kzg4844.BlobToCommitment(blob.KZGBlob())
+	if err != nil {
+		panic(err)
+	}
+	return commitment
+}
+
+func sidecarJSON(index int, blobHex, commitmentHex string) string {
+	return fmt.Sprintf(`{"block_root":%q,"slot":"1","blob":%q,"index":"%d","kzg_commitment":%q,"kzg_proof":%q}`,
+		hex32, blobHex, index, commitmentHex, hex48)
 }
 
 // beaconBehavior controls what a stub beacon returns for blob_sidecars.
 type beaconBehavior int
 
 const (
-	beaconServesBlob  beaconBehavior = iota // 200 with one sidecar
-	beaconServesEmpty                       // 200 with an empty list (pruned / not indexed)
-	beaconServerError                       // 500
+	beaconServesBlob            beaconBehavior = iota // 200 with one valid sidecar
+	beaconServesEmpty                                 // 200 with an empty list (pruned / not indexed)
+	beaconServerError                                 // 500
+	beaconServesCorruptBlob                           // 200, right count and commitment, blob bytes do not match
+	beaconServesWrongCommitment                       // 200, right count, commitment of some other blob
+	beaconServesNullSidecar                           // 200, JSON null entry in the sidecar list
 )
 
 // newStubBeacon serves the genesis + spec endpoints (needed for slot math) and
@@ -51,11 +73,17 @@ func newStubBeacon(t *testing.T, behavior beaconBehavior) (string, *int32) {
 			atomic.AddInt32(&blobHits, 1)
 			switch behavior {
 			case beaconServesBlob:
-				_, _ = w.Write([]byte(`{"data":[` + sidecarJSON(0) + `]}`))
+				_, _ = w.Write([]byte(`{"data":[` + sidecarJSON(0, zeroBlobHex, hexutil.Encode(zeroBlobCommitment[:])) + `]}`))
 			case beaconServesEmpty:
 				_, _ = w.Write([]byte(`{"data":[]}`))
 			case beaconServerError:
 				w.WriteHeader(http.StatusInternalServerError)
+			case beaconServesCorruptBlob:
+				_, _ = w.Write([]byte(`{"data":[` + sidecarJSON(0, corruptBlobHex, hexutil.Encode(zeroBlobCommitment[:])) + `]}`))
+			case beaconServesWrongCommitment:
+				_, _ = w.Write([]byte(`{"data":[` + sidecarJSON(0, zeroBlobHex, hex48) + `]}`))
+			case beaconServesNullSidecar:
+				_, _ = w.Write([]byte(`{"data":[null]}`))
 			}
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -66,7 +94,13 @@ func newStubBeacon(t *testing.T, behavior beaconBehavior) (string, *int32) {
 }
 
 func oneHash() []IndexedBlobHash {
-	return []IndexedBlobHash{{Index: 0, Hash: common.Hash{}}}
+	return []IndexedBlobHash{{Index: 0, Hash: zeroBlobHash}}
+}
+
+// wantHashes is the verification set the caller always has (tx.BlobHashes()),
+// independent of whether index hints could be built.
+func wantHashes() []common.Hash {
+	return []common.Hash{zeroBlobHash}
 }
 
 type canceledHTTP struct {
@@ -78,9 +112,9 @@ func (h canceledHTTP) Get(ctx context.Context, _ string, _ http.Header) (*http.R
 	return nil, ctx.Err()
 }
 
-func fetch(t *testing.T, c *FallbackBeaconClient) ([]*BlobSidecar, error) {
+func fetch(t *testing.T, c *FallbackBeaconClient) (types.BlobTxSidecar, error) {
 	t.Helper()
-	return c.GetBlobSidecarsEnhanced(context.Background(), L1BlockRef{Time: 12}, oneHash())
+	return c.GetVerifiedBlobSidecar(context.Background(), L1BlockRef{Time: 12}, wantHashes(), oneHash())
 }
 
 // The primary serves the blob and the fallback is never queried.
@@ -91,7 +125,7 @@ func TestFallbackBeacon_PrimaryServesBlob(t *testing.T) {
 	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
 	sidecars, err := fetch(t, c)
 	require.NoError(t, err)
-	require.Len(t, sidecars, 1)
+	require.Len(t, sidecars.Blobs, 1)
 	require.EqualValues(t, 1, atomic.LoadInt32(primaryHits))
 	require.EqualValues(t, 0, atomic.LoadInt32(fallbackHits), "fallback must not be queried while primary serves the blob")
 }
@@ -105,7 +139,7 @@ func TestFallbackBeacon_FallsBackOnEmptyResult(t *testing.T) {
 	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
 	sidecars, err := fetch(t, c)
 	require.NoError(t, err)
-	require.Len(t, sidecars, 1)
+	require.Len(t, sidecars.Blobs, 1)
 	require.Positive(t, atomic.LoadInt32(primaryHits))
 	require.Positive(t, atomic.LoadInt32(fallbackHits))
 }
@@ -118,7 +152,7 @@ func TestFallbackBeacon_FallsBackOnServerError(t *testing.T) {
 	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
 	sidecars, err := fetch(t, c)
 	require.NoError(t, err)
-	require.Len(t, sidecars, 1)
+	require.Len(t, sidecars.Blobs, 1)
 	require.Positive(t, atomic.LoadInt32(fallbackHits))
 }
 
@@ -129,8 +163,87 @@ func TestFallbackBeacon_FallsBackOnTransportError(t *testing.T) {
 	c := NewFallbackBeaconClient([]string{"http://127.0.0.1:0", fallback}, nil, nil)
 	sidecars, err := fetch(t, c)
 	require.NoError(t, err)
-	require.Len(t, sidecars, 1)
+	require.Len(t, sidecars.Blobs, 1)
 	require.Positive(t, atomic.LoadInt32(fallbackHits))
+}
+
+// 200 with the right count and commitment but corrupted blob bytes must
+// trigger fallback instead of handing bad bytes downstream.
+func TestFallbackBeacon_FallsBackOnCorruptBlobContent(t *testing.T) {
+	primary, primaryHits := newStubBeacon(t, beaconServesCorruptBlob)
+	fallback, fallbackHits := newStubBeacon(t, beaconServesBlob)
+
+	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
+	sidecars, err := fetch(t, c)
+	require.NoError(t, err)
+	require.Len(t, sidecars.Blobs, 1)
+	require.Positive(t, atomic.LoadInt32(primaryHits))
+	require.Positive(t, atomic.LoadInt32(fallbackHits), "corrupt blob content must trigger fallback")
+}
+
+// 200 with the right count but none of the sidecars carries the requested
+// hash (e.g. another fork's sidecars at the same slot) must trigger fallback.
+func TestFallbackBeacon_FallsBackOnMissingRequestedHash(t *testing.T) {
+	primary, primaryHits := newStubBeacon(t, beaconServesWrongCommitment)
+	fallback, fallbackHits := newStubBeacon(t, beaconServesBlob)
+
+	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
+	sidecars, err := fetch(t, c)
+	require.NoError(t, err)
+	require.Len(t, sidecars.Blobs, 1)
+	require.Positive(t, atomic.LoadInt32(primaryHits))
+	require.Positive(t, atomic.LoadInt32(fallbackHits), "missing requested hash must trigger fallback")
+}
+
+// A JSON null in the sidecar list decodes to a nil pointer; it must count as
+// a verification failure and trigger fallback, not panic.
+func TestFallbackBeacon_FallsBackOnNullSidecar(t *testing.T) {
+	primary, primaryHits := newStubBeacon(t, beaconServesNullSidecar)
+	fallback, fallbackHits := newStubBeacon(t, beaconServesBlob)
+
+	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
+	sidecars, err := fetch(t, c)
+	require.NoError(t, err)
+	require.Len(t, sidecars.Blobs, 1)
+	require.Positive(t, atomic.LoadInt32(primaryHits))
+	require.Positive(t, atomic.LoadInt32(fallbackHits), "null sidecar must trigger fallback")
+}
+
+// The #745 self-heal: when the caller cannot build index hints (the L1 block
+// body was unavailable), it passes nil hints. The client must still fetch all
+// sidecars at the slot and authenticate them by hash — a nil hint is NOT a
+// failure and must not become a hard error.
+func TestFallbackBeacon_VerifiesWithoutIndexHints(t *testing.T) {
+	primary, primaryHits := newStubBeacon(t, beaconServesBlob)
+
+	c := NewFallbackBeaconClient([]string{primary}, nil, nil)
+	sidecar, err := c.GetVerifiedBlobSidecar(context.Background(), L1BlockRef{Time: 12}, wantHashes(), nil)
+	require.NoError(t, err)
+	require.Len(t, sidecar.Blobs, 1)
+	require.Positive(t, atomic.LoadInt32(primaryHits))
+}
+
+// Verification stays active on the no-index fetch-all path: a corrupt primary
+// must still rotate to a healthy fallback even without index hints.
+func TestFallbackBeacon_FallsBackWithoutIndexHintsOnCorruptContent(t *testing.T) {
+	primary, primaryHits := newStubBeacon(t, beaconServesCorruptBlob)
+	fallback, fallbackHits := newStubBeacon(t, beaconServesBlob)
+
+	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
+	sidecar, err := c.GetVerifiedBlobSidecar(context.Background(), L1BlockRef{Time: 12}, wantHashes(), nil)
+	require.NoError(t, err)
+	require.Len(t, sidecar.Blobs, 1)
+	require.Positive(t, atomic.LoadInt32(primaryHits))
+	require.Positive(t, atomic.LoadInt32(fallbackHits), "corrupt content must trigger fallback even without index hints")
+}
+
+// A client constructed with no endpoints must error instead of silently
+// returning an empty sidecar as success.
+func TestFallbackBeacon_NoEndpointsReturnsError(t *testing.T) {
+	c := NewFallbackBeaconClient(nil, nil, nil)
+	sidecar, err := c.GetVerifiedBlobSidecar(context.Background(), L1BlockRef{Time: 12}, wantHashes(), nil)
+	require.Error(t, err)
+	require.Empty(t, sidecar.Blobs)
 }
 
 func TestFallbackBeacon_StopsOnContextCancellation(t *testing.T) {
@@ -145,25 +258,41 @@ func TestFallbackBeacon_StopsOnContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	sidecars, err := c.GetBlobSidecarsEnhanced(ctx, L1BlockRef{Time: 12}, oneHash())
+	sidecars, err := c.GetVerifiedBlobSidecar(ctx, L1BlockRef{Time: 12}, wantHashes(), oneHash())
 
 	require.ErrorIs(t, err, context.Canceled)
-	require.Nil(t, sidecars)
+	require.Empty(t, sidecars.Blobs)
 	require.Positive(t, atomic.LoadInt32(&primaryCalls))
 	require.Zero(t, atomic.LoadInt32(&fallbackCalls))
 }
 
-// When every beacon fails to serve the blob, an error is returned and every
-// endpoint's failure is recorded in metrics (exercised via a real *Metrics).
+// Every configured beacon answers 200 with an empty sidecar list (blob
+// pruned everywhere / not yet indexed): the caller must get an error, never
+// an empty sidecar as success.
+func TestFallbackBeacon_AllEmptyReturnsError(t *testing.T) {
+	primary, primaryHits := newStubBeacon(t, beaconServesEmpty)
+	fallback, fallbackHits := newStubBeacon(t, beaconServesEmpty)
+
+	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, nil)
+	sidecar, err := fetch(t, c)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no sidecars")
+	require.Empty(t, sidecar.Blobs)
+	require.Positive(t, atomic.LoadInt32(primaryHits))
+	require.Positive(t, atomic.LoadInt32(fallbackHits))
+}
+
+// When every beacon fails to serve a valid blob, an error is returned and
+// every endpoint's failure is recorded in metrics.
 func TestFallbackBeacon_AllFailReturnsError(t *testing.T) {
 	primary, primaryHits := newStubBeacon(t, beaconServesEmpty)
-	fallback, fallbackHits := newStubBeacon(t, beaconServerError)
+	fallback, fallbackHits := newStubBeacon(t, beaconServesCorruptBlob)
 
 	m := PrometheusMetrics("morphnode_test_" + t.Name())
 	c := NewFallbackBeaconClient([]string{primary, fallback}, nil, m)
 	sidecars, err := fetch(t, c)
 	require.Error(t, err)
-	require.Nil(t, sidecars)
+	require.Empty(t, sidecars.Blobs)
 	require.Positive(t, atomic.LoadInt32(primaryHits))
 	require.Positive(t, atomic.LoadInt32(fallbackHits))
 }

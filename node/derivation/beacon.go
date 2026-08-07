@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	"github.com/morph-l2/go-ethereum/params"
@@ -209,14 +211,17 @@ func dataAndHashesFromTxs(txs types.Transactions, targetTx *types.Transaction) [
 	return hashes
 }
 
-// FallbackBeaconClient queries several beacon nodes in order for blob sidecars.
-// A beacon is skipped and the next one tried when it errors, is unreachable, or
-// answers with too few sidecars — a beacon that pruned the slot or has not
-// indexed it yet still replies 200 with an empty/partial list, which is exactly
-// the "temporarily failed to fetch blob" case seen in production and which a
-// transport-level fallback would miss. The failing endpoint is recorded in the
-// beacon_request_failure_total metric so a flaky node is visible on dashboards.
-// With a single endpoint it behaves like a bare L1BeaconClient.
+// FallbackBeaconClient queries several beacon nodes in order and rotates to
+// the next one when an endpoint cannot serve verified blobs (error, missing
+// data, or content failing hash verification). Failing endpoints are recorded
+// in the beacon_request_failure_total metric.
+//
+// Scope: fallback only covers per-endpoint data faults (corruption, pruned or
+// unsynced data, client bugs). It is not a consistency mechanism and should
+// not grow into one — safety against bad data comes from the KZG hash
+// verification itself, and EL/CL fork mismatches near the chain head are
+// eliminated by running derivation with confirmations=finalized, not by
+// trying more beacons.
 type FallbackBeaconClient struct {
 	clients   []*L1BeaconClient
 	endpoints []string // parallel to clients, used only for logs/metrics
@@ -237,37 +242,104 @@ func NewFallbackBeaconClient(endpoints []string, log tmlog.Logger, metrics *Metr
 	}
 }
 
-// GetBlobSidecarsEnhanced tries each configured beacon in order and returns the
-// first response that actually carries the requested blobs (at least len(hashes)
-// sidecars, or at least one when no explicit hashes are requested). A beacon
-// that errors or returns an incomplete set is recorded as a failure and skipped.
-// If every beacon fails, the last error is returned.
-func (c *FallbackBeaconClient) GetBlobSidecarsEnhanced(ctx context.Context, ref L1BlockRef, hashes []IndexedBlobHash) ([]*BlobSidecar, error) {
+// GetVerifiedBlobSidecar fetches and content-verifies the blobs identified by
+// wantHashes — the L1 tx's versioned blob hashes, in tx order — trying each
+// configured beacon in turn and returning the assembled BlobTxSidecar. A
+// beacon that errors or serves an incomplete/invalid set is recorded as a
+// failure and skipped; if every beacon fails, the last error is returned.
+//
+// indexHints is an optional fetch optimization (?indices= filter), not a
+// correctness input: verification is purely by hash, so callers that cannot
+// build indices may pass nil and the whole slot is fetched and matched.
+func (c *FallbackBeaconClient) GetVerifiedBlobSidecar(ctx context.Context, ref L1BlockRef, wantHashes []common.Hash, indexHints []IndexedBlobHash) (types.BlobTxSidecar, error) {
+	if len(wantHashes) == 0 {
+		return types.BlobTxSidecar{}, nil
+	}
+	// Guards direct construction; config validation already rejects an empty
+	// beacon list at startup.
+	if len(c.clients) == 0 {
+		return types.BlobTxSidecar{}, errors.New("no beacon endpoints configured")
+	}
 	var lastErr error
 	for i, cl := range c.clients {
-		sidecars, err := cl.GetBlobSidecarsEnhanced(ctx, ref, hashes)
-		if err == nil && len(sidecars) > 0 && len(sidecars) >= len(hashes) {
-			return sidecars, nil
-		}
-		if err := ctx.Err(); err != nil {
-			return nil, err
+		sidecars, err := cl.GetBlobSidecarsEnhanced(ctx, ref, indexHints)
+		// Empty list (slot pruned / not yet indexed) is an availability
+		// failure of this endpoint.
+		if err == nil && len(sidecars) == 0 {
+			err = errors.New("beacon returned no sidecars for slot")
 		}
 		if err == nil {
-			err = fmt.Errorf("beacon returned %d sidecars, want at least %d", len(sidecars), len(hashes))
+			var verified types.BlobTxSidecar
+			verified, err = blobsFromSidecars(sidecars, wantHashes)
+			if err == nil {
+				return verified, nil
+			}
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return types.BlobTxSidecar{}, ctxErr
 		}
 		if c.metrics != nil {
 			c.metrics.IncBeaconRequestFailure(c.endpoints[i])
 		}
+		// indexHints is logged because stale hints (e.g. a reorg between the
+		// header and block fetches) make every healthy beacon fail hash
+		// matching; the hint count distinguishes that from real endpoint
+		// faults when reading beacon_request_failure_total spikes.
 		if c.log != nil {
 			c.log.Error("beacon failed to serve blob sidecars, trying next endpoint",
-				"endpoint", c.endpoints[i], "err", err)
+				"endpoint", c.endpoints[i], "indexHints", len(indexHints), "err", err)
 		}
 		lastErr = err
 	}
-	return nil, lastErr
+	return types.BlobTxSidecar{}, lastErr
 }
 
-// Note: ForceGetAllBlobs is defined in derivation.go in the same package
+// blobsFromSidecars matches each wanted versioned hash to a sidecar via its
+// commitment-derived versioned hash, authenticates the blob bytes with
+// verifyBlob, and assembles the result in wantHashes (i.e. tx) order — batches
+// are decoded by concatenating blob bodies, so order matters. Extra sidecars
+// are ignored. Proofs are intentionally left empty: no consumer needs them
+// and computing them costs an extra KZG op per blob.
+func blobsFromSidecars(sidecars []*BlobSidecar, wantHashes []common.Hash) (types.BlobTxSidecar, error) {
+	byHash := make(map[common.Hash]*BlobSidecar, len(sidecars))
+	for _, sidecar := range sidecars {
+		// JSON null entries decode to nil; skipping them surfaces as a
+		// "not found" error below instead of a panic.
+		if sidecar == nil {
+			continue
+		}
+		var commitment kzg4844.Commitment
+		copy(commitment[:], sidecar.KZGCommitment[:])
+		byHash[KZGToVersionedHash(commitment)] = sidecar
+	}
+	out := types.BlobTxSidecar{
+		Blobs:       make([]kzg4844.Blob, 0, len(wantHashes)),
+		Commitments: make([]kzg4844.Commitment, 0, len(wantHashes)),
+	}
+	for i, expected := range wantHashes {
+		sidecar, ok := byHash[expected]
+		if !ok {
+			return types.BlobTxSidecar{}, fmt.Errorf("blob %d (hash=%s) not found in beacon sidecars", i, expected.Hex())
+		}
+		b, err := hexutil.Decode(sidecar.Blob)
+		if err != nil {
+			return types.BlobTxSidecar{}, fmt.Errorf("failed to decode blob %d: %w", i, err)
+		}
+		if len(b) != BlobSize {
+			return types.BlobTxSidecar{}, fmt.Errorf("blob %d: unexpected length %d (want %d, hash=%s)", i, len(b), BlobSize, expected.Hex())
+		}
+		var blob Blob
+		copy(blob[:], b)
+		if err := verifyBlob(&blob, expected); err != nil {
+			return types.BlobTxSidecar{}, fmt.Errorf("blob %d: %w", i, err)
+		}
+		var commitment kzg4844.Commitment
+		copy(commitment[:], sidecar.KZGCommitment[:])
+		out.Blobs = append(out.Blobs, *blob.KZGBlob())
+		out.Commitments = append(out.Commitments, commitment)
+	}
+	return out, nil
+}
 
 // GetBlobSidecarsEnhanced is an enhanced version of GetBlobSidecars method, combining two approaches to fetch blob data
 // If the first method fails or returns no blobs, it will try the second method
