@@ -125,6 +125,23 @@ func (u *PriceUpdater) update(ctx context.Context) error {
 		return fmt.Errorf("failed to fetch token prices: %w", err)
 	}
 
+	// Feeds resolve what they can, so a cycle can succeed while leaving some tokens
+	// unpriced. Those tokens go stale silently unless they are surfaced here.
+	var unresolvedTokenIDs []uint16
+	for _, tokenID := range activeTokenIDs {
+		if _, exists := tokenPrices[tokenID]; !exists {
+			unresolvedTokenIDs = append(unresolvedTokenIDs, tokenID)
+		}
+	}
+	metrics.UnresolvedTokens.Set(float64(len(unresolvedTokenIDs)))
+	if len(unresolvedTokenIDs) > 0 {
+		log.Warn("No price feed could resolve some active tokens",
+			"token_ids", unresolvedTokenIDs,
+			"resolved", len(tokenPrices),
+			"active", len(activeTokenIDs))
+		metrics.UpdateErrors.WithLabelValues("unresolved_token").Add(float64(len(unresolvedTokenIDs)))
+	}
+
 	// Step 2: Calculate price ratios using pre-fetched tokenInfo (no extra contract calls)
 	newPriceRatios := make(map[uint16]*big.Int)
 	for tokenID, tokenPrice := range tokenPrices {

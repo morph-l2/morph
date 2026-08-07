@@ -2,9 +2,11 @@ package updater
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/log"
+
 	"morph-l2/bindings/bindings"
 	"morph-l2/token-price-oracle/client"
 	"morph-l2/token-price-oracle/config"
@@ -91,14 +93,17 @@ func createFallbackPriceFeed(cfg *config.Config) (client.PriceFeed, error) {
 		return nil, fmt.Errorf("no valid price feeds could be created")
 	}
 
+	// Wrap even a single feed: FallbackPriceFeed is what enforces that a batch came
+	// back complete and non-nil. Returning feeds[0] directly let a CEX feed's partial
+	// or empty map through as a success, which the updater then recorded as a
+	// successful cycle.
 	if len(feeds) == 1 {
 		log.Info("Single price feed configured (no fallback)", "feed", feedNames[0])
-		return feeds[0], nil
+	} else {
+		log.Info("Fallback price feed configured with multiple sources",
+			"feeds", feedNames,
+			"priority", "first to last")
 	}
-
-	log.Info("Fallback price feed configured with multiple sources",
-		"feeds", feedNames,
-		"priority", "first to last")
 
 	return client.NewFallbackPriceFeed(feeds, feedNames), nil
 }
@@ -106,6 +111,41 @@ func createFallbackPriceFeed(cfg *config.Config) (client.PriceFeed, error) {
 // createSinglePriceFeed creates a single price feed instance
 func createSinglePriceFeed(feedType config.PriceFeedType, cfg *config.Config) (client.PriceFeed, string, error) {
 	switch feedType {
+	case config.PriceFeedTypeChainlink:
+		mapping, exists := cfg.TokenMappings[config.PriceFeedTypeChainlink]
+		if !exists || len(mapping) == 0 {
+			return nil, "", fmt.Errorf("chainlink price feed requires token mapping, please configure --token-mapping-chainlink")
+		}
+		feed, err := client.NewChainlinkPriceFeed(mapping, cfg.ChainlinkRPC, cfg.ChainlinkETHUSDFeed, cfg.ChainlinkMaxStaleness)
+		if err != nil {
+			return nil, "", err
+		}
+		log.Info("Chainlink price feed created",
+			"type", "chainlink",
+			"rpc", redactRPCForLog(cfg.ChainlinkRPC),
+			"eth_usd_feed", cfg.ChainlinkETHUSDFeed.Hex(),
+			"max_staleness", cfg.ChainlinkMaxStaleness,
+			"mapping", mapping)
+		return feed, "chainlink", nil
+
+	case config.PriceFeedTypePyth:
+		mapping, exists := cfg.TokenMappings[config.PriceFeedTypePyth]
+		if !exists || len(mapping) == 0 {
+			return nil, "", fmt.Errorf("pyth price feed requires token mapping, please configure --token-mapping-pyth")
+		}
+		feed, err := client.NewPythHermesPriceFeed(mapping, cfg.PythHermesBaseURL, cfg.PythAPIKey, cfg.PythETHUSDPriceID, cfg.PythMaxStaleness, cfg.PythMaxConfidenceBPS)
+		if err != nil {
+			return nil, "", err
+		}
+		log.Info("Pyth price feed created",
+			"type", "pyth",
+			"base_url", cfg.PythHermesBaseURL,
+			"eth_usd_price_id", cfg.PythETHUSDPriceID,
+			"max_staleness", cfg.PythMaxStaleness,
+			"max_confidence_bps", cfg.PythMaxConfidenceBPS,
+			"mapping", mapping)
+		return feed, "pyth", nil
+
 	case config.PriceFeedTypeBitget:
 		mapping, exists := cfg.TokenMappings[config.PriceFeedTypeBitget]
 		if !exists || len(mapping) == 0 {
@@ -119,13 +159,40 @@ func createSinglePriceFeed(feedType config.PriceFeedType, cfg *config.Config) (c
 		return feed, "bitget", nil
 
 	case config.PriceFeedTypeBinance:
-		// Binance price feed is not yet implemented
-		// This case should not be reached since Binance is not in ValidPriceFeedTypes
-		return nil, "", fmt.Errorf("binance price feed is not supported yet")
+		mapping, exists := cfg.TokenMappings[config.PriceFeedTypeBinance]
+		if !exists || len(mapping) == 0 {
+			return nil, "", fmt.Errorf("binance price feed requires token mapping, please configure --token-mapping-binance")
+		}
+		feed := client.NewBinancePriceFeed(mapping, cfg.BinanceAPIBaseURL)
+		log.Info("Binance price feed created",
+			"type", "binance",
+			"base_url", cfg.BinanceAPIBaseURL,
+			"mapping", mapping)
+		return feed, "binance", nil
+
+	case config.PriceFeedTypeOKX:
+		mapping, exists := cfg.TokenMappings[config.PriceFeedTypeOKX]
+		if !exists || len(mapping) == 0 {
+			return nil, "", fmt.Errorf("okx price feed requires token mapping, please configure --token-mapping-okx")
+		}
+		feed := client.NewOKXPriceFeed(mapping, cfg.OKXAPIBaseURL)
+		log.Info("OKX price feed created",
+			"type", "okx",
+			"base_url", cfg.OKXAPIBaseURL,
+			"mapping", mapping)
+		return feed, "okx", nil
 
 	default:
 		return nil, "", fmt.Errorf("unsupported price feed type: %s", feedType)
 	}
+}
+
+func redactRPCForLog(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "<invalid_rpc_url>"
+	}
+	return fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host)
 }
 
 // CreateTxManager creates transaction manager

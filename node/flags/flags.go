@@ -215,6 +215,21 @@ var (
 		Usage:  "Unix timestamp (milliseconds) at which consensus switches to sequencer mode",
 		EnvVar: prefixEnvVar("SEQUENCER_UPGRADE_TIME"),
 	}
+	// These flags own the block-production interval defaults (single source of
+	// truth). The tendermint sequencer package carries no default, so Value must
+	// stay set here.
+	SequencerBlockInterval = cli.DurationFlag{
+		Name:   "sequencerBlockInterval",
+		Usage:  "Empty-block fallback interval: max time between blocks when the txpool is empty. Must be greater than --sequencerFastBlockInterval.",
+		EnvVar: prefixEnvVar("SEQUENCER_BLOCK_INTERVAL"),
+		Value:  2 * time.Second,
+	}
+	SequencerFastBlockInterval = cli.DurationFlag{
+		Name:   "sequencerFastBlockInterval",
+		Usage:  "Txpool polling interval: a block is produced immediately when pending txs are found. Must be less than --sequencerBlockInterval.",
+		EnvVar: prefixEnvVar("SEQUENCER_FAST_BLOCK_INTERVAL"),
+		Value:  300 * time.Millisecond,
+	}
 
 	L1SyncLagThreshold = cli.DurationFlag{
 		Name:   "l1.syncLagThreshold",
@@ -292,7 +307,7 @@ var (
 
 	DerivationConfirmations = cli.Int64Flag{
 		Name:   "derivation.confirmations",
-		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
+		Usage:  "How deep derivation reads L1: a positive number is a fixed depth below latest, -1 latest, -3 finalized, -4 safe. Applies to every verify mode; defaults to 10 blocks paired with the L1 reorg detector",
 		EnvVar: prefixEnvVar("DERIVATION_CONFIRMATIONS"),
 	}
 
@@ -407,6 +422,8 @@ var Flags = []cli.Flag{
 	L1SequencerContractAddr,
 	L1SyncLagThreshold,
 	SequencerUpgradeTime,
+	SequencerBlockInterval,
+	SequencerFastBlockInterval,
 	SequencerPrivateKey,
 	SequencerEnclaveSignerAddr,
 	SequencerHAEnabled,
