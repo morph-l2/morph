@@ -221,6 +221,17 @@ func L2NodeMain(ctx *cli.Context) error {
 		if haService != nil {
 			ha = haService
 		}
+		// Sequencer block-production intervals come from flags, which own the
+		// defaults (GlobalDuration returns the flag default when unset). Applied
+		// before the node starts producing; fails fast if fast >= empty-block.
+		blockInterval := ctx.GlobalDuration(flags.SequencerBlockInterval.Name)
+		fastBlockInterval := ctx.GlobalDuration(flags.SequencerFastBlockInterval.Name)
+		if err = tmsequencer.SetBlockIntervals(blockInterval, fastBlockInterval); err != nil {
+			return fmt.Errorf("invalid sequencer block intervals: %w", err)
+		}
+		nodeConfig.Logger.Info("sequencer block intervals configured",
+			"blockInterval", blockInterval,
+			"fastBlockInterval", fastBlockInterval)
 		tmNode, err = sequencer.SetupNode(tmCfg, tmVal, executor, nodeConfig.Logger, verifier, tracker, signer, ha)
 		if err != nil {
 			return fmt.Errorf("failed to setup consensus node: %v", err)
