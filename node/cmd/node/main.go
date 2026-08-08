@@ -29,6 +29,7 @@ import (
 	node "morph-l2/node/core"
 	"morph-l2/node/db"
 	"morph-l2/node/derivation"
+	"morph-l2/node/devtool"
 	"morph-l2/node/flags"
 	"morph-l2/node/hakeeper"
 	"morph-l2/node/l1sequencer"
@@ -90,6 +91,12 @@ func L2NodeMain(ctx *cli.Context) error {
 	nodeConfig.Logger.Info("centralized sequencer upgrade time set",
 		"network", sequencerUpgradeNetwork(ctx),
 		"upgradeTimeMs", upgrade.UpgradeBlockTime())
+
+	// TEST-ONLY (devnet/testnet): optionally start directly in sequencer mode
+	// (pre-set the upgrade block height, skip the PBFT phase). No-op unless
+	// --startInSequencerMode / MORPH_NODE_START_IN_SEQUENCER_MODE is set. Must run
+	// before the upgrade store is wired (SetupNode below). See node/devtool.
+	devtool.ApplyStartInSequencerMode(ctx, nodeConfig.Logger)
 
 	home, err := homeDir(ctx)
 	if err != nil {
