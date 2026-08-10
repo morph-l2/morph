@@ -100,6 +100,38 @@ func TestFetchOKXPrice(t *testing.T) {
 	}
 }
 
+func TestGetJSONRejectsOversizedBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// Stream more than the cap so a compromised/misbehaving endpoint cannot
+		// force an unbounded allocation.
+		oversized := make([]byte, maxResponseBodyBytes+1)
+		w.Write(oversized)
+	}))
+	defer server.Close()
+
+	if _, err := getJSON(context.Background(), server.Client(), server.URL); err == nil {
+		t.Fatal("getJSON accepted an oversized response body, want error")
+	}
+}
+
+func TestGetJSONAcceptsBodyAtLimit(t *testing.T) {
+	payload := `{"symbol":"BTCUSDT","price":"64385.12"}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(payload))
+	}))
+	defer server.Close()
+
+	body, err := getJSON(context.Background(), server.Client(), server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != payload {
+		t.Fatalf("body = %q, want %q", string(body), payload)
+	}
+}
+
 func TestParseFixedStablecoinPrice(t *testing.T) {
 	price, err := parseFixedStablecoinPrice("$1.0")
 	if err != nil {
