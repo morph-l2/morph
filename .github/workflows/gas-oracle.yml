@@ -6,11 +6,15 @@ on:
             - main
         paths:
             - "gas-oracle/**"
-            - ".github/workflows/gas-oracle.yaml"
+            - "node/derivation/testdata/rollup_calldata_fixtures.json"
+            - "ops/docker/Dockerfile.oracle"
+            - ".github/workflows/gas-oracle.yml"
     pull_request:
         paths:
             - "gas-oracle/**"
-            - ".github/workflows/gas-oracle.yaml"
+            - "node/derivation/testdata/rollup_calldata_fixtures.json"
+            - "ops/docker/Dockerfile.oracle"
+            - ".github/workflows/gas-oracle.yml"
 
 permissions:
     contents: read
@@ -23,8 +27,20 @@ jobs:
     check:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
+            - name: Install pinned Rust toolchain
+              uses: dtolnay/rust-toolchain@master
+              with:
+                  toolchain: 1.91.0
+                  components: rustfmt, clippy
             - name: Run build
               run: make build
             - name: Run tests
               run: make test
+            - name: Check formatting
+              run: make fmt
+            - name: Run clippy
+              run: make clippy
+            - name: Build oracle container
+              working-directory: ${{ github.workspace }}
+              run: docker build -f ops/docker/Dockerfile.oracle .

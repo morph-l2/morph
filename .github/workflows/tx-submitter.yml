@@ -5,16 +5,20 @@ on:
         branches:
             - main
         paths:
+            - "build/**"
+            - "bindings/**"
+            - "common/**"
             - "tx-submitter/**"
-            - ".github/workflows/tx-submitter.yaml"
+            - ".github/workflows/tx-submitter.yml"
     pull_request:
         paths:
             - "build/**"
             - "bindings/**"
+            - "common/**"
             - "node/**"
             - "ops/l2-genesis/**"
             - "tx-submitter/**"
-            - ".github/workflows/tx-submitter.yaml"
+            - ".github/workflows/tx-submitter.yml"
 
 permissions:
     contents: read
@@ -28,7 +32,7 @@ jobs:
         if: github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
             - name: Install Go
               uses: actions/setup-go@v5
               with:
@@ -40,7 +44,7 @@ jobs:
     test:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
             - name: Install Go
               uses: actions/setup-go@v5
               with:

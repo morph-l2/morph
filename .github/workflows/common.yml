@@ -1,0 +1,37 @@
+name: Common
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - "bindings/**"
+            - "common/**"
+            - "node/derivation/testdata/rollup_calldata_fixtures.json"
+            - ".github/workflows/common.yml"
+    pull_request:
+        paths:
+            - "bindings/**"
+            - "common/**"
+            - "node/derivation/testdata/rollup_calldata_fixtures.json"
+            - ".github/workflows/common.yml"
+
+permissions:
+    contents: read
+
+defaults:
+    run:
+        working-directory: "common"
+
+jobs:
+    test:
+        name: race tests
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Install Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: 1.24.x
+            - name: Run tests with race detector
+              run: go test -race ./...
