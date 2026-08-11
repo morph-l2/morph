@@ -1,5 +1,5 @@
-use challenge_handler::abi::{rollup_abi::Rollup, submitter_abi::Submitter};
-use challenge_handler::rollup_compat::resolve_canonical_commit;
+use challenge_handler::abi::rollup_abi::Rollup;
+use challenge_handler::rollup_compat::{challenge_deposit_at, resolve_canonical_commit};
 use challenge_handler::util::read_parse_env;
 use dotenv::dotenv;
 use env_logger::Env;
@@ -112,9 +112,7 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, ro
 
     log::info!("latest blocknum = {:#?}", latest);
     let block_id = BlockId::Number(BlockNumber::Number(latest));
-    let submitter_address = l1_rollup.submitter_contract().block(block_id).call().await?;
-    let submitter = Submitter::new(submitter_address, l1_rollup.client());
-    let min_deposit = submitter.challenge_deposit().block(block_id).call().await?;
+    let min_deposit = challenge_deposit_at(l1_rollup, block_id).await?;
     let batch_index = l1_rollup.last_committed_batch_index().block(block_id).call().await?.as_u64();
     if resolve_canonical_commit(l1_rollup, l1_provider, batch_index, rollup_deployed_block, latest)
         .await?

@@ -13,6 +13,11 @@ pub mod pre_submitter_rollup_abi {
     abigen!(PreSubmitterRollup, "src/abi/pre_submitter/Rollup.json");
 }
 
+pub mod legacy_l1_staking_abi {
+    use ethers::prelude::abigen;
+    abigen!(LegacyL1Staking, "src/abi/pre_submitter/LegacyL1Staking.json");
+}
+
 pub mod submitter_abi {
     use ethers::prelude::abigen;
     abigen!(Submitter, "src/abi/Submitter.json");

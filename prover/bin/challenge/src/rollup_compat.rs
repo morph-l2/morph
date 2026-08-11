@@ -1,18 +1,108 @@
 use ethers::{
     abi::AbiDecode,
     providers::Middleware,
-    types::{BlockId, BlockNumber, Bytes, Filter, Log, TxHash, H256, U256, U64},
-    utils::keccak256,
+    types::{transaction::eip2718::TypedTransaction, Address, BlockId, BlockNumber, Bytes, Filter, Log, TransactionRequest, TxHash, H256, U256, U64},
+    utils::{id, keccak256},
 };
 use eyre::{eyre, Result};
 
 use crate::abi::{
+    legacy_l1_staking_abi::LegacyL1Staking,
     pre_submitter_rollup_abi::{
         CommitBatchCall as PreSubmitterCommitBatchCall, CommitBatchWithProofCall as PreSubmitterCommitBatchWithProofCall,
         CommitStateCall as PreSubmitterCommitStateCall,
     },
     rollup_abi::{CommitBatchCall, CommitBatchWithProofCall, CommitStateCall, Rollup},
+    submitter_abi::Submitter,
 };
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AuthorityKind {
+    LegacyL1Staking,
+    Submitter,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RollupAuthority {
+    pub address: Address,
+    pub kind: AuthorityKind,
+}
+
+fn decode_address_word(data: &[u8]) -> Result<Address> {
+    if data.len() != 32 || data[..12].iter().any(|byte| *byte != 0) {
+        return Err(eyre!("authority getter returned malformed address data"));
+    }
+    let address = Address::from_slice(&data[12..]);
+    if address.is_zero() {
+        return Err(eyre!("authority getter returned zero address"));
+    }
+    Ok(address)
+}
+
+pub async fn resolve_rollup_authority<M: Middleware + 'static>(rollup: &Rollup<M>, snapshot: BlockId) -> Result<RollupAuthority> {
+    match rollup.submitter_contract().block(snapshot).call().await {
+        Ok(address) if !address.is_zero() => Ok(RollupAuthority {
+            address,
+            kind: AuthorityKind::Submitter,
+        }),
+        Ok(_) => Err(eyre!("Rollup.submitterContract returned zero address")),
+        Err(current_error) => {
+            // Before initialize4 the proxy still runs the frozen Rollup ABI and
+            // rejects submitterContract(). Read the old slot through its
+            // historical getter at the exact same numbered snapshot.
+            let request: TypedTransaction = TransactionRequest::new()
+                .to(rollup.address())
+                .data(Bytes::from(id("l1StakingContract()")[..4].to_vec()))
+                .into();
+            let output = rollup.client().call(&request, Some(snapshot)).await.map_err(|legacy_error| {
+                eyre!("neither current nor pre-submit authority getter succeeded: current={current_error}; legacy={legacy_error}")
+            })?;
+            Ok(RollupAuthority {
+                address: decode_address_word(output.as_ref())?,
+                kind: AuthorityKind::LegacyL1Staking,
+            })
+        }
+    }
+}
+
+pub async fn authority_is_active<M: Middleware + 'static>(rollup: &Rollup<M>, signer: Address, snapshot: BlockId) -> Result<bool> {
+    let authority = resolve_rollup_authority(rollup, snapshot).await?;
+    match authority.kind {
+        AuthorityKind::Submitter => Ok(Submitter::new(authority.address, rollup.client())
+            .is_active(signer)
+            .block(snapshot)
+            .call()
+            .await?),
+        AuthorityKind::LegacyL1Staking => Ok(LegacyL1Staking::new(authority.address, rollup.client())
+            .is_active_staker(signer)
+            .block(snapshot)
+            .call()
+            .await?),
+    }
+}
+
+pub async fn challenge_deposit_at<M: Middleware + 'static>(rollup: &Rollup<M>, snapshot: BlockId) -> Result<U256> {
+    let authority = resolve_rollup_authority(rollup, snapshot).await?;
+    match authority.kind {
+        AuthorityKind::Submitter => Ok(Submitter::new(authority.address, rollup.client())
+            .challenge_deposit()
+            .block(snapshot)
+            .call()
+            .await?),
+        AuthorityKind::LegacyL1Staking => Ok(LegacyL1Staking::new(authority.address, rollup.client())
+            .challenge_deposit()
+            .block(snapshot)
+            .call()
+            .await?),
+    }
+}
+
+pub fn decode_batch_data_store_block_number(data: &[u8]) -> Result<U256> {
+    if data.len() != 128 {
+        return Err(eyre!("batchDataStore returned {}, expected exactly 128 bytes", data.len()));
+    }
+    Ok(U256::from_big_endian(&data[64..96]))
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SubmissionKind {
@@ -249,5 +339,22 @@ mod tests {
         let after_revert = log(10, 0, 3, hash, 3);
         let resolved = select_canonical_commit(&[after_revert], &[revert], hash).unwrap();
         assert_eq!(resolved.transaction_hash, H256::from_low_u64_be(3));
+    }
+
+    #[test]
+    fn compatibility_words_reject_malformed_authority_and_ignore_legacy_bitmap_type() {
+        let address = Address::from_low_u64_be(7);
+        let mut address_word = [0u8; 32];
+        address_word[12..].copy_from_slice(address.as_bytes());
+        assert_eq!(decode_address_word(&address_word).unwrap(), address);
+        assert!(decode_address_word(&address_word[..31]).is_err());
+        address_word[0] = 1;
+        assert!(decode_address_word(&address_word).is_err());
+
+        let mut old_tuple = [0u8; 128];
+        U256::from(123).to_big_endian(&mut old_tuple[64..96]);
+        old_tuple[96..128].fill(0xff); // legacy uint256 bitmap, not an ABI address
+        assert_eq!(decode_batch_data_store_block_number(&old_tuple).unwrap(), U256::from(123));
+        assert!(decode_batch_data_store_block_number(&old_tuple[..127]).is_err());
     }
 }

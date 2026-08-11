@@ -1,7 +1,9 @@
-use crate::abi::{rollup_abi::Rollup, submitter_abi::Submitter};
+use crate::abi::rollup_abi::Rollup;
 use crate::external_sign::ExternalSign;
 use crate::metrics::METRICS;
-use crate::rollup_compat::{decode_batch_data_input, resolve_canonical_commit, CanonicalCommit};
+use crate::rollup_compat::{
+    authority_is_active, decode_batch_data_input, decode_batch_data_store_block_number, resolve_canonical_commit, CanonicalCommit,
+};
 use crate::util::read_env_var;
 use crate::util::{self, read_parse_env};
 use ethers::prelude::*;
@@ -327,23 +329,15 @@ impl ChallengeHandler {
             }
         };
         let snapshot = BlockId::Number(BlockNumber::Number(number));
-        let submitter_address = match l1_rollup.submitter_contract().block(snapshot).call().await {
-            Ok(address) => address,
-            Err(err) => {
-                log::error!("query Rollup.submitterContract failed: {err:#}");
-                return false;
-            }
-        };
-        let submitter = Submitter::new(submitter_address, l1_rollup.client());
-        let active = match submitter.is_active(signer).block(snapshot).call().await {
+        let active = match authority_is_active(l1_rollup, signer, snapshot).await {
             Ok(active) => active,
             Err(err) => {
-                log::error!("Submitter.isActive preflight failed: {err:#}");
+                log::error!("Rollup authority active preflight failed: {err:#}");
                 return false;
             }
         };
         if !snapshot_unchanged(&self.l1_provider, number, hash).await {
-            log::error!("finalized snapshot changed during Submitter.isActive preflight");
+            log::error!("finalized snapshot changed during authority active preflight");
             return false;
         }
         if !active {
@@ -493,10 +487,19 @@ async fn batch_inspect(
     snapshot: U64,
 ) -> Option<BatchInfo> {
     let block_id = BlockId::Number(BlockNumber::Number(snapshot));
-    let prev_batch_last_bn: U256 = match l1_rollup.batch_data_store(U256::from(batch_index - 1)).block(block_id).call().await {
-        Ok(s) => s.2,
+    let parent_index = batch_index.checked_sub(1)?;
+    let calldata = l1_rollup.batch_data_store(U256::from(parent_index)).calldata()?;
+    let request: TypedTransaction = TransactionRequest::new().to(l1_rollup.address()).data(calldata).into();
+    let prev_batch_last_bn: U256 = match l1_provider.call(&request, Some(block_id)).await {
+        Ok(data) => match decode_batch_data_store_block_number(data.as_ref()) {
+            Ok(block_number) => block_number,
+            Err(error) => {
+                log::error!("decode compatible batchDataStore output failed: {error:#}");
+                return None;
+            }
+        },
         Err(e) => {
-            log::error!("l1_rollup.batch_data_store err: {:#?}", e);
+            log::error!("l1_rollup compatible batchDataStore call failed: {:#?}", e);
             return None;
         }
     };
