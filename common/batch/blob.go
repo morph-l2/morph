@@ -246,7 +246,12 @@ func extractInnerTxFullBytes(firstByte byte, reader io.Reader) ([]byte, error) {
 	if err := binary.Read(reader, binary.BigEndian, txRaw); err != nil {
 		return nil, err
 	}
-	fullTxBytes := make([]byte, 1+uint32(sizeByteLen)+size)
+	// Size the buffer in uint64: 1+uint32(sizeByteLen)+size wraps when size is
+	// near MaxUint32 (e.g. a 0xffffffff length prefix), yielding a buffer
+	// shorter than the slice expressions below and panicking. The Len() guard
+	// above already bounds size to the remaining input, so this only wraps on an
+	// out-of-band reader, but computing in uint64 removes the panic outright.
+	fullTxBytes := make([]byte, 1+uint64(sizeByteLen)+uint64(size))
 	copy(fullTxBytes[:1], []byte{firstByte})
 	copy(fullTxBytes[1:1+sizeByteLen], sizeByte)
 	copy(fullTxBytes[1+sizeByteLen:], txRaw)
