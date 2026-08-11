@@ -235,10 +235,18 @@ func extractInnerTxFullBytes(firstByte byte, reader io.Reader) ([]byte, error) {
 	}
 	size := binary.BigEndian.Uint32(append(make([]byte, 4-len(sizeByte)), sizeByte...))
 
-	// Reject malformed lengths before allocating attacker-controlled memory.
-	// Batch decoding currently passes a *bytes.Reader, whose remaining length
-	// provides a strict upper bound for the encoded transaction payload.
-	if lr, ok := reader.(interface{ Len() int }); ok && uint64(size) > uint64(lr.Len()) {
+	// Bound the declared length against the reader's remaining bytes before
+	// allocating: a malformed prefix can declare up to ~4.29 GiB (uint32), which
+	// is both an out-of-memory vector and, unbounded, an integer-overflow panic
+	// in the buffer sizing below. Every decode path funnels through
+	// DecodeTxsFromBytes, which always passes a *bytes.Reader, so a reader that
+	// cannot report its remaining length is an unexpected caller, not a case to
+	// tolerate silently -- fail closed rather than allocate an unbounded size.
+	lr, ok := reader.(interface{ Len() int })
+	if !ok {
+		return nil, fmt.Errorf("cannot bound tx allocation: reader %T does not report remaining length", reader)
+	}
+	if uint64(size) > uint64(lr.Len()) {
 		return nil, fmt.Errorf("declared tx size %d exceeds remaining %d bytes", size, lr.Len())
 	}
 
@@ -246,12 +254,10 @@ func extractInnerTxFullBytes(firstByte byte, reader io.Reader) ([]byte, error) {
 	if err := binary.Read(reader, binary.BigEndian, txRaw); err != nil {
 		return nil, err
 	}
-	// Size the buffer in uint64: 1+uint32(sizeByteLen)+size wraps when size is
-	// near MaxUint32 (e.g. a 0xffffffff length prefix), yielding a buffer
-	// shorter than the slice expressions below and panicking. The Len() guard
-	// above already bounds size to the remaining input, so this only wraps on an
-	// out-of-band reader, but computing in uint64 removes the panic outright.
-	fullTxBytes := make([]byte, 1+uint64(sizeByteLen)+uint64(size))
+	// size is now bounded by the remaining input above, so the total length is a
+	// small in-range value: the addition cannot overflow and the buffer is never
+	// shorter than the slice copies below.
+	fullTxBytes := make([]byte, 1+int(sizeByteLen)+int(size))
 	copy(fullTxBytes[:1], []byte{firstByte})
 	copy(fullTxBytes[1:1+sizeByteLen], sizeByte)
 	copy(fullTxBytes[1+sizeByteLen:], txRaw)
