@@ -195,6 +195,13 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 
 	if c.VerifyMode == VerifyModeLayer1 {
 		c.MetricsPort = ctx.GlobalUint64(flags.MetricsPort.Name)
+		// Reject an out-of-range port up front: MetricsPort is a uint64, so a
+		// misconfigured value would only surface later as an invalid listen
+		// address whose ListenAndServe fails silently in the background. The
+		// default (26660) is always in range, so a valid config never trips this.
+		if c.MetricsPort == 0 || c.MetricsPort > 65535 {
+			return fmt.Errorf("--%s must be in 1..65535, got %d", flags.MetricsPort.Name, c.MetricsPort)
+		}
 	}
 
 	if ctx.GlobalIsSet(flags.DerivationReorgCheckDepth.Name) {
