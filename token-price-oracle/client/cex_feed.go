@@ -22,6 +22,12 @@ const (
 	okxTickerPath     = "/api/v5/market/ticker"
 )
 
+// maxResponseBodyBytes caps how much of an HTTP price response is read into memory.
+// Ticker and Hermes latest-price payloads are a few KB at most; the cap only exists
+// so a compromised or misbehaving endpoint cannot stream an unbounded body and
+// exhaust memory.
+const maxResponseBodyBytes = 1 << 20 // 1 MiB
+
 type cexPriceFetcher func(ctx context.Context, httpClient *http.Client, baseURL string, symbol string) (*big.Float, error)
 
 // CEXPriceFeed fetches token prices from a centralized exchange REST API.
@@ -243,9 +249,12 @@ func getJSONWithHeaders(ctx context.Context, httpClient *http.Client, requestURL
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodyBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+	if int64(len(body)) > maxResponseBodyBytes {
+		return nil, fmt.Errorf("response body exceeds %d byte limit", maxResponseBodyBytes)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("HTTP status %d: %s", resp.StatusCode, string(body))
