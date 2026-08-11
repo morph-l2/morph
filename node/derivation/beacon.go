@@ -223,20 +223,39 @@ func dataAndHashesFromTxs(txs types.Transactions, targetTx *types.Transaction) [
 // eliminated by running derivation with confirmations=finalized, not by
 // trying more beacons.
 type FallbackBeaconClient struct {
-	clients   []*L1BeaconClient
-	endpoints []string // parallel to clients, used only for logs/metrics
+	clients []*L1BeaconClient
+	// endpoints is parallel to clients and used only for logs/metrics; entries
+	// are pre-redacted to scheme://host so credentials embedded in the
+	// configured URLs never reach the metrics endpoint or log output.
+	endpoints []string
 	log       tmlog.Logger
 	metrics   *Metrics
 }
 
+// redactBeaconEndpoint reduces a beacon URL to scheme://host for use in
+// metrics labels and logs. Hosted beacon providers commonly embed basic-auth
+// userinfo or API keys in the URL (https://user:pass@host, ?apikey=...);
+// exposing the raw string on /metrics or in aggregated logs would leak them.
+// An endpoint that does not parse as an absolute URL collapses to a
+// placeholder rather than echoing the raw string.
+func redactBeaconEndpoint(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "<invalid-endpoint>"
+	}
+	return parsed.Scheme + "://" + parsed.Host
+}
+
 func NewFallbackBeaconClient(endpoints []string, log tmlog.Logger, metrics *Metrics) *FallbackBeaconClient {
 	clients := make([]*L1BeaconClient, 0, len(endpoints))
+	redacted := make([]string, 0, len(endpoints))
 	for _, endpoint := range endpoints {
 		clients = append(clients, NewL1BeaconClient(NewBasicHTTPClient(endpoint, log)))
+		redacted = append(redacted, redactBeaconEndpoint(endpoint))
 	}
 	return &FallbackBeaconClient{
 		clients:   clients,
-		endpoints: endpoints,
+		endpoints: redacted,
 		log:       log,
 		metrics:   metrics,
 	}

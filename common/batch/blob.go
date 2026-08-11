@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 
 	"morph-l2/common/codec/zstd"
 
@@ -242,11 +243,22 @@ func extractInnerTxFullBytes(firstByte byte, reader io.Reader) ([]byte, error) {
 		return nil, fmt.Errorf("declared tx size %d exceeds remaining %d bytes", size, lr.Len())
 	}
 
+	// Guard the reconstructed length against uint32 overflow before allocating.
+	// size is a uint32, so 1+sizeByteLen+size can exceed MaxUint32 and wrap to a
+	// tiny value, leaving fullTxBytes shorter than the copies below and
+	// panicking. The remaining-bytes guard above keeps this unreachable today,
+	// but computing in uint64 and rejecting overflow keeps it safe if the size
+	// type or the upstream bounds ever change.
+	fullLen := 1 + uint64(sizeByteLen) + uint64(size)
+	if fullLen > math.MaxUint32 {
+		return nil, fmt.Errorf("declared tx size %d overflows uint32 length prefix", size)
+	}
+
 	txRaw := make([]byte, size)
 	if err := binary.Read(reader, binary.BigEndian, txRaw); err != nil {
 		return nil, err
 	}
-	fullTxBytes := make([]byte, 1+uint32(sizeByteLen)+size)
+	fullTxBytes := make([]byte, fullLen)
 	copy(fullTxBytes[:1], []byte{firstByte})
 	copy(fullTxBytes[1:1+sizeByteLen], sizeByte)
 	copy(fullTxBytes[1+sizeByteLen:], txRaw)

@@ -55,6 +55,26 @@ func TestGetBlob(t *testing.T) {
 
 }
 
+func TestRedactBeaconEndpoint(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"plain", "https://beacon.example.com", "https://beacon.example.com"},
+		{"basic auth stripped", "https://user:secret@beacon.example.com:5052", "https://beacon.example.com:5052"},
+		{"api key in path and query stripped", "https://beacon.example.com/eth/key-abc123?apikey=secret", "https://beacon.example.com"},
+		{"not a url", "not a url", "<invalid-endpoint>"},
+		{"missing scheme", "beacon.example.com:5052", "<invalid-endpoint>"},
+		{"empty", "", "<invalid-endpoint>"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, redactBeaconEndpoint(tc.in))
+		})
+	}
+}
+
 func testTchRollupLog(l1Client *ethclient.Client, ctx context.Context, from, to uint64) ([]eth.Log, error) {
 	RollupContractAddress := common.HexToAddress("0x511d92b63ae7471fd5239bded29b76a446698a00")
 	query := ethereum.FilterQuery{

@@ -134,7 +134,7 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Namespace: namespace,
 			Subsystem: metricsSubsystem,
 			Name:      "beacon_request_failure_total",
-			Help:      "Beacon requests that failed (transport error or non-200) per endpoint, before falling back to the next configured beacon.",
+			Help:      "Beacon requests that failed (transport error, non-200, or an empty/incomplete sidecar set) per endpoint, before falling back to the next configured beacon.",
 		}, append(append([]string{}, labels...), "endpoint")),
 	}
 }
