@@ -16,8 +16,8 @@ const ContractFactoryName = {
     Rollup: 'Rollup',
     ZkEvmVerifierV1: 'ZkEvmVerifierV1',
     MultipleVersionRollupVerifier: 'MultipleVersionRollupVerifier',
-    // staking
-    L1Staking: 'L1Staking',
+    // batch submitter
+    Submitter: 'Submitter',
     // L1 sequencer
     L1Sequencer: 'L1Sequencer',
     // gateway
@@ -40,8 +40,8 @@ const ProxyStorageName = {
     L1MessageQueueWithGasPriceOracleProxyStorageName: 'Proxy__L1MessageQueueWithGasPriceOracle',
     // rollup
     RollupProxyStorageName: 'Proxy__Rollup',
-    // staking
-    L1StakingProxyStorageName: 'Proxy__L1Staking',
+    // batch submitter
+    SubmitterProxyStorageName: 'Proxy__Submitter',
     // L1 sequencer
     L1SequencerProxyStorageName: 'Proxy__L1Sequencer',
     // gateway
@@ -73,8 +73,9 @@ const ImplStorageName = {
     RollupStorageName: 'Impl__Rollup',
     ZkEvmVerifierV1StorageName: 'Impl__ZkEvmVerifierV1',
     MultipleVersionRollupVerifierStorageName: 'Impl__MultipleVersionRollupVerifier',
-    // staking
-    L1StakingStorageName: 'Impl__L1Staking',
+    // batch submitter
+    SubmitterStorageName: 'Impl__Submitter',
+    SubmitterInstallStorageName: 'Install__Submitter',
     // L1 sequencer
     L1SequencerStorageName: 'Impl__L1Sequencer',
     // gateway

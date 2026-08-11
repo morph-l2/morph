@@ -21,21 +21,15 @@ const config = {
     rollupProofWindow: 86400,
     proofRewardPercent: 70,
     // challenge config
-    rollupProposer: '0x7161aE5B767Df97BAc34e5776311Ded4Cb01691d',
+    batchSubmitterAddresses: ['0x7161aE5B767Df97BAc34e5776311Ded4Cb01691d'],
     rollupChallenger: '0x71616250f7CAaa8a5DC295dc5851D6b1E49188a7',
     // genesis config
     batchHeader: '',
 
-    // staking config
-    // staking Cross-Chain config
-    stakingCrossChainGaslimitAdd: 1000000,
-    stakingCrossChainGaslimitRemove: 8000000,
-
-    // staking initialize config
-    stakingLockNumber: 3,
-    stakingChallengeDeposit: 1, // 1 ether
-    stakingMinDeposit: 1, // 1 ether
-    stakingChallengerRewardPercentage: 50,
+    // submitter initialize config
+    submitterChallengeDeposit: 1, // 1 ether
+    submitterMinimumStake: 1, // 1 ether
+    submitterRewardPercentage: 50,
     // register sequencers
     l2SequencerAddresses: [
         "0x25d36d94b64165f72a817ae0ff9bad2ce6914c70",
