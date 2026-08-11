@@ -144,22 +144,16 @@ var (
 		EnvVar: prefixEnvVar("TDM_CONFIG"),
 	}
 
-	DevSequencer = &cli.BoolFlag{
-		Name:   "dev-sequencer",
-		Usage:  "explicitly specify that running as a sequencer. If it enables, the tendermint validator/batch params won't be changed no matter what happens to staking/gov contacts. Only use in dev/test mode",
-		EnvVar: prefixEnvVar("DEV_SEQUENCER"),
+	StaticValidatorTmKeys = cli.StringSliceFlag{
+		Name:   "static-validator-tm-key",
+		Usage:  "Tendermint ed25519 validator public key (32-byte hex); repeat for every network validator",
+		EnvVar: prefixEnvVar("STATIC_VALIDATOR_TM_KEYS"),
 	}
 
 	MockEnabled = &cli.BoolFlag{
 		Name:   "mock",
 		Usage:  "Enable mock; If enabled, we start a simulated sequencer to manage the block production, just for dev/test use",
 		EnvVar: prefixEnvVar("MOCK_SEQUENCER"),
-	}
-
-	LegacyValidatorMode = cli.BoolFlag{
-		Name:   "validator",
-		Usage:  "Deprecated compatibility alias for --derivation.verify-mode=layer1",
-		EnvVar: prefixEnvVar("VALIDATOR"),
 	}
 
 	// derivation
@@ -401,10 +395,9 @@ var Flags = []cli.Flag{
 	DBCache,
 	DBFreezer,
 
-	DevSequencer,
+	StaticValidatorTmKeys,
 	TendermintConfigPath,
 	MockEnabled,
-	LegacyValidatorMode,
 
 	// derivation
 	RollupContractAddress,

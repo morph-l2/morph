@@ -179,11 +179,6 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		}
 	}
 
-	legacyValidatorMode := ctx.GlobalBool(flags.LegacyValidatorMode.Name)
-	if legacyValidatorMode {
-		log.Warn("--validator is deprecated; use --derivation.verify-mode=layer1")
-		c.VerifyMode = VerifyModeLayer1
-	}
 	if ctx.GlobalIsSet(flags.DerivationVerifyMode.Name) {
 		c.VerifyMode = ctx.GlobalString(flags.DerivationVerifyMode.Name)
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/l2node"
 	tmlog "github.com/tendermint/tendermint/libs/log"
+	"github.com/tendermint/tendermint/upgrade"
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/node/sync"
@@ -35,6 +36,8 @@ type Executor struct {
 
 	newSyncerFunc NewSyncerFunc
 	syncer        *sync.Syncer
+	syncerOnce    syncos.Once
+	syncerErr     error
 
 	sequencerCaller *bindings.SequencerCaller
 	l2StakingCaller *bindings.L2StakingCaller
@@ -42,10 +45,15 @@ type Executor struct {
 	currentSeqHash *[32]byte
 	seqTmKeySet    map[[tmKeySize]byte]struct{}
 
-	nextValidators [][]byte
-	tmPubKey       []byte
-	isSequencer    bool
-	devSequencer   bool
+	nextValidators        [][]byte
+	staticValidatorTmKeys [][]byte
+	tmPubKey              []byte
+	isSequencer           bool
+
+	// legacyValidatorSetAtHeightFunc is a test-only seam for exercising the
+	// persisted H/H+1 boundary without an L2 RPC. Production leaves it nil and
+	// uses the protected historical getter body below.
+	legacyValidatorSetAtHeightFunc func(int64) ([][]byte, error)
 
 	blsKeyCheckForkHeight uint64
 
@@ -102,28 +110,30 @@ func NewExecutor(newSyncFunc NewSyncerFunc, config *Config, tmPubKey crypto.PubK
 		nextL1MsgIndex:        index,
 		maxL1MsgNumPerBlock:   config.MaxL1MessageNumPerBlock,
 		newSyncerFunc:         newSyncFunc,
-		devSequencer:          config.DevSequencer,
+		staticValidatorTmKeys: cloneValidatorKeys(config.StaticValidatorTmKeys),
 		blsKeyCheckForkHeight: config.BlsKeyCheckForkHeight,
 		logger:                logger,
 		metrics:               PrometheusMetrics("morphnode"),
 	}
 
-	if config.DevSequencer {
-		executor.syncer, err = executor.newSyncerFunc()
-		if err != nil {
-			return nil, err
-		}
-		//executor.syncer.Start()
-		executor.l1MsgReader = executor.syncer
-		return executor, nil
-	}
-
-	// Get current height for initial sequencer set update
+	// Resolve the validator set through the same persisted H/H+1 boundary used
+	// by both DeliverBlock paths. At H the historical contracts still apply;
+	// H+1 and later never call those contracts.
 	currentHeight, err := l2Client.BlockNumber(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	if _, err = executor.updateSequencerSet(currentHeight); err != nil {
+	executor.nextValidators, err = executor.validatorSetAtHeight(currentHeight)
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("static validator configuration",
+		"keyCount", len(config.StaticValidatorTmKeys),
+		"keySetHash", config.StaticValidatorKeySetHash.Hex(),
+		"keySetHashAlgorithm", "keccak256(sorted-concat-32-byte-keys)",
+		"upgradeHeight", upgrade.UpgradeBlockHeight(),
+		"source", config.StaticValidatorKeySource)
+	if err := executor.ensureSyncerStarted(); err != nil {
 		return nil, err
 	}
 
@@ -264,10 +274,7 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 
 	if wrappedBlock.Number <= height {
 		e.logger.Info("block already delivered by geth (via P2P sync)", "block_number", wrappedBlock.Number)
-		if e.devSequencer {
-			return consensusData.ValidatorSet, nil
-		}
-		return e.getValidatorsAtHeight(int64(wrappedBlock.Number))
+		return e.validatorSetAtHeight(wrappedBlock.Number)
 	}
 
 	// We only accept the continuous blocks for now.
@@ -307,11 +314,9 @@ func (e *Executor) DeliverBlock(txs [][]byte, metaData []byte, consensusData l2n
 
 	e.updateNextL1MessageIndex(l2Block)
 
-	newValidatorSet := consensusData.ValidatorSet
-	if !e.devSequencer {
-		if newValidatorSet, err = e.updateSequencerSet(l2Block.Number); err != nil {
-			return nil, err
-		}
+	newValidatorSet, err := e.validatorSetAtHeight(l2Block.Number)
+	if err != nil {
+		return nil, err
 	}
 
 	e.metrics.Height.Set(float64(l2Block.Number))
@@ -375,17 +380,14 @@ func (e *Executor) L2Client() *types.RetryableClient {
 }
 
 // Syncer returns the current L1 message syncer instance, or nil if not yet
-// initialized. Callers can use this to detect whether the syncer has already
-// been set up (e.g. by updateSequencerSet in the PBFT-validator path) and
-// avoid creating a duplicate.
+// initialized.
 func (e *Executor) Syncer() *sync.Syncer {
 	return e.syncer
 }
 
 // SetSyncer installs a pre-built syncer on the executor and wires it in as the
-// l1MsgReader. This is intended for the V2/HA separated-deployment case, where
-// a node holds a sequencer signer but is not a PBFT validator, so the normal
-// lazy-init path in updateSequencerSet never fires.
+// l1MsgReader. ensureSyncerStarted will start the installed instance instead
+// of invoking the factory.
 //
 // The call is idempotent: if a syncer is already set, it is left untouched.
 func (e *Executor) SetSyncer(s *sync.Syncer) {
@@ -394,6 +396,32 @@ func (e *Executor) SetSyncer(s *sync.Syncer) {
 	}
 	e.syncer = s
 	e.l1MsgReader = s
+}
+
+// ensureSyncerStarted wires and starts the L1 message reader independently of
+// validator membership. Both this guard and Syncer.Start are idempotent: the
+// former prevents duplicate construction, while the latter tolerates the
+// derivation service invoking Start on the shared instance as well.
+func (e *Executor) ensureSyncerStarted() error {
+	e.syncerOnce.Do(func() {
+		if e.syncer == nil {
+			if e.newSyncerFunc == nil {
+				e.syncerErr = errors.New("syncer factory is nil")
+				return
+			}
+			e.syncer, e.syncerErr = e.newSyncerFunc()
+		}
+		if e.syncerErr != nil {
+			return
+		}
+		if e.syncer == nil {
+			e.syncerErr = errors.New("syncer factory returned nil")
+			return
+		}
+		e.l1MsgReader = e.syncer
+		go e.syncer.Start()
+	})
+	return e.syncerErr
 }
 
 // ============================================================================
