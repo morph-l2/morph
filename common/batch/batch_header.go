@@ -42,7 +42,25 @@ func (b BatchHeaderBytes) validate() error {
 	switch version {
 	case BatchHeaderVersion0:
 		if len(b) != expectedLengthV0 {
-			return ErrInvalidBatchHeaderLength
+			// Frozen legacy V0 headers append one 32-byte skipped-message
+			// bitmap word per 256 popped messages. Current V0 headers are the
+			// fixed 249-byte form, so accept both exact historical encodings.
+			if len(b) < expectedLengthV0 {
+				return ErrInvalidBatchHeaderLength
+			}
+			l1MessagePopped := binary.BigEndian.Uint64(b[9:17])
+			bitmapWords := l1MessagePopped / 256
+			if l1MessagePopped%256 != 0 {
+				bitmapWords++
+			}
+			maxInt := uint64(^uint(0) >> 1)
+			if bitmapWords > (maxInt-expectedLengthV0)/32 {
+				return ErrInvalidBatchHeaderLength
+			}
+			legacyLength := expectedLengthV0 + int(bitmapWords)*32
+			if len(b) != legacyLength {
+				return ErrInvalidBatchHeaderLength
+			}
 		}
 	case BatchHeaderVersion1:
 		if len(b) != expectedLengthV1 {

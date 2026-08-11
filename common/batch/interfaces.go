@@ -38,7 +38,9 @@ type SealedBatchKV interface {
 
 // L1HeaderClient is the L1 RPC surface required to recover batch headers from events.
 type L1HeaderClient interface {
+	bind.ContractCaller
 	BlockNumber(ctx context.Context) (uint64, error)
+	HeaderByNumber(ctx context.Context, number *big.Int) (*ethtypes.Header, error)
 	TransactionByHash(ctx context.Context, hash common.Hash) (*ethtypes.Transaction, bool, error)
 }
 
@@ -69,22 +71,23 @@ func (s *SingleL2Client) Len() int { return 1 }
 
 // RollupBatchReader is the rollup contract view BatchCache needs (subset of generated Rollup bindings).
 type RollupBatchReader interface {
+	BatchBlobVersionedHashes(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error)
 	CommittedBatches(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error)
 	LastCommittedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
 	LastFinalizedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
 	BatchDataStore(opts *bind.CallOpts, batchIndex *big.Int) (struct {
-		OriginTimestamp        *big.Int
-		FinalizeTimestamp      *big.Int
-		BlockNumber            *big.Int
-		SignedSequencersBitmap *big.Int
+		OriginTimestamp   *big.Int
+		FinalizeTimestamp *big.Int
+		BlockNumber       *big.Int
+		Submitter         common.Address
 	}, error)
-	FilterFinalizeBatch(opts *bind.FilterOpts, batchIndex []*big.Int, batchHash [][32]byte) (*bindings.RollupFinalizeBatchIterator, error)
+	FinalizedStateRoots(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error)
+	MessageQueue(opts *bind.CallOpts) (common.Address, error)
+	FilterCommitBatch(opts *bind.FilterOpts, batchIndex []*big.Int, batchHash [][32]byte) (*bindings.RollupCommitBatchIterator, error)
+	FilterRevertBatch(opts *bind.FilterOpts, batchIndex []*big.Int, batchHash [][32]byte) (*bindings.RollupRevertBatchIterator, error)
 }
 
-// L2GovCaller reads batch-related Gov / bridge / sequencer data on L2.
+// L2GovCaller is the sole L2 contract view needed by batch assembly.
 type L2GovCaller interface {
-	BatchBlockInterval(opts *bind.CallOpts) (*big.Int, error)
-	BatchTimeout(opts *bind.CallOpts) (*big.Int, error)
 	GetTreeRoot(opts *bind.CallOpts) ([32]byte, error)
-	GetSequencerSetBytes(opts *bind.CallOpts) ([]byte, common.Hash, error)
 }

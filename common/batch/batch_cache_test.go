@@ -26,8 +26,9 @@ func init() {
 }
 
 func TestBatchCacheInitServer(t *testing.T) {
+	requireBatchIntegration(t)
 	testDB := openTestKV(t)
-	cache := NewBatchCache(nil, nil, 2, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
+	cache := NewBatchCache(nil, nil, 2, testBatchConfig, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
 
 	var batchCacheSyncMu sync.Mutex
 
@@ -59,15 +60,17 @@ func TestBatchCacheInitServer(t *testing.T) {
 }
 
 func TestBatchCacheInit(t *testing.T) {
+	requireBatchIntegration(t)
 	testDB := openTestKV(t)
-	cache := NewBatchCache(nil, nil, 2, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
+	cache := NewBatchCache(nil, nil, 2, testBatchConfig, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
 	err := cache.InitAndSyncFromRollup()
 	require.NoError(t, err)
 }
 
 func TestBatchCacheInitByBlockRange(t *testing.T) {
+	requireBatchIntegration(t)
 	testDB := openTestKV(t)
-	cache := NewBatchCache(nil, nil, 2, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
+	cache := NewBatchCache(nil, nil, 2, testBatchConfig, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
 	err := cache.InitFromRollupByRange()
 	require.NoError(t, err)
 }
