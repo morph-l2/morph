@@ -90,6 +90,32 @@ func TestVerifyMode_RejectsUnknown(t *testing.T) {
 	}
 }
 
+func TestMetricsPort_AcceptsDefaultInLayer1(t *testing.T) {
+	cfg := DefaultConfig()
+	if err := cfg.SetCliContext(newVerifyModeTestContext(t, map[string]string{
+		flags.DerivationVerifyMode.Name: VerifyModeLayer1,
+	})); err != nil {
+		t.Fatalf("layer1 with default metrics-port rejected: %v", err)
+	}
+	if cfg.MetricsPort != 26660 {
+		t.Fatalf("default metrics-port = %d, want 26660", cfg.MetricsPort)
+	}
+}
+
+func TestMetricsPort_RejectsOutOfRange(t *testing.T) {
+	cfg := DefaultConfig()
+	err := cfg.SetCliContext(newVerifyModeTestContext(t, map[string]string{
+		flags.DerivationVerifyMode.Name: VerifyModeLayer1,
+		flags.MetricsPort.Name:          "70000",
+	}))
+	if err == nil {
+		t.Fatal("out-of-range metrics-port accepted, want error")
+	}
+	if !strings.Contains(err.Error(), flags.MetricsPort.Name) {
+		t.Fatalf("error should mention %q; got: %v", flags.MetricsPort.Name, err)
+	}
+}
+
 func TestBeaconRpcList(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -126,6 +152,7 @@ func newVerifyModeTestContext(t *testing.T, values map[string]string) *cli.Conte
 	for _, f := range []cli.Flag{
 		flags.LegacyValidatorMode,
 		flags.DerivationVerifyMode,
+		flags.MetricsPort,
 		flags.L1BeaconAddr,
 		flags.L2EngineJWTSecret,
 	} {
