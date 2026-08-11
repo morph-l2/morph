@@ -5,6 +5,7 @@ use ethers::{
     utils::{id, keccak256},
 };
 use eyre::{eyre, Result};
+use std::collections::HashMap;
 
 use crate::abi::{
     legacy_l1_staking_abi::LegacyL1Staking,
@@ -221,78 +222,219 @@ pub fn select_canonical_commit(commits: &[Log], reverts: &[Log], canonical_hash:
 
 const QUERY_RANGE: u64 = 10_000;
 
-pub async fn resolve_canonical_commit<M, P>(
-    rollup: &Rollup<M>,
-    provider: &P,
-    batch_index: u64,
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct IndexedSnapshot {
+    number: u64,
+    hash: H256,
+}
+
+/// Reusable finalized Commit/Revert index. The first poll replays from the
+/// configured Rollup deployment block; subsequent polls validate the previous
+/// block-hash anchor and query only the newly finalized suffix.
+#[derive(Debug)]
+pub struct CanonicalLogIndex {
     rollup_deployed_block: u64,
-    snapshot_number: U64,
-) -> Result<Option<CanonicalCommit>>
-where
-    M: Middleware + 'static,
-    P: Middleware + 'static,
-{
-    if rollup_deployed_block == 0 || rollup_deployed_block > snapshot_number.as_u64() {
-        return Err(eyre!(
-            "invalid Rollup deployment block {rollup_deployed_block} for snapshot {snapshot_number}"
-        ));
-    }
-    let before = provider
-        .get_block(snapshot_number)
-        .await?
-        .ok_or_else(|| eyre!("snapshot block {} not found", snapshot_number))?;
-    let before_hash = before.hash.ok_or_else(|| eyre!("snapshot block has no hash"))?;
-    let block_id = BlockId::Number(BlockNumber::Number(snapshot_number));
-    let canonical_hash: H256 = rollup.committed_batches(U256::from(batch_index)).block(block_id).call().await?.into();
-    if canonical_hash.is_zero() {
-        return Ok(None);
-    }
+    indexed_snapshot: Option<IndexedSnapshot>,
+    commits: HashMap<u64, Vec<Log>>,
+    reverts: HashMap<u64, Vec<Log>>,
+}
 
-    let commit_topic = H256::from(keccak256("CommitBatch(uint256,bytes32)"));
-    let revert_topic = H256::from(keccak256("RevertBatch(uint256,bytes32)"));
-    let mut commits = Vec::new();
-    let mut reverts = Vec::new();
-    let mut from = rollup_deployed_block;
-    while from <= snapshot_number.as_u64() {
-        let to = from.saturating_add(QUERY_RANGE - 1).min(snapshot_number.as_u64());
-        let base = Filter::new()
-            .address(rollup.address())
-            .from_block(from)
-            .to_block(to)
-            .topic1(U256::from(batch_index));
-        commits.extend(provider.get_logs(&base.clone().topic0(commit_topic)).await?);
-        reverts.extend(provider.get_logs(&base.topic0(revert_topic)).await?);
-        if to == snapshot_number.as_u64() {
-            break;
+impl CanonicalLogIndex {
+    pub fn new(rollup_deployed_block: u64) -> Result<Self> {
+        if rollup_deployed_block == 0 {
+            return Err(eyre!("Rollup deployment block must be non-zero"));
         }
-        from = to + 1;
+        Ok(Self {
+            rollup_deployed_block,
+            indexed_snapshot: None,
+            commits: HashMap::new(),
+            reverts: HashMap::new(),
+        })
     }
 
-    let after = provider
-        .get_block(snapshot_number)
-        .await?
-        .ok_or_else(|| eyre!("snapshot block {} disappeared", snapshot_number))?;
-    if after.hash != Some(before_hash) {
-        return Err(eyre!("snapshot block hash changed during canonical resolution"));
+    fn clear(&mut self) {
+        self.indexed_snapshot = None;
+        self.commits.clear();
+        self.reverts.clear();
     }
 
-    Ok(select_canonical_commit(&commits, &reverts, canonical_hash))
+    fn query_start(&self, snapshot_number: u64) -> Result<Option<u64>> {
+        if snapshot_number < self.rollup_deployed_block {
+            return Err(eyre!(
+                "Rollup deployment block {} is newer than snapshot {snapshot_number}",
+                self.rollup_deployed_block
+            ));
+        }
+        match self.indexed_snapshot {
+            None => Ok(Some(self.rollup_deployed_block)),
+            Some(indexed) if snapshot_number < indexed.number => Err(eyre!(
+                "finalized snapshot moved backwards: indexed={}, requested={snapshot_number}",
+                indexed.number
+            )),
+            Some(indexed) if snapshot_number == indexed.number => Ok(None),
+            Some(indexed) => Ok(Some(
+                indexed.number.checked_add(1).ok_or_else(|| eyre!("canonical log index block overflow"))?,
+            )),
+        }
+    }
+
+    fn verify_cached_anchor(&mut self, observed_hash: H256) -> Result<()> {
+        let Some(indexed) = self.indexed_snapshot else {
+            return Ok(());
+        };
+        if indexed.hash != observed_hash {
+            self.clear();
+            return Err(eyre!("canonical log index anchor changed at block {}; cache discarded", indexed.number));
+        }
+        Ok(())
+    }
+
+    fn batch_index(log: &Log) -> Result<u64> {
+        if log.removed.unwrap_or_default() {
+            return Err(eyre!("removed log returned for finalized canonical range"));
+        }
+        identity(log).ok_or_else(|| eyre!("canonical Rollup log has incomplete identity"))?;
+        if log.transaction_hash.is_none() || log.block_hash.is_none() {
+            return Err(eyre!("canonical Rollup log has incomplete block/transaction identity"));
+        }
+        if log.topics.len() < 3 {
+            return Err(eyre!("canonical Rollup log is missing indexed topics"));
+        }
+        let batch_index = U256::from_big_endian(log.topics[1].as_bytes());
+        if batch_index > U256::from(u64::MAX) {
+            return Err(eyre!("Rollup batch index exceeds u64"));
+        }
+        Ok(batch_index.as_u64())
+    }
+
+    fn append_logs(&mut self, snapshot_number: u64, snapshot_hash: H256, commits: Vec<Log>, reverts: Vec<Log>) -> Result<()> {
+        let mut indexed_commits = Vec::with_capacity(commits.len());
+        for log in commits {
+            indexed_commits.push((Self::batch_index(&log)?, log));
+        }
+        let mut indexed_reverts = Vec::with_capacity(reverts.len());
+        for log in reverts {
+            indexed_reverts.push((Self::batch_index(&log)?, log));
+        }
+        for (batch_index, log) in indexed_commits {
+            self.commits.entry(batch_index).or_default().push(log);
+        }
+        for (batch_index, log) in indexed_reverts {
+            self.reverts.entry(batch_index).or_default().push(log);
+        }
+        self.indexed_snapshot = Some(IndexedSnapshot {
+            number: snapshot_number,
+            hash: snapshot_hash,
+        });
+        Ok(())
+    }
+
+    fn resolve_cached(&self, batch_index: u64, canonical_hash: H256) -> Option<CanonicalCommit> {
+        select_canonical_commit(
+            self.commits.get(&batch_index).map(Vec::as_slice).unwrap_or_default(),
+            self.reverts.get(&batch_index).map(Vec::as_slice).unwrap_or_default(),
+            canonical_hash,
+        )
+    }
+
+    pub async fn refresh<P: Middleware + 'static>(&mut self, provider: &P, rollup: Address, snapshot_number: U64, snapshot_hash: H256) -> Result<()> {
+        let before = provider
+            .get_block(snapshot_number)
+            .await?
+            .ok_or_else(|| eyre!("snapshot block {} not found", snapshot_number))?;
+        if before.hash != Some(snapshot_hash) {
+            return Err(eyre!("finalized snapshot hash changed before canonical log refresh"));
+        }
+
+        if let Some(indexed) = self.indexed_snapshot {
+            let anchor = provider
+                .get_block(U64::from(indexed.number))
+                .await?
+                .ok_or_else(|| eyre!("canonical log index anchor block disappeared"))?;
+            let anchor_hash = anchor.hash.ok_or_else(|| eyre!("canonical log index anchor has no hash"))?;
+            self.verify_cached_anchor(anchor_hash)?;
+        }
+
+        let query_start = match self.query_start(snapshot_number.as_u64()) {
+            Ok(query_start) => query_start,
+            Err(error) => {
+                self.clear();
+                return Err(error);
+            }
+        };
+        let Some(mut from) = query_start else {
+            self.verify_cached_anchor(snapshot_hash)?;
+            return Ok(());
+        };
+
+        let commit_topic = H256::from(keccak256("CommitBatch(uint256,bytes32)"));
+        let revert_topic = H256::from(keccak256("RevertBatch(uint256,bytes32)"));
+        let mut commits = Vec::new();
+        let mut reverts = Vec::new();
+        while from <= snapshot_number.as_u64() {
+            let to = from.saturating_add(QUERY_RANGE - 1).min(snapshot_number.as_u64());
+            let base = Filter::new().address(rollup).from_block(from).to_block(to);
+            commits.extend(provider.get_logs(&base.clone().topic0(commit_topic)).await?);
+            reverts.extend(provider.get_logs(&base.topic0(revert_topic)).await?);
+            if to == snapshot_number.as_u64() {
+                break;
+            }
+            from = to.checked_add(1).ok_or_else(|| eyre!("canonical log query block overflow"))?;
+        }
+
+        let after = provider
+            .get_block(snapshot_number)
+            .await?
+            .ok_or_else(|| eyre!("snapshot block {} disappeared", snapshot_number))?;
+        if after.hash != Some(snapshot_hash) {
+            return Err(eyre!("snapshot block hash changed during canonical log refresh"));
+        }
+
+        self.append_logs(snapshot_number.as_u64(), snapshot_hash, commits, reverts)
+    }
+
+    pub async fn resolve<M: Middleware + 'static>(
+        &self,
+        rollup: &Rollup<M>,
+        batch_index: u64,
+        snapshot_number: U64,
+        snapshot_hash: H256,
+    ) -> Result<Option<CanonicalCommit>> {
+        if self.indexed_snapshot
+            != Some(IndexedSnapshot {
+                number: snapshot_number.as_u64(),
+                hash: snapshot_hash,
+            })
+        {
+            return Err(eyre!("canonical log index is not anchored to the requested snapshot"));
+        }
+        let block_id = BlockId::Number(BlockNumber::Number(snapshot_number));
+        let canonical_hash: H256 = rollup.committed_batches(U256::from(batch_index)).block(block_id).call().await?.into();
+        if canonical_hash.is_zero() {
+            return Ok(None);
+        }
+        Ok(self.resolve_cached(batch_index, canonical_hash))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn log(block: u64, tx: u64, index: u64, hash: H256, marker: u64) -> Log {
+    fn batch_log(batch: u64, block: u64, tx: u64, index: u64, hash: H256, marker: u64) -> Log {
         Log {
             block_number: Some(block.into()),
             transaction_index: Some(tx.into()),
             log_index: Some(index.into()),
             transaction_hash: Some(H256::from_low_u64_be(marker)),
             block_hash: Some(H256::from_low_u64_be(block)),
-            topics: vec![H256::zero(), H256::from_low_u64_be(7), hash],
+            topics: vec![H256::zero(), H256::from_low_u64_be(batch), hash],
             ..Default::default()
         }
+    }
+
+    fn log(block: u64, tx: u64, index: u64, hash: H256, marker: u64) -> Log {
+        batch_log(7, block, tx, index, hash, marker)
     }
 
     #[test]
@@ -356,5 +498,49 @@ mod tests {
         old_tuple[96..128].fill(0xff); // legacy uint256 bitmap, not an ABI address
         assert_eq!(decode_batch_data_store_block_number(&old_tuple).unwrap(), U256::from(123));
         assert!(decode_batch_data_store_block_number(&old_tuple[..127]).is_err());
+    }
+
+    #[test]
+    fn canonical_log_index_reuses_snapshot_and_only_plans_new_suffix() {
+        let snapshot_hash = H256::from_low_u64_be(100);
+        let mut index = CanonicalLogIndex::new(5).unwrap();
+        assert_eq!(index.query_start(10).unwrap(), Some(5));
+
+        let hash7 = H256::from_low_u64_be(7);
+        let hash8 = H256::from_low_u64_be(8);
+        index
+            .append_logs(
+                10,
+                snapshot_hash,
+                vec![batch_log(7, 7, 0, 0, hash7, 7), batch_log(8, 8, 0, 0, hash8, 8)],
+                vec![],
+            )
+            .unwrap();
+
+        assert!(index.resolve_cached(7, hash7).is_some());
+        assert!(index.resolve_cached(8, hash8).is_some());
+        assert_eq!(index.query_start(10).unwrap(), None);
+        assert_eq!(index.query_start(12).unwrap(), Some(11));
+
+        let hash9 = H256::from_low_u64_be(9);
+        index
+            .append_logs(12, H256::from_low_u64_be(102), vec![batch_log(9, 11, 0, 0, hash9, 9)], vec![])
+            .unwrap();
+        assert!(index.resolve_cached(7, hash7).is_some());
+        assert!(index.resolve_cached(9, hash9).is_some());
+    }
+
+    #[test]
+    fn canonical_log_index_discards_cache_and_fails_closed_on_anchor_reorg() {
+        let old_hash = H256::from_low_u64_be(100);
+        let mut index = CanonicalLogIndex::new(5).unwrap();
+        index
+            .append_logs(10, old_hash, vec![batch_log(7, 7, 0, 0, H256::from_low_u64_be(7), 7)], vec![])
+            .unwrap();
+
+        let error = index.verify_cached_anchor(H256::from_low_u64_be(101)).unwrap_err();
+        assert!(error.to_string().contains("cache discarded"));
+        assert!(index.resolve_cached(7, H256::from_low_u64_be(7)).is_none());
+        assert_eq!(index.query_start(12).unwrap(), Some(5));
     }
 }

@@ -1,5 +1,5 @@
 use challenge_handler::abi::rollup_abi::Rollup;
-use challenge_handler::rollup_compat::{challenge_deposit_at, resolve_canonical_commit};
+use challenge_handler::rollup_compat::{challenge_deposit_at, CanonicalLogIndex};
 use challenge_handler::util::read_parse_env;
 use dotenv::dotenv;
 use env_logger::Env;
@@ -69,13 +69,20 @@ pub async fn challenge() -> Result<(), Box<dyn Error>> {
     let proof_window = l1_rollup.proof_window().await?;
     log::info!("finalization_period: {:#?}  proof_window: {:#?}", finalization_period, proof_window);
 
+    let mut canonical_log_index = CanonicalLogIndex::new(rollup_deployed_block)?;
     loop {
         tokio::time::sleep(Duration::from_secs(12)).await;
-        let _ = auto_challenge(&l1_provider, &l1_rollup, rollup_deployed_block).await;
+        if let Err(error) = auto_challenge(&l1_provider, &l1_rollup, &mut canonical_log_index).await {
+            log::error!("ALERT: auto-challenge iteration failed closed: {error:#}");
+        }
     }
 }
 
-async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, rollup_deployed_block: u64) -> Result<(), Box<dyn Error>> {
+async fn auto_challenge(
+    l1_provider: &Provider<Http>,
+    l1_rollup: &RollupType,
+    canonical_log_index: &mut CanonicalLogIndex,
+) -> Result<(), Box<dyn Error>> {
     // Search for the latest batch.
     let (latest, snapshot_hash) = match l1_provider.get_block(BlockNumber::Finalized).await {
         Ok(Some(block)) => match (block.number, block.hash) {
@@ -114,7 +121,11 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, ro
     let block_id = BlockId::Number(BlockNumber::Number(latest));
     let min_deposit = challenge_deposit_at(l1_rollup, block_id).await?;
     let batch_index = l1_rollup.last_committed_batch_index().block(block_id).call().await?.as_u64();
-    if resolve_canonical_commit(l1_rollup, l1_provider, batch_index, rollup_deployed_block, latest)
+    canonical_log_index
+        .refresh(l1_provider, l1_rollup.address(), latest, snapshot_hash)
+        .await?;
+    if canonical_log_index
+        .resolve(l1_rollup, batch_index, latest, snapshot_hash)
         .await?
         .is_none()
     {

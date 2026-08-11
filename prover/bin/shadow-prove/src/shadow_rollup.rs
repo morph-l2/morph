@@ -7,11 +7,11 @@ use alloy_rpc_types::{BlockId, BlockNumberOrTag};
 
 use anyhow::{anyhow, Context, Result};
 use futures::future::join_all;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use crate::{
-    rollup_compat::{
-        decode_batch_data_input, resolve_canonical_commit, BatchDataInput, CanonicalCommit,
-    },
+    rollup_compat::{decode_batch_data_input, BatchDataInput, CanonicalCommit, CanonicalLogIndex},
     Rollup::{self, RollupInstance},
     ShadowRollup::{self, ShadowRollupInstance},
 };
@@ -22,7 +22,7 @@ pub struct BatchSyncer<P, N> {
     l2_provider: DynProvider,
     l1_rollup: RollupInstance<DynProvider>,
     l1_shadow_rollup: ShadowRollupInstance<P, N>,
-    rollup_deployed_block: u64,
+    canonical_log_index: Arc<Mutex<CanonicalLogIndex>>,
 }
 
 impl<P, N> BatchSyncer<P, N>
@@ -64,8 +64,12 @@ where
     ) -> Self {
         let l1_rollup = Rollup::RollupInstance::new(rollup_address, l1_provider.clone());
         let l1_shadow_rollup = ShadowRollup::new(shadow_rollup_address, wallet);
+        let canonical_log_index = Arc::new(Mutex::new(
+            CanonicalLogIndex::new(rollup_deployed_block)
+                .expect("SHADOW_PROVING_L1_ROLLUP_DEPLOY_BLOCK must be non-zero"),
+        ));
 
-        Self { l1_provider, l2_provider, l1_rollup, l1_shadow_rollup, rollup_deployed_block }
+        Self { l1_provider, l2_provider, l1_rollup, l1_shadow_rollup, canonical_log_index }
     }
 
     // Fetch the latest committed batch from l1-rollup if the batch_index has increased.
@@ -131,32 +135,20 @@ where
         }
 
         self.assert_snapshot(snapshot, snapshot_hash).await?;
-        let prev = resolve_canonical_commit(
-            &self.l1_provider,
-            &self.l1_rollup,
-            batch_num - 1,
-            self.rollup_deployed_block,
-            snapshot,
-        )
-        .await?;
-        self.assert_snapshot(snapshot, snapshot_hash).await?;
-        let current = resolve_canonical_commit(
-            &self.l1_provider,
-            &self.l1_rollup,
-            batch_num,
-            self.rollup_deployed_block,
-            snapshot,
-        )
-        .await?;
-        self.assert_snapshot(snapshot, snapshot_hash).await?;
-        let next = resolve_canonical_commit(
-            &self.l1_provider,
-            &self.l1_rollup,
-            batch_num + 1,
-            self.rollup_deployed_block,
-            snapshot,
-        )
-        .await?;
+        let mut canonical_log_index = self.canonical_log_index.lock().await;
+        canonical_log_index
+            .refresh(&self.l1_provider, &self.l1_rollup, snapshot, snapshot_hash)
+            .await?;
+        let prev = canonical_log_index
+            .resolve(&self.l1_rollup, batch_num - 1, snapshot, snapshot_hash)
+            .await?;
+        let current = canonical_log_index
+            .resolve(&self.l1_rollup, batch_num, snapshot, snapshot_hash)
+            .await?;
+        let next = canonical_log_index
+            .resolve(&self.l1_rollup, batch_num + 1, snapshot, snapshot_hash)
+            .await?;
+        drop(canonical_log_index);
         self.assert_snapshot(snapshot, snapshot_hash).await?;
         let (Some(prev), Some(current), Some(next)) = (prev, current, next) else {
             return Ok(None);

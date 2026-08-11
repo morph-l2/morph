@@ -1,9 +1,8 @@
 use crate::abi::rollup_abi::Rollup;
 use crate::external_sign::ExternalSign;
 use crate::metrics::METRICS;
-use crate::rollup_compat::{
-    authority_is_active, decode_batch_data_input, decode_batch_data_store_block_number, resolve_canonical_commit, CanonicalCommit,
-};
+use crate::proof_signer::{select_active_proof_signer, ApprovedProofSigner};
+use crate::rollup_compat::{decode_batch_data_input, decode_batch_data_store_block_number, CanonicalCommit, CanonicalLogIndex};
 use crate::util::read_env_var;
 use crate::util::{self, read_parse_env};
 use ethers::prelude::*;
@@ -18,6 +17,7 @@ use std::error::Error;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Mutex;
 use tokio::time::sleep;
 use transaction::eip2718::TypedTransaction;
 
@@ -53,8 +53,8 @@ pub struct ChallengeHandler {
     l1_rollup: RollupType,
     l1_provider: Provider<Http>,
     l2_rpc: String,
-    ext_signer: Option<ExternalSign>,
-    rollup_deployed_block: u64,
+    proof_signers: Vec<ApprovedProofSigner>,
+    canonical_log_index: Arc<Mutex<CanonicalLogIndex>>,
 }
 
 impl ChallengeHandler {
@@ -65,6 +65,9 @@ impl ChallengeHandler {
         let l1_rollup_address = var("HANDLER_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
         let _ = var("HANDLER_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
         let rollup_deployed_block: u64 = read_parse_env("HANDLER_L1_ROLLUP_DEPLOY_BLOCK");
+        let canonical_log_index = Arc::new(Mutex::new(
+            CanonicalLogIndex::new(rollup_deployed_block).expect("HANDLER_L1_ROLLUP_DEPLOY_BLOCK must be non-zero"),
+        ));
 
         let private_key = read_env_var(
             "CHALLENGE_HANDLER_PRIVATE_KEY",
@@ -72,17 +75,14 @@ impl ChallengeHandler {
         );
 
         let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc).unwrap();
-        let l1_signer = Arc::new(SignerMiddleware::new(
-            l1_provider.clone(),
-            Wallet::from_str(private_key.as_str())
-                .unwrap()
-                .with_chain_id(l1_provider.get_chainid().await.unwrap().as_u64()),
-        ));
+        let chain_id = l1_provider.get_chainid().await.unwrap().as_u64();
+        let local_wallet = Wallet::from_str(private_key.as_str()).unwrap().with_chain_id(chain_id);
+        let l1_signer = Arc::new(SignerMiddleware::new(l1_provider.clone(), local_wallet.clone()));
         let l1_rollup: RollupType = Rollup::new(Address::from_str(l1_rollup_address.as_str()).unwrap(), l1_signer);
 
         let use_ext_sign: bool = read_env_var("HANDLER_EXTERNAL_SIGN", false);
 
-        let ext_signer = if use_ext_sign {
+        let primary_signer = if use_ext_sign {
             log::info!("Challenge handler will use external signer");
             let handler_appid: String = read_parse_env("HANDLER_EXTERNAL_SIGN_APPID");
             let privkey_pem: String = read_parse_env("HANDLER_EXTERNAL_SIGN_RSA_PRIV");
@@ -92,18 +92,32 @@ impl ChallengeHandler {
             let signer: ExternalSign = ExternalSign::new(&handler_appid, &privkey_pem, &sign_address, &sign_chain, &sign_url)
                 .map_err(|e| anyhow!(format!("Prepare ExternalSign err: {:?}", e)))
                 .unwrap();
-            Some(signer)
+            let address = Address::from_str(&signer.address).expect("HANDLER_EXTERNAL_SIGN_ADDRESS must be a valid address");
+            ApprovedProofSigner::external(address, signer)
         } else {
             log::info!("Challenge handler will use local signer");
-            None
+            ApprovedProofSigner::local(local_wallet)
         };
+
+        let mut proof_signers = vec![primary_signer];
+        let backup_private_keys: String = read_env_var("CHALLENGE_HANDLER_BACKUP_PRIVATE_KEYS", String::new());
+        for backup_private_key in backup_private_keys.split(',').map(str::trim).filter(|key| !key.is_empty()) {
+            let wallet = Wallet::from_str(backup_private_key)
+                .expect("CHALLENGE_HANDLER_BACKUP_PRIVATE_KEYS contains an invalid private key")
+                .with_chain_id(chain_id);
+            if proof_signers.iter().any(|approved| approved.address() == wallet.address()) {
+                panic!("CHALLENGE_HANDLER_BACKUP_PRIVATE_KEYS contains a duplicate approved signer");
+            }
+            proof_signers.push(ApprovedProofSigner::local(wallet));
+        }
+        log::info!("Configured {} ordered approved proof signer(s)", proof_signers.len());
 
         Self {
             l1_rollup,
             l1_provider,
             l2_rpc,
-            ext_signer,
-            rollup_deployed_block,
+            proof_signers,
+            canonical_log_index,
         }
     }
 
@@ -150,11 +164,7 @@ impl ChallengeHandler {
             };
             log::info!("Current L1 block number: {:#?}", latest);
 
-            let wallet = if let Some(signer) = &self.ext_signer {
-                Address::from_str(&signer.address).unwrap_or_default()
-            } else {
-                self.l1_rollup.client().address()
-            };
+            let wallet = self.proof_signers[0].address();
             // Record wallet balance.
             let balance = match l1_provider.get_balance(wallet, None).await {
                 Ok(b) => b,
@@ -177,11 +187,11 @@ impl ChallengeHandler {
             METRICS.detected_batch_index.set(batch_index as i64);
 
             // Step3. query challenged batch info.
-            let (challenged_commit, batch_hash) = match query_batch_tx(latest, l1_rollup, batch_index, self.rollup_deployed_block, l1_provider).await
-            {
-                Some(value) => value,
-                None => continue,
-            };
+            let (challenged_commit, batch_hash) =
+                match query_batch_tx(latest, snapshot_hash, l1_rollup, batch_index, &self.canonical_log_index, l1_provider).await {
+                    Some(value) => value,
+                    None => continue,
+                };
 
             let mut batch_info = match batch_inspect(l1_rollup, l1_provider, batch_index, &challenged_commit, latest).await {
                 Some(mut b) => {
@@ -277,24 +287,39 @@ impl ChallengeHandler {
     }
 
     async fn prove_state(&self, batch_index: u64, batch_header: Bytes, batch_proof: ProveResult, l1_rollup: &RollupType) -> bool {
-        let signer = if let Some(external) = &self.ext_signer {
-            Address::from_str(&external.address).unwrap_or_default()
-        } else {
-            l1_rollup.client().address()
-        };
         for _ in 0..MAX_RETRY_TIMES {
             sleep(Duration::from_secs(12)).await;
-            if !self.proof_signer_is_active(l1_rollup, signer).await {
-                // Re-run the gate before every retry: a threshold increase,
-                // exit, or slash between attempts must stop transmission.
-                return false;
+            METRICS.proof_signer_available.set(0);
+            let selected = match select_active_proof_signer(l1_rollup, &self.proof_signers).await {
+                Ok(Some(selected)) => selected,
+                Ok(None) => {
+                    log::error!(
+                        "ALERT: refusing proveState because all {} approved proof signers are inactive; no transaction was sent",
+                        self.proof_signers.len()
+                    );
+                    return false;
+                }
+                Err(err) => {
+                    log::error!("ALERT: refusing proveState because active signer selection failed: {err:#}; no transaction was sent");
+                    return false;
+                }
+            };
+            METRICS.proof_signer_available.set(1);
+            if selected.approved_index > 0 {
+                log::warn!(
+                    "ALERT: primary proof signer is inactive; switching to approved backup #{} {:?} at finalized snapshot {} ({:?})",
+                    selected.approved_index,
+                    selected.signer.address(),
+                    selected.snapshot.number,
+                    selected.snapshot.hash
+                );
             }
             log::info!("starting prove state onchain, batch index = {:#?}", batch_index);
             let proof = Bytes::from(batch_proof.proof_data.clone());
 
             let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> = self.l1_rollup.client();
             let calldata = l1_rollup.prove_state(batch_header.clone(), proof).calldata();
-            let result = send_transaction(self.l1_rollup.address(), calldata, &client, &self.ext_signer, &self.l1_provider).await;
+            let result = send_transaction(self.l1_rollup.address(), calldata, &client, &selected.signer, &self.l1_provider).await;
             if let Ok(tx_hash) = result {
                 METRICS.verify_result.set(1);
                 log::info!("prove_state success, batch_index: {:?}, tx_hash: {:#?}", batch_index, tx_hash);
@@ -308,42 +333,6 @@ impl ChallengeHandler {
             }
         }
         false
-    }
-
-    async fn proof_signer_is_active(&self, l1_rollup: &RollupType, signer: Address) -> bool {
-        let (number, hash) = match self.l1_provider.get_block(BlockNumber::Finalized).await {
-            Ok(Some(block)) => match (block.number, block.hash) {
-                (Some(number), Some(hash)) => (number, hash),
-                _ => {
-                    log::error!("finalized L1 block has no stable identity");
-                    return false;
-                }
-            },
-            Ok(None) => {
-                log::error!("finalized L1 block is unavailable");
-                return false;
-            }
-            Err(err) => {
-                log::error!("query finalized L1 snapshot failed: {err:#}");
-                return false;
-            }
-        };
-        let snapshot = BlockId::Number(BlockNumber::Number(number));
-        let active = match authority_is_active(l1_rollup, signer, snapshot).await {
-            Ok(active) => active,
-            Err(err) => {
-                log::error!("Rollup authority active preflight failed: {err:#}");
-                return false;
-            }
-        };
-        if !snapshot_unchanged(&self.l1_provider, number, hash).await {
-            log::error!("finalized snapshot changed during authority active preflight");
-            return false;
-        }
-        if !active {
-            log::error!("refusing proveState from inactive submitter signer {signer:?}");
-        }
-        active
     }
 }
 
@@ -376,12 +365,18 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
 
 async fn query_batch_tx(
     latest: U64,
+    snapshot_hash: H256,
     l1_rollup: &RollupType,
     batch_index: u64,
-    rollup_deployed_block: u64,
+    canonical_log_index: &Arc<Mutex<CanonicalLogIndex>>,
     l1_provider: &Provider<Http>,
 ) -> Option<(CanonicalCommit, H256)> {
-    let commit = match resolve_canonical_commit(l1_rollup, l1_provider, batch_index, rollup_deployed_block, latest).await {
+    let mut canonical_log_index = canonical_log_index.lock().await;
+    if let Err(err) = canonical_log_index.refresh(l1_provider, l1_rollup.address(), latest, snapshot_hash).await {
+        log::error!("canonical Commit index refresh failed: {err:#}");
+        return None;
+    }
+    let commit = match canonical_log_index.resolve(l1_rollup, batch_index, latest, snapshot_hash).await {
         Ok(Some(commit)) => commit,
         Ok(None) => {
             log::warn!("batch {batch_index} has no canonical Commit at snapshot {latest}");
@@ -392,6 +387,7 @@ async fn query_batch_tx(
             return None;
         }
     };
+    drop(canonical_log_index);
 
     let block_id = BlockId::Number(BlockNumber::Number(latest));
     let parent_index = batch_index.checked_sub(1)?;
@@ -611,23 +607,20 @@ async fn send_transaction(
     contract: Address,
     calldata: Option<Bytes>,
     local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
-    ext_signer: &Option<ExternalSign>,
+    proof_signer: &ApprovedProofSigner,
     l2_provider: &Provider<Http>,
 ) -> Result<H256, Box<dyn Error>> {
     let req = Eip1559TransactionRequest::new().data(calldata.unwrap_or_default());
     let mut tx = TypedTransaction::Eip1559(req);
     tx.set_to(contract);
-    if let Some(signer) = ext_signer {
-        tx.set_from(Address::from_str(&signer.address).unwrap_or_default());
-    } else {
-        tx.set_from(local_signer.address());
-    }
+    tx.set_from(proof_signer.address());
     local_signer.fill_transaction(&mut tx, None).await.map_err(|e| {
         let msg = contract_error(ContractError::<SignerMiddleware<Provider<Http>, LocalWallet>>::from_middleware_error(e));
         anyhow!("prove_state fill_transaction error: {:#?}", msg)
     })?;
 
-    let signed_tx = sign_tx(tx, local_signer, ext_signer)
+    let signed_tx = proof_signer
+        .sign_transaction(&tx)
         .await
         .map_err(|e| anyhow!("prove_state sign_tx error: {}", e))?;
 
@@ -647,19 +640,6 @@ async fn send_transaction(
         Ok(tx_hash)
     } else {
         Err(anyhow!(format!("tx of prove_state failed, transaction_hash: {:#?}", receipt.transaction_hash)).into())
-    }
-}
-
-async fn sign_tx(
-    tx: TypedTransaction,
-    local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
-    ext_signer: &Option<ExternalSign>,
-) -> Result<Bytes, Box<dyn Error>> {
-    if let Some(signer) = ext_signer {
-        Ok(signer.request_sign(&tx).await?)
-    } else {
-        let signature = local_signer.signer().sign_transaction(&tx).await?;
-        Ok(tx.rlp_signed(&signature))
     }
 }
 

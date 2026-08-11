@@ -54,6 +54,8 @@ fn register_metrics() {
     REGISTRY.register(Box::new(METRICS.verify_result.clone())).unwrap();
     // wallet balance.
     REGISTRY.register(Box::new(METRICS.wallet_balance.clone())).unwrap();
+    // approved active proof signer availability.
+    REGISTRY.register(Box::new(METRICS.proof_signer_available.clone())).unwrap();
 }
 
 async fn handle_metrics() -> String {
