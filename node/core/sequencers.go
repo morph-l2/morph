@@ -12,6 +12,12 @@ import (
 
 const tmKeySize = ed25519.PubKeySize
 
+// Keep the protected pre-cutover update path addressable for symbol-level
+// audits even though all production entry points now use validatorSetAtHeight.
+// The method bodies below intentionally remain unchanged apart from removing
+// the old syncer-start side effect.
+var _ = (*Executor).updateSequencerSet
+
 func cloneValidatorKeys(keys [][]byte) [][]byte {
 	cloned := make([][]byte, len(keys))
 	for i := range keys {

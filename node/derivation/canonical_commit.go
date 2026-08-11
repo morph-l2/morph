@@ -257,7 +257,7 @@ func ResolveStoredBlobSourceAtSnapshot(
 		if err != nil {
 			return nil, fmt.Errorf("decode stored blob source transaction %s: %w", log.TxHash.Hex(), err)
 		}
-		if !storedBlobHashMatches(uint(batch.Version), blobHashes, storedHash) {
+		if !storedBlobHashMatches(batch.Version, blobHashes, storedHash) {
 			continue
 		}
 		source = &StoredBlobSource{
