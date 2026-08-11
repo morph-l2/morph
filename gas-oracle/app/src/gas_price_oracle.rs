@@ -4,7 +4,6 @@ use crate::{
     l1_base_fee::BaseFeeUpdater,
     read_parse_env,
 };
-use remote_signer_client::SignerClient;
 use ethers::{
     prelude::*,
     providers::{Http, Provider},
@@ -12,6 +11,7 @@ use ethers::{
     types::Address,
 };
 use eyre::anyhow;
+use remote_signer_client::SignerClient;
 use std::{env::var, error::Error, str::FromStr, sync::Arc, time::Duration};
 use tokio::time::sleep;
 
@@ -31,6 +31,7 @@ struct Config {
     interval: u64,
     overhead_interval: u64,
     l1_rollup_address: Address,
+    l1_rollup_deploy_block: u64,
     l2_oracle_address: Address,
     private_key: String,
     l1_beacon_rpc: String,
@@ -58,6 +59,7 @@ impl Config {
             interval: read_parse_env("INTERVAL"),
             overhead_interval: read_parse_env("OVERHEAD_INTERVAL"),
             l1_rollup_address: Address::from_str(&var("L1_ROLLUP").expect("L1_ROLLUP env"))?,
+            l1_rollup_deploy_block: read_parse_env("GAS_ORACLE_L1_ROLLUP_DEPLOY_BLOCK"),
             l2_oracle_address: Address::from_str(
                 &var("L2_GAS_PRICE_ORACLE").expect("L2_GAS_PRICE_ORACLE env"),
             )?,
@@ -124,6 +126,12 @@ fn check_config(config: &Config) -> Result<(), Box<dyn Error>> {
     }
     if config.txn_per_batch < 10u64 {
         return Err(anyhow!("Check env config error, TXN_PER_BATCH should be more than 10").into());
+    }
+    if config.l1_rollup_deploy_block == 0 {
+        return Err(anyhow!(
+            "Check env config error, GAS_ORACLE_L1_ROLLUP_DEPLOY_BLOCK must be non-zero"
+        )
+        .into());
     }
 
     Ok(())
@@ -219,6 +227,7 @@ async fn prepare_updater(
         ext_signer,
         l1_rollup,
         config.l1_beacon_rpc.clone(),
+        config.l1_rollup_deploy_block,
         config.gas_threshold,
         config.commit_scalar_buffer,
         config.blob_scalar_buffer,
@@ -252,6 +261,7 @@ fn register_metrics() {
     REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.commit_scalar.clone())).unwrap();
     REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.blob_scalar.clone())).unwrap();
     REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.txn_per_batch.clone())).unwrap();
+    REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.da_sample_exclusions.clone())).unwrap();
     REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.gas_oracle_owner_balance.clone())).unwrap();
     REGISTRY.register(Box::new(ORACLE_SERVICE_METRICS.l1_rpc_status.clone())).unwrap();
 }

@@ -8,4 +8,3 @@ pub enum ScalarError {
     #[error("{0}")]
     BeaconNodeError(eyre::Error),
 }
-

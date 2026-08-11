@@ -77,7 +77,7 @@ impl Blob {
 
         let max_payload_size = num_blobs * (MAX_BLOB_TX_PAYLOAD_SIZE - 4096);
         if compressed_len as usize > max_payload_size {
-            return Err(BlobError::Error(anyhow!("oversized batch payload")))
+            return Err(BlobError::Error(anyhow!("oversized batch payload")));
         }
         let compressed_batch = decoded_blob[..compressed_len].to_vec();
 
@@ -103,7 +103,7 @@ impl Blob {
         if origin_batch.len() != orgin_content_size as usize {
             return Err(BlobError::Error(anyhow!(
                 "decompress batch error: origin_batch_len is not equal to zstd_orgin_content_size"
-            )))
+            )));
         }
 
         let total_blob_payload = num_blobs as f32 * (MAX_BLOB_TX_PAYLOAD_SIZE - 4096) as f32;
@@ -163,8 +163,8 @@ fn parse_block_header(
 
     // resolve Block_Size (21 bits)
     let block_size =
-        ((header[0] as u32 >> 3) | ((header[1] as u32) << 5) | ((header[2] as u32) << 13)) &
-            0x1FFFFF;
+        ((header[0] as u32 >> 3) | ((header[1] as u32) << 5) | ((header[2] as u32) << 13))
+            & 0x1FFFFF;
 
     Ok((last_block, block_type, block_size))
 }

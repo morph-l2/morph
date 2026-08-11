@@ -5,6 +5,7 @@ mod error;
 pub mod gas_price_oracle;
 mod l1_base_fee;
 mod metrics;
+mod rollup_compat;
 
 mod da_scalar;
 mod signer;

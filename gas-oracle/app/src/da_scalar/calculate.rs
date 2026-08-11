@@ -1,17 +1,107 @@
+use std::collections::BTreeMap;
+
+use c_kzg::{ethereum_kzg_settings, Blob as KzgBlob, Bytes48};
 use ethers::{
     prelude::*,
     utils::{hex, rlp},
 };
 use eyre::anyhow;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::{
-    blob::{decompress_batch, kzg_to_versioned_hash, Blob},
+    blob::{decompress_batch, kzg_to_versioned_hash, Blob as MorphBlob},
     error::ScalarError,
     typed_tx::TypedTransaction,
     MAX_BLOB_TX_PAYLOAD_SIZE,
 };
+
+fn sidecar_index(sidecar: &Value) -> Result<u64, ScalarError> {
+    let raw = sidecar.get("index").and_then(Value::as_str).ok_or_else(|| {
+        ScalarError::CalculateError(anyhow!("beacon blob sidecar index is missing or not a string"))
+    })?;
+    if raw.is_empty() || !raw.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(ScalarError::CalculateError(anyhow!(
+            "beacon blob sidecar index is not an unsigned decimal integer"
+        )));
+    }
+    raw.parse::<u64>().map_err(|e| {
+        ScalarError::CalculateError(anyhow!(format!(
+            "beacon blob sidecar index overflows u64: {e}"
+        )))
+    })
+}
+
+fn decode_beacon_hex(
+    sidecar: &Value,
+    field: &'static str,
+    expected_len: usize,
+) -> Result<Vec<u8>, ScalarError> {
+    let encoded = sidecar.get(field).and_then(Value::as_str).ok_or_else(|| {
+        ScalarError::CalculateError(anyhow!(format!(
+            "beacon blob sidecar {field} is missing or not a string"
+        )))
+    })?;
+    let payload = encoded.strip_prefix("0x").ok_or_else(|| {
+        ScalarError::CalculateError(anyhow!(format!(
+            "beacon blob sidecar {field} must be 0x-prefixed"
+        )))
+    })?;
+    if payload.len() != expected_len.saturating_mul(2) {
+        return Err(ScalarError::CalculateError(anyhow!(format!(
+            "beacon blob sidecar {field} has invalid encoded length"
+        ))));
+    }
+    let decoded = hex::decode(payload).map_err(|e| {
+        ScalarError::CalculateError(anyhow!(format!(
+            "beacon blob sidecar {field} is not valid hex: {e}"
+        )))
+    })?;
+    if decoded.len() != expected_len {
+        return Err(ScalarError::CalculateError(anyhow!(format!(
+            "beacon blob sidecar {field} has invalid decoded length"
+        ))));
+    }
+    Ok(decoded)
+}
+
+fn verify_blob_sidecar(
+    sidecar: &Value,
+    expected_versioned_hash: H256,
+) -> Result<[u8; MAX_BLOB_TX_PAYLOAD_SIZE], ScalarError> {
+    let commitment_bytes = decode_beacon_hex(sidecar, "kzg_commitment", 48)?;
+    let actual_versioned_hash = kzg_to_versioned_hash(&commitment_bytes);
+    if expected_versioned_hash != actual_versioned_hash {
+        return Err(ScalarError::CalculateError(anyhow!(format!(
+            "invalid blob versioned hash: expected {expected_versioned_hash:?}, got {actual_versioned_hash:?}"
+        ))));
+    }
+
+    let blob_bytes = decode_beacon_hex(sidecar, "blob", MAX_BLOB_TX_PAYLOAD_SIZE)?;
+    let proof_bytes = decode_beacon_hex(sidecar, "kzg_proof", 48)?;
+    let blob = KzgBlob::from_bytes(&blob_bytes).map_err(|e| {
+        ScalarError::CalculateError(anyhow!(format!("invalid KZG blob encoding: {e}")))
+    })?;
+    let commitment = Bytes48::from_bytes(&commitment_bytes).map_err(|e| {
+        ScalarError::CalculateError(anyhow!(format!("invalid KZG commitment encoding: {e}")))
+    })?;
+    let proof = Bytes48::from_bytes(&proof_bytes).map_err(|e| {
+        ScalarError::CalculateError(anyhow!(format!("invalid KZG proof encoding: {e}")))
+    })?;
+    let verified = ethereum_kzg_settings(0)
+        .verify_blob_kzg_proof(&blob, &commitment, &proof)
+        .map_err(|e| {
+            ScalarError::CalculateError(anyhow!(format!("KZG sidecar verification failed: {e}")))
+        })?;
+    if !verified {
+        return Err(ScalarError::CalculateError(anyhow!(
+            "KZG sidecar proof does not match blob and commitment"
+        )));
+    }
+
+    blob_bytes.try_into().map_err(|_| {
+        ScalarError::CalculateError(anyhow!("verified blob has an unexpected byte length"))
+    })
+}
 
 /// Extract the full batch data from multiple blobs.
 /// All blobs belong to the same batch: the batch is compressed as a whole, split into
@@ -23,76 +113,46 @@ pub(super) fn extract_tx_payload(
     sidecars: &[Value],
 ) -> Result<Vec<u8>, ScalarError> {
     let num_blobs = indexed_hashes.len();
-    let mut combined_payload = Vec::<u8>::new();
-    for i_h in indexed_hashes {
-        if let Some(sidecar) = sidecars.iter().find(|sidecar| {
-            sidecar["index"].as_str().unwrap_or("1000").parse::<u64>().unwrap_or(1000) == i_h.index
-        }) {
-            let kzg_commitment = sidecar["kzg_commitment"].as_str().ok_or_else(|| {
-                ScalarError::CalculateError(anyhow!("Failed to fetch kzg commitment from blob"))
-            })?;
-            let decoded_commitment: Vec<u8> =
-                hex::decode(kzg_commitment).map_err(|e| ScalarError::CalculateError(e.into()))?;
-            let actual_versioned_hash = kzg_to_versioned_hash(&decoded_commitment);
-
-            if i_h.hash != actual_versioned_hash {
-                log::error!(
-                    "expected hash {:?} for blob at index {:?} but got {:?}",
-                    i_h.hash,
-                    i_h.index,
-                    actual_versioned_hash
-                );
-
-                return Err(ScalarError::CalculateError(anyhow!(format!(
-                    "Invalid versionedHash for Blob, expected hash {:?} for blob at index {:?} but got {:?}",
-                    i_h.hash, i_h.index, actual_versioned_hash
-                ))));
-            }
-
-            let encoded_blob = sidecar["blob"].as_str().ok_or_else(|| {
-                ScalarError::CalculateError(anyhow!(format!(
-                    "Missing blob value in blob_hash: {:?}",
-                    i_h.hash
-                )))
-            })?;
-            let decoded_blob = hex::decode(encoded_blob).map_err(|e| {
-                ScalarError::CalculateError(anyhow!(format!(
-                    "Failed to decode blob, blob_hash: {:?}, err: {}",
-                    i_h.hash, e
-                )))
-            })?;
-
-            if decoded_blob.len() != MAX_BLOB_TX_PAYLOAD_SIZE {
-                return Err(ScalarError::CalculateError(anyhow!("Invalid length for Blob")));
-            }
-
-            let blob_array: [u8; MAX_BLOB_TX_PAYLOAD_SIZE] = decoded_blob.try_into().unwrap();
-            let blob_struct = Blob(blob_array);
-            // Extract the raw payload segment by removing only the BLS12-381 encoding,
-            // without zstd decompression.
-            let payload_bytes = blob_struct.get_payload_bytes().map_err(|e| {
-                ScalarError::CalculateError(anyhow!(format!(
-                    "Failed to get payload bytes from blob, blob_hash: {:?}, err: {}",
-                    i_h.hash, e
-                )))
-            })?;
-            combined_payload.extend_from_slice(&payload_bytes);
-        } else {
+    let mut sidecars_by_index = BTreeMap::new();
+    for sidecar in sidecars {
+        let index = sidecar_index(sidecar)?;
+        if sidecars_by_index.insert(index, sidecar).is_some() {
             return Err(ScalarError::CalculateError(anyhow!(format!(
-                "no blob in response matches desired index: {}",
-                i_h.index
+                "beacon response contains duplicate blob sidecar index {index}"
             ))));
         }
     }
 
+    let mut combined_payload = Vec::<u8>::new();
+    for i_h in indexed_hashes {
+        let sidecar = sidecars_by_index.get(&i_h.index).ok_or_else(|| {
+            ScalarError::CalculateError(anyhow!(format!(
+                "no blob in response matches desired index: {}",
+                i_h.index
+            )))
+        })?;
+        let blob_array = verify_blob_sidecar(sidecar, i_h.hash)?;
+        let blob_struct = MorphBlob(blob_array);
+        // Extract the raw payload segment by removing only the BLS12-381 encoding,
+        // without zstd decompression.
+        let payload_bytes = blob_struct.get_payload_bytes().map_err(|e| {
+            ScalarError::CalculateError(anyhow!(format!(
+                "Failed to get payload bytes from blob, blob_hash: {:?}, err: {}",
+                i_h.hash, e
+            )))
+        })?;
+        combined_payload.extend_from_slice(&payload_bytes);
+    }
+
     // After concatenation, use detect_zstd_compressed to trim the valid compressed payload
     // (excluding trailing zero padding), then decompress the batch as a whole.
-    let compressed_data = Blob::detect_zstd_compressed(combined_payload, num_blobs).map_err(|e| {
-        ScalarError::CalculateError(anyhow!(format!(
-            "Failed to detect zstd compressed data from combined blob payload: {}",
-            e
-        )))
-    })?;
+    let compressed_data =
+        MorphBlob::detect_zstd_compressed(combined_payload, num_blobs).map_err(|e| {
+            ScalarError::CalculateError(anyhow!(format!(
+                "Failed to detect zstd compressed data from combined blob payload: {}",
+                e
+            )))
+        })?;
     decompress_batch(&compressed_data).map_err(|e| {
         ScalarError::CalculateError(anyhow!(format!(
             "Failed to decompress combined blob payload: {}",
@@ -101,18 +161,20 @@ pub(super) fn extract_tx_payload(
     })
 }
 
-pub fn extract_txn_count(origin_batch: &Vec<u8>, last_block_num: u64) -> Option<u64> {
+pub fn extract_txn_count(origin_batch: &[u8], last_block_num: u64) -> Option<u64> {
     if origin_batch.is_empty() || origin_batch.len() < 8 {
         return None;
     }
     let first_block_num = u64::from_be_bytes(origin_batch[0..8].try_into().unwrap_or_default());
-    let block_count = last_block_num - first_block_num + 1;
-    if origin_batch.len() < 60 * block_count as usize {
+    let block_count = last_block_num.checked_sub(first_block_num)?.checked_add(1)?;
+    let block_count = usize::try_from(block_count).ok()?;
+    let required_len = 60usize.checked_mul(block_count)?;
+    if origin_batch.len() < required_len {
         log::error!("invalid blob batch len");
         return None;
     }
     let mut txn_count_in_batch = 0u64;
-    for i in 0..block_count as usize {
+    for i in 0..block_count {
         let bys = &origin_batch[60 * i + 56..60 * i + 58];
         let num_txn = u16::from_be_bytes(bys.try_into().unwrap_or_default());
 
@@ -129,13 +191,40 @@ pub fn extract_txn_count(origin_batch: &Vec<u8>, last_block_num: u64) -> Option<
     Some(txn_count_in_batch)
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct BlockInfo {
-    block_number: U256,
-    timestamp: u64,
-    base_fee: U256,
-    gas_limit: u64,
-    num_txs: u64,
+#[test]
+fn extract_txn_count_rejects_reversed_or_truncated_ranges() {
+    let mut block = vec![0u8; 60];
+    block[..8].copy_from_slice(&10u64.to_be_bytes());
+    block[56..58].copy_from_slice(&2u16.to_be_bytes());
+    assert_eq!(extract_txn_count(&block, 10), Some(2));
+    assert_eq!(extract_txn_count(&block, 9), None);
+    assert_eq!(extract_txn_count(&block[..59], 10), None);
+}
+
+#[test]
+fn forged_sidecar_fails_kzg_verification() {
+    let settings = ethereum_kzg_settings(0);
+    let blob = KzgBlob::new([0u8; MAX_BLOB_TX_PAYLOAD_SIZE]);
+    let commitment = settings.blob_to_kzg_commitment(&blob).unwrap().to_bytes();
+
+    // The proof is valid, but for a different canonical blob/commitment pair.
+    // This ensures the negative test reaches the KZG relationship check rather
+    // than failing only on malformed point encodings.
+    let mut other_blob_bytes = [0u8; MAX_BLOB_TX_PAYLOAD_SIZE];
+    other_blob_bytes[31] = 1;
+    let other_blob = KzgBlob::new(other_blob_bytes);
+    let other_commitment = settings.blob_to_kzg_commitment(&other_blob).unwrap().to_bytes();
+    let forged_proof = settings.compute_blob_kzg_proof(&other_blob, &other_commitment).unwrap();
+
+    let sidecar = serde_json::json!({
+        "index": "0",
+        "blob": format!("0x{}", hex::encode(blob.as_ref())),
+        "kzg_commitment": format!("0x{}", hex::encode(commitment.as_ref())),
+        "kzg_proof": format!("0x{}", hex::encode(forged_proof.to_bytes().as_ref())),
+    });
+    let expected_hash = kzg_to_versioned_hash(commitment.as_ref());
+    let error = verify_blob_sidecar(&sidecar, expected_hash).unwrap_err();
+    assert!(error.to_string().contains("does not match"));
 }
 
 #[derive(Debug, Clone)]

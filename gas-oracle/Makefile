@@ -8,15 +8,15 @@ run:build
 
 # Run the formatter but don't change any files.
 fmt:
-	cd app && cargo +nightly fmt --all -- --check
+	cd app && cargo fmt --all -- --check
 
 # Run the formatter and update files with style changes
 lint:
-	cd app && cargo +nightly fmt --all
+	cd app && cargo fmt --all
 
 # Run clippy
 clippy:
-	cd app && cargo +nightly clippy --all-targets -- -D warnings
+	cd app && cargo clippy --all-targets -- -D warnings
 
 # Run all tests
 test:

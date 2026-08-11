@@ -122,8 +122,6 @@ fn eip1559_estimator(base_fee_per_gas: U256, _rewards: Vec<Vec<U256>>) -> (U256,
     (max_fee_per_gas, max_priority_fee_per_gas)
 }
 
-
-
 #[tokio::test]
 #[ignore]
 async fn test_estimate_eip1559_fees() {
@@ -151,6 +149,7 @@ async fn test_estimate_eip1559_fees() {
     let tx_typed = tx.as_eip1559_mut().unwrap();
     log::info!(
         "====tx_typed gas data: {:?}, {:?}",
-        tx_typed.max_fee_per_gas, tx_typed.max_priority_fee_per_gas
+        tx_typed.max_fee_per_gas,
+        tx_typed.max_priority_fee_per_gas
     );
 }

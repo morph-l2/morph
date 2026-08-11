@@ -145,9 +145,8 @@ impl BaseFeeUpdater {
         let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> = self.l2_oracle.client();
         if need_update {
             // Update calldata basefee and blob baseFee
-            let call = self
-                .l2_oracle
-                .set_l1_base_fee_and_blob_base_fee(l1_base_fee, l1_blob_base_fee);
+            let call =
+                self.l2_oracle.set_l1_base_fee_and_blob_base_fee(l1_base_fee, l1_blob_base_fee);
             let tx_hash = send_transaction(call, &client, &self.ext_signer, &self.l2_provider)
                 .await
                 .map_err(|e| {
@@ -215,11 +214,11 @@ async fn query_l1_base_fee(
             return Err(OracleError::L1BaseFeeError(anyhow!(format!(
                 "Failed to query l1_gas_price: {:#?}",
                 e
-            ))))
+            ))));
         }
     };
 
-    Ok((l1_base_fee, U256::from(latest_blob_fee), gas_price))
+    Ok((l1_base_fee, latest_blob_fee, gas_price))
 }
 
 #[tokio::test]

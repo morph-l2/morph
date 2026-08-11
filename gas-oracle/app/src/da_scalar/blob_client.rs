@@ -26,10 +26,10 @@ impl BeaconNode {
         indexes: Vec<u64>,
     ) -> Result<Value, ScalarError> {
         let client = reqwest::blocking::Client::new();
-        let mut url = l1_beacon_rpc.to_owned() +
-            "/eth/v1/beacon/blob_sidecars/" +
-            slot.to_string().as_str() +
-            "?";
+        let mut url = l1_beacon_rpc.to_owned()
+            + "/eth/v1/beacon/blob_sidecars/"
+            + slot.to_string().as_str()
+            + "?";
         for index in indexes {
             url = url + "indices=" + index.to_string().as_str() + "&";
         }

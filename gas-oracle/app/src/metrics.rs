@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use prometheus::{Gauge, IntGauge, Registry};
+use prometheus::{Gauge, IntCounter, IntGauge, Registry};
 
 pub struct OracleServiceMetrics {
     pub l1_base_fee: Gauge,
@@ -10,6 +10,7 @@ pub struct OracleServiceMetrics {
     pub commit_scalar: IntGauge,
     pub blob_scalar: Gauge,
     pub txn_per_batch: Gauge,
+    pub da_sample_exclusions: IntCounter,
     pub l1_rpc_status: IntGauge,
 }
 
@@ -27,6 +28,11 @@ lazy_static! {
             .expect("metric can be created"),
         blob_scalar: Gauge::new("blobScalar", "blob scalar").expect("metric can be created"),
         txn_per_batch: Gauge::new("txnPerBatch", "txn per batch").expect("metric can be created"),
+        da_sample_exclusions: IntCounter::new(
+            "daSampleExclusions",
+            "canonical DA samples excluded because their source was absent, duplicate, or unverifiable",
+        )
+        .expect("metric can be created"),
         gas_oracle_owner_balance: Gauge::new("gasOracleOwnerBalance", "gas oracle owner balance")
             .expect("metric can be created"),
         l1_rpc_status: IntGauge::new("l1RpcStatus", "l1 prc").expect("metric can be created"),

@@ -13,3 +13,8 @@ pub mod rollup_abi {
     use ethers::prelude::abigen;
     abigen!(Rollup, "src/abi/Rollup.json");
 }
+
+pub mod pre_submitter_rollup_abi {
+    use ethers::prelude::abigen;
+    abigen!(PreSubmitterRollup, "src/abi/pre_submitter/Rollup.json");
+}
