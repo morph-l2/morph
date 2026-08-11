@@ -11,6 +11,5 @@
 ```bash
 cast call $ROLLUP_ADDR "lastFinalizedBatchIndex()" -r  $L1RPC
 cast call $ROLLUP_ADDR "lastCommittedBatchIndex()" -r  $L1RPC
-cast call $L2_SEQUENCER_ADDR "getSequencerSet2()(address[])" -r $L2RPC
-cast call $L1_STAKING_ADDR "getActiveStakers()(address[])" -r $L1RPC
+cast call $SUBMITTER_ADDR "isActive(address)(bool)" $TX_SUBMITTER_ADDR -r $L1RPC
 ```

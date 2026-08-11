@@ -6,7 +6,6 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"io"
-	"math/big"
 	"os"
 	"os/signal"
 	"strings"
@@ -14,7 +13,6 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/tx-submitter/db"
-	"morph-l2/tx-submitter/event"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/l1checker"
 	"morph-l2/tx-submitter/metrics"
@@ -23,7 +21,6 @@ import (
 	"morph-l2/tx-submitter/utils"
 
 	"github.com/morph-l2/externalsign"
-	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
@@ -44,18 +41,28 @@ func Main() func(ctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
+		if cfg.BatchConfigPreflight {
+			report, err := cfg.BatchConfigReportJSON()
+			if err != nil {
+				return fmt.Errorf("encode batch config preflight: %w", err)
+			}
+			_, err = fmt.Fprintln(os.Stdout, string(report))
+			return err
+		}
 
 		// log start info
 		log.Info("starting tx submitter",
 			"l1_rpc", cfg.L1EthRpc,
 			"l2_rpcs", cfg.L2EthRpcs,
 			"rollup_addr", cfg.RollupAddress,
-			"l2_sequencer_addr", cfg.L2SequencerAddress,
-			"l2_gov_addr", cfg.L2GovAddress,
-			"l1_staking_addr", cfg.L1StakingAddress,
+			"submitter_addr", cfg.SubmitterAddress,
+			"batch_block_interval_blocks", cfg.BatchBlockInterval,
+			"batch_timeout_seconds", cfg.BatchTimeout,
+			"batch_config_hash", cfg.BatchConfig().Hash(),
+			"batch_config_source_block_number", cfg.BatchConfigSourceBlockNumber,
+			"batch_config_source_block_hash", cfg.BatchConfigSourceBlockHash,
 			"fee_limit", cfg.TxFeeLimit,
 			"finalize_enable", cfg.Finalize,
-			"priority_rollup_enable", cfg.PriorityRollup,
 			"rollup_interval", cfg.RollupInterval.String(),
 			"finalize_interval", cfg.FinalizeInterval.String(),
 			"tx_process_interval", cfg.TxProcessInterval.String(),
@@ -64,7 +71,6 @@ func Main() func(ctx *cli.Context) error {
 			"journal_path", cfg.JournalFilePath,
 			"gas_rough_estimate", cfg.RoughEstimateGas,
 			"gas_limit_buffer", cfg.GasLimitBuffer,
-			"rotator_buffer", cfg.RotatorBuffer,
 			"rough_estimate_gas", cfg.RoughEstimateGas,
 			"rough_estimate_base_gas", cfg.RollupTxGasBase,
 			"rough_estimate_per_l1_msg", cfg.RollupTxGasPerL1Msg,
@@ -153,10 +159,10 @@ func Main() func(ctx *cli.Context) error {
 			return fmt.Errorf("failed to get rollup abi: %w", err)
 		}
 
-		// l1 staking
-		l1Staking, err := bindings.NewL1Staking(common.HexToAddress(cfg.L1StakingAddress), l1Client)
+		// L1 submitter qualification contract.
+		submitter, err := bindings.NewSubmitter(common.HexToAddress(cfg.SubmitterAddress), l1Client)
 		if err != nil {
-			return fmt.Errorf("failed to connect to l1 staking contract")
+			return fmt.Errorf("failed to connect to submitter contract: %w", err)
 		}
 
 		var rsaPriv *rsa.PrivateKey
@@ -178,33 +184,10 @@ func Main() func(ctx *cli.Context) error {
 
 		}
 
-		l1StakingAbi, err := bindings.L1StakingMetaData.GetAbi()
-		if err != nil {
-			return fmt.Errorf("failed to get l1 staking abi: %w", err)
-		}
-		// new event listener
-		filter := ethereum.FilterQuery{
-			Addresses: []common.Address{common.HexToAddress(cfg.L1StakingAddress)},
-			Topics: [][]common.Hash{
-				{l1StakingAbi.Events["StakersRemoved"].ID},
-			},
-		}
-
 		ldb, err := db.New(cfg.LeveldbPathName)
 		if err != nil {
 			return fmt.Errorf("failed to connect leveldb: %w", err)
 		}
-		eventInfoStorage := event.NewEventInfoStorage(ldb)
-		err = eventInfoStorage.Load()
-		if err != nil {
-			return err
-		}
-		eventIndexer := event.NewEventIndexer(l1Client, new(big.Int).SetUint64(cfg.L1StakingDeployedBlockNumber), filter, cfg.EventIndexStep, eventInfoStorage)
-		// new rotator
-		rotator := services.NewRotator(common.HexToAddress(cfg.L2SequencerAddress), common.HexToAddress(cfg.L2GovAddress), eventIndexer)
-		// start rorator event indexer
-		rotator.StartEventIndexer()
-
 		// block monitor
 		bm := l1checker.NewBlockMonitor(cfg.BlockNotIncreasedThreshold, l1Client)
 
@@ -220,17 +203,15 @@ func Main() func(ctx *cli.Context) error {
 			l1Client,
 			l2Clients,
 			l1Rollup,
-			l1Staking,
+			submitter,
 			chainID,
 			privKey,
 			rollupAddr,
 			rollupAbi,
 			cfg,
 			rsaPriv,
-			rotator,
 			ldb,
 			bm,
-			eventInfoStorage,
 			l2Caller,
 		)
 

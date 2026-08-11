@@ -8,6 +8,7 @@ import (
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
+	"github.com/morph-l2/go-ethereum/eth"
 	"github.com/stretchr/testify/require"
 
 	"morph-l2/tx-submitter/utils"
@@ -104,6 +105,7 @@ func TestGetGasTipAndCap(t *testing.T) {
 }
 
 func TestReSubmitTx(t *testing.T) {
+	genericTo := common.HexToAddress("0x0000000000000000000000000000000000000001")
 	marketTip := big.NewInt(3e9) // 3 Gwei market tip
 	baseFee := big.NewInt(2e9)   // 2 Gwei base fee
 	block := types.NewBlockWithHeader(
@@ -131,7 +133,7 @@ func TestReSubmitTx(t *testing.T) {
 			GasTipCap: big.NewInt(2e9),  // 2 Gwei
 			GasFeeCap: big.NewInt(10e9), // 10 Gwei
 			Gas:       100000,
-			To:        &common.Address{},
+			To:        &genericTo,
 			Value:     big.NewInt(0),
 			Data:      []byte{1, 2, 3, 4},
 		})
@@ -188,7 +190,7 @@ func TestReSubmitTx(t *testing.T) {
 			GasTipCap:  uint256.MustFromBig(big.NewInt(2e9)),
 			GasFeeCap:  uint256.MustFromBig(big.NewInt(10e9)),
 			Gas:        200000,
-			To:         common.Address{},
+			To:         genericTo,
 			Value:      uint256.NewInt(0),
 			Data:       []byte{1, 2, 3, 4},
 			BlobFeeCap: uint256.MustFromBig(big.NewInt(5e9)),
@@ -376,7 +378,6 @@ func TestTxStateTransition(t *testing.T) {
 
 	// Create rollup instance
 	rollup, l1Mock, _, _ := setupTestRollup(t)
-	rollup.cfg.PriorityRollup = true
 
 	// Test transaction state transitions
 	t.Run("Transaction State Flow", func(t *testing.T) {
@@ -415,4 +416,33 @@ func TestTxStateTransition(t *testing.T) {
 		txRecord := rollup.pendingTxs.GetTxRecord(tx1.Hash())
 		require.Nil(t, txRecord)
 	})
+}
+
+func TestCreateRollupTxRequiresFreshBlobSidecar(t *testing.T) {
+	r, _, _, _ := setupTestRollup(t)
+	_, err := r.createRollupTx(
+		&eth.RPCRollupBatch{},
+		1,
+		100_000,
+		big.NewInt(1),
+		big.NewInt(2),
+		big.NewInt(1),
+		[]byte{0x41, 0xf7, 0x56, 0xda},
+		&types.Header{},
+	)
+	require.ErrorContains(t, err, "fresh blob sidecar")
+}
+
+func TestReSubmitTxRejectsNonOwnedRollupCalldata(t *testing.T) {
+	r, l1Mock, _, _ := setupTestRollup(t)
+	l1Mock.Block = types.NewBlockWithHeader(&types.Header{BaseFee: big.NewInt(1)})
+	tx := types.NewTx(&types.DynamicFeeTx{
+		ChainID:   big.NewInt(1),
+		GasTipCap: big.NewInt(1),
+		GasFeeCap: big.NewInt(2),
+		To:        &r.rollupAddr,
+		Data:      []byte{0xde, 0xad, 0xbe, 0xef},
+	})
+	_, err := r.ReSubmitTx(false, tx)
+	require.ErrorContains(t, err, "refuse to resubmit non-owned rollup calldata")
 }

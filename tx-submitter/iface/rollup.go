@@ -11,41 +11,32 @@ import (
 )
 
 type IRollup interface {
+	BatchBlobVersionedHashes(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error)
 	LastCommittedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
-	CommitBatch(opts *bind.TransactOpts, batchDataInput bindings.IRollupBatchDataInput, batchSignatureInput bindings.IRollupBatchSignatureInput) (*types.Transaction, error)
+	CommitBatch(opts *bind.TransactOpts, batchDataInput bindings.IRollupBatchDataInput) (*types.Transaction, error)
 	LastFinalizedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
+	FinalizedStateRoots(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error)
+	MessageQueue(opts *bind.CallOpts) (common.Address, error)
 	FinalizeBatch(*bind.TransactOpts, []byte) (*types.Transaction, error)
 	BatchInsideChallengeWindow(opts *bind.CallOpts, batchIndex *big.Int) (bool, error)
 	BatchExist(opts *bind.CallOpts, batchIndex *big.Int) (bool, error)
 	CommittedBatches(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error)
-	BatchBlobVersionedHashes(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error)
 	BatchDataStore(opts *bind.CallOpts, batchIndex *big.Int) (struct {
-		OriginTimestamp        *big.Int
-		FinalizeTimestamp      *big.Int
-		BlockNumber            *big.Int
-		SignedSequencersBitmap *big.Int
+		OriginTimestamp   *big.Int
+		FinalizeTimestamp *big.Int
+		BlockNumber       *big.Int
+		Submitter         common.Address
 	}, error)
 
 	FilterCommitBatch(opts *bind.FilterOpts, batchIndex []*big.Int, batchHash [][32]byte) (*bindings.RollupCommitBatchIterator, error)
 	FilterFinalizeBatch(opts *bind.FilterOpts, batchIndex []*big.Int, batchHash [][32]byte) (*bindings.RollupFinalizeBatchIterator, error)
+	FilterRevertBatch(opts *bind.FilterOpts, batchIndex []*big.Int, batchHash [][32]byte) (*bindings.RollupRevertBatchIterator, error)
 }
 
-// IL2Sequencer is the interface for the sequencer on L2
-type IL2Sequencer interface {
-	SequencerSetVerifyHash(opts *bind.CallOpts) ([32]byte, error)
-}
-
-type IL2Gov interface {
-	RollupEpoch(opts *bind.CallOpts) (*big.Int, error)
-	BatchBlockInterval(opts *bind.CallOpts) (*big.Int, error)
-	BatchTimeout(opts *bind.CallOpts) (*big.Int, error)
-}
-
-type IL1Staking interface {
-	IsStaker(opts *bind.CallOpts, addr common.Address) (bool, error)
-	GetStakersBitmap(opts *bind.CallOpts, _stakers []common.Address) (*big.Int, error)
-	GetActiveStakers(opts *bind.CallOpts) ([]common.Address, error)
-	GetStakers(opts *bind.CallOpts) ([255]common.Address, error)
+// ISubmitter is the minimum qualification surface required by the official
+// submitter. Selection/rotation is deliberately not part of this interface.
+type ISubmitter interface {
+	IsActive(opts *bind.CallOpts, addr common.Address) (bool, error)
 }
 
 type IL2MessagePasser interface {

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
 	"sync"
@@ -40,7 +41,7 @@ type PendingTxs struct {
 }
 
 // NewPendingTxs creates a new PendingTxs instance.
-// Commit-like txs (commitBatch / commitState) are detected via utils.ParseMethod + constants.IsCommitLikeMethod, not stored method IDs.
+// Only current commitBatch transactions are owned by this process.
 func NewPendingTxs(journal Journal) *PendingTxs {
 	return &PendingTxs{
 		txinfos: make(map[common.Hash]*types.TxRecord),
@@ -221,8 +222,11 @@ func (pt *PendingTxs) ExistedIndex(index uint64) bool {
 
 	for i := len(txs) - 1; i >= 0; i-- {
 		tx := txs[i].Tx
-		if constants.IsCommitLikeMethod(utils.ParseMethod(tx, abi)) {
-			pindex := utils.ParseParentBatchIndex(tx.Data()) + 1
+		if constants.IsOwnedCommitMethod(utils.ParseMethod(tx, abi)) {
+			pindex, err := utils.ParseOwnedCommitBatchIndex(tx.Data(), abi)
+			if err != nil {
+				continue
+			}
 			if index == pindex {
 				return true
 			}
@@ -242,20 +246,40 @@ func (pt *PendingTxs) Recover(txs []*ethtypes.Transaction, abi *abi.ABI) error {
 	var maxCommitBatchIndex, maxFinalizeBatchIndex uint64
 
 	for _, tx := range txs {
-		// Get method name
-		method := utils.ParseMethod(tx, abi)
-
-		// Get batch index based on method
+		method := "cancel"
 		var batchIndex uint64
-		if constants.IsCommitLikeMethod(method) {
-			batchIndex = utils.ParseParentBatchIndex(tx.Data()) + 1
-			if batchIndex > maxCommitBatchIndex {
-				maxCommitBatchIndex = batchIndex
-			}
-		} else if method == constants.MethodFinalizeBatch {
-			batchIndex = utils.ParseFBatchIndex(tx.Data())
-			if batchIndex > maxFinalizeBatchIndex {
-				maxFinalizeBatchIndex = batchIndex
+		var err error
+		finalizeMethod, hasFinalizeMethod := abi.Methods[constants.MethodFinalizeBatch]
+		if len(tx.Data()) != 0 {
+			ownedMethod, _, ownedErr := utils.ParseOwnedCommit(tx.Data(), abi)
+			switch {
+			case ownedErr == nil:
+				method = ownedMethod
+				if tx.Type() != ethtypes.BlobTxType || tx.BlobTxSidecar() == nil || len(tx.BlobTxSidecar().Blobs) == 0 || len(tx.BlobHashes()) == 0 {
+					return fmt.Errorf("owned commit journal entry %s is missing its blob sidecar; use a fresh data directory", tx.Hash())
+				}
+				batchIndex, err = utils.ParseOwnedCommitBatchIndex(tx.Data(), abi)
+				if err != nil {
+					return fmt.Errorf("invalid owned commit journal entry %s: %w", tx.Hash(), err)
+				}
+				if batchIndex > maxCommitBatchIndex {
+					maxCommitBatchIndex = batchIndex
+				}
+			case hasFinalizeMethod && len(tx.Data()) >= 4 && bytes.Equal(tx.Data()[:4], finalizeMethod.ID):
+				method = constants.MethodFinalizeBatch
+				if _, err := finalizeMethod.Inputs.Unpack(tx.Data()[4:]); err != nil {
+					return fmt.Errorf("invalid finalize journal entry %s: %w", tx.Hash(), err)
+				}
+				batchIndex = utils.ParseFBatchIndex(tx.Data())
+				if batchIndex > maxFinalizeBatchIndex {
+					maxFinalizeBatchIndex = batchIndex
+				}
+			default:
+				selector := tx.Data()
+				if len(selector) > 4 {
+					selector = selector[:4]
+				}
+				return fmt.Errorf("unsupported legacy or unknown journal calldata in tx %s (selector 0x%x); use a fresh data directory", tx.Hash(), selector)
 			}
 		}
 

@@ -3,8 +3,6 @@ package flags
 import (
 	"time"
 
-	"morph-l2/bindings/predeploys"
-
 	"github.com/urfave/cli"
 )
 
@@ -59,11 +57,11 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("ROLLUP_ADDRESS"),
 	}
-	L1StakingAddressFlag = cli.StringFlag{
-		Name:     "l1_staking_address",
-		Usage:    "Address of the staking contract",
+	SubmitterAddressFlag = cli.StringFlag{
+		Name:     "submitter_address",
+		Usage:    "Address of the Submitter qualification and stake contract",
 		Required: true,
-		EnvVar:   prefixEnvVar("L1_STAKING_ADDRESS"),
+		EnvVar:   prefixEnvVar("SUBMITTER_ADDRESS"),
 	}
 
 	// finalize flags
@@ -74,28 +72,17 @@ var (
 		Required: true,
 	}
 
-	// decentralize config
-	PriorityRollupFlag = cli.BoolFlag{
-		Name:     "priority_rollup",
-		Usage:    "Enable priority rollup",
-		EnvVar:   prefixEnvVar("PRIORITY_ROLLUP"),
+	BatchBlockIntervalFlag = cli.Uint64Flag{
+		Name:     "batch_block_interval",
+		Usage:    "Static batch sealing interval in L2 blocks (may be zero if timeout is non-zero)",
+		EnvVar:   prefixEnvVar("BATCH_BLOCK_INTERVAL"),
 		Required: true,
 	}
-
-	// L2 contract
-	L2SequencerAddressFlag = cli.StringFlag{
-		Name:     "l2_sequencer_address",
-		Usage:    "Address of the sequencer contract",
-		Required: false,
-		EnvVar:   prefixEnvVar("L2_SEQUENCER_ADDRESS"),
-		Value:    predeploys.Sequencer,
-	}
-	L2GovAddressFlag = cli.StringFlag{
-		Name:     "l2_gov_address",
-		Usage:    "Address of the gov contract",
-		Required: false,
-		EnvVar:   prefixEnvVar("L2_GOV_ADDRESS"),
-		Value:    predeploys.Gov,
+	BatchTimeoutFlag = cli.Uint64Flag{
+		Name:     "batch_timeout",
+		Usage:    "Static batch sealing timeout in seconds (may be zero if interval is non-zero)",
+		EnvVar:   prefixEnvVar("BATCH_TIMEOUT"),
+		Required: true,
 	}
 
 	/* Optional Flags */
@@ -206,12 +193,20 @@ var (
 		EnvVar: prefixEnvVar("JOURNAL_FILE_PATH"),
 		Value:  "journal.rlp",
 	}
-	// listener processed block record path
-	StakingEventStoreFileFlag = cli.StringFlag{
-		Name:   "staking_event_store_filename",
-		Usage:  "The file name of the storage",
-		EnvVar: prefixEnvVar("STAKING_EVENT_STORE_FILENAME"),
-		Value:  "StakingEventStore.json",
+	BatchConfigPreflightFlag = cli.BoolFlag{
+		Name:   "batch_config_preflight",
+		Usage:  "Print the effective static batch configuration and hash, then exit",
+		EnvVar: prefixEnvVar("BATCH_CONFIG_PREFLIGHT"),
+	}
+	BatchConfigSourceBlockNumberFlag = cli.Uint64Flag{
+		Name:   "batch_config_source_block_number",
+		Usage:  "L2 block number at which the static batch values were snapshotted",
+		EnvVar: prefixEnvVar("BATCH_CONFIG_SOURCE_BLOCK_NUMBER"),
+	}
+	BatchConfigSourceBlockHashFlag = cli.StringFlag{
+		Name:   "batch_config_source_block_hash",
+		Usage:  "L2 block hash at which the static batch values were snapshotted",
+		EnvVar: prefixEnvVar("BATCH_CONFIG_SOURCE_BLOCK_HASH"),
 	}
 
 	TipFeeBumpFlag = cli.Uint64Flag{
@@ -288,28 +283,6 @@ var (
 		EnvVar: prefixEnvVar("ROUGH_ESTIMATE_GAS"),
 	}
 
-	RotatorBufferFlag = cli.Int64Flag{
-		Name:   "rotator_buffer",
-		Usage:  "rotation interval buffer",
-		Value:  15,
-		EnvVar: prefixEnvVar("ROTATOR_BUFFER"),
-	}
-
-	// l1 staking deployed blocknum
-	L1StakingDeployedBlocknumFlag = cli.Uint64Flag{
-		Name:     "l1_staking_deployed_blocknum",
-		Usage:    "The deployed block number of L1Staking",
-		EnvVar:   prefixEnvVar("L1_STAKING_DEPLOYED_BLOCKNUM"),
-		Required: true,
-	}
-
-	// event indexer
-	EventIndexStepFlag = cli.Uint64Flag{
-		Name:   "event_index_step",
-		Usage:  "The step size for event indexing",
-		Value:  100,
-		EnvVar: prefixEnvVar("EVENT_INDEX_STEP"),
-	}
 	LeveldbPathNameFlag = cli.StringFlag{
 		Name:   "leveldb_path_name",
 		Usage:  "The path name of the leveldb",
@@ -356,10 +329,10 @@ var requiredFlags = []cli.Flag{
 	RollupAddressFlag,
 	TxTimeoutFlag,
 	FinalizeFlag,
-	PriorityRollupFlag,
 	TxFeeLimitFlag,
-	L1StakingAddressFlag,
-	L1StakingDeployedBlocknumFlag,
+	SubmitterAddressFlag,
+	BatchBlockIntervalFlag,
+	BatchTimeoutFlag,
 }
 
 var optionalFlags = []cli.Flag{
@@ -382,10 +355,11 @@ var optionalFlags = []cli.Flag{
 	GasLimitBuffer,
 
 	JournalFlag,
+	BatchConfigPreflightFlag,
+	BatchConfigSourceBlockNumberFlag,
+	BatchConfigSourceBlockHashFlag,
 
 	PrivateKeyFlag,
-	L2SequencerAddressFlag,
-	L2GovAddressFlag,
 	TipFeeBumpFlag,
 	MaxTipFlag,
 	MinTipFlag,
@@ -400,9 +374,6 @@ var optionalFlags = []cli.Flag{
 	ExternalSignUrl,
 	ExternalSignRsaPriv,
 	RoughEstimateGasFlag,
-	RotatorBufferFlag,
-	StakingEventStoreFileFlag,
-	EventIndexStepFlag,
 	LeveldbPathNameFlag,
 	BlockNotIncreasedThreshold,
 

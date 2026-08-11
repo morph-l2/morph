@@ -3,7 +3,6 @@ package mock
 import (
 	"context"
 	"math/big"
-	"time"
 
 	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/common"
@@ -21,27 +20,16 @@ type L2ClientWrapper struct {
 	TipCap             *big.Int
 	reorgDepth         int64
 	reorgCount         int64
-	sequencerSet       []common.Address
 	BaseFee            *big.Int
 }
 
 func NewL2ClientWrapper() *L2ClientWrapper {
-	// Create mock CallContractResult for epoch update time
-	// Return a timestamp from 1 hour ago
-	timestamp := time.Now().Add(-1 * time.Hour).Unix()
 	result := make([]byte, 32)
-	big.NewInt(timestamp).FillBytes(result)
-
-	// Create a mock sequencer set with two addresses
-	mockAddr1 := common.HexToAddress("0x1111111111111111111111111111111111111111")
-	mockAddr2 := common.HexToAddress("0x2222222222222222222222222222222222222222")
-	sequencerSet := []common.Address{mockAddr1, mockAddr2}
 
 	return &L2ClientWrapper{
 		TipCap:             big.NewInt(1e9),
 		Balance:            big.NewInt(1e18),
 		CallContractResult: result,
-		sequencerSet:       sequencerSet,
 		BaseFee:            big.NewInt(1e9),
 	}
 }
@@ -50,31 +38,6 @@ func NewL2ClientWrapper() *L2ClientWrapper {
 func (l *L2ClientWrapper) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
 	if l.CallContractErr != nil {
 		return nil, l.CallContractErr
-	}
-
-	// If calling the sequencer set method, return the mock sequencer set
-	if len(msg.Data) >= 4 {
-		methodID := msg.Data[:4]
-		// Method ID for GetSequencerSet2()
-		if string(methodID) == "\x77\xd7\xdf\xfb" {
-			// Encode the sequencer set into bytes
-			result := make([]byte, 0)
-			// First 32 bytes for offset
-			offset := make([]byte, 32)
-			big.NewInt(32).FillBytes(offset)
-			result = append(result, offset...)
-			// Next 32 bytes for length
-			length := make([]byte, 32)
-			big.NewInt(int64(len(l.sequencerSet))).FillBytes(length)
-			result = append(result, length...)
-			// Then the addresses
-			for _, addr := range l.sequencerSet {
-				addrBytes := make([]byte, 32)
-				copy(addrBytes[12:], addr.Bytes())
-				result = append(result, addrBytes...)
-			}
-			return result, nil
-		}
 	}
 
 	return l.CallContractResult, nil
@@ -206,9 +169,4 @@ func (l *L2ClientWrapper) SuggestGasTipCap(ctx context.Context) (*big.Int, error
 		return l.TipCap, nil
 	}
 	return big.NewInt(1e9), nil
-}
-
-// GetSequencerSet2 implements IL2Sequencer
-func (m *L2ClientWrapper) GetSequencerSet2() ([]common.Address, error) {
-	return m.sequencerSet, nil
 }

@@ -2,11 +2,11 @@ package services
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"testing"
 	"time"
 
-	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core"
 	ethtypes "github.com/morph-l2/go-ethereum/core/types"
@@ -14,7 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"morph-l2/bindings/bindings"
-	"morph-l2/tx-submitter/event"
+	commonbatch "morph-l2/common/batch"
+	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/mock"
@@ -42,47 +43,17 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 		metrics.UnregisterMetrics()
 	})
 
-	// Create mock event storage
-	eventStorage := mock.NewMockEventInfoStorage()
-	err = eventStorage.Load()
-	require.NoError(t, err)
-
-	// Initialize event storage with test data
-	eventStorage.SetBlockProcessed(1000)
-	eventStorage.SetBlockTime(uint64(time.Now().Unix()))
-	err = eventStorage.Store()
-	require.NoError(t, err)
-
-	// Create mock event indexer
-	indexer := event.NewEventIndexer(
-		nil, // We don't need a real ethclient.Client for testing
-		big.NewInt(0),
-		ethereum.FilterQuery{},
-		100,
-		eventStorage,
-	)
-
-	// Create mock rotator
-	rotator := NewRotator(common.Address{}, common.Address{}, indexer)
-
-	// Create mock L1Staking
-	l1Staking := mock.NewMockL1Staking()
-	// Set some test stakers
-	testStakers := []common.Address{
-		common.HexToAddress("0x1111111111111111111111111111111111111111"),
-		common.HexToAddress("0x2222222222222222222222222222222222222222"),
-	}
-	l1Staking.SetActiveStakers(testStakers)
+	submitter := mock.NewMockSubmitter()
 
 	// Create rollup config
 	defaultCfg := utils.Config{
-		MaxTip:         10e9,
-		MaxBaseFee:     100e9,
-		MinTip:         1e9,
-		TipFeeBump:     100,
-		TxTimeout:      10 * time.Second,
-		PriorityRollup: true,
-		MaxBlobCount:   6, // required by batch.NewBatchCache (must be > 0)
+		MaxTip:             10e9,
+		MaxBaseFee:         100e9,
+		MinTip:             1e9,
+		TipFeeBump:         100,
+		TxTimeout:          10 * time.Second,
+		BatchBlockInterval: 1,
+		MaxBlobCount:       6, // required by batch.NewBatchCache (must be > 0)
 	}
 
 	// Create mock journal
@@ -104,17 +75,15 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 		l1Mock,
 		[]iface.L2Client{l2Mock},
 		mockRollup,
-		l1Staking,
+		submitter,
 		big.NewInt(1),
 		privateKey,
 		common.Address{},
 		rollupAbi,
 		defaultCfg,
 		nil,
-		rotator,
 		nil,
 		nil,
-		eventStorage,
 		nil,
 	)
 
@@ -127,6 +96,42 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 	rollup.reorgDetector = mockReorgDetector
 
 	return rollup, l1Mock, l2Mock, mockRollup
+}
+
+func TestPreCheckUsesSubmitterIsActive(t *testing.T) {
+	r, _, _, _ := setupTestRollup(t)
+	submitter := r.Submitter.(*mock.MockSubmitter)
+
+	require.NoError(t, r.PreCheck())
+	require.Equal(t, r.WalletAddr(), submitter.LastQuery())
+
+	submitter.SetActive(r.WalletAddr(), false)
+	require.ErrorContains(t, r.PreCheck(), "is not active")
+}
+
+func TestRollbackCanonicalBootstrapClearsCheckpoint(t *testing.T) {
+	ldb, err := db.New(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, ldb.Close()) })
+	require.NoError(t, ldb.PutBytes([]byte(commonbatch.SealedBatchIndicesKey), []byte("corrupt-checkpoint")))
+
+	cache := commonbatch.NewBatchCache(
+		nil,
+		nil,
+		1,
+		commonbatch.BatchConfig{BlockInterval: 1},
+		nil,
+		&iface.L2Clients{},
+		nil,
+		nil,
+		ldb,
+	)
+	r := &Rollup{batchCache: cache}
+	cause := errors.New("safe head changed")
+	err = r.rollbackCanonicalBootstrap("assemble downtime L2 blocks", cause)
+	require.ErrorIs(t, err, cause)
+	_, err = ldb.GetBytes([]byte(commonbatch.SealedBatchIndicesKey))
+	require.Error(t, err, "failed startup must not leave a resumable checkpoint")
 }
 
 // TestHandleDiscardedTx tests the handling of discarded transactions

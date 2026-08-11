@@ -7,6 +7,7 @@ import (
 	"github.com/morph-l2/go-ethereum/core/types"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
+	"github.com/morph-l2/go-ethereum/common"
 
 	"morph-l2/bindings/bindings"
 )
@@ -19,6 +20,16 @@ type MockRollup struct {
 	batchExists             bool
 	batchTx                 *types.Transaction
 	finalizeTx              *types.Transaction
+}
+
+// BatchBlobVersionedHashes implements IRollup.
+func (m *MockRollup) BatchBlobVersionedHashes(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error) {
+	return [32]byte{}, nil
+}
+
+// MessageQueue implements IRollup.
+func (m *MockRollup) MessageQueue(opts *bind.CallOpts) (common.Address, error) {
+	return common.Address{}, nil
 }
 
 // NewMockRollup creates a new instance of MockRollup
@@ -37,8 +48,12 @@ func (m *MockRollup) LastCommittedBatchIndex(opts *bind.CallOpts) (*big.Int, err
 }
 
 // CommitBatch implements IRollup
-func (m *MockRollup) CommitBatch(opts *bind.TransactOpts, batchDataInput bindings.IRollupBatchDataInput, batchSignatureInput bindings.IRollupBatchSignatureInput) (*types.Transaction, error) {
+func (m *MockRollup) CommitBatch(opts *bind.TransactOpts, batchDataInput bindings.IRollupBatchDataInput) (*types.Transaction, error) {
 	return m.batchTx, nil
+}
+
+func (m *MockRollup) FinalizedStateRoots(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error) {
+	return [32]byte{}, nil
 }
 
 // LastFinalizedBatchIndex implements IRollup
@@ -66,28 +81,22 @@ func (m *MockRollup) CommittedBatches(opts *bind.CallOpts, batchIndex *big.Int) 
 	return [32]byte{}, nil
 }
 
-// BatchBlobVersionedHashes implements IRollup (no stored hash by default)
-func (m *MockRollup) BatchBlobVersionedHashes(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error) {
-	return [32]byte{}, nil
-}
-
 // BatchDataStore implements IRollup
 func (m *MockRollup) BatchDataStore(opts *bind.CallOpts, batchIndex *big.Int) (struct {
-	OriginTimestamp        *big.Int
-	FinalizeTimestamp      *big.Int
-	BlockNumber            *big.Int
-	SignedSequencersBitmap *big.Int
+	OriginTimestamp   *big.Int
+	FinalizeTimestamp *big.Int
+	BlockNumber       *big.Int
+	Submitter         common.Address
 }, error) {
 	return struct {
-		OriginTimestamp        *big.Int
-		FinalizeTimestamp      *big.Int
-		BlockNumber            *big.Int
-		SignedSequencersBitmap *big.Int
+		OriginTimestamp   *big.Int
+		FinalizeTimestamp *big.Int
+		BlockNumber       *big.Int
+		Submitter         common.Address
 	}{
-		OriginTimestamp:        big.NewInt(0),
-		FinalizeTimestamp:      big.NewInt(0),
-		BlockNumber:            big.NewInt(0),
-		SignedSequencersBitmap: big.NewInt(0),
+		OriginTimestamp:   big.NewInt(0),
+		FinalizeTimestamp: big.NewInt(0),
+		BlockNumber:       big.NewInt(0),
 	}, nil
 }
 
@@ -99,6 +108,11 @@ func (m *MockRollup) FilterCommitBatch(opts *bind.FilterOpts, batchIndex []*big.
 // FilterFinalizeBatch implements IRollup
 func (m *MockRollup) FilterFinalizeBatch(opts *bind.FilterOpts, batchIndex []*big.Int, batchHash [][32]byte) (*bindings.RollupFinalizeBatchIterator, error) {
 	return nil, nil
+}
+
+// FilterRevertBatch implements IRollup.
+func (m *MockRollup) FilterRevertBatch(opts *bind.FilterOpts, batchIndex []*big.Int, batchHash [][32]byte) (*bindings.RollupRevertBatchIterator, error) {
+	return nil, errors.New("FilterRevertBatch not implemented in mock")
 }
 
 // SetLastCommittedBatchIndex sets the mock value for LastCommittedBatchIndex
