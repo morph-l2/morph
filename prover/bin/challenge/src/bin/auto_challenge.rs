@@ -1,4 +1,6 @@
-use challenge_handler::abi::rollup_abi::Rollup;
+use challenge_handler::abi::{rollup_abi::Rollup, submitter_abi::Submitter};
+use challenge_handler::rollup_compat::resolve_canonical_commit;
+use challenge_handler::util::read_parse_env;
 use dotenv::dotenv;
 use env_logger::Env;
 use ethers::prelude::*;
@@ -39,6 +41,7 @@ pub async fn challenge() -> Result<(), Box<dyn Error>> {
     let l1_rpc = var("CHALLENGER_L1_RPC").expect("Cannot detect L1_RPC env var");
     let l1_rollup_address = var("CHALLENGER_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
     let private_key = var("CHALLENGER_PRIVATEKEY").expect("Cannot detect CHALLENGER_PRIVATEKEY env var");
+    let rollup_deployed_block: u64 = read_parse_env("CHALLENGER_L1_ROLLUP_DEPLOY_BLOCK");
     let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc)?;
     let l1_signer = Arc::new(SignerMiddleware::new(
         l1_provider.clone(),
@@ -66,21 +69,28 @@ pub async fn challenge() -> Result<(), Box<dyn Error>> {
     let proof_window = l1_rollup.proof_window().await?;
     log::info!("finalization_period: {:#?}  proof_window: {:#?}", finalization_period, proof_window);
 
-    let min_deposit: U256 = U256::from(4 * 10u128.pow(18));
-    log::info!("min_deposit: {:#?}", min_deposit);
-
     loop {
-        std::thread::sleep(Duration::from_secs(12));
-        let _ = auto_challenge(&l1_provider, &l1_rollup, min_deposit).await;
+        tokio::time::sleep(Duration::from_secs(12)).await;
+        let _ = auto_challenge(&l1_provider, &l1_rollup, rollup_deployed_block).await;
     }
 }
 
-async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, min_deposit: U256) -> Result<(), Box<dyn Error>> {
+async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, rollup_deployed_block: u64) -> Result<(), Box<dyn Error>> {
     // Search for the latest batch.
-    let latest = match l1_provider.get_block_number().await {
-        Ok(bn) => bn,
+    let (latest, snapshot_hash) = match l1_provider.get_block(BlockNumber::Finalized).await {
+        Ok(Some(block)) => match (block.number, block.hash) {
+            (Some(number), Some(hash)) => (number, hash),
+            _ => {
+                log::error!("finalized L1 block has no stable identity");
+                return Ok(());
+            }
+        },
+        Ok(None) => {
+            log::error!("finalized L1 block is unavailable");
+            return Ok(());
+        }
         Err(e) => {
-            log::error!("L1 provider.get_block_number error: {:#?}", e);
+            log::error!("L1 provider.get finalized block error: {:#?}", e);
             return Ok(());
         }
     };
@@ -101,44 +111,28 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, mi
     }
 
     log::info!("latest blocknum = {:#?}", latest);
-    let start = if latest > U64::from(600) {
-        latest - U64::from(600)
-    } else {
-        U64::from(1)
-    };
-
-    let filter = l1_rollup.commit_batch_filter().filter.from_block(start).address(l1_rollup.address());
-    let mut logs: Vec<Log> = match l1_provider.get_logs(&filter).await {
-        Ok(logs) => logs,
-        Err(e) => {
-            log::error!("l1_rollup.commit_batch.get_logs error: {:#?}", e);
-            return Ok(());
-        }
-    };
-
-    if logs.is_empty() {
-        log::error!("There have been no commit_batch logs for the last 600 blocks.");
+    let block_id = BlockId::Number(BlockNumber::Number(latest));
+    let submitter_address = l1_rollup.submitter_contract().block(block_id).call().await?;
+    let submitter = Submitter::new(submitter_address, l1_rollup.client());
+    let min_deposit = submitter.challenge_deposit().block(block_id).call().await?;
+    let batch_index = l1_rollup.last_committed_batch_index().block(block_id).call().await?.as_u64();
+    if resolve_canonical_commit(l1_rollup, l1_provider, batch_index, rollup_deployed_block, latest)
+        .await?
+        .is_none()
+    {
+        log::warn!("latest batch {batch_index} has no canonical Commit at fixed snapshot");
         return Ok(());
     }
-
-    logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
-    let batch_index = match logs.get(logs.len() - 2) {
-        Some(log) => log.topics[1].to_low_u64_be(),
-        None => {
-            log::error!("find commit_batch log error");
-            return Ok(());
-        }
-    };
     log::info!("latest batch index = {:#?}", batch_index);
 
     // Challenge state.
-    let is_batch_finalized = l1_rollup.is_batch_finalized(U256::from(batch_index)).await?;
+    let is_batch_finalized = l1_rollup.is_batch_finalized(U256::from(batch_index)).block(block_id).call().await?;
     if is_batch_finalized {
         log::info!("is_batch_finalized = true, No need for challenge, batch index = {:#?}", batch_index);
         return Ok(());
     }
 
-    let challenges = match l1_rollup.challenges(U256::from(batch_index)).await {
+    let challenges = match l1_rollup.challenges(U256::from(batch_index)).block(block_id).call().await {
         Ok(x) => x,
         Err(e) => {
             log::info!("query l1_rollup.challenges error, batch index = {:#?}, {:#?}", batch_index, e);
@@ -151,7 +145,11 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, mi
         return Ok(());
     }
 
-    let batch_hash = l1_rollup.committed_batches(U256::from(batch_index)).await?;
+    let batch_hash = l1_rollup.committed_batches(U256::from(batch_index)).block(block_id).call().await?;
+    if !snapshot_unchanged(l1_provider, latest, snapshot_hash).await {
+        log::error!("finalized L1 snapshot changed while preparing auto-challenge");
+        return Ok(());
+    }
 
     // l1_rollup.connect()
     let tx: FunctionCall<_, _, _> = l1_rollup.challenge_state(batch_index, batch_hash).value(min_deposit);
@@ -210,7 +208,13 @@ async fn detecte_challenge(latest: U64, l1_rollup: &RollupType, l1_provider: &Pr
     } else {
         U64::from(1)
     };
-    let filter = l1_rollup.challenge_state_filter().filter.from_block(start).address(l1_rollup.address());
+    let block_id = BlockId::Number(BlockNumber::Number(latest));
+    let filter = l1_rollup
+        .challenge_state_filter()
+        .filter
+        .from_block(start)
+        .to_block(latest)
+        .address(l1_rollup.address());
     let mut logs: Vec<Log> = match l1_provider.get_logs(&filter).await {
         Ok(logs) => logs,
         Err(e) => {
@@ -227,16 +231,22 @@ async fn detecte_challenge(latest: U64, l1_rollup: &RollupType, l1_provider: &Pr
 
     for log in logs {
         let batch_index: u64 = log.topics[1].to_low_u64_be();
-        let batch_in_challenge: bool = match l1_rollup.batch_in_challenge(U256::from(batch_index)).await {
+        let batch_in_challenge: bool = match l1_rollup.batch_in_challenge(U256::from(batch_index)).block(block_id).call().await {
             Ok(x) => x,
             Err(e) => {
                 log::info!("query l1_rollup.batch_in_challenge error, batch index = {:#?}, {:#?}", batch_index, e);
                 return None;
             }
         };
-        let _is_batch_finalized: bool = l1_rollup.is_batch_finalized(U256::from(batch_index)).await.unwrap();
+        let is_batch_finalized: bool = match l1_rollup.is_batch_finalized(U256::from(batch_index)).block(block_id).call().await {
+            Ok(value) => value,
+            Err(err) => {
+                log::error!("query l1_rollup.is_batch_finalized failed: {err:#}");
+                return None;
+            }
+        };
 
-        if batch_in_challenge {
+        if batch_in_challenge && !is_batch_finalized {
             log::info!("prev challenge not finalized, batch index = {:#?}", batch_index);
             return Some(true);
         }
@@ -244,6 +254,13 @@ async fn detecte_challenge(latest: U64, l1_rollup: &RollupType, l1_provider: &Pr
     }
     log::info!("all batch's status not in challenge now");
     Some(false)
+}
+
+async fn snapshot_unchanged(provider: &Provider<Http>, number: U64, expected_hash: H256) -> bool {
+    matches!(
+        provider.get_block(number).await,
+        Ok(Some(block)) if block.hash == Some(expected_hash)
+    )
 }
 
 // Check layer2 state.

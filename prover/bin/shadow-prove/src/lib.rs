@@ -8,6 +8,7 @@ use crate::util::read_env_var;
 pub mod abi;
 pub mod execute;
 pub mod metrics;
+pub mod rollup_compat;
 pub mod shadow_prove;
 pub mod shadow_rollup;
 pub mod util;
