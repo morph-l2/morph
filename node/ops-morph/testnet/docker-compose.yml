@@ -129,7 +129,7 @@ services:
       - "${PWD}/../jwt-secret.txt:${JWT_SECRET_PATH}"
     command: >
       morphnode
-      --dev-sequencer
+      --static-validator-tm-key ${MORPH_NODE_STATIC_VALIDATOR_TM_KEYS:?required}
       --home $NODE_DATA_DIR
 
   node-1:
@@ -153,7 +153,7 @@ services:
       - "${PWD}/../jwt-secret.txt:${JWT_SECRET_PATH}"
     command: >
       morphnode
-      --dev-sequencer
+      --static-validator-tm-key ${MORPH_NODE_STATIC_VALIDATOR_TM_KEYS:?required}
       --home $NODE_DATA_DIR
 
   node-2:
@@ -177,7 +177,7 @@ services:
       - "${PWD}/../jwt-secret.txt:${JWT_SECRET_PATH}"
     command: >
       morphnode
-      --dev-sequencer
+      --static-validator-tm-key ${MORPH_NODE_STATIC_VALIDATOR_TM_KEYS:?required}
       --home $NODE_DATA_DIR
 
   node-3:
@@ -201,5 +201,5 @@ services:
       - "${PWD}/../jwt-secret.txt:${JWT_SECRET_PATH}"
     command: >
       morphnode
-      --dev-sequencer
+      --static-validator-tm-key ${MORPH_NODE_STATIC_VALIDATOR_TM_KEYS:?required}
       --home $NODE_DATA_DIR

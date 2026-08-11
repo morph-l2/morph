@@ -92,6 +92,42 @@ class DevnetConfigTest(unittest.TestCase):
             ],
         )
 
+    def test_centralized_runtime_uses_submitter_and_static_validator_inputs(self):
+        compose = (DOCKER_DIR / "docker-compose-devnet.yml").read_text()
+        env_file = (DOCKER_DIR / ".env").read_text()
+        devnet_source = (DEVNET_PACKAGE / "devnet" / "__init__.py").read_text()
+
+        self.assertNotIn("Proxy__L1Staking=", env_file)
+        self.assertNotIn("MORPH_L1STAKING=", env_file)
+        self.assertIn("MORPH_SUBMITTER=", env_file)
+        self.assertIn("BATCH_SUBMITTER_PRIVATE_KEY=", env_file)
+        self.assertIn("MORPH_NODE_STATIC_VALIDATOR_TM_KEYS=", env_file)
+        self.assertIn("MORPH_ROLLUP_DEPLOY_BLOCK=", env_file)
+
+        env_values = dict(
+            line.split("=", 1)
+            for line in env_file.splitlines()
+            if line and not line.startswith("#")
+        )
+        self.assertNotEqual(
+            env_values["LEGACY_GENESIS_L1_STAKING_PROXY"].lower(),
+            env_values["MORPH_SUBMITTER"].lower(),
+        )
+
+        self.assertIn("TX_SUBMITTER_SUBMITTER_ADDRESS=${MORPH_SUBMITTER:?required}", compose)
+        self.assertIn(
+            "GAS_ORACLE_L1_ROLLUP_DEPLOY_BLOCK=${MORPH_ROLLUP_DEPLOY_BLOCK:?required}",
+            compose,
+        )
+        self.assertNotIn("l2StakingPks", devnet_source)
+        self.assertIn("--batch-submitter-private-key", devnet_source)
+        self.assertIn("env_data.pop('Proxy__L1Staking', None)", devnet_source)
+        self.assertIn("env_data.pop('MORPH_L1STAKING', None)", devnet_source)
+        self.assertIn(
+            "live Proxy__Submitter must differ from immutable legacy L1 staking fixture",
+            devnet_source,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
