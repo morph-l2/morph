@@ -13,7 +13,7 @@ require (
 	github.com/hashicorp/raft v1.7.3
 	github.com/hashicorp/raft-boltdb/v2 v2.3.1
 	github.com/mdlayher/vsock v1.2.1
-	github.com/morph-l2/go-ethereum v1.10.14-0.20260709072051-ffa95e0670a3
+	github.com/morph-l2/go-ethereum v1.10.14-0.20260810084402-5a13ad4d76fe
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.17.0
 	github.com/spf13/viper v1.13.0
