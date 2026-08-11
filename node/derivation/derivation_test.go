@@ -21,10 +21,13 @@ func TestUnPackData(t *testing.T) {
 	require.NoError(t, err)
 	legacyRollupAbi, err := types.LegacyRollupMetaData.GetAbi()
 	require.NoError(t, err)
+	preSubmitterRollupABI, err := types.PreSubmitterRollupMetaData.GetAbi()
+	require.NoError(t, err)
 	beforeMoveBlockCtxABI, err := types.BeforeMoveBlockCtxABI.GetAbi()
 	require.NoError(t, err)
 	d := Derivation{
 		rollupABI:             rollupAbi,
+		preSubmitterRollupABI: preSubmitterRollupABI,
 		legacyRollupABI:       legacyRollupAbi,
 		beforeMoveBlockCtxABI: beforeMoveBlockCtxABI,
 	}
