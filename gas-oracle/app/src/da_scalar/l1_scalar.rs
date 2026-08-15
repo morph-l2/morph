@@ -11,13 +11,13 @@ use super::{
 };
 use crate::{
     abi::{
-        gas_price_oracle_abi::GasPriceOracle,
-        rollup_abi::{CommitBatchCall, Rollup},
+        decode_commit_batch_last_block_number, gas_price_oracle_abi::GasPriceOracle,
+        rollup_abi::Rollup,
     },
     metrics::ORACLE_SERVICE_METRICS,
     signer::send_transaction,
 };
-use ethers::{abi::AbiDecode, prelude::*, utils::hex};
+use ethers::{prelude::*, utils::hex};
 use remote_signer_client::SignerClient;
 use serde_json::Value;
 
@@ -341,13 +341,14 @@ impl ScalarUpdater {
             log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", tx_hash);
             return Err(ScalarError::Error(anyhow!(format!("commitBatch tx.input empty"))));
         }
-        let param = if let Ok(_param) = CommitBatchCall::decode(&blob_tx.input) {
-            _param
+        let last_block_num = if let Ok(last_block_num) =
+            decode_commit_batch_last_block_number(&blob_tx.input)
+        {
+            last_block_num
         } else {
             log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", tx_hash);
             return Err(ScalarError::Error(anyhow!(format!("decode commitBatch tx.input error",))));
         };
-        let last_block_num: u64 = param.batch_data_input.last_block_number;
 
         let indexes: Vec<u64> = indexed_hashes.iter().map(|item| item.index).collect();
         let sidecars_rt = self
