@@ -16,8 +16,6 @@ pub struct BatchInfo {
     pub post_state_root: B256,
     /// withdraw_root
     pub withdraw_root: Option<B256>,
-    /// sequencer_root
-    pub sequencer_root: Option<B256>,
     data_hash: B256,
 }
 
@@ -27,7 +25,6 @@ impl BatchInfo {
         block_inputs: &[BlockInput],
         post_state_root: B256,
         withdraw_root: B256,
-        sequencer_root: B256,
     ) -> Self {
         let blocks = block_inputs.iter().map(|x| x.current_block.clone()).collect::<Vec<_>>();
         let chain_id = blocks.first().unwrap().chain_id;
@@ -48,7 +45,6 @@ impl BatchInfo {
             prev_state_root,
             post_state_root,
             withdraw_root: Some(withdraw_root),
-            sequencer_root: Some(sequencer_root),
             data_hash: l1_data_hash,
         }
     }
@@ -59,20 +55,24 @@ impl BatchInfo {
     ///     prev state root ||
     ///     post state root ||
     ///     withdraw root ||
-    ///     sequencer root ||
+    ///     bytes32(0) ||
     ///     txdata hash ||
     ///     blob versioned hash
     /// )
     pub fn public_input_hash(&self, versioned_hash: &B256) -> B256 {
+        self.public_input_hash_with_blob_input(versioned_hash)
+    }
+
+    fn public_input_hash_with_blob_input(&self, blob_input: &B256) -> B256 {
         let mut hasher = Keccak256::new();
 
         hasher.update(self.chain_id.to_be_bytes());
         hasher.update(self.prev_state_root.as_slice());
         hasher.update(self.post_state_root.as_slice());
         hasher.update(self.withdraw_root.unwrap().as_slice());
-        hasher.update(self.sequencer_root.unwrap().as_slice());
+        hasher.update(B256::ZERO.as_slice());
         hasher.update(self.data_hash.as_slice());
-        hasher.update(versioned_hash.as_slice());
+        hasher.update(blob_input.as_slice());
 
         hasher.finalize()
     }
@@ -85,15 +85,7 @@ impl BatchInfo {
         }
         let blob_hashes_hash: B256 = blob_hasher.finalize();
 
-        let mut hasher = Keccak256::new();
-        hasher.update(self.chain_id.to_be_bytes());
-        hasher.update(self.prev_state_root.as_slice());
-        hasher.update(self.post_state_root.as_slice());
-        hasher.update(self.withdraw_root.unwrap().as_slice());
-        hasher.update(self.sequencer_root.unwrap().as_slice());
-        hasher.update(self.data_hash.as_slice());
-        hasher.update(blob_hashes_hash.as_slice());
-        hasher.finalize()
+        self.public_input_hash_with_blob_input(&blob_hashes_hash)
     }
 
     /// Chain ID of this chunk
@@ -108,7 +100,6 @@ impl BatchInfo {
             prev_state_root: B256::ZERO,
             post_state_root: B256::ZERO,
             withdraw_root: Some(B256::ZERO),
-            sequencer_root: Some(B256::ZERO),
             data_hash: B256::ZERO,
         }
     }
@@ -126,11 +117,6 @@ impl BatchInfo {
     /// Withdraw root after this chunk
     pub fn withdraw_root(&self) -> B256 {
         self.withdraw_root.expect("get withdraw_root")
-    }
-
-    /// Sequencer root after this chunk
-    pub fn sequencer_root(&self) -> B256 {
-        self.sequencer_root.expect("get sequencer_root")
     }
 
     /// Data hash of this chunk
@@ -151,6 +137,33 @@ mod tests {
         let mut b = [0u8; 32];
         b[24..].copy_from_slice(&val.to_be_bytes());
         B256::from(b)
+    }
+
+    #[test]
+    fn public_input_hash_keeps_the_32_byte_field_and_sets_it_to_zero() {
+        let batch = BatchInfo {
+            chain_id: TEST_CHAIN_ID,
+            prev_state_root: make_hash(1),
+            post_state_root: make_hash(2),
+            withdraw_root: Some(make_hash(3)),
+            data_hash: make_hash(4),
+        };
+        let blob_input = make_hash(5);
+
+        let mut preimage = Vec::with_capacity(200);
+        preimage.extend_from_slice(&TEST_CHAIN_ID.to_be_bytes());
+        preimage.extend_from_slice(batch.prev_state_root.as_slice());
+        preimage.extend_from_slice(batch.post_state_root.as_slice());
+        preimage.extend_from_slice(batch.withdraw_root().as_slice());
+        preimage.extend_from_slice(B256::ZERO.as_slice());
+        preimage.extend_from_slice(batch.data_hash().as_slice());
+        preimage.extend_from_slice(blob_input.as_slice());
+
+        assert_eq!(preimage.len(), 200);
+        assert_eq!(batch.public_input_hash(&blob_input), keccak256(&preimage));
+
+        preimage[104..136].copy_from_slice(make_hash(99).as_slice());
+        assert_ne!(batch.public_input_hash(&blob_input), keccak256(&preimage));
     }
 
     /// V2 aggregated hash for a single blob: keccak256(h0) != h0 (not backward-compatible with V1).
@@ -184,7 +197,7 @@ mod tests {
         hasher.update(B256::ZERO.as_slice()); // prev_state_root
         hasher.update(B256::ZERO.as_slice()); // post_state_root
         hasher.update(B256::ZERO.as_slice()); // withdraw_root
-        hasher.update(B256::ZERO.as_slice()); // sequencer_root
+        hasher.update(B256::ZERO.as_slice()); // reserved zero field
         hasher.update(B256::ZERO.as_slice()); // data_hash
         hasher.update(aggregated.as_slice());
         let expected: B256 = hasher.finalize();

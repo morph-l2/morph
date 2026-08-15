@@ -133,6 +133,13 @@ impl Prover {
     }
 }
 
+fn encode_batch_header_data(data_hash: &[u8; 32], blob_input: &[u8; 32]) -> [u8; 96] {
+    let mut batch_header = [0u8; 96];
+    batch_header[..32].copy_from_slice(data_hash);
+    batch_header[32..64].copy_from_slice(blob_input);
+    batch_header
+}
+
 /// Generate ExecutorInput for prover client.
 async fn gen_client_input(
     batch_index: u64,
@@ -175,12 +182,9 @@ async fn gen_client_input(
         };
         // Save batch_header_ex (uniform for all versions):
         // | data_hash(32) | blob_input(32) | seqSetVerifyHash(32) | (96 bytes)
-        let mut batch_header: Vec<u8> = Vec::with_capacity(96);
-        batch_header.extend_from_slice(&batch_info.data_hash().0);
-        batch_header.extend_from_slice(&blob_input.0);
-        batch_header.extend_from_slice(&batch_info.sequencer_root().0);
+        let batch_header = encode_batch_header_data(&batch_info.data_hash().0, &blob_input.0);
         let mut batch_file = File::create(proof_dir.join("batch_header.data"))?;
-        batch_file.write_all(&batch_header[..]).expect("failed to batch_header");
+        batch_file.write_all(&batch_header).expect("failed to batch_header");
     } else {
         let err = verify_result.unwrap_err();
         let error_data = serde_json::json!({
@@ -225,4 +229,20 @@ fn save_trace(batch_index: u64, chunk_traces: &Vec<BlockTrace>) {
 
     serde_json::to_writer_pretty(writer, &chunk_traces).unwrap();
     log::info!("chunk_traces of batch_index = {:#?} saved", batch_index);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::encode_batch_header_data;
+
+    #[test]
+    fn batch_header_data_keeps_96_bytes_and_zeroes_the_third_field() {
+        let data_hash = [0x11; 32];
+        let blob_input = [0x22; 32];
+        let encoded = encode_batch_header_data(&data_hash, &blob_input);
+
+        assert_eq!(&encoded[..32], &data_hash);
+        assert_eq!(&encoded[32..64], &blob_input);
+        assert_eq!(&encoded[64..], &[0u8; 32]);
+    }
 }

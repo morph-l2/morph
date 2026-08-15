@@ -1,13 +1,13 @@
-use crate::abi::rollup_abi::{CommitBatchCall, Rollup};
+use crate::abi::{decode_commit_batch, rollup_abi::Rollup};
 use crate::external_sign::ExternalSign;
 use crate::metrics::METRICS;
 use crate::util::read_env_var;
 use crate::util::{self, read_parse_env};
+use ethers::prelude::*;
 use ethers::providers::{Http, Provider};
 use ethers::signers::Wallet;
 use ethers::types::Address;
 use ethers::types::Bytes;
-use ethers::{abi::AbiDecode, prelude::*};
 use eyre::anyhow;
 use serde::{Deserialize, Serialize};
 use std::env::var;
@@ -449,21 +449,21 @@ async fn batch_inspect(l1_rollup: &RollupType, l1_provider: &Provider<Http>, bat
         log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", hash);
         return None;
     }
-    let param = if let Ok(_param) = CommitBatchCall::decode(&data) {
-        _param
+    let input = if let Ok(input) = decode_commit_batch(&data) {
+        input
     } else {
         log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", hash);
         return None;
     };
 
-    let version: u8 = param.batch_data_input.version;
-    let prev_state_root: [u8; 32] = param.batch_data_input.prev_state_root;
-    let post_state_root: [u8; 32] = param.batch_data_input.post_state_root;
-    let withdrawal_root: [u8; 32] = param.batch_data_input.withdrawal_root;
-    let last_block_number: u64 = param.batch_data_input.last_block_number;
-    let num_l1_messages = param.batch_data_input.num_l1_messages;
+    let version = input.version;
+    let prev_state_root = input.prev_state_root;
+    let post_state_root = input.post_state_root;
+    let withdrawal_root = input.withdrawal_root;
+    let last_block_number = input.last_block_number;
+    let num_l1_messages = input.num_l1_messages;
     log::info!("======> batch inspect: decode tx.input, version =  {:#?}", version);
-    log::info!("======> batch inspect: decode tx.input, param =  {:#?}", param);
+    log::info!("======> batch inspect: decode tx.input, input =  {:#?}", input);
 
     let mut batch_info = BatchInfo {
         version,
@@ -477,7 +477,7 @@ async fn batch_inspect(l1_rollup: &RollupType, l1_provider: &Provider<Http>, bat
     };
 
     // prev_batch_header
-    let prev_batch_header: Bytes = param.batch_data_input.parent_batch_header;
+    let prev_batch_header = input.parent_batch_header;
     let prev_total_l1_message = prev_batch_header.get(17..25).unwrap_or_default();
     let post_total_l1_message = u64::from_be_bytes(prev_total_l1_message.try_into().unwrap()) + batch_info.l1_message_popped;
     batch_info.total_l1_message_popped = post_total_l1_message;
