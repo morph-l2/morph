@@ -908,7 +908,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.commitBatch(batchDataInput);
         hevm.stopPrank();
 
-        // commit batch with one chunk, no tx, correctly (commitBatch requires blob when no stored hash; use commitBatchWithProof)
+        // Commit one batch through the permissionless proof path. V0/V1 commitBatch does not require a blob.
         _setupDelayAndWarpForProof();
         _mockVerifierForProof();
         bytes32 dataHash1 = _computeDataHash(1, 0);
@@ -963,7 +963,7 @@ contract RollupTest is L1MessageBaseTest {
         rollup.importGenesisBatch(batchHeader0);
         bytes32 batchHash0 = rollup.committedBatches(0);
 
-        // commit one batch (use commitBatchWithProof: commitBatch requires no stored hash and blob tx)
+        // Commit one batch through the permissionless proof path. Only V2 requires at least one blob.
         _setupDelayAndWarpForProof();
         _mockMessageQueueNotDelayedForProof();
         _mockVerifierForProof();
@@ -1306,16 +1306,13 @@ contract RollupCommitStateTest is L1MessageBaseTest {
         assertEq(uint256(rollup.lastCommittedBatchIndex()), 1);
     }
 
-    /// @dev commitState must be rejected when tx carries blob (blobhash(0) != 0).
-    /// Contract: require(blobhash(0) == bytes32(0), "commitState must not carry blob").
-    /// In test env we cannot send a blob tx (blobhash(0) is always 0), so we only assert that without blob commitState succeeds.
-    /// Full revert test requires a blob transaction.
-    function test_commitState_reverts_when_carrying_blob() public {
+    /// @dev A no-blob commitState succeeds by reusing the stored blob hash.
+    /// A blob-carrying transaction is rejected by the contract, but this test environment cannot set blobhash(0).
+    function test_commitState_succeeds_without_blob() public {
         _setupCommitStatePrecondition();
         batchDataInput = IRollup.BatchDataInput(0, _genesisBatchHeader(), 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
         hevm.prank(alice);
         rollup.commitState(batchDataInput);
-        // Without blob in tx, commitState succeeds. Revert "commitState must not carry blob" is hit only when blobhash(0) != 0 (blob tx).
         assertEq(rollup.lastCommittedBatchIndex(), 1);
     }
 
@@ -1331,8 +1328,8 @@ contract RollupCommitStateTest is L1MessageBaseTest {
         rollup.commitState(batchDataInput);
     }
 
-    /// @dev commitState can only be called by an active staker.
-    function test_commitState_only_active_staker() public {
+    /// @dev commitState can only be called by an active submitter.
+    function test_commitState_only_active_submitter() public {
         _setupCommitStatePrecondition();
         batchDataInput = IRollup.BatchDataInput(0, _genesisBatchHeader(), 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
         hevm.prank(address(1));
