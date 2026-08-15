@@ -44,6 +44,12 @@ parser.add_argument('--deployer-private-key',
                         '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
                     ),
                     help='Private key for the L1 contract deployer/owner')
+parser.add_argument('--batch-submitter-private-key',
+                    default=os.environ.get(
+                        'BATCH_SUBMITTER_PRIVATE_KEY',
+                        '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d',
+                    ),
+                    help='Private key for the devnet batch submitter; kept separate from the block sequencer')
 parser.add_argument('--cluster', action="store_true",
                     default=os.environ.get('DEVNET_CLUSTER', '').lower() in ('1', 'true', 'yes'),
                     help='Start an HA sequencer cluster instead of making node-0 the sequencer')
@@ -245,6 +251,9 @@ def devnet_deploy(paths, args):
     run_command([
         'npx', 'hardhat', 'initialize', '--network', 'l1', '--storagepath', paths.deployment_dir, '--concurrent', 'true'
     ], env={}, cwd=paths.contracts_dir)
+    run_command([
+        'npx', 'hardhat', 'register', '--network', 'l1', '--storagepath', paths.deployment_dir
+    ], env={'batchSubmitterPks': json.dumps([args.batch_submitter_private_key])}, cwd=paths.contracts_dir)
 
     # run_command([
     #     'npx', 'hardhat', 'staking', '--network', 'l1', '--storagepath', paths.deployment_dir
@@ -296,9 +305,12 @@ def devnet_deploy(paths, args):
         env_data['L1_CROSS_DOMAIN_MESSENGER'] = addresses['Proxy__L1CrossDomainMessenger']
         env_data['MORPH_PORTAL'] = addresses['Proxy__L1MessageQueueWithGasPriceOracle']
         env_data['MORPH_ROLLUP'] = addresses['Proxy__Rollup']
+        env_data['MORPH_SUBMITTER'] = addresses['Proxy__Submitter']
+        env_data['BATCH_BLOCK_INTERVAL'] = str(deploy_config['govBatchBlockInterval'])
+        env_data['BATCH_TIMEOUT'] = str(deploy_config['govBatchTimeout'])
+        env_data['BATCH_SUBMITTER_PRIVATE_KEY'] = args.batch_submitter_private_key
         env_data['RUST_LOG'] = rust_log_level
         env_data['Proxy__L1Staking'] = addresses['Proxy__L1Staking']
-        env_data['MORPH_L1STAKING'] = addresses['Proxy__L1Staking']
         env_data['L1_SEQUENCER_CONTRACT'] = addresses.get('Proxy__L1Sequencer', '')
         env_data['SEQUENCER_PRIVATE_KEY'] = args.sequencer_private_key
         env_data['ACTIVE_SEQUENCER_PRIVATE_KEY'] = active_sequencer_private_key
@@ -318,7 +330,10 @@ def devnet_deploy(paths, args):
                 env={
                     'MORPH_PORTAL': addresses['Proxy__L1MessageQueueWithGasPriceOracle'],
                     'MORPH_ROLLUP': addresses['Proxy__Rollup'],
-                    'MORPH_L1STAKING': addresses['Proxy__L1Staking'],
+                    'MORPH_SUBMITTER': addresses['Proxy__Submitter'],
+                    'BATCH_BLOCK_INTERVAL': str(deploy_config['govBatchBlockInterval']),
+                    'BATCH_TIMEOUT': str(deploy_config['govBatchTimeout']),
+                    'BATCH_SUBMITTER_PRIVATE_KEY': args.batch_submitter_private_key,
                     'PWD': paths.ops_dir,
                     'NODE_DATA_DIR': '/data',
                     'GETH_DATA_DIR': '/db',
