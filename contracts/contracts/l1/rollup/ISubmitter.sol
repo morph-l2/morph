@@ -10,7 +10,7 @@ interface ISubmitter {
     function slash(address submitter) external returns (uint256 reward);
 }
 
-/// @notice Existing Rollup state used to release all submitter stake after a global drain.
+/// @notice Existing Rollup state used to wait for batches that predate a submitter's exit.
 interface IRollupSubmitterView {
     function lastCommittedBatchIndex() external view returns (uint256);
 

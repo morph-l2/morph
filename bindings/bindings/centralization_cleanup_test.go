@@ -65,10 +65,22 @@ func TestCurrentSubmitterBindingShape(t *testing.T) {
 		"slash",
 		"stake",
 		"withdraw",
+		"withdrawalBatchIndex",
 	} {
 		if _, ok := current.Methods[name]; !ok {
 			t.Fatalf("generated Submitter ABI is missing %s", name)
 		}
+	}
+
+	method := current.Methods["withdrawalBatchIndex"]
+	if got := hex.EncodeToString(method.ID); got != "3bf1944b" {
+		t.Fatalf("withdrawalBatchIndex selector = %s, want 3bf1944b", got)
+	}
+	if len(method.Inputs) != 1 || method.Inputs[0].Type.String() != "address" {
+		t.Fatalf("withdrawalBatchIndex input must be address: %v", method.Inputs)
+	}
+	if len(method.Outputs) != 1 || method.Outputs[0].Type.String() != "uint256" {
+		t.Fatalf("withdrawalBatchIndex output must be uint256: %v", method.Outputs)
 	}
 }
 
@@ -93,7 +105,30 @@ func TestCurrentStorageLayoutsAreGenerated(t *testing.T) {
 		t.Fatalf("Rollup storage layout is missing entries: %v", wantRollupSlots)
 	}
 
-	if len(SubmitterStorageLayout.Storage) == 0 {
-		t.Fatal("Submitter storage layout was not generated")
+	wantSubmitterSlots := map[string]uint{
+		"withdrawing":          158,
+		"withdrawalBatchIndex": 159,
+	}
+	foundFinalGap := false
+	for _, entry := range SubmitterStorageLayout.Storage {
+		if want, ok := wantSubmitterSlots[entry.Label]; ok {
+			if entry.Slot != want {
+				t.Fatalf("Submitter %s slot = %d, want %d", entry.Label, entry.Slot, want)
+			}
+			delete(wantSubmitterSlots, entry.Label)
+		}
+		if entry.Label == "__gap" && entry.Slot == 160 {
+			layoutType := SubmitterStorageLayout.Types[entry.Type]
+			if layoutType.Label != "uint256[49]" {
+				t.Fatalf("Submitter final gap type = %s, want uint256[49]", layoutType.Label)
+			}
+			foundFinalGap = true
+		}
+	}
+	if len(wantSubmitterSlots) != 0 {
+		t.Fatalf("Submitter storage layout is missing entries: %v", wantSubmitterSlots)
+	}
+	if !foundFinalGap {
+		t.Fatal("Submitter storage layout is missing the final gap at slot 160")
 	}
 }

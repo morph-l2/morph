@@ -18,6 +18,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable, ReentrancyGuardUpgradeable
     mapping(address submitter => bool isRegistered) public registered;
     mapping(address submitter => uint256 amount) public stakeOf;
     mapping(address submitter => bool isWithdrawing) public withdrawing;
+    mapping(address submitter => uint256 batchIndex) public withdrawalBatchIndex;
 
     event SubmitterAdded(address indexed submitter);
     event SubmitterRemoved(address indexed submitter);
@@ -72,10 +73,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable, ReentrancyGuardUpgradeable
 
     function addSubmitter(address submitter) external onlyOwner {
         require(
-            submitter != address(0) &&
-                !registered[submitter] &&
-                !withdrawing[submitter] &&
-                stakeOf[submitter] == 0,
+            submitter != address(0) && !registered[submitter] && !withdrawing[submitter] && stakeOf[submitter] == 0,
             "invalid submitter"
         );
         registered[submitter] = true;
@@ -87,8 +85,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable, ReentrancyGuardUpgradeable
         registered[submitter] = false;
         uint256 amount = stakeOf[submitter];
         if (amount > 0) {
-            withdrawing[submitter] = true;
-            emit WithdrawalRequested(submitter, amount);
+            _startWithdrawal(submitter, amount);
         }
         emit SubmitterRemoved(submitter);
     }
@@ -126,19 +123,22 @@ contract Submitter is ISubmitter, OwnableUpgradeable, ReentrancyGuardUpgradeable
 
         // Exiting always revokes the owner's previous authorization. Re-entry requires addSubmitter.
         registered[submitter] = false;
-        withdrawing[submitter] = true;
-        emit WithdrawalRequested(submitter, stakeOf[submitter]);
+        _startWithdrawal(submitter, stakeOf[submitter]);
     }
 
     function claimWithdrawal(address receiver) external nonReentrant {
         address submitter = _msgSender();
         require(receiver != address(0), "invalid receiver");
         require(withdrawing[submitter], "not withdrawing");
-        require(_isGloballyDrained(), "rollup not drained");
+        require(
+            IRollupSubmitterView(rollupContract).lastFinalizedBatchIndex() >= withdrawalBatchIndex[submitter],
+            "withdrawal batch not finalized"
+        );
 
         uint256 amount = stakeOf[submitter];
         stakeOf[submitter] = 0;
         withdrawing[submitter] = false;
+        delete withdrawalBatchIndex[submitter];
         _transfer(receiver, amount);
         emit WithdrawalClaimed(submitter, receiver, amount);
     }
@@ -150,6 +150,7 @@ contract Submitter is ISubmitter, OwnableUpgradeable, ReentrancyGuardUpgradeable
         registered[submitter] = false;
         stakeOf[submitter] = 0;
         withdrawing[submitter] = false;
+        delete withdrawalBatchIndex[submitter];
 
         reward = (amount * rewardPercentage) / 100;
         slashRemaining += amount - reward;
@@ -166,16 +167,17 @@ contract Submitter is ISubmitter, OwnableUpgradeable, ReentrancyGuardUpgradeable
         emit SlashRemainingClaimed(receiver, amount);
     }
 
-    function _isGloballyDrained() internal view returns (bool) {
-        IRollupSubmitterView rollup = IRollupSubmitterView(rollupContract);
-        return rollup.lastCommittedBatchIndex() == rollup.lastFinalizedBatchIndex();
+    function _startWithdrawal(address submitter, uint256 amount) internal {
+        withdrawing[submitter] = true;
+        withdrawalBatchIndex[submitter] = IRollupSubmitterView(rollupContract).lastCommittedBatchIndex();
+        emit WithdrawalRequested(submitter, amount);
     }
 
     function _transfer(address receiver, uint256 amount) internal {
         if (amount == 0) return;
-        (bool success, ) = receiver.call{value: amount}("");
+        (bool success,) = receiver.call{value: amount}("");
         require(success, "ETH transfer failed");
     }
 
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 }

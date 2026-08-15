@@ -7,7 +7,7 @@ import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transpa
 import {ISubmitter} from "../l1/rollup/ISubmitter.sol";
 import {Submitter} from "../l1/rollup/Submitter.sol";
 
-contract DrainRollupMock {
+contract RollupIndexMock {
     uint256 public lastCommittedBatchIndex;
     uint256 public lastFinalizedBatchIndex;
 
@@ -39,21 +39,20 @@ contract SubmitterTest is Test {
     address internal alice = address(0xB0B);
     address internal bob = address(0xCAFE);
 
-    DrainRollupMock internal rollupMock;
+    RollupIndexMock internal rollupMock;
     Submitter internal implementation;
     Submitter internal submitter;
 
     function setUp() public {
         vm.deal(alice, 100 ether);
         vm.deal(bob, 100 ether);
-        rollupMock = new DrainRollupMock();
+        rollupMock = new RollupIndexMock();
         implementation = new Submitter();
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             proxyAdmin,
             abi.encodeCall(
-                Submitter.initialize,
-                (owner, address(rollupMock), MINIMUM_STAKE, CHALLENGE_DEPOSIT, REWARD_PERCENTAGE)
+                Submitter.initialize, (owner, address(rollupMock), MINIMUM_STAKE, CHALLENGE_DEPOSIT, REWARD_PERCENTAGE)
             )
         );
         submitter = Submitter(payable(address(proxy)));
@@ -99,7 +98,7 @@ contract SubmitterTest is Test {
         assertTrue(submitter.withdrawing(alice));
     }
 
-    function test_withdrawWaitsForGlobalDrainAndRequiresOwnerToReauthorize() public {
+    function test_withdrawWaitsForExitSnapshotAndDoesNotRequireGlobalDrain() public {
         _registerAndStake(alice);
         rollupMock.setBatchIndexes(2, 1);
 
@@ -108,18 +107,22 @@ contract SubmitterTest is Test {
         assertFalse(submitter.isActive(alice));
         assertFalse(submitter.registered(alice));
         assertEq(submitter.stakeOf(alice), MINIMUM_STAKE);
+        assertEq(submitter.withdrawalBatchIndex(alice), 2);
 
+        rollupMock.setBatchIndexes(3, 1);
         vm.prank(alice);
-        vm.expectRevert("rollup not drained");
+        vm.expectRevert("withdrawal batch not finalized");
         submitter.claimWithdrawal(bob);
 
-        rollupMock.setBatchIndexes(2, 2);
+        // Other submitters can keep committing. Only the exit-time snapshot must be finalized.
+        rollupMock.setBatchIndexes(4, 2);
         uint256 beforeBalance = bob.balance;
         vm.prank(alice);
         submitter.claimWithdrawal(bob);
         assertEq(bob.balance - beforeBalance, MINIMUM_STAKE);
         assertEq(submitter.stakeOf(alice), 0);
         assertFalse(submitter.withdrawing(alice));
+        assertEq(submitter.withdrawalBatchIndex(alice), 0);
 
         vm.prank(alice);
         vm.expectRevert("not stakeable");
@@ -128,7 +131,21 @@ contract SubmitterTest is Test {
         submitter.addSubmitter(alice);
     }
 
-    function test_ownerRemovalUsesTheSameDrainGate() public {
+    function test_zeroExitSnapshotCanBeClaimed() public {
+        _registerAndStake(alice);
+
+        vm.prank(alice);
+        submitter.withdraw();
+        assertTrue(submitter.withdrawing(alice));
+        assertEq(submitter.withdrawalBatchIndex(alice), 0);
+
+        vm.prank(alice);
+        submitter.claimWithdrawal(alice);
+        assertFalse(submitter.withdrawing(alice));
+        assertEq(submitter.stakeOf(alice), 0);
+    }
+
+    function test_ownerRemovalUsesTheSameExitSnapshot() public {
         _registerAndStake(alice);
         rollupMock.setBatchIndexes(3, 2);
 
@@ -136,16 +153,34 @@ contract SubmitterTest is Test {
         submitter.removeSubmitter(alice);
         assertFalse(submitter.registered(alice));
         assertTrue(submitter.withdrawing(alice));
+        assertEq(submitter.withdrawalBatchIndex(alice), 3);
 
+        // A revert can make the live indexes equal below the recorded exit boundary.
+        rollupMock.setBatchIndexes(2, 2);
         vm.prank(alice);
-        vm.expectRevert("rollup not drained");
+        vm.expectRevert("withdrawal batch not finalized");
         submitter.claimWithdrawal(alice);
         assertEq(submitter.stakeOf(alice), MINIMUM_STAKE);
+        assertEq(submitter.withdrawalBatchIndex(alice), 3);
 
-        rollupMock.setBatchIndexes(3, 3);
+        rollupMock.setBatchIndexes(5, 4);
         vm.prank(alice);
         submitter.claimWithdrawal(alice);
         assertEq(submitter.stakeOf(alice), 0);
+        assertEq(submitter.withdrawalBatchIndex(alice), 0);
+    }
+
+    function test_ownerRemovalWithoutStakeLeavesNoWithdrawalSnapshot() public {
+        vm.prank(owner);
+        submitter.addSubmitter(alice);
+        rollupMock.setBatchIndexes(7, 5);
+
+        vm.prank(owner);
+        submitter.removeSubmitter(alice);
+
+        assertFalse(submitter.registered(alice));
+        assertFalse(submitter.withdrawing(alice));
+        assertEq(submitter.withdrawalBatchIndex(alice), 0);
     }
 
     function test_exitingStakeRemainsSlashable() public {
@@ -162,6 +197,7 @@ contract SubmitterTest is Test {
         assertEq(submitter.stakeOf(alice), 0);
         assertFalse(submitter.registered(alice));
         assertFalse(submitter.withdrawing(alice));
+        assertEq(submitter.withdrawalBatchIndex(alice), 0);
 
         vm.prank(owner);
         submitter.addSubmitter(alice);
@@ -187,6 +223,7 @@ contract SubmitterTest is Test {
 
     function test_failedWithdrawalTransferPreservesStakeAndExit() public {
         _registerAndStake(alice);
+        rollupMock.setBatchIndexes(2, 2);
         vm.prank(alice);
         submitter.withdraw();
         RejectEther receiver = new RejectEther();
@@ -196,6 +233,7 @@ contract SubmitterTest is Test {
         submitter.claimWithdrawal(address(receiver));
         assertEq(submitter.stakeOf(alice), MINIMUM_STAKE);
         assertTrue(submitter.withdrawing(alice));
+        assertEq(submitter.withdrawalBatchIndex(alice), 2);
     }
 
     function _registerAndStake(address account) internal {
