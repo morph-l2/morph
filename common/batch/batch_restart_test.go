@@ -13,7 +13,6 @@ import (
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
@@ -50,17 +49,16 @@ func init() {
 func Test_GetFinalizeBatchHeader(t *testing.T) {
 	testDB := openTestKV(t)
 
-	bc := NewBatchCache(nil, nil, 2, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
+	bc := NewBatchCache(nil, nil, 2, globalBlockIntervalForTest, globalBatchTimeoutForTest, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
 	headerBytes, err := bc.getLastFinalizeBatchHeaderFromRollupByIndex(0)
 	require.NoError(t, err)
 	t.Log("headerBytes", hex.EncodeToString(headerBytes.Bytes()))
 }
 
 func Test_CommitBatchParse(t *testing.T) {
-	data, signature, err := getCommitBatchDataByIndex(5357)
+	data, err := getCommitBatchDataByIndex(5357)
 	require.NoError(t, err)
 	t.Log("data", data)
-	t.Log("signature", signature)
 	t.Log("data.Version", data.Version)
 	t.Log("data.ParentBatchHeader", hex.EncodeToString(data.ParentBatchHeader))
 	t.Log("data.LastBlockNumber", data.LastBlockNumber)
@@ -73,12 +71,9 @@ func Test_CommitBatchParse(t *testing.T) {
 func TestBatchRestartInit(t *testing.T) {
 	testDB := openTestKV(t)
 
-	sequencerSetBytes, sequencerSetVerifyHash, err := l2Gov.GetSequencerSetBytes(nil)
-	require.NoError(t, err)
-	t.Log("sequencer set verify hash", hex.EncodeToString(sequencerSetVerifyHash[:]))
 	ci, fi := getInfosFromContract()
 	t.Log("commit index", ci, " ", "finalize index", fi)
-	bc := NewBatchCache(nil, nil, 2, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
+	bc := NewBatchCache(nil, nil, 2, globalBlockIntervalForTest, globalBatchTimeoutForTest, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
 	startBlockNum, endBlockNum, err := getFirstUnFinalizeBatchBlockNumRange(fi)
 	require.NoError(t, err)
 	startBlockNum = new(big.Int).Add(startBlockNum, new(big.Int).SetUint64(1))
@@ -110,7 +105,7 @@ func TestBatchRestartInit(t *testing.T) {
 	t.Logf("First unfinalize batch index: %d, block range: %d - %d", firstUnfinalizedIndex, startBlockNum.Uint64(), endBlockNum.Uint64())
 
 	// Fetch blocks from L2 client in this range and assemble batchHeader
-	assembledBatchHeader, err := assembleBatchHeaderFromL2Blocks(bc, startBlockNum.Uint64(), endBlockNum.Uint64(), sequencerSetBytes, l2Client, l2Gov)
+	assembledBatchHeader, err := assembleBatchHeaderFromL2Blocks(bc, startBlockNum.Uint64(), endBlockNum.Uint64(), l2Client, l2Gov)
 	require.NoError(t, err, "failed to assemble batch header from L2 blocks")
 	t.Log("assembled batch header success", hex.EncodeToString(assembledBatchHeader.Bytes()))
 	// Verify the assembled batchHeader
@@ -120,7 +115,7 @@ func TestBatchRestartInit(t *testing.T) {
 	assembledBatchHash, err := assembledBatchHeader.Hash()
 	require.NoError(t, err)
 
-	batchDataInput, batchSignatureInput, err := getCommitBatchDataByIndex(firstUnfinalizedIndex)
+	batchDataInput, err := getCommitBatchDataByIndex(firstUnfinalizedIndex)
 	require.NoError(t, err)
 	t.Logf("batchDataInput.Version=%d", batchDataInput.Version)
 	require.Equal(t, hex.EncodeToString(batchDataInput.ParentBatchHeader), hex.EncodeToString(headerBytes.Bytes()))
@@ -136,8 +131,7 @@ func TestBatchRestartInit(t *testing.T) {
 	require.Equal(t, batchDataInput.PostStateRoot[:], postStateRoot.Bytes())
 
 	// Compare assembledBatchHeader with the batch header built from commitBatch data
-	// Note: batchDataInput and batchSignatureInput can be used to verify data, but need to build a complete batch header
-	compareBatchHeaderWithCommitData(t, assembledBatchHeader, batchDataInput, batchSignatureInput, sequencerSetVerifyHash)
+	compareBatchHeaderWithCommitData(t, assembledBatchHeader, batchDataInput)
 
 	committedBatchHash, err := rollupContract.CommittedBatches(nil, new(big.Int).SetUint64(assembledBatchIndex))
 	require.NoError(t, err)
@@ -147,7 +141,7 @@ func TestBatchRestartInit(t *testing.T) {
 }
 
 // compareBatchHeaderWithCommitData compares the assembled batch header with information extracted from commitBatch data
-func compareBatchHeaderWithCommitData(t *testing.T, assembledBatchHeader *BatchHeaderBytes, batchDataInput *bindings.IRollupBatchDataInput, batchSignatureInput *bindings.IRollupBatchSignatureInput, sequencerSetVerifyHash common.Hash) {
+func compareBatchHeaderWithCommitData(t *testing.T, assembledBatchHeader *BatchHeaderBytes, batchDataInput *bindings.IRollupBatchDataInput) {
 	t.Logf("\n=== Comparing assembled batch header with commitBatch data ===")
 
 	// Compare Version
@@ -223,21 +217,10 @@ func compareBatchHeaderWithCommitData(t *testing.T, assembledBatchHeader *BatchH
 		t.Logf("✓ WithdrawalRoot: %x (match)", withdrawRoot)
 	}
 
-	// Compare SequencerSetVerifyHash
-	sequencerSetsHash := crypto.Keccak256Hash(batchSignatureInput.SequencerSets)
+	// New and recovered post-upgrade batches keep the historical field as zero.
 	seqHash, err := assembledBatchHeader.SequencerSetVerifyHash()
 	require.NoError(t, err)
-	if seqHash != sequencerSetsHash {
-		t.Errorf("❌ SequencerSetVerifyHash mismatch: assembled=%x, from SequencerSets=%x", seqHash, sequencerSetsHash)
-	} else {
-		t.Logf("✓ SequencerSetVerifyHash: %x (match)", seqHash)
-	}
-
-	if seqHash != sequencerSetVerifyHash {
-		t.Errorf("❌ SequencerSetVerifyHash mismatch with provided hash: assembled=%x, provided=%x", seqHash, sequencerSetVerifyHash)
-	} else {
-		t.Logf("✓ SequencerSetVerifyHash matches provided hash: %x", sequencerSetVerifyHash)
-	}
+	require.Equal(t, common.Hash{}, seqHash)
 }
 
 func min(a, b int) int {
@@ -346,14 +329,14 @@ func getFirstUnFinalizeBatchBlockNumRange(lastFinalizedBatchIndex *big.Int) (*bi
 	return fis.BlockNumber, ufis.BlockNumber, nil
 }
 
-// getCommitBatchDataByIndex gets batchDataInput and batchSignatureInput with the specified index from the rollup contract's CommitBatch event
+// getCommitBatchDataByIndex gets BatchDataInput from the rollup contract's CommitBatch event.
 // Reference the implementation of getLastFinalizeBatchHeaderByIndex
 // Query is limited to 10000 block heights, starting from the latest height and querying backwards until data is found
-func getCommitBatchDataByIndex(index uint64) (*bindings.IRollupBatchDataInput, *bindings.IRollupBatchSignatureInput, error) {
+func getCommitBatchDataByIndex(index uint64) (*bindings.IRollupBatchDataInput, error) {
 	// Get the current latest block height
 	latestBlock, err := l1Client.BlockNumber(context.Background())
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get latest block number: %w", err)
+		return nil, fmt.Errorf("failed to get latest block number: %w", err)
 	}
 
 	const blockRange = uint64(10000) // Query 10000 blocks each time
@@ -395,13 +378,13 @@ func getCommitBatchDataByIndex(index uint64) (*bindings.IRollupBatchDataInput, *
 			// Get transaction details
 			tx, _, err := l1Client.TransactionByHash(context.Background(), txHash)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get transaction by hash: %w", err)
+				return nil, fmt.Errorf("failed to get transaction by hash: %w", err)
 			}
 
-			// Parse commitBatch transaction data to get batchDataInput and batchSignatureInput
-			batchDataInput, batchSignatureInput, err := parseCommitBatchTxData(tx.Data())
+			// Parse commitBatch transaction data to get BatchDataInput.
+			batchDataInput, err := parseCommitBatchTxData(tx.Data())
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to parse commit batch data: %w", err)
+				return nil, fmt.Errorf("failed to parse commit batch data: %w", err)
 			}
 
 			// Verify if batch index matches (by checking batchIndex in parentBatchHeader)
@@ -410,7 +393,7 @@ func getCommitBatchDataByIndex(index uint64) (*bindings.IRollupBatchDataInput, *
 				parentBatchIndex, err := parentHeader.BatchIndex()
 				if err == nil && parentBatchIndex+1 == index {
 					commitEventIter.Close()
-					return batchDataInput, batchSignatureInput, nil
+					return batchDataInput, nil
 				}
 			}
 		}
@@ -423,7 +406,7 @@ func getCommitBatchDataByIndex(index uint64) (*bindings.IRollupBatchDataInput, *
 		endBlock = startBlock - 1
 	}
 
-	return nil, nil, ErrBatchNotFound
+	return nil, ErrBatchNotFound
 }
 
 // assembleBatchHeaderFromL2Blocks fetches blocks from L2 client in the specified range and assembles batchHeader
@@ -431,7 +414,6 @@ func getCommitBatchDataByIndex(index uint64) (*bindings.IRollupBatchDataInput, *
 //   - bc: BatchCache instance (parentBatchHeader and prevStateRoot already initialized)
 //   - startBlockNum: starting block number
 //   - endBlockNum: ending block number
-//   - sequencerSetVerifyHash: sequencer set verification hash
 //   - l2Client: L2 client
 //
 // Returns:
@@ -440,7 +422,6 @@ func getCommitBatchDataByIndex(index uint64) (*bindings.IRollupBatchDataInput, *
 func assembleBatchHeaderFromL2Blocks(
 	bc *BatchCache,
 	startBlockNum, endBlockNum uint64,
-	sequencerBytes []byte,
 	l2Client *ethclient.Client,
 	l2Gov L2GovCaller,
 ) (*BatchHeaderBytes, error) {
@@ -478,7 +459,7 @@ func assembleBatchHeaderFromL2Blocks(
 	blockTimestamp := lastBlock.Time()
 
 	// Seal batch and generate batchHeader
-	batchIndex, batchHeaderBytes, _, err := bc.SealBatch(sequencerBytes, blockTimestamp, nil)
+	batchIndex, batchHeaderBytes, _, err := bc.SealBatch(blockTimestamp, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to seal batch: %w", err)
 	}

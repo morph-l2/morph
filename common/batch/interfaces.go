@@ -73,18 +73,15 @@ type RollupBatchReader interface {
 	LastCommittedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
 	LastFinalizedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
 	BatchDataStore(opts *bind.CallOpts, batchIndex *big.Int) (struct {
-		OriginTimestamp        *big.Int
-		FinalizeTimestamp      *big.Int
-		BlockNumber            *big.Int
-		SignedSequencersBitmap *big.Int
+		OriginTimestamp   *big.Int
+		FinalizeTimestamp *big.Int
+		BlockNumber       *big.Int
+		Submitter         common.Address
 	}, error)
 	FilterFinalizeBatch(opts *bind.FilterOpts, batchIndex []*big.Int, batchHash [][32]byte) (*bindings.RollupFinalizeBatchIterator, error)
 }
 
-// L2GovCaller reads batch-related Gov / bridge / sequencer data on L2.
+// L2GovCaller reads the withdrawal tree root used when assembling batches.
 type L2GovCaller interface {
-	BatchBlockInterval(opts *bind.CallOpts) (*big.Int, error)
-	BatchTimeout(opts *bind.CallOpts) (*big.Int, error)
 	GetTreeRoot(opts *bind.CallOpts) ([32]byte, error)
-	GetSequencerSetBytes(opts *bind.CallOpts) ([]byte, common.Hash, error)
 }
