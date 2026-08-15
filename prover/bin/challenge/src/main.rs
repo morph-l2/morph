@@ -23,7 +23,13 @@ async fn main() {
     metric_mng().await;
 
     // Start challenge handler.
-    let challenge_handler = handler::ChallengeHandler::prepare().await;
+    let challenge_handler = match handler::ChallengeHandler::prepare().await {
+        Ok(handler) => handler,
+        Err(e) => {
+            log::error!("challenge handler preparation failed: {:#?}", e);
+            return;
+        }
+    };
     match challenge_handler.handle_challenge().await {
         Ok(()) => (),
         Err(e) => {

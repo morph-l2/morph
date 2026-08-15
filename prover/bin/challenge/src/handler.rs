@@ -1,4 +1,4 @@
-use crate::abi::{decode_commit_batch, rollup_abi::Rollup};
+use crate::abi::{decode_commit_batch, rollup_abi::Rollup, submitter_abi::Submitter};
 use crate::external_sign::ExternalSign;
 use crate::metrics::METRICS;
 use crate::util::read_env_var;
@@ -51,10 +51,11 @@ pub struct ChallengeHandler {
     l1_provider: Provider<Http>,
     l2_rpc: String,
     ext_signer: Option<ExternalSign>,
+    signer_address: Address,
 }
 
 impl ChallengeHandler {
-    pub async fn prepare() -> Self {
+    pub async fn prepare() -> eyre::Result<Self> {
         // Prepare parameter.
         let l1_rpc = var("HANDLER_L1_RPC").expect("Cannot detect L1_RPC env var");
         let l2_rpc = var("HANDLER_L2_RPC").expect("Cannot detect L2_RPC env var");
@@ -73,32 +74,37 @@ impl ChallengeHandler {
                 .unwrap()
                 .with_chain_id(l1_provider.get_chainid().await.unwrap().as_u64()),
         ));
+        let local_signer_address = l1_signer.address();
         let l1_rollup: RollupType = Rollup::new(Address::from_str(l1_rollup_address.as_str()).unwrap(), l1_signer);
 
         let use_ext_sign: bool = read_env_var("HANDLER_EXTERNAL_SIGN", false);
 
-        let ext_signer = if use_ext_sign {
+        let (ext_signer, signer_address) = if use_ext_sign {
             log::info!("Challenge handler will use external signer");
             let handler_appid: String = read_parse_env("HANDLER_EXTERNAL_SIGN_APPID");
             let privkey_pem: String = read_parse_env("HANDLER_EXTERNAL_SIGN_RSA_PRIV");
             let sign_address: String = read_parse_env("HANDLER_EXTERNAL_SIGN_ADDRESS");
+            let signer_address = Address::from_str(&sign_address).map_err(|e| anyhow!("invalid HANDLER_EXTERNAL_SIGN_ADDRESS: {}", e))?;
             let sign_chain: String = read_parse_env("HANDLER_EXTERNAL_SIGN_CHAIN");
             let sign_url: String = read_parse_env("HANDLER_EXTERNAL_SIGN_URL");
             let signer: ExternalSign = ExternalSign::new(&handler_appid, &privkey_pem, &sign_address, &sign_chain, &sign_url)
                 .map_err(|e| anyhow!(format!("Prepare ExternalSign err: {:?}", e)))
                 .unwrap();
-            Some(signer)
+            (Some(signer), signer_address)
         } else {
             log::info!("Challenge handler will use local signer");
-            None
+            (None, local_signer_address)
         };
 
-        Self {
+        let handler = Self {
             l1_rollup,
             l1_provider,
             l2_rpc,
             ext_signer,
-        }
+            signer_address,
+        };
+        handler.ensure_signer_is_active().await?;
+        Ok(handler)
     }
 
     pub async fn handle_challenge(&self) -> Result<(), Box<dyn Error>> {
@@ -119,13 +125,8 @@ impl ChallengeHandler {
             };
             log::info!("Current L1 block number: {:#?}", latest);
 
-            let wallet = if let Some(signer) = &self.ext_signer {
-                Address::from_str(&signer.address).unwrap_or_default()
-            } else {
-                self.l1_rollup.client().address()
-            };
             // Record wallet balance.
-            let balance = match l1_provider.get_balance(wallet, None).await {
+            let balance = match l1_provider.get_balance(self.signer_address, None).await {
                 Ok(b) => b,
                 Err(e) => {
                     log::error!("handler_wallet.get_balance error: {:#?}", e);
@@ -243,12 +244,29 @@ impl ChallengeHandler {
     async fn prove_state(&self, batch_index: u64, batch_header: Bytes, batch_proof: ProveResult, l1_rollup: &RollupType) -> bool {
         for _ in 0..MAX_RETRY_TIMES {
             sleep(Duration::from_secs(12)).await;
+            if let Err(e) = self.ensure_signer_is_active().await {
+                METRICS.verify_result.set(2);
+                log::error!(
+                    "refusing to prove state because signer is not an active submitter, batch_index: {:?}, err_msg: {:#?}",
+                    batch_index,
+                    e
+                );
+                return false;
+            }
             log::info!("starting prove state onchain, batch index = {:#?}", batch_index);
             let proof = Bytes::from(batch_proof.proof_data.clone());
 
             let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> = self.l1_rollup.client();
             let calldata = l1_rollup.prove_state(batch_header.clone(), proof).calldata();
-            let result = send_transaction(self.l1_rollup.address(), calldata, &client, &self.ext_signer, &self.l1_provider).await;
+            let result = send_transaction(
+                self.l1_rollup.address(),
+                calldata,
+                &client,
+                &self.ext_signer,
+                self.signer_address,
+                &self.l1_provider,
+            )
+            .await;
             if let Ok(tx_hash) = result {
                 METRICS.verify_result.set(1);
                 log::info!("prove_state success, batch_index: {:?}, tx_hash: {:#?}", batch_index, tx_hash);
@@ -263,6 +281,28 @@ impl ChallengeHandler {
         }
         false
     }
+
+    async fn ensure_signer_is_active(&self) -> eyre::Result<()> {
+        ensure_submitter_active(&self.l1_rollup, self.signer_address).await
+    }
+}
+
+async fn ensure_submitter_active<M: Middleware + 'static>(l1_rollup: &Rollup<M>, signer_address: Address) -> eyre::Result<()> {
+    let submitter_address = l1_rollup
+        .submitter_contract()
+        .call()
+        .await
+        .map_err(|e| anyhow!("query Rollup.submitterContract failed: {}", e))?;
+    let submitter = Submitter::new(submitter_address, l1_rollup.client());
+    let is_active = submitter
+        .is_active(signer_address)
+        .call()
+        .await
+        .map_err(|e| anyhow!("query Submitter.isActive failed for {:?}: {}", signer_address, e))?;
+    if !is_active {
+        return Err(anyhow!("signer {:?} is not an active submitter", signer_address));
+    }
+    Ok(())
 }
 
 /**
@@ -522,16 +562,13 @@ async fn send_transaction(
     calldata: Option<Bytes>,
     local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
     ext_signer: &Option<ExternalSign>,
+    signer_address: Address,
     l2_provider: &Provider<Http>,
 ) -> Result<H256, Box<dyn Error>> {
     let req = Eip1559TransactionRequest::new().data(calldata.unwrap_or_default());
     let mut tx = TypedTransaction::Eip1559(req);
     tx.set_to(contract);
-    if let Some(signer) = ext_signer {
-        tx.set_from(Address::from_str(&signer.address).unwrap_or_default());
-    } else {
-        tx.set_from(local_signer.address());
-    }
+    tx.set_from(signer_address);
     local_signer.fill_transaction(&mut tx, None).await.map_err(|e| {
         let msg = contract_error(ContractError::<SignerMiddleware<Provider<Http>, LocalWallet>>::from_middleware_error(e));
         anyhow!("prove_state fill_transaction error: {:#?}", msg)
@@ -580,4 +617,83 @@ pub fn contract_error<M: Middleware>(e: ContractError<M>) -> String {
         format!("error: {:?}", e)
     };
     error_msg
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethers::abi::{encode, Token};
+    use ethers::providers::MockProvider;
+
+    fn mock_rollup() -> (Rollup<Provider<MockProvider>>, MockProvider, Address, Address) {
+        let (provider, mock) = Provider::mocked();
+        let rollup_address = Address::from_low_u64_be(1);
+        let submitter_address = Address::from_low_u64_be(2);
+        (Rollup::new(rollup_address, Arc::new(provider)), mock, rollup_address, submitter_address)
+    }
+
+    fn push_call_result(mock: &MockProvider, token: Token) {
+        mock.push::<Bytes, _>(Bytes::from(encode(&[token]))).unwrap();
+    }
+
+    #[tokio::test]
+    async fn accepts_active_signer() {
+        let (rollup, mock, _, submitter_address) = mock_rollup();
+        let signer_address = Address::from_low_u64_be(3);
+
+        // Mock responses are consumed last-in, first-out.
+        push_call_result(&mock, Token::Bool(true));
+        push_call_result(&mock, Token::Address(submitter_address));
+
+        ensure_submitter_active(&rollup, signer_address).await.unwrap();
+
+        mock.assert_request(
+            "eth_call",
+            [
+                serde_json::to_value(rollup.submitter_contract().tx).unwrap(),
+                serde_json::to_value(BlockNumber::Latest).unwrap(),
+            ],
+        )
+        .unwrap();
+        let submitter = Submitter::new(submitter_address, rollup.client());
+        mock.assert_request(
+            "eth_call",
+            [
+                serde_json::to_value(submitter.is_active(signer_address).tx).unwrap(),
+                serde_json::to_value(BlockNumber::Latest).unwrap(),
+            ],
+        )
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn rejects_inactive_signer() {
+        let (rollup, mock, _, submitter_address) = mock_rollup();
+        let signer_address = Address::from_low_u64_be(3);
+        push_call_result(&mock, Token::Bool(false));
+        push_call_result(&mock, Token::Address(submitter_address));
+
+        let error = ensure_submitter_active(&rollup, signer_address).await.unwrap_err();
+
+        assert!(error.to_string().contains("is not an active submitter"));
+    }
+
+    #[tokio::test]
+    async fn fails_closed_when_rollup_submitter_query_fails() {
+        let (rollup, _, _, _) = mock_rollup();
+
+        let error = ensure_submitter_active(&rollup, Address::from_low_u64_be(3)).await.unwrap_err();
+
+        assert!(error.to_string().contains("query Rollup.submitterContract failed"));
+    }
+
+    #[tokio::test]
+    async fn fails_closed_when_submitter_activity_query_fails() {
+        let (rollup, mock, _, submitter_address) = mock_rollup();
+        push_call_result(&mock, Token::Address(submitter_address));
+
+        let error = ensure_submitter_active(&rollup, Address::from_low_u64_be(3)).await.unwrap_err();
+
+        assert!(error.to_string().contains("query Submitter.isActive failed"));
+    }
 }
