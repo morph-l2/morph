@@ -9,7 +9,7 @@ import {BatchHeaderCodecV1} from "../../libraries/codec/BatchHeaderCodecV1.sol";
 import {IRollupVerifier} from "../../libraries/verifier/IRollupVerifier.sol";
 import {IL1MessageQueue} from "./IL1MessageQueue.sol";
 import {IRollup} from "./IRollup.sol";
-import {IL1Staking} from "../staking/IL1Staking.sol";
+import {ISubmitter} from "./ISubmitter.sol";
 
 // solhint-disable no-inline-assembly
 // solhint-disable reason-string
@@ -24,13 +24,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice The zero versioned hash.
     bytes32 internal constant ZERO_VERSIONED_HASH = 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014;
 
-    /// @notice The BLS MODULUS. Deprecated.
-    uint256 internal constant __BLS_MODULUS =
-        52435875175126190479447740508185965837690552500527637822603658699938581184513;
-
-    /// @dev Address of the point evaluation precompile used for EIP-4844 blob verification.
-    address internal constant POINT_EVALUATION_PRECOMPILE_ADDR = address(0x0A);
-
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable LAYER_2_CHAIN_ID;
 
@@ -38,8 +31,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      * Variables *
      *************/
 
-    /// @notice L1 staking contract
-    address public l1StakingContract;
+    /// @notice Submitter registration and staking contract.
+    /// @dev Occupies the legacy staking dependency's storage slot.
+    address public submitterContract;
 
     /// @notice Batch challenge time.
     uint256 public finalizationPeriodSeconds;
@@ -113,9 +107,9 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      * Function Modifiers *
      **********************/
 
-    /// @notice Only active staker allowed.
-    modifier onlyActiveStaker() {
-        require(IL1Staking(l1StakingContract).isActiveStaker(_msgSender()), "only active staker allowed");
+    /// @notice Only an active submitter is allowed.
+    modifier onlyActiveSubmitter() {
+        require(ISubmitter(submitterContract).isActive(_msgSender()), "only active submitter allowed");
         _;
     }
 
@@ -150,13 +144,13 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
      ***************/
 
     /// @notice initializer
-    /// @param _l1StakingContract         l1 staking contract
+    /// @param _submitterContract         submitter contract
     /// @param _messageQueue              message queue
     /// @param _verifier                  verifier
     /// @param _finalizationPeriodSeconds finalization period seconds
     /// @param _proofWindow               proof window
     function initialize(
-        address _l1StakingContract,
+        address _submitterContract,
         address _messageQueue,
         address _verifier,
         uint256 _finalizationPeriodSeconds,
@@ -166,12 +160,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         if (_messageQueue == address(0) || _verifier == address(0)) {
             revert ErrZeroAddress();
         }
-        require(_l1StakingContract != address(0), "invalid l1 staking contract");
+        require(_submitterContract != address(0), "invalid submitter contract");
 
         __Pausable_init();
         __Ownable_init();
 
-        l1StakingContract = _l1StakingContract;
+        submitterContract = _submitterContract;
         messageQueue = _messageQueue;
         verifier = _verifier;
         finalizationPeriodSeconds = _finalizationPeriodSeconds;
@@ -200,6 +194,18 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         emit UpdateRollupDelayPeriod(0, _rollupDelayPeriod);
     }
 
+    /// @notice One-time cutover from the legacy staking address to the Submitter proxy.
+    /// @dev Called atomically through the existing ProxyAdmin upgradeAndCall flow.
+    function initialize4(address _newSubmitter) external reinitializer(4) {
+        require(_newSubmitter != address(0) && _newSubmitter.code.length > 0, "invalid submitter");
+        require(lastCommittedBatchIndex == lastFinalizedBatchIndex, "pending batches");
+        require(!inChallenge, "challenge in progress");
+        require(revertReqIndex == 0, "pending revert request");
+
+        emit SubmitterContractUpdated(submitterContract, _newSubmitter);
+        submitterContract = _newSubmitter;
+    }
+
     /************************
      * Restricted Functions *
      ************************/
@@ -221,7 +227,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         require(BatchHeaderCodecV0.getBlobVersionedHash(memPtr) == ZERO_VERSIONED_HASH, "invalid versioned hash");
 
         committedBatches[_batchIndex] = _batchHash;
-        batchDataStore[_batchIndex] = BatchData(block.timestamp, block.timestamp, 0, 0);
+        batchDataStore[_batchIndex] = BatchData(block.timestamp, block.timestamp, 0, address(0));
         batchBlobVersionedHashes[_batchIndex] = BatchHeaderCodecV0.getBlobVersionedHash(memPtr);
 
         committedStateRoots[_batchIndex] = _postStateRoot;
@@ -235,9 +241,8 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
     /// @inheritdoc IRollup
     function commitBatch(
-        BatchDataInput calldata batchDataInput,
-        BatchSignatureInput calldata batchSignatureInput
-    ) external payable override onlyActiveStaker nonReqRevert whenNotPaused {
+        BatchDataInput calldata batchDataInput
+    ) external payable override onlyActiveSubmitter nonReqRevert whenNotPaused {
         // check if the next batch has a stored blob hash
         (uint256 _batchPtr, ) = _loadBatchHeader(batchDataInput.parentBatchHeader);
         uint256 _nextBatchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr) + 1;
@@ -247,17 +252,15 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         ) {
             require(batchDataInput.numL1Messages > 0, "l1msg delay");
         }
-        uint256 submitterBitmap = IL1Staking(l1StakingContract).getStakerBitmap(_msgSender());
         bytes32 _blobVersionedHash = _computeBlobVersionedHash(batchDataInput.version);
-        _commitBatchWithBatchData(batchDataInput, batchSignatureInput, submitterBitmap, _blobVersionedHash);
+        _commitBatchWithBatchData(batchDataInput, _msgSender(), _blobVersionedHash);
     }
 
     /// @inheritdoc IRollup
     /// @notice Commit batch state when blob hash is already stored (recommit after revert without blob).
     function commitState(
-        BatchDataInput calldata batchDataInput,
-        BatchSignatureInput calldata batchSignatureInput
-    ) external override onlyActiveStaker nonReqRevert whenNotPaused {
+        BatchDataInput calldata batchDataInput
+    ) external override onlyActiveSubmitter nonReqRevert whenNotPaused {
         require(blobhash(0) == bytes32(0), "commitState must not carry blob");
         (uint256 _batchPtr, ) = _loadBatchHeader(batchDataInput.parentBatchHeader);
         uint256 _nextBatchIndex = BatchHeaderCodecV0.getBatchIndex(_batchPtr) + 1;
@@ -267,19 +270,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         ) {
             require(batchDataInput.numL1Messages > 0, "l1msg delay");
         }
-        uint256 submitterBitmap = IL1Staking(l1StakingContract).getStakerBitmap(_msgSender());
-        _commitBatchWithBatchData(
-            batchDataInput,
-            batchSignatureInput,
-            submitterBitmap,
-            batchBlobVersionedHashes[_nextBatchIndex]
-        );
+        _commitBatchWithBatchData(batchDataInput, _msgSender(), batchBlobVersionedHashes[_nextBatchIndex]);
     }
 
     function _commitBatchWithBatchData(
         BatchDataInput calldata batchDataInput,
-        BatchSignatureInput calldata batchSignatureInput,
-        uint256 submitterBitmap,
+        address submitter,
         bytes32 blobVersionedHash
     ) internal {
         require(batchDataInput.version <= 2, "invalid version");
@@ -340,10 +336,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
             BatchHeaderCodecV0.storePrevStateHash(_batchPtr, batchDataInput.prevStateRoot);
             BatchHeaderCodecV0.storePostStateHash(_batchPtr, batchDataInput.postStateRoot);
             BatchHeaderCodecV0.storeWithdrawRootHash(_batchPtr, batchDataInput.withdrawalRoot);
-            BatchHeaderCodecV0.storeSequencerSetVerifyHash(
-                _batchPtr,
-                keccak256(batchSignatureInput.sequencerSets)
-            );
+            BatchHeaderCodecV0.storeSequencerSetVerifyHash(_batchPtr, bytes32(0));
             BatchHeaderCodecV0.storeParentBatchHash(_batchPtr, _parentBatchHash);
             if (batchDataInput.version >= 1) {
                 BatchHeaderCodecV1.storeLastBlockNumber(_batchPtr, batchDataInput.lastBlockNumber);
@@ -362,24 +355,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
                 block.timestamp,
                 block.timestamp + finalizationPeriodSeconds + proveRemainingTime,
                 batchDataInput.lastBlockNumber,
-                // Before BLS is implemented, the accuracy of the sequencer set uploaded by rollup cannot be guaranteed.
-                // Therefore, if the batch is successfully challenged, only the submitter will be punished.
-                submitterBitmap // => batchSignature.signedSequencersBitmap
+                submitter
             );
 
             lastCommittedBatchIndex = _batchIndex;
         }
 
-        // verify bls signature
-        require(
-            IL1Staking(l1StakingContract).verifySignature(
-                batchSignatureInput.signedSequencersBitmap,
-                _getValidSequencerSet(batchSignatureInput.sequencerSets, 0),
-                _getBLSMsgHash(batchDataInput),
-                batchSignatureInput.signature
-            ),
-            "the signature verification failed"
-        );
         emit CommitBatch(_batchIndex, committedBatches[_batchIndex]);
     }
 
@@ -388,7 +369,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     ///      Entry conditions: rollup delay OR L1 message queue delay must be met.
     function commitBatchWithProof(
         BatchDataInput calldata batchDataInput,
-        BatchSignatureInput calldata batchSignatureInput,
         bytes calldata _batchHeader,
         bytes calldata _batchProof
     ) external override nonReqRevert whenNotPaused {
@@ -416,7 +396,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         } else {
             _blobVersionedHash = _computeBlobVersionedHash(batchDataInput.version);
         }
-        _commitBatchWithBatchData(batchDataInput, batchSignatureInput, 0, _blobVersionedHash);
+        _commitBatchWithBatchData(batchDataInput, address(0), _blobVersionedHash);
 
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
@@ -488,7 +468,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         // check challenge window
         require(batchInsideChallengeWindow(batchIndex), "cannot challenge batch outside the challenge window");
         // check challenge amount
-        require(msg.value >= IL1Staking(l1StakingContract).challengeDeposit(), "insufficient value");
+        require(msg.value >= ISubmitter(submitterContract).challengeDeposit(), "insufficient value");
 
         batchChallenged = batchIndex;
         challenges[batchIndex] = BatchChallenge(batchIndex, _msgSender(), msg.value, block.timestamp, false, false);
@@ -603,7 +583,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     function proveState(
         bytes calldata _batchHeader,
         bytes calldata _batchProof
-    ) external nonReqRevert whenNotPaused onlyActiveStaker {
+    ) external nonReqRevert whenNotPaused onlyActiveSubmitter {
         // get batch data from batch header
         (uint256 memPtr, bytes32 _batchHash) = _loadBatchHeader(_batchHeader);
         // check batch hash
@@ -621,7 +601,7 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         if (challenges[_batchIndex].startTime + proofWindow <= block.timestamp) {
             // set status
             challenges[_batchIndex].challengeSuccess = true;
-            _challengerWin(_batchIndex, batchDataStore[_batchIndex].signedSequencersBitmap, "Timeout");
+            _challengerWin(_batchIndex, batchDataStore[_batchIndex].submitter, "Timeout");
         } else {
             _verifyProof(memPtr, _batchProof);
             // Record defender win
@@ -784,37 +764,6 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
         );
     }
 
-    /// @dev Internal function to compute BLS msg hash
-    function _getBLSMsgHash(
-        BatchDataInput calldata // batchDataInput
-    ) internal pure returns (bytes32) {
-        // TODO compute bls message hash
-        return bytes32(0);
-    }
-
-    /// @dev todo
-    function _getValidSequencerSet(
-        bytes calldata sequencerSets,
-        uint256 blockHeight
-    ) internal pure returns (address[] memory) {
-        // TODO require submitter was in valid sequencer set after BLS was implemented
-        (
-            ,
-            address[] memory sequencerSet0,
-            uint256 blockHeight1,
-            address[] memory sequencerSet1,
-            uint256 blockHeight2,
-            address[] memory sequencerSet2
-        ) = abi.decode(sequencerSets, (uint256, address[], uint256, address[], uint256, address[]));
-        if (blockHeight >= blockHeight2) {
-            return sequencerSet2;
-        }
-        if (blockHeight >= blockHeight1) {
-            return sequencerSet1;
-        }
-        return sequencerSet0;
-    }
-
     /// @dev Internal function executed when the defender wins.
     /// @param batchIndex   The index of the batch indicating where the challenge occurred.
     /// @param prover       The zkProof prover address.
@@ -829,12 +778,12 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
     /// @dev Internal function executed when the challenger wins.
     /// @param batchIndex           The index of the batch indicating where the challenge occurred.
-    /// @param sequencersBitmap     An array containing the sequencers to be slashed.
+    /// @param submitter            The submitter responsible for the challenged batch.
     /// @param _type                Description of the challenge type.
-    function _challengerWin(uint256 batchIndex, uint256 sequencersBitmap, string memory _type) internal {
+    function _challengerWin(uint256 batchIndex, address submitter, string memory _type) internal {
         revertReqIndex = batchIndex;
         address challenger = challenges[batchIndex].challenger;
-        uint256 reward = IL1Staking(l1StakingContract).slash(sequencersBitmap);
+        uint256 reward = ISubmitter(submitterContract).slash(submitter);
         batchChallengeReward[challenges[batchIndex].challenger] += (challenges[batchIndex].challengeDeposit + reward);
         emit ChallengeRes(batchIndex, challenger, _type);
     }
