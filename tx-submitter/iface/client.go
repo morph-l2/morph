@@ -259,8 +259,8 @@ func (c *L2Clients) GetRollupBatchByIndex(ctx context.Context, batchIndex uint64
 		if err != nil {
 			return err
 		}
-		if result != nil && len(result.Signatures) > 0 {
-			return nil
+		if result == nil {
+			return errors.New("rollup batch not found")
 		}
 		return nil
 	})

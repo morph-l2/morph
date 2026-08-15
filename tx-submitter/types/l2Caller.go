@@ -7,7 +7,7 @@ import (
 	"morph-l2/tx-submitter/iface"
 )
 
-// L2Caller reads L2 gov / sequencer state for batch assembly (see batch.L2Gov).
+// L2Caller reads the L2 withdrawal tree root for batch assembly (see batch.L2Gov).
 type L2Caller = batch.L2Gov
 
 // NewL2Caller builds an L2Caller backed by the given L2 RPC clients.

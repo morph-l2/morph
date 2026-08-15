@@ -7,6 +7,7 @@ import (
 	"github.com/morph-l2/go-ethereum/core/types"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
+	"github.com/morph-l2/go-ethereum/common"
 
 	"morph-l2/bindings/bindings"
 )
@@ -17,7 +18,7 @@ type MockRollup struct {
 	lastFinalizedBatchIndex *big.Int
 	insideChallengeWindow   bool
 	batchExists             bool
-	batchTx                 *types.Transaction
+	storedBlobHash          [32]byte
 	finalizeTx              *types.Transaction
 }
 
@@ -34,11 +35,6 @@ func NewMockRollup() *MockRollup {
 // LastCommittedBatchIndex implements IRollup
 func (m *MockRollup) LastCommittedBatchIndex(opts *bind.CallOpts) (*big.Int, error) {
 	return m.lastCommittedBatchIndex, nil
-}
-
-// CommitBatch implements IRollup
-func (m *MockRollup) CommitBatch(opts *bind.TransactOpts, batchDataInput bindings.IRollupBatchDataInput, batchSignatureInput bindings.IRollupBatchSignatureInput) (*types.Transaction, error) {
-	return m.batchTx, nil
 }
 
 // LastFinalizedBatchIndex implements IRollup
@@ -68,26 +64,25 @@ func (m *MockRollup) CommittedBatches(opts *bind.CallOpts, batchIndex *big.Int) 
 
 // BatchBlobVersionedHashes implements IRollup (no stored hash by default)
 func (m *MockRollup) BatchBlobVersionedHashes(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error) {
-	return [32]byte{}, nil
+	return m.storedBlobHash, nil
 }
 
 // BatchDataStore implements IRollup
 func (m *MockRollup) BatchDataStore(opts *bind.CallOpts, batchIndex *big.Int) (struct {
-	OriginTimestamp        *big.Int
-	FinalizeTimestamp      *big.Int
-	BlockNumber            *big.Int
-	SignedSequencersBitmap *big.Int
+	OriginTimestamp   *big.Int
+	FinalizeTimestamp *big.Int
+	BlockNumber       *big.Int
+	Submitter         common.Address
 }, error) {
 	return struct {
-		OriginTimestamp        *big.Int
-		FinalizeTimestamp      *big.Int
-		BlockNumber            *big.Int
-		SignedSequencersBitmap *big.Int
+		OriginTimestamp   *big.Int
+		FinalizeTimestamp *big.Int
+		BlockNumber       *big.Int
+		Submitter         common.Address
 	}{
-		OriginTimestamp:        big.NewInt(0),
-		FinalizeTimestamp:      big.NewInt(0),
-		BlockNumber:            big.NewInt(0),
-		SignedSequencersBitmap: big.NewInt(0),
+		OriginTimestamp:   big.NewInt(0),
+		FinalizeTimestamp: big.NewInt(0),
+		BlockNumber:       big.NewInt(0),
 	}, nil
 }
 
@@ -121,12 +116,12 @@ func (m *MockRollup) SetBatchExists(exists bool) {
 	m.batchExists = exists
 }
 
+// SetStoredBlobHash controls the value returned by BatchBlobVersionedHashes.
+func (m *MockRollup) SetStoredBlobHash(hash [32]byte) {
+	m.storedBlobHash = hash
+}
+
 // SetFinalizeTx sets the mock value for FinalizeBatch transaction
 func (m *MockRollup) SetFinalizeTx(tx *types.Transaction) {
 	m.finalizeTx = tx
-}
-
-// SetBatchTx sets the mock value for CommitBatch transaction
-func (m *MockRollup) SetBatchTx(tx *types.Transaction) {
-	m.batchTx = tx
 }
