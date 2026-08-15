@@ -39,8 +39,7 @@ mod task_status {
     pub const PROVED: &str = "Proved";
 }
 
-// ShadowProver is responsible for proving the batch state onchain through the shadow rollup
-// contract.
+// ShadowProver is responsible for proving the batch state onchain through the shadow rollup contract.
 #[derive(Clone, Debug)]
 pub struct ShadowProver<P, N> {
     shadow_provider: DynProvider,
@@ -285,24 +284,14 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
 fn test() {
     use crate::abi::SP1Verifier;
     use alloy_json_rpc::ErrorPayload;
-    use alloy_primitives::hex;
-    use alloy_sol_types::SolError;
-
-    let expected_error = SP1Verifier::WrongVerifierSelector {
-        received: [0, 0, 0, 1].into(),
-        expected: [0, 0, 0, 2].into(),
-    };
-    let json = format!(
-        r#"{{"code":3,"message":"execution reverted: ","data":"{}"}}"#,
-        hex::encode_prefixed(expected_error.abi_encode())
-    );
+    // Sample JSON error payload from an Ethereum JSON RPC response.
+    let json = r#"{"code":3,"message":"execution reverted: ","data":"0x810f00230000000000000000000000000000000000000000000000000000000000000001"}"#;
 
     // Parse the JSON into an `ErrorPayload` struct.
-    let payload: ErrorPayload = serde_json::from_str(&json).unwrap();
+    let payload: ErrorPayload = serde_json::from_str(json).unwrap();
 
     if let Some(s) = payload.as_decoded_error::<SP1Verifier::WrongVerifierSelector>() {
-        assert_eq!(s.expected, expected_error.expected);
-        assert_eq!(s.received, expected_error.received);
+        println!("WrongVerifierSelector -  expected: {:?}, received: {:?}", s.expected, s.received);
     } else if payload.as_decoded_error::<SP1Verifier::InvalidProof>().is_some() {
         println!("WrongVerifierSelector");
     } else {

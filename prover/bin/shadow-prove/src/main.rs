@@ -22,10 +22,8 @@ use shadow_proving::{
     SHADOW_PROVING_MAX_TXN, SHADOW_PROVING_PROVER_RPC,
 };
 
-use tokio::{
-    sync::broadcast,
-    time::{interval, sleep, MissedTickBehavior},
-};
+use tokio::time::{interval, sleep};
+use tokio::{sync::broadcast, time::MissedTickBehavior};
 
 #[tokio::main]
 async fn main() {
@@ -159,7 +157,6 @@ fn init_shadow_proving(
     let private_key: String = read_parse_env("SHADOW_PROVING_PRIVATE_KEY");
     let rollup: String = read_parse_env("SHADOW_PROVING_L1_ROLLUP");
     let shadow_rollup: String = read_parse_env("SHADOW_PROVING_L1_SHADOW_ROLLUP");
-    let rollup_deployed_block: u64 = read_parse_env("SHADOW_PROVING_L1_ROLLUP_DEPLOY_BLOCK");
 
     let signer: PrivateKeySigner = private_key.parse().expect("parse PrivateKeySigner");
     let wallet: EthereumWallet = EthereumWallet::from(signer.clone());
@@ -182,7 +179,6 @@ fn init_shadow_proving(
         l1_provider.clone(),
         l2_provider.clone(),
         l1_signer.clone(),
-        rollup_deployed_block,
     );
 
     let shadow_prover = ShadowProver::new(
@@ -309,14 +305,12 @@ fn log_format(
 }
 
 #[tokio::test]
-#[ignore = "requires the full configured shadow-proving environment"]
 async fn test_shadow() {
     dotenv().ok();
     env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
     log::info!("Starting shadow proving...");
 
-    // cargo test -p shadow-proving --bin shadow-proving -- test_shadow --exact --nocapture --
-    // --batch-num 100 --no-prove
+    // cargo test -p shadow-proving --bin shadow-proving -- test_shadow --exact --nocapture -- --batch-num 100 --no-prove
     let (batch_num, prove) = test_args::read_shadow_test_args_from_argv();
 
     let (batch_syncer, shadow_prover, l2_provider) = init_shadow_proving();

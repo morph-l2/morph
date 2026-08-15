@@ -1,6 +1,4 @@
 import argparse
-import base64
-import binascii
 import logging
 import os
 import subprocess
@@ -46,24 +44,6 @@ parser.add_argument('--deployer-private-key',
                         '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
                     ),
                     help='Private key for the L1 contract deployer/owner')
-parser.add_argument('--batch-submitter-private-key',
-                    default=os.environ.get(
-                        'BATCH_SUBMITTER_PRIVATE_KEY',
-                        '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d',
-                    ),
-                    help='Independent private key used by the devnet batch submitter')
-parser.add_argument('--batch-submitter-address',
-                    default=os.environ.get(
-                        'BATCH_SUBMITTER_ADDRESS',
-                        '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
-                    ),
-                    help='Address expected to match --batch-submitter-private-key')
-parser.add_argument('--legacy-genesis-l1-staking-proxy',
-                    default=os.environ.get(
-                        'LEGACY_GENESIS_L1_STAKING_PROXY',
-                        '0x000000000000000000000000000000000000dEaD',
-                    ),
-                    help='Immutable-only legacy OTHER_STAKING fixture; never used as Submitter')
 parser.add_argument('--cluster', action="store_true",
                     default=os.environ.get('DEVNET_CLUSTER', '').lower() in ('1', 'true', 'yes'),
                     help='Start an HA sequencer cluster instead of making node-0 the sequencer')
@@ -216,10 +196,6 @@ def devnet_deploy(paths, args):
     deploy_config = read_json(devnet_cfg_orig)
     deploy_config['l1GenesisBlockTimestamp'] = "0x{:x}".format(int(time.time()))
     deploy_config['l1StartingBlockTag'] = 'earliest'
-    # The current L2 genesis format still has the historical OTHER_STAKING
-    # immutable. Keep that fixture explicit and separate from the live
-    # Submitter address; it must never be renamed or repointed to Submitter.
-    deploy_config['l1StakingProxy'] = args.legacy_genesis_l1_staking_proxy
     temp_deploy_config = pjoin(paths.devnet_dir, 'deploy-config.json')
     write_json(temp_deploy_config, deploy_config)
 
@@ -276,46 +252,29 @@ def devnet_deploy(paths, args):
 
     log.info('Parser L1 contracts...')
     addresses = {}
-    deployment_blocks = {}
     deployment = read_json(paths.deployment_dir)
     for d in deployment:
         addresses[d['name']] = d['address']
-        deployment_blocks[d['name']] = int(d['number'])
     log.info('Passing L1 contracts address:', addresses)
 
-    rollup_deployed_block = deployment_blocks.get('Proxy__Rollup', 0)
-    if rollup_deployed_block <= 0:
-        raise RuntimeError('Proxy__Rollup deployment block missing from deployment output')
-
-    log.info('Registering and funding the independent batch submitter...')
-    submitter_proxy = addresses['Proxy__Submitter']
-    if submitter_proxy.lower() == args.legacy_genesis_l1_staking_proxy.lower():
-        raise RuntimeError(
-            'live Proxy__Submitter must differ from immutable legacy L1 staking fixture'
-        )
-    submitter_address = run_command_capture_output([
-        'cast', 'wallet', 'address', '--private-key', args.batch_submitter_private_key,
-    ], cwd=paths.contracts_dir).stdout.strip()
-    if submitter_address.lower() != args.batch_submitter_address.lower():
-        raise RuntimeError(
-            f'batch submitter key resolves to {submitter_address}, expected {args.batch_submitter_address}'
-        )
-    run_command([
-        'cast', 'send', submitter_proxy, 'addSubmitter(address)', submitter_address,
-        '--rpc-url', 'http://127.0.0.1:9545',
-        '--private-key', args.deployer_private_key,
-    ], cwd=paths.contracts_dir)
-    run_command([
-        'cast', 'send', submitter_proxy, 'stake()',
-        '--rpc-url', 'http://127.0.0.1:9545',
-        '--value', '1ether',
-        '--private-key', args.batch_submitter_private_key,
-    ], cwd=paths.contracts_dir)
+    log.info('Do Staking Sequencer...')
+    deploy_config['l2StakingAddresses']
+    deploy_config['l2StakingPks']
+    deploy_config['l2StakingTmKeys']
+    deploy_config['l2StakingBlsKeys']
+    for i in range(4):
+        run_command(['cast', 'send', addresses['Proxy__L1Staking'],
+                     'register(bytes32,bytes memory)',
+                     deploy_config['l2StakingTmKeys'][i],
+                     deploy_config['l2StakingBlsKeys'][i],
+                     '--rpc-url', 'http://127.0.0.1:9545',
+                     '--value', '1ether',
+                     '--private-key', deploy_config['l2StakingPks'][i]
+                     ])
 
     configure_l1_sequencer(paths, args, addresses, deploy_config)
     sequencer_upgrade_time = int((time.time() + args.sequencer_upgrade_offset_seconds) * 1000)
     active_sequencer_private_key = '' if args.cluster else args.sequencer_private_key
-    static_validator_tm_keys = read_static_validator_tm_keys(paths.ops_dir)
     log.info(
         f'Single sequencer mode enabled: sequencer={args.sequencer_address}, cluster={args.cluster}, '
         f'upgrade_time_ms={sequencer_upgrade_time}, '
@@ -334,25 +293,17 @@ def devnet_deploy(paths, args):
             if line and not line.startswith('#'):
                 key, value = line.split('=')
                 env_data[key.strip()] = value.strip()
-        # Never carry the retired runtime authority forward from an older
-        # tracked/local .env. The only allowed legacy staking address is the
-        # explicit immutable genesis fixture above.
-        env_data.pop('Proxy__L1Staking', None)
-        env_data.pop('MORPH_L1STAKING', None)
         env_data['L1_CROSS_DOMAIN_MESSENGER'] = addresses['Proxy__L1CrossDomainMessenger']
         env_data['MORPH_PORTAL'] = addresses['Proxy__L1MessageQueueWithGasPriceOracle']
         env_data['MORPH_ROLLUP'] = addresses['Proxy__Rollup']
-        env_data['MORPH_ROLLUP_DEPLOY_BLOCK'] = str(rollup_deployed_block)
         env_data['RUST_LOG'] = rust_log_level
-        env_data['Proxy__Submitter'] = submitter_proxy
-        env_data['MORPH_SUBMITTER'] = submitter_proxy
+        env_data['Proxy__L1Staking'] = addresses['Proxy__L1Staking']
+        env_data['MORPH_L1STAKING'] = addresses['Proxy__L1Staking']
         env_data['L1_SEQUENCER_CONTRACT'] = addresses.get('Proxy__L1Sequencer', '')
         env_data['SEQUENCER_PRIVATE_KEY'] = args.sequencer_private_key
         env_data['ACTIVE_SEQUENCER_PRIVATE_KEY'] = active_sequencer_private_key
         env_data['HA_SEQUENCER_ADDR'] = args.sequencer_address
         env_data['SEQUENCER_UPGRADE_TIME'] = str(sequencer_upgrade_time)
-        env_data['MORPH_NODE_STATIC_VALIDATOR_TM_KEYS'] = static_validator_tm_keys
-        env_data['BATCH_SUBMITTER_PRIVATE_KEY'] = args.batch_submitter_private_key
         envfile.seek(0)
         for key, value in env_data.items():
             envfile.write(f'{key}={value}\n')
@@ -367,9 +318,7 @@ def devnet_deploy(paths, args):
                 env={
                     'MORPH_PORTAL': addresses['Proxy__L1MessageQueueWithGasPriceOracle'],
                     'MORPH_ROLLUP': addresses['Proxy__Rollup'],
-                    'MORPH_ROLLUP_DEPLOY_BLOCK': str(rollup_deployed_block),
-                    'MORPH_SUBMITTER': submitter_proxy,
-                    'BATCH_SUBMITTER_PRIVATE_KEY': args.batch_submitter_private_key,
+                    'MORPH_L1STAKING': addresses['Proxy__L1Staking'],
                     'PWD': paths.ops_dir,
                     'NODE_DATA_DIR': '/data',
                     'GETH_DATA_DIR': '/db',
@@ -380,24 +329,9 @@ def devnet_deploy(paths, args):
                     'SEQUENCER_PRIVATE_KEY': args.sequencer_private_key,
                     'ACTIVE_SEQUENCER_PRIVATE_KEY': active_sequencer_private_key,
                     'SEQUENCER_UPGRADE_TIME': str(sequencer_upgrade_time),
-                    'MORPH_NODE_STATIC_VALIDATOR_TM_KEYS': static_validator_tm_keys,
                 })
     wait_up(8545)
     wait_for_rpc_server('127.0.0.1:8545')
-
-
-def read_static_validator_tm_keys(ops_dir):
-    """Load and validate the devnet's canonical Tendermint ed25519 public key."""
-    key_path = pjoin(ops_dir, 'node0', 'priv_validator_key.json')
-    with open(key_path, 'r', encoding='utf-8') as key_file:
-        encoded = json.load(key_file)['pub_key']['value']
-    try:
-        key = base64.b64decode(encoded, validate=True)
-    except (ValueError, binascii.Error) as error:
-        raise RuntimeError(f'invalid Tendermint validator public key in {key_path}') from error
-    if len(key) != 32:
-        raise RuntimeError(f'Tendermint validator public key in {key_path} must be 32 bytes')
-    return key.hex()
 
 
 def configure_l1_sequencer(paths, args, addresses, deploy_config):

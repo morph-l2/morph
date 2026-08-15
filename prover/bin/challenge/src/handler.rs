@@ -1,15 +1,13 @@
-use crate::abi::rollup_abi::Rollup;
+use crate::abi::rollup_abi::{CommitBatchCall, Rollup};
 use crate::external_sign::ExternalSign;
 use crate::metrics::METRICS;
-use crate::proof_signer::{select_active_proof_signer, ApprovedProofSigner};
-use crate::rollup_compat::{decode_batch_data_input, decode_batch_data_store_block_number, CanonicalCommit, CanonicalLogIndex};
 use crate::util::read_env_var;
 use crate::util::{self, read_parse_env};
-use ethers::prelude::*;
 use ethers::providers::{Http, Provider};
 use ethers::signers::Wallet;
 use ethers::types::Address;
 use ethers::types::Bytes;
+use ethers::{abi::AbiDecode, prelude::*};
 use eyre::anyhow;
 use serde::{Deserialize, Serialize};
 use std::env::var;
@@ -17,7 +15,6 @@ use std::error::Error;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
 use tokio::time::sleep;
 use transaction::eip2718::TypedTransaction;
 
@@ -53,8 +50,7 @@ pub struct ChallengeHandler {
     l1_rollup: RollupType,
     l1_provider: Provider<Http>,
     l2_rpc: String,
-    proof_signers: Vec<ApprovedProofSigner>,
-    canonical_log_index: Arc<Mutex<CanonicalLogIndex>>,
+    ext_signer: Option<ExternalSign>,
 }
 
 impl ChallengeHandler {
@@ -64,10 +60,6 @@ impl ChallengeHandler {
         let l2_rpc = var("HANDLER_L2_RPC").expect("Cannot detect L2_RPC env var");
         let l1_rollup_address = var("HANDLER_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
         let _ = var("HANDLER_PROVER_RPC").expect("Cannot detect PROVER_RPC env var");
-        let rollup_deployed_block: u64 = read_parse_env("HANDLER_L1_ROLLUP_DEPLOY_BLOCK");
-        let canonical_log_index = Arc::new(Mutex::new(
-            CanonicalLogIndex::new(rollup_deployed_block).expect("HANDLER_L1_ROLLUP_DEPLOY_BLOCK must be non-zero"),
-        ));
 
         let private_key = read_env_var(
             "CHALLENGE_HANDLER_PRIVATE_KEY",
@@ -75,14 +67,17 @@ impl ChallengeHandler {
         );
 
         let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc).unwrap();
-        let chain_id = l1_provider.get_chainid().await.unwrap().as_u64();
-        let local_wallet = Wallet::from_str(private_key.as_str()).unwrap().with_chain_id(chain_id);
-        let l1_signer = Arc::new(SignerMiddleware::new(l1_provider.clone(), local_wallet.clone()));
+        let l1_signer = Arc::new(SignerMiddleware::new(
+            l1_provider.clone(),
+            Wallet::from_str(private_key.as_str())
+                .unwrap()
+                .with_chain_id(l1_provider.get_chainid().await.unwrap().as_u64()),
+        ));
         let l1_rollup: RollupType = Rollup::new(Address::from_str(l1_rollup_address.as_str()).unwrap(), l1_signer);
 
         let use_ext_sign: bool = read_env_var("HANDLER_EXTERNAL_SIGN", false);
 
-        let primary_signer = if use_ext_sign {
+        let ext_signer = if use_ext_sign {
             log::info!("Challenge handler will use external signer");
             let handler_appid: String = read_parse_env("HANDLER_EXTERNAL_SIGN_APPID");
             let privkey_pem: String = read_parse_env("HANDLER_EXTERNAL_SIGN_RSA_PRIV");
@@ -92,32 +87,17 @@ impl ChallengeHandler {
             let signer: ExternalSign = ExternalSign::new(&handler_appid, &privkey_pem, &sign_address, &sign_chain, &sign_url)
                 .map_err(|e| anyhow!(format!("Prepare ExternalSign err: {:?}", e)))
                 .unwrap();
-            let address = Address::from_str(&signer.address).expect("HANDLER_EXTERNAL_SIGN_ADDRESS must be a valid address");
-            ApprovedProofSigner::external(address, signer)
+            Some(signer)
         } else {
             log::info!("Challenge handler will use local signer");
-            ApprovedProofSigner::local(local_wallet)
+            None
         };
-
-        let mut proof_signers = vec![primary_signer];
-        let backup_private_keys: String = read_env_var("CHALLENGE_HANDLER_BACKUP_PRIVATE_KEYS", String::new());
-        for backup_private_key in backup_private_keys.split(',').map(str::trim).filter(|key| !key.is_empty()) {
-            let wallet = Wallet::from_str(backup_private_key)
-                .expect("CHALLENGE_HANDLER_BACKUP_PRIVATE_KEYS contains an invalid private key")
-                .with_chain_id(chain_id);
-            if proof_signers.iter().any(|approved| approved.address() == wallet.address()) {
-                panic!("CHALLENGE_HANDLER_BACKUP_PRIVATE_KEYS contains a duplicate approved signer");
-            }
-            proof_signers.push(ApprovedProofSigner::local(wallet));
-        }
-        log::info!("Configured {} ordered approved proof signer(s)", proof_signers.len());
 
         Self {
             l1_rollup,
             l1_provider,
             l2_rpc,
-            proof_signers,
-            canonical_log_index,
+            ext_signer,
         }
     }
 
@@ -129,42 +109,21 @@ impl ChallengeHandler {
         loop {
             sleep(Duration::from_secs(12)).await;
 
-            // A challenge win/slash does not terminate the batch. Keep the
-            // service in an explicit pending state until the owner executes
-            // the canonical RevertBatch and clears revertReqIndex.
-            match l1_rollup.revert_req_index().await {
-                Ok(index) if !index.is_zero() => {
-                    log::warn!("challenge result is awaiting owner RevertBatch, revert_req_index={}", index);
-                    continue;
-                }
-                Ok(_) => {}
-                Err(err) => {
-                    log::error!("query revertReqIndex failed: {err:#}");
-                    continue;
-                }
-            }
-
             // Step1. fetch latest blocknum.
-            let (latest, snapshot_hash) = match l1_provider.get_block(BlockNumber::Finalized).await {
-                Ok(Some(block)) => match (block.number, block.hash) {
-                    (Some(number), Some(hash)) => (number, hash),
-                    _ => {
-                        log::error!("finalized L1 block has no stable identity");
-                        continue;
-                    }
-                },
-                Ok(None) => {
-                    log::error!("finalized L1 block is unavailable");
-                    continue;
-                }
+            let latest = match l1_provider.get_block_number().await {
+                Ok(bn) => bn,
                 Err(e) => {
-                    log::error!("L1 provider.get finalized block error: {:#?}", e);
+                    log::error!("L1 provider.get_block_number error: {:#?}", e);
                     continue;
                 }
             };
             log::info!("Current L1 block number: {:#?}", latest);
 
-            let wallet = self.proof_signers[0].address();
+            let wallet = if let Some(signer) = &self.ext_signer {
+                Address::from_str(&signer.address).unwrap_or_default()
+            } else {
+                self.l1_rollup.client().address()
+            };
             // Record wallet balance.
             let balance = match l1_provider.get_balance(wallet, None).await {
                 Ok(b) => b,
@@ -187,13 +146,12 @@ impl ChallengeHandler {
             METRICS.detected_batch_index.set(batch_index as i64);
 
             // Step3. query challenged batch info.
-            let (challenged_commit, batch_hash) =
-                match query_batch_tx(latest, snapshot_hash, l1_rollup, batch_index, &self.canonical_log_index, l1_provider).await {
-                    Some(value) => value,
-                    None => continue,
-                };
+            let (challenged_rollup_hash, batch_hash) = match query_batch_tx(latest, l1_rollup, batch_index, l1_provider).await {
+                Some(value) => value,
+                None => continue,
+            };
 
-            let mut batch_info = match batch_inspect(l1_rollup, l1_provider, batch_index, &challenged_commit, latest).await {
+            let mut batch_info = match batch_inspect(l1_rollup, l1_provider, batch_index, challenged_rollup_hash).await {
                 Some(mut b) => {
                     b.batch_index = batch_index;
                     b.parent_batch_hash = batch_hash.as_bytes().try_into().unwrap_or_default();
@@ -201,10 +159,6 @@ impl ChallengeHandler {
                 }
                 None => continue,
             };
-            if !snapshot_unchanged(l1_provider, latest, snapshot_hash).await {
-                log::error!("finalized L1 snapshot changed while building challenge proof input");
-                continue;
-            }
 
             let blocks_len = batch_info.end_block - batch_info.start_block + 1;
             log::info!(
@@ -289,37 +243,12 @@ impl ChallengeHandler {
     async fn prove_state(&self, batch_index: u64, batch_header: Bytes, batch_proof: ProveResult, l1_rollup: &RollupType) -> bool {
         for _ in 0..MAX_RETRY_TIMES {
             sleep(Duration::from_secs(12)).await;
-            METRICS.proof_signer_available.set(0);
-            let selected = match select_active_proof_signer(l1_rollup, &self.proof_signers).await {
-                Ok(Some(selected)) => selected,
-                Ok(None) => {
-                    log::error!(
-                        "ALERT: refusing proveState because all {} approved proof signers are inactive; no transaction was sent",
-                        self.proof_signers.len()
-                    );
-                    return false;
-                }
-                Err(err) => {
-                    log::error!("ALERT: refusing proveState because active signer selection failed: {err:#}; no transaction was sent");
-                    return false;
-                }
-            };
-            METRICS.proof_signer_available.set(1);
-            if selected.approved_index > 0 {
-                log::warn!(
-                    "ALERT: primary proof signer is inactive; switching to approved backup #{} {:?} at finalized snapshot {} ({:?})",
-                    selected.approved_index,
-                    selected.signer.address(),
-                    selected.snapshot.number,
-                    selected.snapshot.hash
-                );
-            }
             log::info!("starting prove state onchain, batch index = {:#?}", batch_index);
             let proof = Bytes::from(batch_proof.proof_data.clone());
 
             let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> = self.l1_rollup.client();
             let calldata = l1_rollup.prove_state(batch_header.clone(), proof).calldata();
-            let result = send_transaction(self.l1_rollup.address(), calldata, &client, &selected.signer, &self.l1_provider).await;
+            let result = send_transaction(self.l1_rollup.address(), calldata, &client, &self.ext_signer, &self.l1_provider).await;
             if let Ok(tx_hash) = result {
                 METRICS.verify_result.set(1);
                 log::info!("prove_state success, batch_index: {:?}, tx_hash: {:#?}", batch_index, tx_hash);
@@ -363,42 +292,65 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
     Some(prove_result)
 }
 
-async fn query_batch_tx(
-    latest: U64,
-    snapshot_hash: H256,
-    l1_rollup: &RollupType,
-    batch_index: u64,
-    canonical_log_index: &Arc<Mutex<CanonicalLogIndex>>,
-    l1_provider: &Provider<Http>,
-) -> Option<(CanonicalCommit, H256)> {
-    let mut canonical_log_index = canonical_log_index.lock().await;
-    if let Err(err) = canonical_log_index.refresh(l1_provider, l1_rollup.address(), latest, snapshot_hash).await {
-        log::error!("canonical Commit index refresh failed: {err:#}");
+async fn query_batch_tx(latest: U64, l1_rollup: &RollupType, batch_index: u64, l1_provider: &Provider<Http>) -> Option<(H256, H256)> {
+    let start = if latest > U64::from(7200 * 3) {
+        // Depends on challenge period
+        latest - U64::from(7200 * 3)
+    } else {
+        U64::from(1)
+    };
+
+    let challenged_hash = query_tx_hash(l1_rollup, start, batch_index, l1_provider).await.or_else(|| {
+        log::warn!("challenged_hash is none");
+        None
+    })?;
+
+    let batch_hash: [u8; 32] = l1_rollup.committed_batches(U256::from(batch_index - 1)).await.unwrap_or_default();
+    Some((challenged_hash, H256::from_slice(&batch_hash)))
+}
+
+async fn query_tx_hash(l1_rollup: &RollupType, start: U64, batch_index: u64, l1_provider: &Provider<Http>) -> Option<H256> {
+    let filter = l1_rollup
+        .commit_batch_filter()
+        .filter
+        .from_block(start)
+        .topic1(U256::from(batch_index))
+        .address(l1_rollup.address());
+    let logs: Vec<Log> = match l1_provider.get_logs(&filter).await {
+        Ok(logs) => logs,
+        Err(e) => {
+            log::error!("l1_rollup.commit_batch.get_logs error: {:#?}", e);
+            return None;
+        }
+    };
+    if logs.is_empty() {
+        log::error!("no commit_batch log of {:?}, commit_batch logs is empty", batch_index);
         return None;
     }
-    let commit = match canonical_log_index.resolve(l1_rollup, batch_index, latest, snapshot_hash).await {
-        Ok(Some(commit)) => commit,
-        Ok(None) => {
-            log::warn!("batch {batch_index} has no canonical Commit at snapshot {latest}");
-            return None;
+    for log in logs {
+        if log.topics[1].to_low_u64_be() != batch_index {
+            continue;
         }
-        Err(err) => {
-            log::error!("canonical Commit resolution failed: {err:#}");
-            return None;
+        let tx_hash = log.transaction_hash.unwrap();
+        let receipt = l1_provider.get_transaction_receipt(tx_hash).await.unwrap();
+        match receipt {
+            Some(tr) => {
+                match tr.status.unwrap_or_default().as_u64() {
+                    1 => return Some(tx_hash),
+                    _ => {
+                        log::warn!("commit_batch receipt is fail: {:#?}", tr);
+                        continue;
+                    }
+                };
+            }
+            None => {
+                log::warn!("no commit_batch receipt, batch index = {:?}, tx_hash = {:?}", batch_index, tx_hash);
+            }
         }
-    };
-    drop(canonical_log_index);
+    }
+    log::error!("unable to find valid commit_batch log, batch index = {:?}", batch_index);
 
-    let block_id = BlockId::Number(BlockNumber::Number(latest));
-    let parent_index = batch_index.checked_sub(1)?;
-    let parent_hash: [u8; 32] = match l1_rollup.committed_batches(U256::from(parent_index)).block(block_id).call().await {
-        Ok(hash) => hash,
-        Err(err) => {
-            log::error!("query canonical parent batch hash failed: {err:#}");
-            return None;
-        }
-    };
-    Some((commit, H256::from_slice(&parent_hash)))
+    None
 }
 
 async fn detecte_challenge_event(latest: U64, l1_rollup: &RollupType, l1_provider: &Provider<Http>) -> Option<u64> {
@@ -408,13 +360,7 @@ async fn detecte_challenge_event(latest: U64, l1_rollup: &RollupType, l1_provide
     } else {
         U64::from(1)
     };
-    let block_id = BlockId::Number(BlockNumber::Number(latest));
-    let filter = l1_rollup
-        .challenge_state_filter()
-        .filter
-        .from_block(start)
-        .to_block(latest)
-        .address(l1_rollup.address());
+    let filter = l1_rollup.challenge_state_filter().filter.from_block(start).address(l1_rollup.address());
     let mut logs: Vec<Log> = match l1_provider.get_logs(&filter).await {
         Ok(logs) => logs,
         Err(e) => {
@@ -435,14 +381,14 @@ async fn detecte_challenge_event(latest: U64, l1_rollup: &RollupType, l1_provide
 
     for log in logs {
         let batch_index: u64 = log.topics[1].to_low_u64_be();
-        let batch_in_challenge: bool = match l1_rollup.batch_in_challenge(U256::from(batch_index)).block(block_id).call().await {
+        let batch_in_challenge: bool = match l1_rollup.batch_in_challenge(U256::from(batch_index)).await {
             Ok(x) => x,
             Err(e) => {
                 log::info!("query l1_rollup.batch_in_challenge error, batch index = {:#?}, {:#?}", batch_index, e);
                 return None;
             }
         };
-        let is_batch_finalized: bool = match l1_rollup.is_batch_finalized(U256::from(batch_index)).block(block_id).call().await {
+        let is_batch_finalized: bool = match l1_rollup.is_batch_finalized(U256::from(batch_index)).await {
             Ok(x) => x,
             Err(e) => {
                 log::info!("query l1_rollup.is_batch_finalized error, batch index = {:#?}, {:#?}", batch_index, e);
@@ -475,32 +421,16 @@ struct BatchInfo {
     parent_batch_hash: [u8; 32],
 }
 
-async fn batch_inspect(
-    l1_rollup: &RollupType,
-    l1_provider: &Provider<Http>,
-    batch_index: u64,
-    commit: &CanonicalCommit,
-    snapshot: U64,
-) -> Option<BatchInfo> {
-    let block_id = BlockId::Number(BlockNumber::Number(snapshot));
-    let parent_index = batch_index.checked_sub(1)?;
-    let calldata = l1_rollup.batch_data_store(U256::from(parent_index)).calldata()?;
-    let request: TypedTransaction = TransactionRequest::new().to(l1_rollup.address()).data(calldata).into();
-    let prev_batch_last_bn: U256 = match l1_provider.call(&request, Some(block_id)).await {
-        Ok(data) => match decode_batch_data_store_block_number(data.as_ref()) {
-            Ok(block_number) => block_number,
-            Err(error) => {
-                log::error!("decode compatible batchDataStore output failed: {error:#}");
-                return None;
-            }
-        },
+async fn batch_inspect(l1_rollup: &RollupType, l1_provider: &Provider<Http>, batch_index: u64, hash: TxHash) -> Option<BatchInfo> {
+    let prev_batch_last_bn: U256 = match l1_rollup.batch_data_store(U256::from(batch_index - 1)).await {
+        Ok(s) => s.2,
         Err(e) => {
-            log::error!("l1_rollup compatible batchDataStore call failed: {:#?}", e);
+            log::error!("l1_rollup.batch_data_store err: {:#?}", e);
             return None;
         }
     };
     //Step1.  Get transaction
-    let result = l1_provider.get_transaction(commit.transaction_hash).await;
+    let result = l1_provider.get_transaction(hash).await;
     let tx = match result {
         Ok(Some(tx)) => tx,
         Ok(None) => {
@@ -512,35 +442,26 @@ async fn batch_inspect(
             return None;
         }
     };
-    if tx.to != Some(l1_rollup.address())
-        || tx.block_number != Some(commit.identity.block_number.into())
-        || tx.block_hash != Some(commit.block_hash)
-        || tx.transaction_index != Some(commit.identity.transaction_index.into())
-    {
-        log::error!("canonical Commit transaction identity changed");
-        return None;
-    }
 
     //Step2. Parse transaction data
     let data = tx.input;
     if data.is_empty() {
-        log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", commit.transaction_hash);
+        log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", hash);
         return None;
     }
-    let param = match decode_batch_data_input(&data) {
-        Ok(param) => param,
-        Err(err) => {
-            log::error!("batch inspect: decode tx.input error, tx_hash = {:?}: {err:#}", commit.transaction_hash);
-            return None;
-        }
+    let param = if let Ok(_param) = CommitBatchCall::decode(&data) {
+        _param
+    } else {
+        log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", hash);
+        return None;
     };
 
-    let version = param.version;
-    let prev_state_root = param.prev_state_root;
-    let post_state_root = param.post_state_root;
-    let withdrawal_root = param.withdrawal_root;
-    let last_block_number = param.last_block_number;
-    let num_l1_messages = param.num_l1_messages;
+    let version: u8 = param.batch_data_input.version;
+    let prev_state_root: [u8; 32] = param.batch_data_input.prev_state_root;
+    let post_state_root: [u8; 32] = param.batch_data_input.post_state_root;
+    let withdrawal_root: [u8; 32] = param.batch_data_input.withdrawal_root;
+    let last_block_number: u64 = param.batch_data_input.last_block_number;
+    let num_l1_messages = param.batch_data_input.num_l1_messages;
     log::info!("======> batch inspect: decode tx.input, version =  {:#?}", version);
     log::info!("======> batch inspect: decode tx.input, param =  {:#?}", param);
 
@@ -556,19 +477,12 @@ async fn batch_inspect(
     };
 
     // prev_batch_header
-    let prev_batch_header = param.parent_batch_header;
+    let prev_batch_header: Bytes = param.batch_data_input.parent_batch_header;
     let prev_total_l1_message = prev_batch_header.get(17..25).unwrap_or_default();
     let post_total_l1_message = u64::from_be_bytes(prev_total_l1_message.try_into().unwrap()) + batch_info.l1_message_popped;
     batch_info.total_l1_message_popped = post_total_l1_message;
 
     Some(batch_info)
-}
-
-async fn snapshot_unchanged(provider: &Provider<Http>, number: U64, expected_hash: H256) -> bool {
-    matches!(
-        provider.get_block(number).await,
-        Ok(Some(block)) if block.hash == Some(expected_hash)
-    )
 }
 
 impl BatchInfo {
@@ -607,20 +521,23 @@ async fn send_transaction(
     contract: Address,
     calldata: Option<Bytes>,
     local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
-    proof_signer: &ApprovedProofSigner,
+    ext_signer: &Option<ExternalSign>,
     l2_provider: &Provider<Http>,
 ) -> Result<H256, Box<dyn Error>> {
     let req = Eip1559TransactionRequest::new().data(calldata.unwrap_or_default());
     let mut tx = TypedTransaction::Eip1559(req);
     tx.set_to(contract);
-    tx.set_from(proof_signer.address());
+    if let Some(signer) = ext_signer {
+        tx.set_from(Address::from_str(&signer.address).unwrap_or_default());
+    } else {
+        tx.set_from(local_signer.address());
+    }
     local_signer.fill_transaction(&mut tx, None).await.map_err(|e| {
         let msg = contract_error(ContractError::<SignerMiddleware<Provider<Http>, LocalWallet>>::from_middleware_error(e));
         anyhow!("prove_state fill_transaction error: {:#?}", msg)
     })?;
 
-    let signed_tx = proof_signer
-        .sign_transaction(&tx)
+    let signed_tx = sign_tx(tx, local_signer, ext_signer)
         .await
         .map_err(|e| anyhow!("prove_state sign_tx error: {}", e))?;
 
@@ -640,6 +557,19 @@ async fn send_transaction(
         Ok(tx_hash)
     } else {
         Err(anyhow!(format!("tx of prove_state failed, transaction_hash: {:#?}", receipt.transaction_hash)).into())
+    }
+}
+
+async fn sign_tx(
+    tx: TypedTransaction,
+    local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
+    ext_signer: &Option<ExternalSign>,
+) -> Result<Bytes, Box<dyn Error>> {
+    if let Some(signer) = ext_signer {
+        Ok(signer.request_sign(&tx).await?)
+    } else {
+        let signature = local_signer.signer().sign_transaction(&tx).await?;
+        Ok(tx.rlp_signed(&signature))
     }
 }
 

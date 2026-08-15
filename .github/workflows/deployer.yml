@@ -5,16 +5,15 @@ on:
         branches:
             - main
         paths:
-            - "build/**"
             - "ops/l2-genesis/**"
-            - ".github/workflows/deployer.yml"
+            - ".github/workflows/deployer.yaml"
     pull_request:
         paths:
             - "build/**"
             - "bindings/**"
             - "node/**"
             - "ops/l2-genesis/**"
-            - ".github/workflows/deployer.yml"
+            - ".github/workflows/deployer.yaml"
 
 permissions:
     contents: read
@@ -28,7 +27,7 @@ jobs:
         if: github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v3
             - name: Install Go
               uses: actions/setup-go@v5
               with:
@@ -40,7 +39,7 @@ jobs:
     test:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v3
             - name: Install Go
               uses: actions/setup-go@v5
               with:

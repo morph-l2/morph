@@ -47,7 +47,6 @@ pub fn read_parse_env<T: Clone + FromStr>(var_name: &'static str) -> T {
 }
 
 #[tokio::test]
-#[ignore = "requires HANDLER_PROVER_RPC and an external prover service"]
 async fn test_call_prover() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     dotenv::dotenv().ok();

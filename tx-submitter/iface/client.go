@@ -254,14 +254,14 @@ func (c *L2Clients) GetBlockTraceByNumber(ctx context.Context, number *big.Int) 
 func (c *L2Clients) GetRollupBatchByIndex(ctx context.Context, batchIndex uint64) (*eth.RPCRollupBatch, error) {
 	var result *eth.RPCRollupBatch
 	err := c.tryAllClients(func(client L2Client) error {
-		candidate, err := client.GetRollupBatchByIndex(ctx, batchIndex)
+		var err error
+		result, err = client.GetRollupBatchByIndex(ctx, batchIndex)
 		if err != nil {
 			return err
 		}
-		if candidate == nil {
-			return errors.New("rollup batch not found")
+		if result != nil && len(result.Signatures) > 0 {
+			return nil
 		}
-		result = candidate
 		return nil
 	})
 

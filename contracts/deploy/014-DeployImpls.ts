@@ -23,7 +23,7 @@ export const deployContractImplsConcurrently = async (
 ): Promise<string> => {
     // factory name
     const L1CrossDomainMessengerFactoryName = ContractFactoryName.L1CrossDomainMessenger
-    const SubmitterFactoryName = ContractFactoryName.Submitter
+    const L1StakingFactoryName = ContractFactoryName.L1Staking
     const L1MessageQueueWithGasPriceOracleFactoryName = ContractFactoryName.L1MessageQueueWithGasPriceOracle
     const RollupFactoryName = ContractFactoryName.Rollup
     const WhitelistFactoryName = ContractFactoryName.Whitelist
@@ -41,7 +41,7 @@ export const deployContractImplsConcurrently = async (
 
     // implement storage name
     const L1CrossDomainMessengerImplStorageName = ImplStorageName.L1CrossDomainMessengerStorageName
-    const SubmitterImplStorageName = ImplStorageName.SubmitterStorageName
+    const StakingImplStorageName = ImplStorageName.L1StakingStorageName
     const L1MessageQueueWithGasPriceOracleImplStorageName = ImplStorageName.L1MessageQueueWithGasPriceOracle
     const RollupImplStorageName = ImplStorageName.RollupStorageName
     const L1GatewayRouterImplStorageName = ImplStorageName.L1GatewayRouterStorageName
@@ -80,6 +80,18 @@ export const deployContractImplsConcurrently = async (
         await contract.deployed()
         console.log("%s=%s ; TX_HASH: %s", storageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
         
+        if (factoryName == L1StakingFactoryName) {
+            await assertContractVariable(
+                contract,
+                'MESSENGER',
+                L1CrossDomainMessengerProxyAddress
+            )
+            await assertContractVariable(
+                contract,
+                'OTHER_STAKING',
+                predeploys.L2Staking.toLowerCase()
+            )
+        }
         const blockNumber = await hre.ethers.provider.getBlockNumber()
         console.log("BLOCK_NUMBER: %s", blockNumber)
         console.log(`Deployment completed for: ${storageName}`);
@@ -108,7 +120,7 @@ export const deployContractImplsConcurrently = async (
         deployPromises.push(deployContract(L1ERC721GatewayFactoryName, L1ERC721GatewayImplStorageName))
         deployPromises.push(deployContract(L1ERC1155GatewayFactoryName, L1ERC1155GatewayImplStorageName))
 
-        deployPromises.push(deployContract(SubmitterFactoryName, SubmitterImplStorageName))
+        deployPromises.push(deployContract(L1StakingFactoryName, StakingImplStorageName, [L1CrossDomainMessengerProxyAddress]))
 
         // L1Sequencer deploy (no constructor args)
         const L1SequencerFactoryName = ContractFactoryName.L1Sequencer
@@ -139,7 +151,7 @@ export const deployContractImpls = async (
 ): Promise<string> => {
     // factory name
     const L1CrossDomainMessengerFactoryName = ContractFactoryName.L1CrossDomainMessenger
-    const SubmitterFactoryName = ContractFactoryName.Submitter
+    const L1StakingFactoryName = ContractFactoryName.L1Staking
     const L1MessageQueueWithGasPriceOracleFactoryName = ContractFactoryName.L1MessageQueueWithGasPriceOracle
     const RollupFactoryName = ContractFactoryName.Rollup
     const WhitelistFactoryName = ContractFactoryName.Whitelist
@@ -157,7 +169,7 @@ export const deployContractImpls = async (
 
     // implement storage name
     const L1CrossDomainMessengerImplStorageName = ImplStorageName.L1CrossDomainMessengerStorageName
-    const SubmitterImplStorageName = ImplStorageName.SubmitterStorageName
+    const StakingImplStorageName = ImplStorageName.L1StakingStorageName
     const L1MessageQueueWithGasPriceOracleImplStorageName = ImplStorageName.L1MessageQueueWithGasPriceOracle
     const RollupImplStorageName = ImplStorageName.RollupStorageName
     const L1GatewayRouterImplStorageName = ImplStorageName.L1GatewayRouterStorageName
@@ -352,14 +364,25 @@ export const deployContractImpls = async (
         return err
     }
 
-    // ************************ batch submitter contract deploy ************************
-    Factory = await hre.ethers.getContractFactory(SubmitterFactoryName)
-    contract = await Factory.deploy()
+    // ************************ staking contracts deploy ************************
+    // Staking deploy 
+    Factory = await hre.ethers.getContractFactory(L1StakingFactoryName)
+    contract = await Factory.deploy(L1CrossDomainMessengerProxyAddress)
     await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", SubmitterImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
+    console.log("%s=%s ; TX_HASH: %s", StakingImplStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
+    await assertContractVariable(
+        contract,
+        'MESSENGER',
+        L1CrossDomainMessengerProxyAddress
+    )
+    await assertContractVariable(
+        contract,
+        'OTHER_STAKING',
+        predeploys.L2Staking.toLowerCase()
+    )
     blockNumber = await hre.ethers.provider.getBlockNumber()
     console.log("BLOCK_NUMBER: %s", blockNumber)
-    err = await storage(path, SubmitterImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
+    err = await storage(path, StakingImplStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
     if (err != '') {
         return err
     }

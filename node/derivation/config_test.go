@@ -42,6 +42,31 @@ func TestVerifyMode_AcceptsExplicitModes(t *testing.T) {
 	}
 }
 
+func TestVerifyMode_LegacyValidatorAlias(t *testing.T) {
+	cfg := DefaultConfig()
+	if err := cfg.SetCliContext(newVerifyModeTestContext(t, map[string]string{
+		flags.LegacyValidatorMode.Name: "true",
+	})); err != nil {
+		t.Fatalf("legacy validator alias rejected: %v", err)
+	}
+	if cfg.VerifyMode != VerifyModeLayer1 {
+		t.Fatalf("legacy validator alias resolved to %q, want %q", cfg.VerifyMode, VerifyModeLayer1)
+	}
+}
+
+func TestVerifyMode_ExplicitModeOverridesLegacyValidatorAlias(t *testing.T) {
+	cfg := DefaultConfig()
+	if err := cfg.SetCliContext(newVerifyModeTestContext(t, map[string]string{
+		flags.LegacyValidatorMode.Name:  "true",
+		flags.DerivationVerifyMode.Name: VerifyModeLocal,
+	})); err != nil {
+		t.Fatalf("explicit verify-mode rejected: %v", err)
+	}
+	if cfg.VerifyMode != VerifyModeLocal {
+		t.Fatalf("explicit verify-mode resolved to %q, want %q", cfg.VerifyMode, VerifyModeLocal)
+	}
+}
+
 func TestVerifyMode_RejectsUnknown(t *testing.T) {
 	// "hybrid" was the old default; ensure post-removal it's rejected so
 	// stale operator configs fail loud rather than silently falling back to
@@ -125,6 +150,7 @@ func newVerifyModeTestContext(t *testing.T, values map[string]string) *cli.Conte
 
 	flagSet := flag.NewFlagSet(t.Name(), flag.ContinueOnError)
 	for _, f := range []cli.Flag{
+		flags.LegacyValidatorMode,
 		flags.DerivationVerifyMode,
 		flags.MetricsPort,
 		flags.L1BeaconAddr,

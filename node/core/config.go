@@ -1,20 +1,16 @@
 package node
 
 import (
-	"bytes"
 	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
-	gethcrypto "github.com/morph-l2/go-ethereum/crypto"
 	tmconfig "github.com/tendermint/tendermint/config"
 	tmflags "github.com/tendermint/tendermint/libs/cli/flags"
 	tmlog "github.com/tendermint/tendermint/libs/log"
@@ -37,9 +33,7 @@ type Config struct {
 	L2StakingAddress              common.Address  `json:"l2staking_address"`
 	MaxL1MessageNumPerBlock       uint64          `json:"max_l1_message_num_per_block"`
 	BlsKeyCheckForkHeight         uint64          `json:"bls_key_check_fork_height"`
-	StaticValidatorTmKeys         [][]byte        `json:"static_validator_tm_keys"`
-	StaticValidatorKeySetHash     common.Hash     `json:"static_validator_key_set_hash"`
-	StaticValidatorKeySource      string          `json:"static_validator_key_source"`
+	DevSequencer                  bool            `json:"dev_sequencer"`
 	Logger                        tmlog.Logger    `json:"logger"`
 }
 
@@ -148,13 +142,9 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 		}
 	}
 
-	keys, keySetHash, err := parseStaticValidatorTmKeys(ctx.GlobalStringSlice(flags.StaticValidatorTmKeys.Name))
-	if err != nil {
-		return fmt.Errorf("invalid --%s: %w", flags.StaticValidatorTmKeys.Name, err)
+	if ctx.GlobalIsSet(flags.DevSequencer.Name) {
+		c.DevSequencer = ctx.GlobalBool(flags.DevSequencer.Name)
 	}
-	c.StaticValidatorTmKeys = keys
-	c.StaticValidatorKeySetHash = keySetHash
-	c.StaticValidatorKeySource = "cli/env"
 
 	if ctx.GlobalIsSet(flags.MainnetFlag.Name) {
 		c.BlsKeyCheckForkHeight = MainnetBlsKeyCheckForkHeight
@@ -162,48 +152,4 @@ func (c *Config) SetCliContext(ctx *cli.Context) error {
 	}
 
 	return nil
-}
-
-// parseStaticValidatorTmKeys validates and canonicalizes the network-wide
-// Tendermint ed25519 validator key set. Keys are fixed-width, so hashing the
-// sorted concatenation is unambiguous and gives operators a compact value to
-// compare across every node before the upgrade boundary is activated.
-func parseStaticValidatorTmKeys(values []string) ([][]byte, common.Hash, error) {
-	var encodedKeys []string
-	for _, value := range values {
-		for _, key := range strings.Split(value, ",") {
-			if key = strings.TrimSpace(key); key != "" {
-				encodedKeys = append(encodedKeys, key)
-			}
-		}
-	}
-	if len(encodedKeys) == 0 {
-		return nil, common.Hash{}, errors.New("at least one Tendermint ed25519 public key is required")
-	}
-
-	keys := make([][]byte, 0, len(encodedKeys))
-	seen := make(map[string]struct{}, len(encodedKeys))
-	for i, encoded := range encodedKeys {
-		encoded = strings.TrimPrefix(encoded, "0x")
-		if len(encoded) != tmKeySize*2 {
-			return nil, common.Hash{}, fmt.Errorf("key %d must decode to exactly %d bytes", i, tmKeySize)
-		}
-		key, err := hex.DecodeString(encoded)
-		if err != nil {
-			return nil, common.Hash{}, fmt.Errorf("key %d is not valid hex: %w", i, err)
-		}
-		fingerprint := string(key)
-		if _, ok := seen[fingerprint]; ok {
-			return nil, common.Hash{}, fmt.Errorf("key %d duplicates another Tendermint ed25519 public key", i)
-		}
-		seen[fingerprint] = struct{}{}
-		keys = append(keys, key)
-	}
-
-	slices.SortFunc(keys, bytes.Compare)
-	canonical := make([]byte, 0, len(keys)*tmKeySize)
-	for _, key := range keys {
-		canonical = append(canonical, key...)
-	}
-	return keys, gethcrypto.Keccak256Hash(canonical), nil
 }

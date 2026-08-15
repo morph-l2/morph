@@ -114,14 +114,12 @@ export const storage = async (
     contractsName: string,
     contractAddress: string,
     deployedBlockNumber: number,
-    metadata: Record<string, unknown> = {},
 ): Promise<string> => {
     let Contract = {
         name: contractsName,
         address: contractAddress,
         time: new Date().toISOString(),
-        number: deployedBlockNumber,
-        ...metadata,
+        number: deployedBlockNumber
     }
     if (fs.existsSync(path)) {
         let data = fs.readFileSync(path)
@@ -172,3 +170,4 @@ export const sleep = async (ms: number): Promise<void> => {
         }, ms);
     });
 };
+

@@ -1,7 +1,7 @@
-use std::{
-    collections::{BTreeSet, HashMap, HashSet},
-    sync::Arc,
-};
+use std::sync::Arc;
+
+use eyre::anyhow;
+use tokio::time::{sleep, Duration};
 
 use super::{
     blob_client::BeaconNode,
@@ -10,171 +10,20 @@ use super::{
     MAX_BLOB_TX_PAYLOAD_SIZE,
 };
 use crate::{
-    abi::{gas_price_oracle_abi::GasPriceOracle, rollup_abi::Rollup},
-    metrics::ORACLE_SERVICE_METRICS,
-    rollup_compat::{
-        decode_batch_data_input, resolve_canonical_commit, CanonicalCommit, SubmissionKind,
-        LOG_QUERY_RANGE,
+    abi::{
+        gas_price_oracle_abi::GasPriceOracle,
+        rollup_abi::{CommitBatchCall, Rollup},
     },
+    metrics::ORACLE_SERVICE_METRICS,
     signer::send_transaction,
 };
-use ethers::{
-    prelude::*,
-    utils::{hex, keccak256},
-};
-use eyre::anyhow;
+use ethers::{abi::AbiDecode, prelude::*, utils::hex};
 use remote_signer_client::SignerClient;
 use serde_json::Value;
 
 const PRECISION: u64 = 10u64.pow(9);
 const MAX_COMMIT_SCALAR: u64 = 10u64.pow(9 + 6);
 const MAX_BLOB_SCALAR: u64 = 10u64.pow(9 + 2);
-const SAMPLE_LOOKBACK_BLOCKS: u64 = 100;
-const ZERO_VERSIONED_HASH: H256 = H256([
-    0x01, 0x06, 0x57, 0xf3, 0x75, 0x54, 0xc7, 0x81, 0x40, 0x2a, 0x22, 0x91, 0x7d, 0xee, 0x2f, 0x75,
-    0xde, 0xf7, 0xab, 0x96, 0x6d, 0x7b, 0x77, 0x09, 0x05, 0x39, 0x8e, 0xba, 0x3c, 0x44, 0x40, 0x14,
-]);
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-struct BlobSource {
-    transaction_hash: TxHash,
-    block_number: U64,
-    block_hash: H256,
-    transaction_index: U64,
-    blob_hashes: Vec<H256>,
-}
-
-type HistoricalCommitIndex = HashMap<u64, Vec<Log>>;
-
-fn index_commit_logs(logs: Vec<Log>) -> HistoricalCommitIndex {
-    let mut index = HistoricalCommitIndex::new();
-    for log in logs {
-        if log.removed.unwrap_or_default() {
-            continue;
-        }
-        let Some(topic) = log.topics.get(1) else {
-            continue;
-        };
-        let batch_index = U256::from_big_endian(topic.as_bytes());
-        if batch_index > U256::from(u64::MAX) {
-            continue;
-        }
-        index.entry(batch_index.as_u64()).or_default().push(log);
-    }
-    index
-}
-
-fn batch_indices_from_commit_logs(logs: &[Log], max_batch_index: u64) -> BTreeSet<u64> {
-    logs.iter()
-        .filter(|log| !log.removed.unwrap_or_default())
-        .filter_map(|log| log.topics.get(1))
-        .filter_map(|topic| {
-            let value = U256::from_big_endian(topic.as_bytes());
-            (value <= U256::from(max_batch_index)).then(|| value.as_u64())
-        })
-        .filter(|index| *index > 0)
-        .collect()
-}
-
-fn ensure_snapshot_hash(expected: H256, actual: Option<H256>) -> Result<(), ScalarError> {
-    if actual != Some(expected) {
-        return Err(ScalarError::Error(anyhow!(
-            "finalized snapshot hash changed; discard the complete DA sample round"
-        )));
-    }
-    Ok(())
-}
-
-fn transaction_blob_hashes(transaction: &Transaction) -> Vec<H256> {
-    transaction
-        .other
-        .get_with("blobVersionedHashes", serde_json::from_value::<Vec<H256>>)
-        .unwrap_or(Ok(Vec::new()))
-        .unwrap_or_default()
-}
-
-fn receipt_matches_source(receipt: &TransactionReceipt, source: &BlobSource) -> bool {
-    receipt.transaction_hash == source.transaction_hash
-        && receipt.block_number == Some(source.block_number)
-        && receipt.block_hash == Some(source.block_hash)
-        && receipt.transaction_index == source.transaction_index
-}
-
-fn blob_commitment(version: u8, hashes: &[H256]) -> Result<H256, ScalarError> {
-    match version {
-        0 | 1 if hashes.len() == 1 => Ok(hashes[0]),
-        0 | 1 => Err(ScalarError::Error(anyhow!(format!(
-            "legacy batch must have exactly one blob, got {}",
-            hashes.len()
-        )))),
-        2 if !hashes.is_empty() => {
-            let bytes: Vec<u8> =
-                hashes.iter().flat_map(|hash| hash.as_bytes().iter().copied()).collect();
-            Ok(H256::from(keccak256(bytes)))
-        }
-        2 => Err(ScalarError::Error(anyhow!("V2 batch has no blob"))),
-        _ => Err(ScalarError::Error(anyhow!(format!("unsupported batch version {version}")))),
-    }
-}
-
-fn validate_fresh_blob_commitment(
-    stored_commitment: H256,
-    transaction_commitment: H256,
-) -> Result<(), ScalarError> {
-    // Rollup garbage-collects the mapping after successor finalization. A
-    // direct canonical blob transaction remains a stable source even when the
-    // snapshot getter has already returned zero.
-    if !stored_commitment.is_zero() && stored_commitment != transaction_commitment {
-        return Err(ScalarError::Error(anyhow!(format!(
-            "canonical blob commitment mismatch: stored={stored_commitment:?}, tx={transaction_commitment:?}"
-        ))));
-    }
-    Ok(())
-}
-
-fn recover_gc_commitment(snapshot: H256, canonical_block: H256) -> H256 {
-    if snapshot.is_zero() {
-        canonical_block
-    } else {
-        snapshot
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum BloblessDisposition {
-    ExcludeMissing,
-    ExcludeZero,
-    ResolveStored(H256),
-}
-
-fn classify_blobless_submission(
-    version: u8,
-    kind: SubmissionKind,
-    pre_submitter: bool,
-    stored_commitment: H256,
-) -> Result<BloblessDisposition, ScalarError> {
-    if kind == SubmissionKind::CommitBatch && !pre_submitter {
-        return Err(ScalarError::Error(anyhow!(
-            "current canonical commitBatch has no blob; refusing zero-data scalar sample"
-        )));
-    }
-
-    if version <= 1 && stored_commitment == ZERO_VERSIONED_HASH {
-        // Before the Submitter cutover, commitBatch legitimately accepted a
-        // V0/V1 transaction without a blob and stored ZERO_VERSIONED_HASH.
-        // Permissionless proof/state submissions can also reuse that value.
-        return Ok(BloblessDisposition::ExcludeZero);
-    }
-    if stored_commitment.is_zero() {
-        return Ok(BloblessDisposition::ExcludeMissing);
-    }
-    if kind == SubmissionKind::CommitBatch {
-        return Err(ScalarError::Error(anyhow!(
-            "legacy canonical commitBatch is blobless with a non-zero stored commitment"
-        )));
-    }
-    Ok(BloblessDisposition::ResolveStored(stored_commitment))
-}
 
 // Main struct to manage overhead information
 pub struct ScalarUpdater {
@@ -184,7 +33,6 @@ pub struct ScalarUpdater {
     ext_signer: Option<SignerClient>,
     l1_rollup: Rollup<Provider<Http>>, // Rollup object for L1
     beacon_node: BeaconNode,           // Beacon node for blockchain
-    l1_rollup_deploy_block: u64,
     gas_threshold: u64,
     commit_scalar_buffer: u64,
     blob_scalar_buffer: u64,
@@ -202,7 +50,6 @@ impl ScalarUpdater {
         ext_signer: Option<SignerClient>,
         l1_rollup: Rollup<Provider<Http>>,
         l1_beacon_rpc: String,
-        l1_rollup_deploy_block: u64,
         gas_threshold: u64,
         commit_scalar_buffer: u64,
         blob_scalar_buffer: u64,
@@ -220,7 +67,6 @@ impl ScalarUpdater {
             ext_signer,
             l1_rollup,
             beacon_node,
-            l1_rollup_deploy_block,
             gas_threshold,
             commit_scalar_buffer,
             blob_scalar_buffer,
@@ -233,47 +79,27 @@ impl ScalarUpdater {
     /// Calculate the user's average cost of the latest rollup and set it to the GasPriceOrale
     /// contract on the L2 network.
     pub async fn update(&mut self) -> Result<(), ScalarError> {
-        // Step1. Pin all reads to one finalized L1 block. A latest-head sample
-        // can be reorged after the oracle has already written its L2 scalar.
-        let snapshot = self
-            .l1_provider
-            .get_block(BlockNumber::Finalized)
-            .await
-            .map_err(|e| {
-                ScalarError::Error(anyhow!(format!(
-                    "overhead.l1_provider.get finalized block error: {:#?}",
-                    e
-                )))
-            })?
-            .ok_or_else(|| ScalarError::Error(anyhow!("finalized L1 block is unavailable")))?;
-        let snapshot_number = snapshot
-            .number
-            .ok_or_else(|| ScalarError::Error(anyhow!("finalized L1 block has no number")))?;
-        let snapshot_hash = snapshot
-            .hash
-            .ok_or_else(|| ScalarError::Error(anyhow!("finalized L1 block has no hash")))?;
-        if self.l1_rollup_deploy_block == 0
-            || self.l1_rollup_deploy_block > snapshot_number.as_u64()
-        {
-            return Err(ScalarError::Error(anyhow!(format!(
-                "configured Rollup deployment block {} is outside finalized snapshot 1..={}",
-                self.l1_rollup_deploy_block, snapshot_number
-            ))));
-        }
-        let start = if snapshot_number > U64::from(SAMPLE_LOOKBACK_BLOCKS) {
-            snapshot_number - U64::from(SAMPLE_LOOKBACK_BLOCKS)
+        // Step1. fetch latest batches and calculate scalar.
+        let latest = self.l1_provider.get_block_number().await.map_err(|e| {
+            ScalarError::Error(anyhow!(format!(
+                "overhead.l1_provider.get_block_number error: {:#?}",
+                e
+            )))
+        })?;
+        let start = if latest > U64::from(100) {
+            latest - U64::from(100) //100
         } else {
             U64::from(1)
         };
 
-        let (mut commit_scalar, mut blob_scalar) =
-            match self.calculate_scalar(start.as_u64(), snapshot_number, snapshot_hash).await {
-                Ok(Some(scalar)) => scalar,
-                Ok(None) => {
-                    return Ok(());
-                }
-                Err(e) => return Err(e),
-            };
+        let (mut commit_scalar, mut blob_scalar) = match self.calculate_scalar(start.as_u64()).await
+        {
+            Ok(Some(scalar)) => scalar,
+            Ok(None) => {
+                return Ok(());
+            }
+            Err(e) => return Err(e),
+        };
 
         // Step2. fetch current scalar on l2.
         let current_commit_scalar: U256 = self.l2_oracle.commit_scalar().await.map_err(|e| {
@@ -344,491 +170,84 @@ impl ScalarUpdater {
         need_update
     }
 
-    async fn calculate_scalar(
-        &mut self,
-        start: u64,
-        snapshot_number: U64,
-        snapshot_hash: H256,
-    ) -> Result<Option<(u64, u64)>, ScalarError> {
-        let block_id = BlockId::Number(BlockNumber::Number(snapshot_number));
-        let last_batch_index = self
+    async fn calculate_scalar(&mut self, start: u64) -> Result<Option<(u64, u64)>, ScalarError> {
+        let filter = self
             .l1_rollup
-            .last_committed_batch_index()
-            .block(block_id)
-            .call()
-            .await
-            .map_err(|e| ScalarError::Error(anyhow!(format!("query last committed batch: {e:?}"))))?
-            .as_u64();
-        if last_batch_index == 0 {
-            log::warn!("no non-genesis batch exists at finalized L1 snapshot, skip update");
+            .commit_batch_filter()
+            .filter
+            .from_block(start)
+            .address(self.l1_rollup.address());
+
+        let mut logs = self.l1_provider.get_logs(&filter).await.map_err(|e| {
+            ScalarError::Error(anyhow!(format!("overhead.l1_provider.get_logs error: {:#?}", e)))
+        })?;
+
+        log::debug!("overhead.l1_provider.submit_batches.get_logs.len ={:#?}", logs.len());
+
+        logs.retain(|x| x.transaction_hash.is_some() && x.block_number.is_some());
+        if logs.is_empty() {
+            log::warn!("rollup logs for the last 100 blocks of l1 is empty, skip update");
             return Ok(None);
         }
 
-        let commit_topic = H256::from(keccak256("CommitBatch(uint256,bytes32)"));
-        let candidate_logs = self
-            .l1_provider
-            .get_logs(
-                &Filter::new()
-                    .address(self.l1_rollup.address())
-                    .from_block(start)
-                    .to_block(snapshot_number)
-                    .topic0(commit_topic),
-            )
+        let log = logs.iter().max_by_key(|log| log.block_number.unwrap()).ok_or_else(|| {
+            ScalarError::Error(anyhow!(format!(
+                "no submit batches logs, start blocknum ={:#?}",
+                start
+            )))
+        })?;
+
+        #[allow(clippy::manual_inspect)]
+        let (commit_scalar, blob_scalar) = self
+            .calculate_from_rollup(log.transaction_hash.unwrap(), log.block_number.unwrap())
             .await
             .map_err(|e| {
-                ScalarError::Error(anyhow!(format!("query finalized Commit window: {e:?}")))
-            })?;
-        let batch_indices = batch_indices_from_commit_logs(&candidate_logs, last_batch_index);
-        if batch_indices.is_empty() {
-            log::warn!("no Commit event exists in the finalized DA sample window");
-            return Ok(None);
-        }
-
-        let mut seen_sources = HashSet::new();
-        let mut commit_scalar_sum = 0u128;
-        let mut blob_scalar_sum = 0u128;
-        let mut sample_count = 0u128;
-        let mut historical_commits = None;
-
-        for batch_index in batch_indices {
-            let canonical = resolve_canonical_commit(
-                &self.l1_rollup,
-                &self.l1_provider,
-                batch_index,
-                start,
-                snapshot_number,
-            )
-            .await
-            .map_err(|e| {
-                ScalarError::Error(anyhow!(format!(
-                    "resolve canonical commit for batch {batch_index}: {e:#}"
-                )))
-            })?;
-            let Some(canonical) = canonical else {
-                // The window may contain a Commit that was canonically reverted
-                // before the pinned snapshot. It contributes no DA sample.
-                continue;
-            };
-
-            let canonical_tx = self.load_commit_transaction(canonical).await?;
-            let input = decode_batch_data_input(canonical_tx.input.as_ref()).map_err(|e| {
-                ScalarError::Error(anyhow!(format!(
-                    "decode canonical commit {:?}: {e:#}",
-                    canonical.transaction_hash
-                )))
-            })?;
-            let blob_source = self
-                .resolve_blob_source(
-                    batch_index,
-                    canonical,
-                    &canonical_tx,
-                    input.version,
-                    input.kind,
-                    input.pre_submitter,
-                    snapshot_number,
-                    snapshot_hash,
-                    &mut historical_commits,
-                )
-                .await?;
-            let Some(blob_source) = blob_source else {
-                ORACLE_SERVICE_METRICS.da_sample_exclusions.inc();
-                log::warn!(
-                    "canonical batch {} has no verifiable real DA blob source; excluded",
-                    batch_index
+                log::info!(
+                    "scalar is none, skip update, tx_hash ={:#?}",
+                    log.transaction_hash.unwrap()
                 );
-                continue;
-            };
-            if !seen_sources.insert(blob_source.clone()) {
-                ORACLE_SERVICE_METRICS.da_sample_exclusions.inc();
-                log::warn!(
-                    "duplicate DA blob source {:?} in finalized window; counted once",
-                    blob_source.transaction_hash
-                );
-                continue;
-            }
+                e
+            })?;
 
-            let (commit_scalar, blob_scalar) = self
-                .calculate_from_rollup(blob_source, input.last_block_number)
-                .await
-                .inspect_err(|_| {
-                    log::info!(
-                        "scalar is unavailable, canonical_tx_hash ={:#?}",
-                        canonical.transaction_hash
-                    );
-                })?;
-            commit_scalar_sum += u128::from(commit_scalar);
-            blob_scalar_sum += u128::from(blob_scalar);
-            sample_count += 1;
-        }
-
-        let after = self
-            .l1_provider
-            .get_block(snapshot_number)
-            .await
-            .map_err(|e| ScalarError::Error(anyhow!(format!("recheck finalized snapshot: {e:?}"))))?
-            .ok_or_else(|| ScalarError::Error(anyhow!("finalized snapshot disappeared")))?;
-        ensure_snapshot_hash(snapshot_hash, after.hash)?;
-        if sample_count == 0 {
-            return Ok(None);
-        }
-
-        let commit_scalar = u64::try_from(commit_scalar_sum / sample_count)
-            .map_err(|_| ScalarError::Error(anyhow!("averaged commit scalar overflow")))?;
-        let blob_scalar = u64::try_from(blob_scalar_sum / sample_count)
-            .map_err(|_| ScalarError::Error(anyhow!("averaged blob scalar overflow")))?;
         Ok(Some((commit_scalar, blob_scalar)))
-    }
-
-    async fn load_commit_transaction(
-        &self,
-        commit: CanonicalCommit,
-    ) -> Result<Transaction, ScalarError> {
-        let transaction = self
-            .l1_provider
-            .get_transaction(commit.transaction_hash)
-            .await
-            .map_err(|e| ScalarError::Error(anyhow!(format!("get commit transaction: {e:?}"))))?
-            .ok_or_else(|| {
-                ScalarError::Error(anyhow!(format!(
-                    "commit transaction {:?} is unavailable",
-                    commit.transaction_hash
-                )))
-            })?;
-        if transaction.to != Some(self.l1_rollup.address())
-            || transaction.block_number != Some(commit.identity.block_number.into())
-            || transaction.block_hash != Some(commit.block_hash)
-            || transaction.transaction_index != Some(commit.identity.transaction_index.into())
-        {
-            return Err(ScalarError::Error(anyhow!(format!(
-                "commit transaction {:?} moved to a different block",
-                commit.transaction_hash
-            ))));
-        }
-        Ok(transaction)
-    }
-
-    async fn load_canonical_block_commitment(
-        &self,
-        batch_index: u64,
-        canonical: CanonicalCommit,
-    ) -> Result<H256, ScalarError> {
-        if canonical.identity.block_number < self.l1_rollup_deploy_block {
-            return Err(ScalarError::Error(anyhow!(format!(
-                "canonical commit block {} predates configured Rollup deployment block {}",
-                canonical.identity.block_number, self.l1_rollup_deploy_block
-            ))));
-        }
-
-        let canonical_number = U64::from(canonical.identity.block_number);
-        let before = self
-            .l1_provider
-            .get_block(BlockNumber::Number(canonical_number))
-            .await
-            .map_err(|e| {
-                ScalarError::Error(anyhow!(format!(
-                    "load canonical commit block before historical getter: {e:?}"
-                )))
-            })?
-            .ok_or_else(|| ScalarError::Error(anyhow!("canonical commit block disappeared")))?;
-        if before.hash != Some(canonical.block_hash) {
-            return Err(ScalarError::Error(anyhow!(
-                "canonical commit block hash changed before historical getter"
-            )));
-        }
-
-        // Use the block hash, rather than an unpinned number, for the historical
-        // eth_call. This recovers the mapping value before later finalization GC.
-        let commitment: H256 = self
-            .l1_rollup
-            .batch_blob_versioned_hashes(U256::from(batch_index))
-            .block(BlockId::Hash(canonical.block_hash))
-            .call()
-            .await
-            .map_err(|e| {
-                ScalarError::Error(anyhow!(format!(
-                    "query stored blob commitment at canonical commit block: {e:?}"
-                )))
-            })?
-            .into();
-
-        let after = self
-            .l1_provider
-            .get_block(BlockNumber::Number(canonical_number))
-            .await
-            .map_err(|e| {
-                ScalarError::Error(anyhow!(format!(
-                    "recheck canonical commit block after historical getter: {e:?}"
-                )))
-            })?
-            .ok_or_else(|| ScalarError::Error(anyhow!("canonical commit block disappeared")))?;
-        if after.hash != Some(canonical.block_hash) {
-            return Err(ScalarError::Error(anyhow!(
-                "canonical commit block hash changed during historical getter"
-            )));
-        }
-        Ok(commitment)
-    }
-
-    async fn load_historical_commit_index(
-        &self,
-        snapshot_number: U64,
-    ) -> Result<HistoricalCommitIndex, ScalarError> {
-        if self.l1_rollup_deploy_block > snapshot_number.as_u64() {
-            return Err(ScalarError::Error(anyhow!(
-                "Rollup deployment block is newer than the finalized snapshot"
-            )));
-        }
-
-        // Replay CommitBatch once per scalar round and share the resulting
-        // index between every stored-source batch. Replaying the entire chain
-        // separately for each batch multiplies RPC load by the sample count.
-        let commit_topic = H256::from(keccak256("CommitBatch(uint256,bytes32)"));
-        let mut logs = Vec::new();
-        let mut from = self.l1_rollup_deploy_block;
-        let snapshot = snapshot_number.as_u64();
-        loop {
-            let to = from.saturating_add(LOG_QUERY_RANGE - 1).min(snapshot);
-            logs.extend(
-                self.l1_provider
-                    .get_logs(
-                        &Filter::new()
-                            .address(self.l1_rollup.address())
-                            .from_block(from)
-                            .to_block(to)
-                            .topic0(commit_topic),
-                    )
-                    .await
-                    .map_err(|e| {
-                        ScalarError::Error(anyhow!(format!(
-                            "query historical blob-source commits in {from}..={to}: {e:?}"
-                        )))
-                    })?,
-            );
-            if to == snapshot {
-                break;
-            }
-            from = to
-                .checked_add(1)
-                .ok_or_else(|| ScalarError::Error(anyhow!("commit replay block overflow")))?;
-        }
-        Ok(index_commit_logs(logs))
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    async fn resolve_blob_source(
-        &self,
-        batch_index: u64,
-        canonical: CanonicalCommit,
-        canonical_tx: &Transaction,
-        version: u8,
-        kind: SubmissionKind,
-        pre_submitter: bool,
-        snapshot_number: U64,
-        snapshot_hash: H256,
-        historical_commits: &mut Option<HistoricalCommitIndex>,
-    ) -> Result<Option<BlobSource>, ScalarError> {
-        let block_id = BlockId::Number(BlockNumber::Number(snapshot_number));
-        let snapshot_commitment: H256 = self
-            .l1_rollup
-            .batch_blob_versioned_hashes(U256::from(batch_index))
-            .block(block_id)
-            .call()
-            .await
-            .map_err(|e| {
-                ScalarError::Error(anyhow!(format!("query stored blob commitment: {e:?}")))
-            })?
-            .into();
-
-        let current_hashes = transaction_blob_hashes(canonical_tx);
-        if !current_hashes.is_empty() {
-            let actual_commitment = blob_commitment(version, &current_hashes)?;
-            validate_fresh_blob_commitment(snapshot_commitment, actual_commitment)?;
-            return Ok(Some(BlobSource {
-                transaction_hash: canonical.transaction_hash,
-                block_number: canonical.identity.block_number.into(),
-                block_hash: canonical.block_hash,
-                transaction_index: canonical.identity.transaction_index.into(),
-                blob_hashes: current_hashes,
-            }));
-        }
-
-        // A post-cutover commitBatch is required by the Rollup contract to
-        // carry a blob. Keep that invariant fail-closed even if storage was GC'd.
-        if kind == SubmissionKind::CommitBatch && !pre_submitter {
-            return classify_blobless_submission(version, kind, pre_submitter, snapshot_commitment)
-                .map(|_| None);
-        }
-
-        let canonical_block_commitment = if snapshot_commitment.is_zero() {
-            self.load_canonical_block_commitment(batch_index, canonical).await?
-        } else {
-            snapshot_commitment
-        };
-        let expected_commitment =
-            recover_gc_commitment(snapshot_commitment, canonical_block_commitment);
-        match classify_blobless_submission(version, kind, pre_submitter, expected_commitment)? {
-            BloblessDisposition::ExcludeZero => {
-                log::warn!(
-                    "canonical batch {} is a legal V0/V1 blobless ZERO_VERSIONED_HASH submission; excluded from DA scalar sampling",
-                    batch_index
-                );
-                return Ok(None);
-            }
-            BloblessDisposition::ExcludeMissing => {
-                log::warn!(
-                    "batch {} stored blob commitment is zero at both finalized snapshot and canonical commit block; excluded and alert",
-                    batch_index
-                );
-                return Ok(None);
-            }
-            BloblessDisposition::ResolveStored(commitment) => {
-                debug_assert_eq!(commitment, expected_commitment);
-            }
-        }
-
-        // Stored-source recommits intentionally look *before* the last Revert.
-        // Canonical filtering here would discard the original blob transaction.
-        if historical_commits.is_none() {
-            *historical_commits = Some(self.load_historical_commit_index(snapshot_number).await?);
-        }
-        let mut candidates = historical_commits
-            .as_ref()
-            .and_then(|index| index.get(&batch_index))
-            .cloned()
-            .unwrap_or_default();
-        candidates.retain(|log| {
-            log.block_number
-                .is_some_and(|number| number.as_u64() <= canonical.identity.block_number)
-        });
-        candidates.sort_by_key(|log| {
-            (
-                log.block_number.unwrap_or_default(),
-                log.transaction_index.unwrap_or_default(),
-                log.log_index.unwrap_or_default(),
-            )
-        });
-
-        for candidate in candidates.into_iter().rev() {
-            let Some(transaction_hash) = candidate.transaction_hash else {
-                continue;
-            };
-            if transaction_hash == canonical.transaction_hash {
-                continue;
-            }
-            let Some(block_number) = candidate.block_number else {
-                continue;
-            };
-            let Some(block_hash) = candidate.block_hash else {
-                continue;
-            };
-            let Some(transaction_index) = candidate.transaction_index else {
-                continue;
-            };
-            let Some(transaction) =
-                self.l1_provider.get_transaction(transaction_hash).await.map_err(|e| {
-                    ScalarError::Error(anyhow!(format!("get blob-source transaction: {e:?}")))
-                })?
-            else {
-                continue;
-            };
-            if transaction.to != Some(self.l1_rollup.address())
-                || transaction.block_number != Some(block_number)
-                || transaction.block_hash != Some(block_hash)
-                || transaction.transaction_index != Some(transaction_index)
-            {
-                return Err(ScalarError::Error(anyhow!(format!(
-                    "blob-source transaction {transaction_hash:?} changed block identity"
-                ))));
-            }
-            let Ok(candidate_input) = decode_batch_data_input(transaction.input.as_ref()) else {
-                continue;
-            };
-            if candidate_input.version != version {
-                continue;
-            }
-            let hashes = transaction_blob_hashes(&transaction);
-            if hashes.is_empty() {
-                continue;
-            }
-            if blob_commitment(candidate_input.version, &hashes)? != expected_commitment {
-                continue;
-            }
-
-            let after = self
-                .l1_provider
-                .get_block(snapshot_number)
-                .await
-                .map_err(|e| {
-                    ScalarError::Error(anyhow!(format!("recheck finalized snapshot: {e:?}")))
-                })?
-                .ok_or_else(|| ScalarError::Error(anyhow!("finalized snapshot disappeared")))?;
-            ensure_snapshot_hash(snapshot_hash, after.hash)?;
-            log::info!(
-                "resolved stored blob source: batch={}, canonical_tx={:?}, source_tx={:?}, source_block={}, blobs={}",
-                batch_index,
-                canonical.transaction_hash,
-                transaction_hash,
-                block_number,
-                hashes.len()
-            );
-            return Ok(Some(BlobSource {
-                transaction_hash,
-                block_number,
-                block_hash,
-                transaction_index,
-                blob_hashes: hashes,
-            }));
-        }
-
-        log::warn!(
-            "no historical blob source matches batch {} commitment {:?}; exclude and alert",
-            batch_index,
-            expected_commitment
-        );
-        Ok(None)
     }
 
     async fn calculate_from_rollup(
         &mut self,
-        blob_source: BlobSource,
-        last_block_number: u64,
+        tx_hash: TxHash,
+        block_num: U64,
     ) -> Result<(u64, u64), ScalarError> {
         //Step1. get_data_from_blob
         let (l2_data_len, num_blobs, l2_txn) =
-            self.get_data_from_blob(&blob_source, last_block_number).await.map_err(|e| {
+            self.get_data_from_blob(tx_hash, block_num).await.map_err(|e| {
                 log::error!("get_data_from_blob error: {:#?}", e);
                 e
             })?;
 
-        let source_tx_receipt = self
+        let blob_tx_receipt = self
             .l1_provider
-            .get_transaction_receipt(blob_source.transaction_hash)
+            .get_transaction_receipt(tx_hash)
             .await
             .map_err(|e| ScalarError::Error(anyhow!(format!("{:#?}", e))))?
             .ok_or_else(|| {
                 ScalarError::Error(anyhow!(format!(
-                    "l1 get source transaction receipt return none, tx_hash= {:#?}",
-                    blob_source.transaction_hash
+                    "l1 get transaction receipt return none, tx_hash= {:#?}",
+                    tx_hash
                 )))
             })?;
-        if !receipt_matches_source(&source_tx_receipt, &blob_source) {
-            return Err(ScalarError::Error(anyhow!(
-                "original blob source receipt identity mismatch"
-            )));
-        }
 
         // rollup_gas_used
-        let rollup_gas_used = source_tx_receipt.gas_used.unwrap_or_default();
+        let rollup_gas_used = blob_tx_receipt.gas_used.unwrap_or_default();
         if rollup_gas_used.is_zero() {
             return Err(ScalarError::Error(anyhow!(format!(
                 "blob tx calldata gas_used is none or 0, tx_hash = {:#?}",
-                blob_source.transaction_hash
+                tx_hash
             ))));
         }
 
         //Step2. Calculate scalar
-        let commit_scalar = (rollup_gas_used.as_u64() + self.finalize_batch_gas_used) * PRECISION
-            / l2_txn.max(self.txn_per_batch);
+        let commit_scalar = (rollup_gas_used.as_u64() + self.finalize_batch_gas_used) * PRECISION /
+            l2_txn.max(self.txn_per_batch);
         let blob_scalar = if l2_data_len > 0 {
             num_blobs.max(1) * MAX_BLOB_TX_PAYLOAD_SIZE as u64 * PRECISION / l2_data_len
         } else {
@@ -851,85 +270,84 @@ impl ScalarUpdater {
 
     async fn get_data_from_blob(
         &self,
-        source: &BlobSource,
-        last_block_num: u64,
+        tx_hash: TxHash,
+        block_num: U64,
     ) -> Result<(u64, u64, u64), ScalarError> {
         let blob_tx = self
             .l1_provider
-            .get_transaction(source.transaction_hash)
+            .get_transaction(tx_hash)
             .await
             .map_err(|e| ScalarError::Error(anyhow!(format!("{:#?}", e))))?
             .ok_or_else(|| {
                 ScalarError::Error(anyhow!(format!(
                     "l1 get transaction return none, tx_hash: {:#?}",
-                    source.transaction_hash
+                    tx_hash
                 )))
             })?;
-        if blob_tx.to != Some(self.l1_rollup.address())
-            || blob_tx.block_number != Some(source.block_number)
-            || blob_tx.block_hash != Some(source.block_hash)
-            || blob_tx.transaction_index != Some(source.transaction_index)
-        {
-            return Err(ScalarError::Error(anyhow!(
-                "blob source transaction changed block identity"
-            )));
-        }
 
         let blob_block = self
             .l1_provider
-            .get_block_with_txs(BlockNumber::Number(source.block_number))
+            .get_block_with_txs(BlockNumber::Number(block_num))
             .await
             .map_err(|e| ScalarError::Error(anyhow!(format!("{:#?}", e))))?
             .ok_or_else(|| {
                 ScalarError::Error(anyhow!(format!(
                     "l1 get block info return none, block_num: {:#?}",
-                    source.block_number
+                    block_num
                 )))
             })?;
-        if blob_block.hash != Some(source.block_hash) {
-            return Err(ScalarError::Error(anyhow!(
-                "blob source block hash changed before sidecar lookup"
-            )));
-        }
 
         let indexed_hashes = data_and_hashes_from_txs(&blob_block.transactions, &blob_tx);
         if indexed_hashes.is_empty() {
-            return Err(ScalarError::Error(anyhow!(format!(
-                "resolved blob source {:?} has no blob positions",
-                source.transaction_hash
-            ))));
-        }
-        let actual_hashes: Vec<H256> = indexed_hashes.iter().map(|item| item.hash).collect();
-        if actual_hashes != source.blob_hashes {
-            return Err(ScalarError::Error(anyhow!(
-                "blob positions changed between source resolution and sidecar lookup"
-            )));
+            log::info!("no blob in this batch, batch_tx_hash: {:#?}", tx_hash);
+            return Ok((0, 0, 0));
         }
 
-        // The sample is finalized, so the following block (whose parent beacon
-        // root addresses this execution block's sidecars) must already exist.
-        let next_block_num =
-            U64::from(
-                source.block_number.as_u64().checked_add(1).ok_or_else(|| {
-                    ScalarError::Error(anyhow!("blob source block number overflow"))
-                })?,
-            );
-        let next_block = self
-            .l1_provider
-            .get_block(BlockNumber::Number(next_block_num))
-            .await
-            .map_err(|e| ScalarError::Error(anyhow!(format!("get next L1 block: {e:?}"))))?
-            .ok_or_else(|| ScalarError::Error(anyhow!("next finalized L1 block is unavailable")))?;
-        if next_block.parent_hash != source.block_hash {
-            return Err(ScalarError::Error(anyhow!(
-                "next L1 block is not the canonical child of the blob source block"
-            )));
+        // Waiting for the next L1 block to be produced.
+        let next_block_num = block_num + 1;
+        // Max delay 5 * 3 = 15 secs
+        let mut retry_times = 5;
+        let prev_beacon_root = loop {
+            let blk_info = self.l1_provider.get_block(BlockNumber::Number(next_block_num)).await;
+            if let Ok(Some(info)) = blk_info {
+                if let Some(beacon_blk_root) = info.parent_beacon_block_root {
+                    break beacon_blk_root;
+                } else {
+                    return Err(ScalarError::Error(anyhow!(format!(
+                        "next block info's pre_beacon_root is none, block number: {:?}",
+                        next_block_num
+                    ))));
+                }
+            } else if retry_times > 0 {
+                retry_times -= 1;
+                sleep(Duration::from_secs(3)).await;
+
+                log::info!(
+                    "request next block info, retry times= {:?}, block number: {:?}",
+                    retry_times,
+                    next_block_num
+                );
+                continue;
+            } else {
+                return Err(ScalarError::Error(anyhow!(format!(
+                    "maximum number of requests next block info reached: {:?}, block number:{:?}",
+                    retry_times, next_block_num
+                ))));
+            }
+        };
+
+        // Parse last_block_num
+        if blob_tx.input.is_empty() {
+            log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", tx_hash);
+            return Err(ScalarError::Error(anyhow!(format!("commitBatch tx.input empty"))));
         }
-        let prev_beacon_root = next_block.parent_beacon_block_root.ok_or_else(|| {
-            ScalarError::Error(anyhow!(format!(
-                "next block has no parent beacon root, block number: {next_block_num:?}"
-            )))
-        })?;
+        let param = if let Ok(_param) = CommitBatchCall::decode(&blob_tx.input) {
+            _param
+        } else {
+            log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", tx_hash);
+            return Err(ScalarError::Error(anyhow!(format!("decode commitBatch tx.input error",))));
+        };
+        let last_block_num: u64 = param.batch_data_input.last_block_number;
 
         let indexes: Vec<u64> = indexed_hashes.iter().map(|item| item.index).collect();
         let sidecars_rt = self
@@ -940,14 +358,14 @@ impl ScalarUpdater {
         let sidecars: &Vec<Value> = sidecars_rt["data"].as_array().ok_or_else(|| {
             ScalarError::Error(anyhow!(format!(
                 "blob_sidecars is none, blk_num: {:?}, blk_root: {:?}",
-                source.block_number, prev_beacon_root
+                block_num, prev_beacon_root
             )))
         })?;
 
         if sidecars.is_empty() {
             return Err(ScalarError::Error(anyhow!(format!(
                 "blob_sidecars is empty, blk_num: {:?}, blk_root: {:?}",
-                source.block_number, prev_beacon_root
+                block_num, prev_beacon_root
             ))));
         }
 
@@ -959,11 +377,7 @@ impl ScalarUpdater {
         let origin_batch = extract_tx_payload(indexed_hashes, sidecars)?;
 
         let batch_size = origin_batch.len() as u64;
-        let txn_count = extract_txn_count(&origin_batch, last_block_num).ok_or_else(|| {
-            ScalarError::CalculateError(anyhow!(
-                "blob payload block range does not match canonical lastBlockNumber"
-            ))
-        })?;
+        let txn_count = extract_txn_count(&origin_batch, last_block_num).unwrap_or_default();
 
         Ok((batch_size, num_blobs, txn_count))
     }
@@ -974,142 +388,6 @@ mod tests {
 
     use super::*;
     use std::{env::var, str::FromStr, sync::Arc};
-
-    #[test]
-    fn v2_blob_commitment_preserves_order() {
-        let a = H256::from_low_u64_be(1);
-        let b = H256::from_low_u64_be(2);
-        assert_ne!(blob_commitment(2, &[a, b]).unwrap(), blob_commitment(2, &[b, a]).unwrap());
-        assert!(blob_commitment(2, &[]).is_err());
-        assert!(blob_commitment(1, &[a, b]).is_err());
-    }
-
-    #[test]
-    fn fresh_blob_survives_mapping_gc_but_not_a_nonzero_mismatch() {
-        let actual = H256::from_low_u64_be(7);
-        assert!(validate_fresh_blob_commitment(H256::zero(), actual).is_ok());
-        assert!(validate_fresh_blob_commitment(actual, actual).is_ok());
-        assert!(validate_fresh_blob_commitment(H256::from_low_u64_be(8), actual).is_err());
-    }
-
-    #[test]
-    fn mapping_gc_recovery_prefers_snapshot_then_canonical_block() {
-        let snapshot = H256::from_low_u64_be(1);
-        let historical = H256::from_low_u64_be(2);
-        assert_eq!(recover_gc_commitment(snapshot, historical), snapshot);
-        assert_eq!(recover_gc_commitment(H256::zero(), historical), historical);
-        assert_eq!(recover_gc_commitment(H256::zero(), H256::zero()), H256::zero());
-    }
-
-    #[test]
-    fn zero_blobless_classification_preserves_legacy_but_rejects_current_commit_batch() {
-        assert_eq!(
-            classify_blobless_submission(
-                0,
-                SubmissionKind::CommitBatch,
-                true,
-                ZERO_VERSIONED_HASH,
-            )
-            .unwrap(),
-            BloblessDisposition::ExcludeZero
-        );
-        assert_eq!(
-            classify_blobless_submission(
-                1,
-                SubmissionKind::CommitBatchWithProof,
-                false,
-                ZERO_VERSIONED_HASH,
-            )
-            .unwrap(),
-            BloblessDisposition::ExcludeZero
-        );
-        assert_eq!(
-            classify_blobless_submission(1, SubmissionKind::CommitState, false, H256::zero(),)
-                .unwrap(),
-            BloblessDisposition::ExcludeMissing
-        );
-        assert!(classify_blobless_submission(
-            1,
-            SubmissionKind::CommitBatch,
-            false,
-            ZERO_VERSIONED_HASH,
-        )
-        .is_err());
-    }
-
-    #[test]
-    fn blob_source_dedup_uses_full_stable_identity() {
-        let source = BlobSource {
-            transaction_hash: H256::from_low_u64_be(1),
-            block_number: 10.into(),
-            block_hash: H256::from_low_u64_be(10),
-            transaction_index: 0.into(),
-            blob_hashes: vec![H256::from_low_u64_be(11)],
-        };
-        let mut sources = HashSet::new();
-        assert!(sources.insert(source.clone()));
-        assert!(!sources.insert(source.clone()));
-
-        let mut orphan_replacement = source;
-        orphan_replacement.block_hash = H256::from_low_u64_be(12);
-        assert!(sources.insert(orphan_replacement));
-    }
-
-    #[test]
-    fn source_receipt_must_match_full_stable_identity() {
-        let source = BlobSource {
-            transaction_hash: H256::from_low_u64_be(1),
-            block_number: 10.into(),
-            block_hash: H256::from_low_u64_be(10),
-            transaction_index: 2.into(),
-            blob_hashes: vec![H256::from_low_u64_be(11)],
-        };
-        let mut receipt = TransactionReceipt {
-            transaction_hash: source.transaction_hash,
-            block_number: Some(source.block_number),
-            block_hash: Some(source.block_hash),
-            transaction_index: source.transaction_index,
-            ..Default::default()
-        };
-        assert!(receipt_matches_source(&receipt, &source));
-        receipt.block_hash = Some(H256::from_low_u64_be(12));
-        assert!(!receipt_matches_source(&receipt, &source));
-    }
-
-    #[test]
-    fn commit_window_indices_are_unique_and_bounded() {
-        let topic0 = H256::from_low_u64_be(1);
-        let make_log = |index: u64| Log {
-            topics: vec![topic0, H256::from_low_u64_be(index)],
-            ..Default::default()
-        };
-        let removed = Log { removed: Some(true), ..make_log(2) };
-        let indices = batch_indices_from_commit_logs(
-            &[make_log(1), make_log(1), removed, make_log(3), make_log(9)],
-            3,
-        );
-        assert_eq!(indices.into_iter().collect::<Vec<_>>(), vec![1, 3]);
-    }
-
-    #[test]
-    fn historical_commit_replay_is_indexed_once_by_batch() {
-        let make_log = |index: u64| Log {
-            topics: vec![H256::zero(), H256::from_low_u64_be(index)],
-            ..Default::default()
-        };
-        let removed = Log { removed: Some(true), ..make_log(2) };
-        let index = index_commit_logs(vec![make_log(1), make_log(1), make_log(2), removed]);
-        assert_eq!(index.get(&1).unwrap().len(), 2);
-        assert_eq!(index.get(&2).unwrap().len(), 1);
-    }
-
-    #[test]
-    fn changed_snapshot_hash_fails_closed() {
-        let expected = H256::from_low_u64_be(1);
-        assert!(ensure_snapshot_hash(expected, Some(expected)).is_ok());
-        assert!(ensure_snapshot_hash(expected, Some(H256::from_low_u64_be(2))).is_err());
-        assert!(ensure_snapshot_hash(expected, None).is_err());
-    }
 
     #[tokio::test]
     #[ignore]
@@ -1158,7 +436,6 @@ mod tests {
                 .expect("Cannot detect GAS_ORACLE_L1_BEACON_RPC env empty")
                 .parse()
                 .expect("Cannot parse GAS_ORACLE_L1_BEACON_RPC env var empty"),
-            1u64,
             gas_threshold,
             0u64,
             0u64,
@@ -1166,16 +443,8 @@ mod tests {
             50u64,
         );
 
-        let source_tx =
-            overhead.l1_provider.get_transaction(rollup_tx_hash).await.unwrap().unwrap();
-        let source = BlobSource {
-            transaction_hash: rollup_tx_hash,
-            block_number: rollup_tx_block_num,
-            block_hash: source_tx.block_hash.unwrap(),
-            transaction_index: source_tx.transaction_index.unwrap(),
-            blob_hashes: transaction_blob_hashes(&source_tx),
-        };
-        let latest_overhead = overhead.calculate_from_rollup(source, 0).await;
+        let latest_overhead =
+            overhead.calculate_from_rollup(rollup_tx_hash, rollup_tx_block_num).await;
 
         log::info!("latest_overhead: {:#?}", latest_overhead);
     }

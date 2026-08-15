@@ -5,15 +5,14 @@ on:
         branches:
             - main
         paths:
-            - "build/**"
             - "contracts/**"
-            - ".github/workflows/contracts.yml"
+            - ".github/workflows/contracts.yaml"
     pull_request:
         paths:
             - "build/**"
             - "contracts/**"
             - "ops/l2-genesis/**"
-            - ".github/workflows/contracts.yml"
+            - ".github/workflows/contracts.yaml"
 
 permissions:
     contents: read
@@ -27,21 +26,15 @@ jobs:
         if: github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v3
             - name: Install Node
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v3
               with:
                   node-version: 18.x
-            - name: Install Go
-              uses: actions/setup-go@v5
-              with:
-                  go-version: 1.24.x
             - name: Install Solhint
               run: npm install -g solhint
-            - name: Lint Solidity
+            - name: Lint
               run: make lint-sol
-            - name: Lint Go
-              run: make lint-go
 
     test:
         runs-on: ubuntu-latest
@@ -49,9 +42,9 @@ jobs:
             FORCE_COLOR: 1
             GAS: true
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v3
             - name: Install Node
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v3
               with:
                   node-version: 18.x
             - name: Install Go

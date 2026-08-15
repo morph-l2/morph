@@ -9,11 +9,13 @@ import fs from "fs"
 import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/task-names";
 import { subtask } from "hardhat/config";
 
+
 import "./tasks/deploy"
 import "./tasks/overflow_test"
 import "./tasks/check"
 import "./tasks/query"
 import "./tasks/proxy_upgrade"
+import "./tasks/staking_upgrade"
 import "./tasks/verifier_upgrade"
 import "./tasks/token_deploy"
 import "./tasks/mainnet_upgrade"
@@ -49,9 +51,7 @@ module.exports = {
     abiExporter: {
         path: './abi',
         runOnCompile: true,
-        // The immutable pre-submitter and legacy retirement ABIs live under abi/archive.
-        // Never let a routine current-ABI export erase those cutover artifacts.
-        clear: false,
+        clear: true,
     },
     bytecodeExporter: {
         path: './data',

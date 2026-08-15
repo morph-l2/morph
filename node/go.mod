@@ -12,7 +12,6 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/hashicorp/raft v1.7.3
 	github.com/hashicorp/raft-boltdb/v2 v2.3.1
-	github.com/holiman/uint256 v1.2.4
 	github.com/mdlayher/vsock v1.2.1
 	github.com/morph-l2/go-ethereum v1.10.14-0.20260810084402-5a13ad4d76fe
 	github.com/pkg/errors v0.9.1
@@ -74,6 +73,7 @@ require (
 	github.com/hashicorp/go-uuid v1.0.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
+	github.com/holiman/uint256 v1.2.4 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/iden3/go-iden3-crypto v0.0.16 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

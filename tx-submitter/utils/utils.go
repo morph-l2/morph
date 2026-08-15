@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math/big"
+	"reflect"
 	"regexp"
 	"strconv"
 	"time"
@@ -19,70 +19,6 @@ import (
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/log"
 )
-
-var ErrNotOwnedCommit = errors.New("calldata is not an owned current commitBatch")
-
-// ParseOwnedCommit accepts only the current, post-cutover commitBatch selector.
-// Historical commitBatch, commitState, commitBatchWithProof, and unknown
-// calldata must never be imported into the official writer's pending state.
-func ParseOwnedCommit(data []byte, current *abi.ABI) (methodName string, input *bindings.IRollupBatchDataInput, err error) {
-	if current == nil || len(data) < 4 {
-		return "", nil, ErrNotOwnedCommit
-	}
-	method, ok := current.Methods["commitBatch"]
-	if !ok || !bytes.Equal(data[:4], method.ID) {
-		return "", nil, ErrNotOwnedCommit
-	}
-	values, err := method.Inputs.Unpack(data[4:])
-	if err != nil || len(values) != 1 {
-		if err == nil {
-			err = errors.New("unexpected commitBatch argument count")
-		}
-		return "", nil, fmt.Errorf("decode owned commitBatch: %w", err)
-	}
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			methodName = ""
-			input = nil
-			err = fmt.Errorf("decode owned commitBatch tuple: %v", recovered)
-		}
-	}()
-	converted := abi.ConvertType(values[0], new(bindings.IRollupBatchDataInput))
-	input, ok = converted.(*bindings.IRollupBatchDataInput)
-	if !ok || input == nil {
-		return "", nil, errors.New("decode owned commitBatch: invalid batch tuple")
-	}
-	return method.Name, input, nil
-}
-
-func ParseOwnedCommitBatchIndex(data []byte, current *abi.ABI) (uint64, error) {
-	_, input, err := ParseOwnedCommit(data, current)
-	if err != nil {
-		return 0, err
-	}
-	if len(input.ParentBatchHeader) < 9 {
-		return 0, errors.New("owned commitBatch parent header is too short")
-	}
-	parentIndex := binary.BigEndian.Uint64(input.ParentBatchHeader[1:9])
-	if parentIndex == ^uint64(0) {
-		return 0, errors.New("owned commitBatch parent index overflows")
-	}
-	return parentIndex + 1, nil
-}
-
-// ParseParentBatchIndex is retained for non-authoritative diagnostics. It is
-// strict: only the current commitBatch selector is accepted.
-func ParseParentBatchIndex(data []byte) uint64 {
-	current, err := bindings.RollupMetaData.GetAbi()
-	if err != nil {
-		return 0
-	}
-	batchIndex, err := ParseOwnedCommitBatchIndex(data, current)
-	if err != nil || batchIndex == 0 {
-		return 0
-	}
-	return batchIndex - 1
-}
 
 // Loop Run the f func periodically.
 func Loop(ctx context.Context, period time.Duration, f func()) {
@@ -125,6 +61,50 @@ func ParseFBatchIndex(calldata []byte) uint64 {
 
 	// 1-9 is batch index
 	return binary.BigEndian.Uint64(batchBytes[1:9])
+}
+
+func ParseParentBatchIndex(calldata []byte) uint64 {
+	///   * Field                   Bytes       Type        Index   Comments
+	///   * version                 1           uint8       0       The batch version
+	///   * batchIndex              8           uint64      1       The index of the batch
+	///   * l1MessagePopped         8           uint64      9       Number of L1 messages popped in the batch
+
+	if len(calldata) < 4 {
+		return 0
+	}
+	rollupAbi, err := bindings.RollupMetaData.GetAbi()
+	if err != nil {
+		return 0
+	}
+	sel := calldata[:4]
+	var method abi.Method
+	var ok bool
+	if bytes.Equal(sel, rollupAbi.Methods["commitState"].ID) {
+		method, ok = rollupAbi.Methods["commitState"]
+	} else if bytes.Equal(sel, rollupAbi.Methods["commitBatch"].ID) {
+		method, ok = rollupAbi.Methods["commitBatch"]
+	} else {
+		// Unknown selector: keep legacy behavior (unpack as commitBatch). Matches older fixtures and
+		// any tx whose first tuple matches BatchDataInput layout even if the selector differs.
+		method, ok = rollupAbi.Methods["commitBatch"]
+	}
+	if !ok {
+		return 0
+	}
+	parms, err := method.Inputs.UnpackValues(calldata[4:])
+	if err != nil || len(parms) == 0 {
+		return 0
+	}
+	v := reflect.ValueOf(parms[0])
+	pbh := v.FieldByName("ParentBatchHeader")
+	if !pbh.IsValid() {
+		return 0
+	}
+	b := pbh.Bytes()
+	if len(b) < 9 {
+		return 0
+	}
+	return binary.BigEndian.Uint64(b[1:9])
 }
 
 // SetFBatchIndex sets the batch index in the calldata while preserving all other data
@@ -172,14 +152,18 @@ func ParseBusinessInfo(tx *types.Transaction, a *abi.ABI) []interface{} {
 	// var batchIndex uint64
 	// var finalizedIndex uint64
 	var res []interface{}
-	if len(tx.Data()) >= 4 {
+	if len(tx.Data()) > 0 {
 		id := tx.Data()[:4]
 		if bytes.Equal(id, a.Methods["commitBatch"].ID) {
 			method := "commitBatch"
-			batchIndex, err := ParseOwnedCommitBatchIndex(tx.Data(), a)
-			if err != nil {
-				return []interface{}{}
-			}
+			batchIndex := ParseParentBatchIndex(tx.Data()) + 1
+			res = append(res,
+				"method", method,
+				"batchIndex", batchIndex,
+			)
+		} else if bytes.Equal(id, a.Methods["commitState"].ID) {
+			method := "commitState"
+			batchIndex := ParseParentBatchIndex(tx.Data()) + 1
 			res = append(res,
 				"method", method,
 				"batchIndex", batchIndex,
@@ -211,6 +195,8 @@ func ParseMethod(tx *types.Transaction, a *abi.ABI) string {
 	id := tx.Data()[:4]
 	if bytes.Equal(id, a.Methods["commitBatch"].ID) {
 		return "commitBatch"
+	} else if bytes.Equal(id, a.Methods["commitState"].ID) {
+		return "commitState"
 	} else if bytes.Equal(id, a.Methods["finalizeBatch"].ID) {
 		return "finalizeBatch"
 	} else {

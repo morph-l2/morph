@@ -1,17 +1,15 @@
-use crate::{metrics::METRICS, BatchInfo};
+use crate::{metrics::METRICS, BatchInfo, SHADOW_PROVING_BLOCKS_RANGE};
 use alloy_consensus::Transaction;
 use alloy_network::{Network, ReceiptResponse};
-use alloy_primitives::{hex, Address, Bytes, Keccak256, TxHash, B256, U256};
+use alloy_primitives::{hex, Address, Bytes, Keccak256, TxHash, B256, U256, U64};
 use alloy_provider::{DynProvider, Provider};
-use alloy_rpc_types::{BlockId, BlockNumberOrTag};
+use alloy_rpc_types::Log;
+use alloy_sol_types::SolCall;
 
 use anyhow::{anyhow, Context, Result};
 use futures::future::join_all;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 use crate::{
-    rollup_compat::{decode_batch_data_input, BatchDataInput, CanonicalCommit, CanonicalLogIndex},
     Rollup::{self, RollupInstance},
     ShadowRollup::{self, ShadowRollupInstance},
 };
@@ -22,7 +20,6 @@ pub struct BatchSyncer<P, N> {
     l2_provider: DynProvider,
     l1_rollup: RollupInstance<DynProvider>,
     l1_shadow_rollup: ShadowRollupInstance<P, N>,
-    canonical_log_index: Arc<Mutex<CanonicalLogIndex>>,
 }
 
 impl<P, N> BatchSyncer<P, N>
@@ -30,132 +27,264 @@ where
     P: Provider<N> + Clone,
     N: Network,
 {
-    async fn finalized_snapshot(&self) -> Result<(u64, B256)> {
-        let block = self
-            .l1_provider
-            .get_block_by_number(BlockNumberOrTag::Finalized)
-            .await?
-            .ok_or_else(|| anyhow!("finalized L1 block is unavailable"))?;
-        Ok((block.header.number, block.header.hash))
-    }
-
-    async fn assert_snapshot(&self, number: u64, expected_hash: B256) -> Result<()> {
-        let block = self
-            .l1_provider
-            .get_block_by_number(BlockNumberOrTag::Number(number))
-            .await?
-            .ok_or_else(|| anyhow!("snapshot L1 block {number} is unavailable"))?;
-        if block.header.hash != expected_hash {
-            return Err(anyhow!(
-                "finalized L1 snapshot changed: number={number}, expected={expected_hash:?}, actual={:?}",
-                block.header.hash
-            ));
-        }
-        Ok(())
-    }
-
     pub fn new(
         rollup_address: Address,
         shadow_rollup_address: Address,
         l1_provider: DynProvider,
         l2_provider: DynProvider,
         wallet: P,
-        rollup_deployed_block: u64,
     ) -> Self {
         let l1_rollup = Rollup::RollupInstance::new(rollup_address, l1_provider.clone());
         let l1_shadow_rollup = ShadowRollup::new(shadow_rollup_address, wallet);
-        let canonical_log_index = Arc::new(Mutex::new(
-            CanonicalLogIndex::new(rollup_deployed_block)
-                .expect("SHADOW_PROVING_L1_ROLLUP_DEPLOY_BLOCK must be non-zero"),
-        ));
 
-        Self { l1_provider, l2_provider, l1_rollup, l1_shadow_rollup, canonical_log_index }
+        Self { l1_provider, l2_provider, l1_rollup, l1_shadow_rollup }
     }
 
     // Fetch the latest committed batch from l1-rollup if the batch_index has increased.
     pub async fn get_latest_batch(&self, batch_index: u64) -> Result<Option<(BatchInfo, Bytes)>> {
-        let (snapshot, snapshot_hash) = self.finalized_snapshot().await?;
-        let last_committed_batch_index = self
-            .l1_rollup
-            .lastCommittedBatchIndex()
-            .block(BlockId::Number(BlockNumberOrTag::Number(snapshot)))
-            .call()
-            .await?
-            .to::<u64>();
-        self.assert_snapshot(snapshot, snapshot_hash).await?;
-        if last_committed_batch_index <= batch_index.saturating_add(1) {
+        let last_committed_batch_index = self.l1_rollup.lastCommittedBatchIndex().call().await?;
+        if last_committed_batch_index <= batch_index + 1 {
             log::info!(
                 "The current batch_index has not increased, latest_batch_index: {last_committed_batch_index:?}"
             );
             return Ok(None);
         }
-        if last_committed_batch_index <= 2 {
-            return Ok(None);
-        }
-        self.get_specified_batch_at(last_committed_batch_index - 1, snapshot, snapshot_hash).await
+        self.get_committed_batch().await
     }
 
     // Fetch the latest committed batch from l1-rollup.
     pub async fn get_committed_batch(&self) -> Result<Option<(BatchInfo, Bytes)>> {
-        let (snapshot, snapshot_hash) = self.finalized_snapshot().await?;
-        let last_committed = self
+        let latest = match self.l1_provider.get_block_number().await {
+            Ok(v) => U64::from(v),
+            Err(e) => {
+                log::error!("l1_provider.get_block_number error: {:?}", e);
+                return Err(anyhow!("l1_provider.get_block_number error"));
+            }
+        };
+
+        log::info!("latest l1 blocknum = {:#?}", latest);
+        let start = if latest > U64::from(*SHADOW_PROVING_BLOCKS_RANGE) {
+            latest - U64::from(*SHADOW_PROVING_BLOCKS_RANGE)
+        } else {
+            U64::from(1)
+        };
+        let filter = self
             .l1_rollup
-            .lastCommittedBatchIndex()
-            .block(BlockId::Number(BlockNumberOrTag::Number(snapshot)))
-            .call()
-            .await?;
-        self.assert_snapshot(snapshot, snapshot_hash).await?;
-        let last_committed = last_committed.to::<u64>();
-        if last_committed <= 2 {
+            .CommitBatch_filter()
+            .filter
+            .from_block(start)
+            .address(*self.l1_rollup.address());
+        let mut logs: Vec<Log> = match self.l1_provider.get_logs(&filter).await {
+            Ok(logs) => logs,
+            Err(e) => {
+                log::error!("l1_rollup.commit_batch.get_logs error: {:#?}", e);
+                return Err(anyhow!("l1_rollup.commit_batch.get_logs provider error"));
+            }
+        };
+        if logs.is_empty() {
+            log::warn!("There have been no commit_batch logs for the last 600 blocks");
             return Ok(None);
         }
+        if logs.len() < 3 {
+            log::warn!("No enough commit_batch logs for the last 600 blocks");
+            return Ok(None);
+        }
+        logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
 
-        // The next canonical commit carries the target batch header as its
-        // parentBatchHeader, so prove the newest batch that has a canonical
-        // successor rather than relying on three adjacent logs.
-        self.get_specified_batch_at(last_committed - 1, snapshot, snapshot_hash).await
+        let batch_index_hash = match logs.get(logs.len() - 2) {
+            Some(log) => {
+                let _index = U256::from_be_slice(log.topics()[1].as_slice());
+                (_index.to::<u64>(), log.transaction_hash.unwrap_or_default())
+            }
+            None => {
+                return Err(anyhow!("find commit_batch log error"));
+            }
+        };
+
+        if batch_index_hash.0 == 0 {
+            return Err(anyhow!("batch_index is 0"));
+        }
+
+        let prev_tx_hash = match logs.get(logs.len() - 3) {
+            Some(log) => log.transaction_hash.unwrap_or_default(),
+            None => {
+                return Err(anyhow!("find commit_batch log error"));
+            }
+        };
+
+        let (blocks, total_txn_count) =
+            match self.batch_blocks_inspect(prev_tx_hash, batch_index_hash.1).await {
+                Some(block_txn) => block_txn,
+                None => return Err(anyhow!("batch_blocks_inspect none")),
+            };
+
+        if blocks.0 >= blocks.1 {
+            return Err(anyhow!("blocks is empty"));
+        }
+
+        let batch_info: BatchInfo = BatchInfo {
+            batch_index: batch_index_hash.0,
+            start_block: blocks.0,
+            end_block: blocks.1,
+            total_txn: total_txn_count,
+        };
+
+        // A rollup commit_batch_input contains prev batch_header.
+        let next_tx_hash = match logs.last() {
+            Some(log) => log.transaction_hash.unwrap_or_default(),
+
+            None => {
+                return Err(anyhow!("find commit_batch log error"));
+            }
+        };
+        let batch_input = batch_input_inspect(&self.l1_provider, next_tx_hash)
+            .await
+            .ok_or_else(|| anyhow!("Failed to inspect batch header"))?;
+
+        log::info!("Found the committed batch, batch index = {:#?}", batch_index_hash.0);
+        Ok(Some((batch_info, batch_input.0)))
     }
 
     /// Fetch a specified batch from l1-rollup by batch_num.
     pub async fn get_specified_batch(&self, batch_num: u64) -> Result<Option<(BatchInfo, Bytes)>> {
-        let (snapshot, snapshot_hash) = self.finalized_snapshot().await?;
-        self.get_specified_batch_at(batch_num, snapshot, snapshot_hash).await
-    }
+        use std::collections::{HashMap, HashSet};
 
-    async fn get_specified_batch_at(
-        &self,
-        batch_num: u64,
-        snapshot: u64,
-        snapshot_hash: B256,
-    ) -> Result<Option<(BatchInfo, Bytes)>> {
-        if batch_num <= 1 {
+        if batch_num == 0 {
+            return Err(anyhow!("batch_num is 0"));
+        }
+        if batch_num == 1 {
             // We need prev(batch_num-1) to infer start_block, and next(batch_num+1) to retrieve the
             // specified batch header (via parentBatchHeader).
-            return Err(anyhow!("batch_num must be greater than 1"));
+            return Err(anyhow!("batch_num is 1, cannot infer prev batch"));
         }
 
-        self.assert_snapshot(snapshot, snapshot_hash).await?;
-        let mut canonical_log_index = self.canonical_log_index.lock().await;
-        canonical_log_index
-            .refresh(&self.l1_provider, &self.l1_rollup, snapshot, snapshot_hash)
-            .await?;
-        let prev = canonical_log_index
-            .resolve(&self.l1_rollup, batch_num - 1, snapshot, snapshot_hash)
-            .await?;
-        let current = canonical_log_index
-            .resolve(&self.l1_rollup, batch_num, snapshot, snapshot_hash)
-            .await?;
-        let next = canonical_log_index
-            .resolve(&self.l1_rollup, batch_num + 1, snapshot, snapshot_hash)
-            .await?;
-        drop(canonical_log_index);
-        self.assert_snapshot(snapshot, snapshot_hash).await?;
-        let (Some(prev), Some(current), Some(next)) = (prev, current, next) else {
+        let last_committed_batch_index = self.l1_rollup.lastCommittedBatchIndex().call().await?;
+        if last_committed_batch_index <= batch_num {
+            log::info!(
+                "last committed batch index {:#?} is less than or equal to the specified batch_num {:#?}",
+                last_committed_batch_index,
+                batch_num
+            );
             return Ok(None);
+        }
+
+        let latest = match self.l1_provider.get_block_number().await {
+            Ok(v) => U64::from(v),
+            Err(e) => {
+                log::error!("l1_provider.get_block_number error: {:?}", e);
+                return Err(anyhow!("l1_provider.get_block_number error"));
+            }
         };
 
-        let ((blocks, total_txn_count), current_input) =
-            self.batch_blocks_inspect(&prev, &current).await?;
+        log::info!("latest l1 blocknum = {:#?}", latest);
+
+        // Goal: collect (batch_index, tx_hash) for the specified batch and its immediate neighbors.
+        // - prev: batch_num - 1 (used to infer start_block)
+        // - curr: batch_num     (used to infer end_block)
+        // - next: batch_num + 1 (commitBatch calldata contains parentBatchHeader == curr header)
+        let targets: HashSet<u64> = [batch_num - 1, batch_num, batch_num + 1].into_iter().collect();
+        let mut found: HashMap<u64, TxHash> = HashMap::with_capacity(3);
+
+        let blocks_window = 600u64;
+        let mut distance_count = 1u64;
+        loop {
+            if distance_count > 100 {
+                return Err(anyhow!(
+                    "Exceeded max distance count when searching commit_batch logs"
+                ));
+            }
+            // Scan backward from `latest` in fixed-size windows until all 3 targets are found.
+            // Note: alloy filter block numbers are U64; avoid underflow.
+            let to_block = latest.saturating_sub(U64::from(blocks_window * (distance_count - 1)));
+            let mut from_block = latest.saturating_sub(U64::from(blocks_window * distance_count));
+            if from_block < U64::from(1) {
+                from_block = U64::from(1);
+            }
+
+            let filter = self
+                .l1_rollup
+                .CommitBatch_filter()
+                .filter
+                .from_block(from_block)
+                .to_block(to_block)
+                .address(*self.l1_rollup.address());
+
+            let mut logs: Vec<Log> = match self.l1_provider.get_logs(&filter).await {
+                Ok(logs) => logs,
+                Err(e) => {
+                    log::error!("l1_rollup.commit_batch.get_logs error: {:#?}", e);
+                    return Err(anyhow!("l1_rollup.commit_batch.get_logs provider error"));
+                }
+            };
+            if logs.is_empty() {
+                log::warn!(
+                    "There have been no commit_batch logs for the this {} blocks window (from={:?}, to={:?})",
+                    blocks_window,
+                    from_block,
+                    to_block
+                );
+            }
+
+            logs.sort_by(|a, b| {
+                a.block_number.unwrap_or_default().cmp(&b.block_number.unwrap_or_default())
+            });
+
+            for log in logs.iter() {
+                if found.len() == targets.len() {
+                    break;
+                }
+                if log.topics().len() < 2 {
+                    continue;
+                }
+                let index_u256 = U256::from_be_slice(log.topics()[1].as_slice());
+                let idx = index_u256.to::<u64>();
+                if !targets.contains(&idx) {
+                    continue;
+                }
+                // A given batch_index should appear only once; if duplicated events exist, keep the
+                // first-seen tx_hash.
+                found.entry(idx).or_insert(log.transaction_hash.unwrap_or_default());
+            }
+
+            if found.len() == targets.len() {
+                break;
+            }
+
+            // Reached the chain head (block 1) and still not enough logs found.
+            if from_block == U64::from(1) {
+                log::warn!(
+                    "Cannot find enough commit_batch logs for batch_num={} (found={:?})",
+                    batch_num,
+                    found.keys().collect::<Vec<_>>()
+                );
+                return Ok(None);
+            }
+
+            distance_count += 1;
+        }
+
+        // Assemble the triplet in order: prev, curr, next.
+        let mut batch_index_hash: Vec<(u64, TxHash)> = Vec::with_capacity(3);
+        for idx in [batch_num - 1, batch_num, batch_num + 1] {
+            let tx = *found.get(&idx).unwrap_or(&TxHash::ZERO);
+            if tx == TxHash::ZERO {
+                return Ok(None);
+            }
+            batch_index_hash.push((idx, tx));
+        }
+
+        let prev_tx_hash = batch_index_hash[0].1;
+        let curr_tx_hash = batch_index_hash[1].1;
+        let next_tx_hash = batch_index_hash[2].1;
+
+        let (blocks, total_txn_count) =
+            match self.batch_blocks_inspect(prev_tx_hash, curr_tx_hash).await {
+                Some(block_txn) => block_txn,
+                None => return Err(anyhow!("batch_blocks_inspect none")),
+            };
+        if blocks.0 >= blocks.1 {
+            return Err(anyhow!("blocks is empty"));
+        }
 
         let batch_info: BatchInfo = BatchInfo {
             batch_index: batch_num,
@@ -165,34 +294,12 @@ where
         };
 
         // next(batch_num+1) commitBatch calldata contains curr(batch_num) parentBatchHeader.
-        let next_input =
-            canonical_batch_input_inspect(&self.l1_provider, &next, *self.l1_rollup.address())
-                .await?;
-        let batch_header = next_input.parent_batch_header;
-        validate_canonical_header(
-            batch_header.as_ref(),
-            batch_num,
-            prev.batch_hash,
-            &current_input,
-        )?;
-        let mut hasher = Keccak256::new();
-        hasher.update(batch_header.as_ref());
-        let header_hash = hasher.finalize();
-        if header_hash != current.batch_hash {
-            return Err(anyhow!(
-                "canonical batch header hash mismatch: event={:?}, calldata={:?}",
-                current.batch_hash,
-                header_hash
-            ));
-        }
-        self.assert_snapshot(snapshot, snapshot_hash).await?;
+        let batch_input = batch_input_inspect(&self.l1_provider, next_tx_hash)
+            .await
+            .ok_or_else(|| anyhow!("Failed to inspect batch header"))?;
 
-        log::info!(
-            "Found canonical specified batch: batch_index={}, commit_identity={:?}",
-            batch_num,
-            current.identity
-        );
-        Ok(Some((batch_info, batch_header)))
+        log::info!("Found the specified batch (prev/curr/next): {:?}", batch_index_hash);
+        Ok(Some((batch_info, batch_input.0)))
     }
 
     /**
@@ -283,30 +390,18 @@ where
     // Inspect blocks range and total txn count in a batch.
     async fn batch_blocks_inspect(
         &self,
-        prev: &CanonicalCommit,
-        current: &CanonicalCommit,
-    ) -> Result<(((u64, u64), u64), BatchDataInput)> {
-        let rollup_address = *self.l1_rollup.address();
-        let prev_batch_input =
-            canonical_batch_input_inspect(&self.l1_provider, prev, rollup_address).await?;
+        prev_batch_hash: TxHash,
+        current_batch_hash: TxHash,
+    ) -> Option<((u64, u64), u64)> {
+        let prev_batch_input = batch_input_inspect(&self.l1_provider, prev_batch_hash).await?;
         let current_batch_input =
-            canonical_batch_input_inspect(&self.l1_provider, current, rollup_address).await?;
-        let start_block = prev_batch_input
-            .last_block_number
-            .checked_add(1)
-            .ok_or_else(|| anyhow!("previous batch last block overflows"))?;
-        let end_block = current_batch_input.last_block_number;
+            batch_input_inspect(&self.l1_provider, current_batch_hash).await?;
+        let start_block = prev_batch_input.1 + 1;
+        let end_block = current_batch_input.1;
 
         if start_block == 0 {
-            return Err(anyhow!(
-                "batch_blocks_inspect: start_block = 0, tx_hash = {:?}",
-                prev.transaction_hash
-            ));
-        }
-        if start_block > end_block {
-            return Err(anyhow!(
-                "batch_blocks_inspect: invalid block range {start_block}..={end_block}"
-            ));
+            log::error!("batch_blocks_inspect: start_block = 0, tx_hash =  {:#?}", prev_batch_hash);
+            return None;
         }
 
         let mut total_tx_count: u64 = 0;
@@ -321,9 +416,7 @@ where
             }
             let results = join_all(tasks).await;
             for res in results {
-                total_tx_count += res
-                    .context("query L2 block transaction count")?
-                    .ok_or_else(|| anyhow!("L2 block transaction count is unavailable"))?;
+                total_tx_count += res.unwrap_or_default().unwrap_or_default();
             }
         }
 
@@ -336,7 +429,7 @@ where
 
         METRICS.shadow_txn_len.set(total_tx_count as i64);
 
-        Ok((((start_block, end_block), total_tx_count), current_batch_input))
+        Some(((start_block, end_block), total_tx_count))
     }
 
     // Check whether a batch has been proved successfully.
@@ -416,129 +509,17 @@ pub async fn batch_input_inspect(l1_provider: &DynProvider, hash: TxHash) -> Opt
         log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", hash);
         return None;
     }
-    let param = match decode_batch_data_input(data) {
-        Ok(param) => param,
-        Err(err) => {
-            log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", hash);
-            log::debug!("batch inspect decode error: {err:#}");
-            return None;
-        }
+    let param = if let Ok(_param) = Rollup::commitBatchCall::abi_decode(data) {
+        _param
+    } else {
+        log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", hash);
+        return None;
     };
-    let parent_batch_header = param.parent_batch_header;
-    let last_block_number = param.last_block_number;
+    let parent_batch_header: Bytes = param.batchDataInput.parentBatchHeader;
+    let last_block_number: u64 = param.batchDataInput.lastBlockNumber;
     Some((parent_batch_header, last_block_number))
 }
-
-async fn canonical_batch_input_inspect(
-    l1_provider: &DynProvider,
-    commit: &CanonicalCommit,
-    rollup_address: Address,
-) -> Result<BatchDataInput> {
-    let tx = l1_provider
-        .get_transaction_by_hash(commit.transaction_hash)
-        .await?
-        .ok_or_else(|| anyhow!("canonical commit transaction is unavailable"))?;
-    if tx.to() != Some(rollup_address) ||
-        tx.block_number != Some(commit.identity.block_number) ||
-        tx.transaction_index != Some(commit.identity.transaction_index) ||
-        tx.block_hash != Some(commit.block_hash)
-    {
-        return Err(anyhow!(
-            "canonical commit transaction identity mismatch: expected={:?}, tx_block={:?}, tx_index={:?}, tx_block_hash={:?}",
-            commit.identity,
-            tx.block_number,
-            tx.transaction_index,
-            tx.block_hash
-        ));
-    }
-    decode_batch_data_input(tx.input())
-}
-
-fn validate_canonical_header(
-    header: &[u8],
-    expected_batch_index: u64,
-    expected_parent_hash: B256,
-    input: &BatchDataInput,
-) -> Result<()> {
-    let minimum_len = if input.version == 0 { 249 } else { 257 };
-    if header.len() < minimum_len {
-        return Err(anyhow!(
-            "canonical batch header is too short: version={}, len={}",
-            input.version,
-            header.len()
-        ));
-    }
-    if header[0] != input.version {
-        return Err(anyhow!("canonical batch header version mismatch"));
-    }
-    if u64::from_be_bytes(header[1..9].try_into().unwrap()) != expected_batch_index {
-        return Err(anyhow!("canonical batch header index mismatch"));
-    }
-    if header[89..121] != input.prev_state_root ||
-        header[121..153] != input.post_state_root ||
-        header[153..185] != input.withdrawal_root
-    {
-        return Err(anyhow!("canonical batch header root mismatch"));
-    }
-    if header[217..249] != expected_parent_hash[..] {
-        return Err(anyhow!("canonical batch header parent hash mismatch"));
-    }
-    if input.version > 0 &&
-        u64::from_be_bytes(header[249..257].try_into().unwrap()) != input.last_block_number
-    {
-        return Err(anyhow!("canonical batch header last block mismatch"));
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-mod canonical_header_tests {
-    use super::*;
-    use crate::rollup_compat::SubmissionKind;
-
-    fn fixture() -> (Vec<u8>, BatchDataInput, B256) {
-        let parent_hash = B256::repeat_byte(0x44);
-        let input = BatchDataInput {
-            version: 2,
-            parent_batch_header: Bytes::new(),
-            last_block_number: 123,
-            num_l1_messages: 0,
-            prev_state_root: [0x11; 32],
-            post_state_root: [0x22; 32],
-            withdrawal_root: [0x33; 32],
-            kind: SubmissionKind::CommitBatch,
-            pre_submitter: false,
-        };
-        let mut header = vec![0u8; 257];
-        header[0] = input.version;
-        header[1..9].copy_from_slice(&7u64.to_be_bytes());
-        header[89..121].copy_from_slice(&input.prev_state_root);
-        header[121..153].copy_from_slice(&input.post_state_root);
-        header[153..185].copy_from_slice(&input.withdrawal_root);
-        header[217..249].copy_from_slice(parent_hash.as_slice());
-        header[249..257].copy_from_slice(&input.last_block_number.to_be_bytes());
-        (header, input, parent_hash)
-    }
-
-    #[test]
-    fn canonical_header_matches_calldata_roots_parent_and_range() {
-        let (header, input, parent_hash) = fixture();
-        validate_canonical_header(&header, 7, parent_hash, &input).unwrap();
-    }
-
-    #[test]
-    fn canonical_header_mismatch_fails_closed() {
-        let (mut header, input, parent_hash) = fixture();
-        header[121] ^= 1;
-        assert!(validate_canonical_header(&header, 7, parent_hash, &input).is_err());
-
-        let (mut header, input, parent_hash) = fixture();
-        header[256] ^= 1;
-        assert!(validate_canonical_header(&header, 7, parent_hash, &input).is_err());
-    }
-}
 #[tokio::test]
-#[ignore = "requires configured L1/L2 RPCs and a funded signer"]
 async fn test_sync_batch() {
     use alloy_network::EthereumWallet;
     use alloy_primitives::Address;
@@ -565,10 +546,6 @@ async fn test_sync_batch() {
     let rollup = var("SHADOW_PROVING_L1_ROLLUP").expect("Cannot detect L1_ROLLUP env var");
     let shadow_rollup =
         var("SHADOW_PROVING_L1_SHADOW_ROLLUP").expect("Cannot detect L1_SHADOW_ROLLUP env var");
-    let rollup_deployed_block = var("SHADOW_PROVING_L1_ROLLUP_DEPLOY_BLOCK")
-        .unwrap_or_else(|_| "1".to_string())
-        .parse()
-        .unwrap();
 
     let l1_signer = ProviderBuilder::new().wallet(wallet).connect_http(l1_rpc.parse().unwrap());
 
@@ -578,14 +555,12 @@ async fn test_sync_batch() {
         l1_provider,
         l2_provider,
         l1_signer,
-        rollup_deployed_block,
     );
     let batch = bs.get_committed_batch().await.unwrap().unwrap();
     bs.sync_batch(batch.0, batch.1).await.unwrap();
 }
 
 #[tokio::test]
-#[ignore = "requires an authenticated historical L1 RPC fixture"]
 async fn test_inspect_batch_header() {
     use alloy_primitives::B256;
     use alloy_provider::ProviderBuilder;

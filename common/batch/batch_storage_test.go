@@ -233,7 +233,7 @@ func TestSealBatchPropagatesStoreErrorAndKeepsState(t *testing.T) {
 	originalBatchData := bc.batchData
 	originalParent := bc.parentBatchHeader
 
-	_, _, _, err := bc.SealBatch(1, nil)
+	_, _, _, err := bc.SealBatch([]byte{1}, 1, nil)
 	require.ErrorIs(t, err, errWriteBatchUnavailable)
 	require.Empty(t, bc.sealedBatches)
 	require.Empty(t, bc.sealedBatchHeaders)

@@ -18,14 +18,14 @@ const config = {
     rollupProofWindow: 100,
     rollupGenesisBlockNumber: 0,
     proofRewardPercent: 70,
-    batchSubmitterAddresses: ['0xE70a4102e4caA3d9B8968FFb142E6A2ceFd22Ec3'],
+    rollupProposer: '0xE70a4102e4caA3d9B8968FFb142E6A2ceFd22Ec3',
     rollupChallenger: '0xF730477971E88b3162ed7FD950Be63474975bdC3',
     rollupGenesisStateRoot: '',
     finalizationPeriodSeconds: 2,
 
-    submitterMinimumStake: 1,
-    submitterChallengeDeposit: 1,
-    submitterRewardPercentage: 100,
+    stakingMinDeposit: 1,
+    stakingSequencerSize: 3,
+    stakingLockNumber: 3,
     /**
      *  Only used for SystemConfig
      *  --------from--------

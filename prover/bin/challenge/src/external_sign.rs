@@ -97,6 +97,7 @@ impl ExternalSign {
             return Err("ext_sign response sign data invalid".into());
         }
 
+
         let sig = hex::decode(&response.result.sign_datas[0].sign[2..])?;
         let signed_tx: Bytes = tx.rlp_signed(&Signature::try_from(sig.as_slice())?);
         Ok(signed_tx)
@@ -140,7 +141,7 @@ impl ExternalSign {
         log::debug!("===payload: {:?}", serde_json::to_string(payload).unwrap());
         let response: reqwest::Response = self.client.post(url).json(&payload).send().await?;
         log::info!("===do_request response: {:?}", response);
-
+        
         let status = response.status();
         if !status.is_success() {
             let text = response.text().await?;

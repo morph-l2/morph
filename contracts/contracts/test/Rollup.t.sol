@@ -2,70 +2,11 @@
 pragma solidity =0.8.24;
 
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
+import {Types} from "../libraries/common/Types.sol";
 import {IRollup} from "../l1/rollup/IRollup.sol";
-import {ISubmitter} from "../l1/rollup/ISubmitter.sol";
+import {IL1Staking} from "../l1/staking/IL1Staking.sol";
 import {BatchHeaderCodecV0} from "../libraries/codec/BatchHeaderCodecV0.sol";
 import {BatchHeaderCodecV1} from "../libraries/codec/BatchHeaderCodecV1.sol";
-
-contract SubmitterCandidateMock {
-    enum ReturnMode {
-        Normal,
-        RevertCall,
-        Short,
-        Long,
-        BadAddressEncoding
-    }
-
-    address public declaredRollup;
-    uint256 public deposit;
-    uint256 public zeroAddressActive;
-    ReturnMode public returnMode;
-
-    constructor(address rollup_, uint256 deposit_, uint256 zeroAddressActive_) {
-        declaredRollup = rollup_;
-        deposit = deposit_;
-        zeroAddressActive = zeroAddressActive_;
-    }
-
-    function setReturnMode(ReturnMode mode) external {
-        returnMode = mode;
-    }
-
-    fallback() external {
-        ReturnMode mode = returnMode;
-        if (mode == ReturnMode.RevertCall) revert("candidate reverted");
-
-        uint256 value;
-        if (msg.sig == ISubmitter.rollupContract.selector) {
-            value = uint160(declaredRollup);
-            if (mode == ReturnMode.BadAddressEncoding) value |= uint256(1) << 200;
-        } else if (msg.sig == ISubmitter.isActive.selector) {
-            value = zeroAddressActive;
-        } else if (msg.sig == ISubmitter.challengeDeposit.selector) {
-            value = deposit;
-        } else {
-            revert("unknown selector");
-        }
-
-        assembly {
-            mstore(0, value)
-        }
-        if (mode == ReturnMode.Short) {
-            assembly {
-                return(0, 31)
-            }
-        }
-        if (mode == ReturnMode.Long) {
-            assembly {
-                mstore(32, 1)
-                return(0, 64)
-            }
-        }
-        assembly {
-            return(0, 32)
-        }
-    }
-}
 
 contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
     /// @dev Test contract for commitBatchWithProof function
@@ -74,11 +15,17 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
     
     bytes public batchHeader0;
     bytes32 public batchHash0;
+    IRollup.BatchSignatureInput public batchSignatureInput;
 
     function setUp() public virtual override {
         super.setUp();
         
         // Setup batch signature input
+        batchSignatureInput = IRollup.BatchSignatureInput(
+            uint256(0),
+            abi.encode(uint256(0), new address[](0), uint256(0), new address[](0), uint256(0), new address[](0)),
+            bytes("0x")
+        );
         
         // Import genesis batch
         bytes memory _batchHeader0 = new bytes(249);
@@ -98,15 +45,23 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         rollup.importGenesisBatch(batchHeader0);
         batchHash0 = rollup.committedBatches(0);
         
-        _registerAndStakeSubmitter(alice);
+        // Setup staker
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(alice);
+        address[] memory addrs = new address[](1);
+        addrs[0] = alice;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(addrs, new address[](0));
+        hevm.prank(alice);
+        l1Staking.register{value: STAKING_VALUE}(stakerInfo.tmKey, stakerInfo.blsKey);
         
         // Set rollupDelayPeriod (e.g., 1 hour) - no prank needed for hevm.store
         hevm.store(address(rollup), bytes32(ROLLUP_DELAY_PERIOD_SLOT), bytes32(uint256(3600)));
     }
 
     /// @dev Helper to compute sequencerSetVerifyHash from sequencerSets
-    function _getSequencerSetVerifyHash() internal pure returns (bytes32) {
-        return bytes32(0);
+    function _getSequencerSetVerifyHash() internal view returns (bytes32) {
+        return keccak256(batchSignatureInput.sequencerSets);
     }
     
     /// @dev Helper to create batch header that matches what _commitBatchWithBatchData produces
@@ -187,6 +142,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.expectRevert("invalid timing");
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             bytes("")
         );
@@ -215,6 +171,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.expectRevert("invalid version");
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             bytes("")
         );
@@ -241,6 +198,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.expectRevert("V2 requires at least 1 blob");
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             bytes("")
         );
@@ -268,6 +226,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.expectRevert("Pausable: paused");
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             bytes("")
         );
@@ -295,6 +254,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.expectRevert("previous state root is zero");
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             bytes("")
         );
@@ -322,6 +282,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.expectRevert("new state root is zero");
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             bytes("")
         );
@@ -354,6 +315,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.expectRevert("incorrect parent batch hash");
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             bytes("")
         );
@@ -381,6 +343,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.expectRevert("incorrect previous state root");
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             bytes("")
         );
@@ -413,6 +376,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.prank(alice);
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             hex"deadbeef" // Non-empty proof required
         );
@@ -453,6 +417,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.prank(alice);
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             hex"deadbeef" // Non-empty proof required
         );
@@ -486,6 +451,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.prank(alice);
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             mockProof
         );
@@ -520,6 +486,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.prank(alice);
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             hex"deadbeef" // Non-empty proof required
         );
@@ -575,6 +542,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.expectRevert("l1msg delay");
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             hex"deadbeef"
         );
@@ -607,6 +575,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.prank(bob);
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             hex"deadbeef"
         );
@@ -657,6 +626,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.prank(alice);
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             hex"deadbeef"
         );
@@ -691,6 +661,7 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
         hevm.prank(alice);
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1,
             hex"deadbeef" // Non-empty proof required
         );
@@ -709,10 +680,16 @@ contract RollupCommitBatchWithProofTest is L1MessageBaseTest {
 contract RollupCommitBatchTest is L1MessageBaseTest {
     address public caller = address(0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84);
     IRollup.BatchDataInput public batchDataInput;
+    IRollup.BatchSignatureInput public batchSignatureInput;
 
     function setUp() public virtual override {
         super.setUp();
 
+        batchSignatureInput = IRollup.BatchSignatureInput(
+            uint256(0),
+            abi.encode(uint256(0), new address[](0), uint256(0), new address[](0), uint256(0), new address[](0)),
+            bytes("0x")
+        );
     }
 
     function test_commitAndFinalizeWithL1Messages_succeeds() public {
@@ -779,17 +756,27 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             mstore(add(batchHeader1, add(0x20, 153)), bytesData3) // withdrawRootHash
             mstore(
                 add(batchHeader1, add(0x20, 185)),
-                0
+                0xf1f58308e98844ec99e2990d88bfb36e1a30f0e6591e62af90ae6f8498a1b067
             ) // sequencerSetVerifyHash
             mstore(add(batchHeader1, add(0x20, 217)), batchHash0) // parentBatchHash
         }
         uint64 lastBlockNumber = 1;
         uint16 numL1Messages = 1;
+        hevm.mockCall(
+            address(rollup.l1StakingContract()),
+            abi.encodeCall(IL1Staking.isActiveStaker, (address(0))),
+            abi.encode(true)
+        );
+        hevm.mockCall(
+            address(rollup.l1StakingContract()),
+            abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
+            abi.encode(2)
+        );
         _setupDelayAndWarpForProof();
         _mockVerifierForProof();
         hevm.startPrank(address(0));
         hevm.expectEmit(true, true, false, true);
-        emit IRollup.CommitBatch(1, keccak256(batchHeader1));
+        emit IRollup.CommitBatch(1, bytes32(0xc1862b08d265f073817a8ce0d7cbb426c16d58a86b93464244ab1d027318642e));
         batchDataInput = IRollup.BatchDataInput(
             0,
             batchHeader0,
@@ -799,12 +786,12 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             bytesData1,
             bytesData3
         );
-        rollup.commitBatchWithProof(batchDataInput, batchHeader1, hex"deadbeef");
+        rollup.commitBatchWithProof(batchDataInput, batchSignatureInput, batchHeader1, hex"deadbeef");
         hevm.stopPrank();
 
         assertFalse(rollup.isBatchFinalized(1));
         bytes32 batchHash1 = rollup.committedBatches(1);
-        assertEq(batchHash1, keccak256(batchHeader1));
+        assertEq(batchHash1, bytes32(0xc1862b08d265f073817a8ce0d7cbb426c16d58a86b93464244ab1d027318642e));
         bytes32 stateRoot1 = rollup.committedStateRoots(1);
         assertEq(stateRoot1, bytesData1);
 
@@ -841,15 +828,26 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             mstore(add(batchHeader2, add(0x20, 153)), bytesData4) // withdrawRootHash
             mstore(
                 add(batchHeader2, add(0x20, 185)),
-                0
+                0xf1f58308e98844ec99e2990d88bfb36e1a30f0e6591e62af90ae6f8498a1b067
             ) // sequencerSetVerifyHash
             mstore(add(batchHeader2, add(0x20, 217)), batchHash1) // parentBatchHash
             mstore(add(batchHeader2, add(0x20, 249)), shl(192, lastBlockNumber)) // lastBlockNumber
         }
 
+        hevm.prank(multisig);
+        hevm.mockCall(
+            address(rollup.l1StakingContract()),
+            abi.encodeCall(IL1Staking.isActiveStaker, (address(0))),
+            abi.encode(true)
+        );
+        hevm.mockCall(
+            address(rollup.l1StakingContract()),
+            abi.encodeCall(IL1Staking.getStakerBitmap, (address(0))),
+            abi.encode(2)
+        );
         hevm.startPrank(address(0));
         hevm.expectEmit(true, true, false, true);
-        emit IRollup.CommitBatch(2, keccak256(batchHeader2));
+        emit IRollup.CommitBatch(2, bytes32(0x772132c2e12f21bfc5f2792838e480830f2c1dd2be0f3207b159905a9f321038));
 
         batchDataInput = IRollup.BatchDataInput(
             1,
@@ -860,12 +858,12 @@ contract RollupCommitBatchTest is L1MessageBaseTest {
             bytesData1,
             bytesData4
         );
-        rollup.commitBatchWithProof(batchDataInput, batchHeader2, hex"deadbeef");
+        rollup.commitBatchWithProof(batchDataInput, batchSignatureInput, batchHeader2, hex"deadbeef");
 
         hevm.stopPrank();
         assertFalse(rollup.isBatchFinalized(2));
         bytes32 batchHash2 = rollup.committedBatches(2);
-        assertEq(batchHash2, keccak256(batchHeader2));
+        assertEq(batchHash2, bytes32(0x772132c2e12f21bfc5f2792838e480830f2c1dd2be0f3207b159905a9f321038));
         bytes32 stateRoot2 = rollup.committedStateRoots(2);
         assertEq(stateRoot2, bytesData1);
 
@@ -891,11 +889,36 @@ contract RollupTest is L1MessageBaseTest {
     address public caller = address(0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84);
     bytes32 public stateRoot = bytes32(uint256(1));
     IRollup.BatchDataInput public batchDataInput;
+    IRollup.BatchSignatureInput public batchSignatureInput;
 
     function setUp() public virtual override {
         super.setUp();
+        batchSignatureInput = IRollup.BatchSignatureInput(
+            uint256(0),
+            abi.encode(uint256(0), new address[](0), uint256(0), new address[](0), uint256(0), new address[](0)),
+            bytes("0x")
+        );
 
-        _registerAndStakeSubmitter(alice);
+        // add staker
+
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(alice);
+        address[] memory add = new address[](1);
+        add[0] = alice;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+        hevm.stopPrank();
+        hevm.startPrank(alice);
+        hevm.expectEmit(true, true, true, true);
+        emit IL1Staking.Registered(alice, stakerInfo.tmKey, stakerInfo.blsKey);
+        l1Staking.register{value: STAKING_VALUE}(stakerInfo.tmKey, stakerInfo.blsKey);
+        (address addrCheck, bytes32 tmKeyCheck, bytes memory blsKeyCheck) = l1Staking.stakers(alice);
+        assertEq(addrCheck, alice);
+        assertEq(tmKeyCheck, stakerInfo.tmKey);
+        assertBytesEq(blsKeyCheck, stakerInfo.blsKey);
+        assertTrue(l1Staking.blsKeys(stakerInfo.blsKey));
+        assertTrue(l1Staking.tmKeys(stakerInfo.tmKey));
+        hevm.stopPrank();
     }
 
     function test_commitBatches_succeeds() external {
@@ -917,19 +940,66 @@ contract RollupTest is L1MessageBaseTest {
         }
         hevm.prank(multisig);
         rollup.importGenesisBatch(batchHeader0);
-        // only active submitter allowed, revert
+        // only active staker allowed, revert
         hevm.startPrank(address(0));
-        hevm.expectRevert("only active submitter allowed");
+        hevm.expectRevert("only active staker allowed");
         batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 0, 0, stateRoot, stateRoot, getTreeRoot());
-        rollup.commitBatch(batchDataInput);
+        rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
 
-        // The official path is structurally fresh-blob only. This Foundry version cannot
-        // attach a blob sidecar, so validation after the blob gate is covered by withProof.
+        // invalid version, revert (version 3+ is invalid; version 2 is now valid V2 multi-blob)
         hevm.startPrank(alice);
-        hevm.expectRevert("must carry blob");
+        hevm.expectRevert("invalid version");
+        batchDataInput = IRollup.BatchDataInput(3, batchHeader0, 0, 0, stateRoot, stateRoot, getTreeRoot());
+        rollup.commitBatch(batchDataInput, batchSignatureInput);
+        hevm.stopPrank();
+
+        // batch header length incorrect, revert
+        hevm.startPrank(alice);
+        hevm.expectRevert("batch header length too small");
+        batchDataInput = IRollup.BatchDataInput(0, new bytes(120), 0, 0, stateRoot, stateRoot, getTreeRoot());
+        rollup.commitBatch(batchDataInput, batchSignatureInput);
+        hevm.stopPrank();
+
+        // incorrect batch index, revert
+        assembly {
+            mstore(add(batchHeader0, add(0x20, 1)), shl(192, 1)) // change batch index to 1
+        }
+        hevm.startPrank(alice);
+        hevm.expectRevert("incorrect batch index");
         batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 0, 0, stateRoot, stateRoot, getTreeRoot());
-        rollup.commitBatch(batchDataInput);
+        rollup.commitBatch(batchDataInput, batchSignatureInput);
+        hevm.stopPrank();
+        assembly {
+            mstore(add(batchHeader0, add(0x20, 1)), 0) // change back
+        }
+
+        // incorrect parent batch hash, revert
+        assembly {
+            mstore(add(batchHeader0, add(0x20, 25)), 2) // change data hash for batch0
+        }
+        hevm.startPrank(alice);
+        hevm.expectRevert("incorrect parent batch hash");
+        batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 0, 0, stateRoot, stateRoot, getTreeRoot());
+        rollup.commitBatch(batchDataInput, batchSignatureInput);
+        hevm.stopPrank();
+        assembly {
+            mstore(add(batchHeader0, add(0x20, 25)), 1) // change back
+            mstore(add(batchHeader0, add(0x20, 57)), 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014)
+        }
+
+        // incorrect previous state root, revert
+        hevm.startPrank(alice);
+        hevm.expectRevert("incorrect previous state root");
+        batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 0, 0, bytes32(uint256(2)), stateRoot, getTreeRoot());
+        rollup.commitBatch(batchDataInput, batchSignatureInput);
+        hevm.stopPrank();
+
+        // incorrect batch header length, revert
+        hevm.startPrank(alice);
+        hevm.expectRevert("batch header length too small");
+        batchDataInput = IRollup.BatchDataInput(0, new bytes(248), 0, 0, stateRoot, stateRoot, getTreeRoot());
+        rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
 
         // commit batch with one chunk, no tx, correctly (commitBatch requires blob when no stored hash; use commitBatchWithProof)
@@ -944,7 +1014,7 @@ contract RollupTest is L1MessageBaseTest {
             stateRoot,
             stateRoot,
             getTreeRoot(),
-            bytes32(0),
+            keccak256(batchSignatureInput.sequencerSets),
             rollup.committedBatches(0)
         );
         hevm.startPrank(alice);
@@ -952,17 +1022,18 @@ contract RollupTest is L1MessageBaseTest {
         hevm.deal(address(0), 10 ether);
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1ForProof,
             hex"deadbeef"
         );
         hevm.stopPrank();
         assertGt(uint256(rollup.committedBatches(1)), 0);
 
-        // The fresh-blob gate remains first even if the target index is already occupied.
+        // batch is already committed, revert (commitBatch also reverts with "commitBatch requires no stored blob hash" when slot is set)
         hevm.startPrank(alice);
-        hevm.expectRevert("must carry blob");
+        hevm.expectRevert("commitBatch requires no stored blob hash");
         batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 1, 0, stateRoot, stateRoot, getTreeRoot());
-        rollup.commitBatch(batchDataInput);
+        rollup.commitBatch(batchDataInput, batchSignatureInput);
         hevm.stopPrank();
     }
 
@@ -1000,18 +1071,19 @@ contract RollupTest is L1MessageBaseTest {
             stateRoot,
             stateRoot,
             bytes32(uint256(4)),
-            bytes32(0),
+            keccak256(batchSignatureInput.sequencerSets),
             batchHash0
         );
         hevm.startPrank(alice);
         batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1ForProof,
             hex"deadbeef"
         );
         hevm.stopPrank();
-        assertEq(rollup.committedBatches(1), keccak256(batchHeader1ForProof));
+        assertEq(rollup.committedBatches(1), 0x25c3e4fee90e53de960c1092746c431ab570eacf8513011902fa65f10c814541);
         // warp again so second commitBatchWithProof passes rollupDelay (batchDataStore[1].originTimestamp + period < block.timestamp)
         hevm.warp(block.timestamp + 3601);
         bytes memory batchHeader1 = new bytes(249);
@@ -1027,7 +1099,7 @@ contract RollupTest is L1MessageBaseTest {
             mstore(add(batchHeader1, add(0x20, 153)), bytesData4) // withdrawRootHash
             mstore(
                 add(batchHeader1, add(0x20, 185)),
-                0
+                0xf1f58308e98844ec99e2990d88bfb36e1a30f0e6591e62af90ae6f8498a1b067
             ) // sequencerSetVerifyHash
             mstore(add(batchHeader1, add(0x20, 217)), batchHash0) // parentBatchHash
             mstore(add(batchHeader1, add(0x20, 249)), 0) // bitmap0
@@ -1043,13 +1115,14 @@ contract RollupTest is L1MessageBaseTest {
             stateRoot,
             stateRoot,
             bytes32(uint256(4)),
-            bytes32(0),
+            keccak256(batchSignatureInput.sequencerSets),
             rollup.committedBatches(1)
         );
         hevm.startPrank(alice);
         batchDataInput = IRollup.BatchDataInput(0, batchHeader1, 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader2ForProof,
             hex"deadbeef"
         );
@@ -1107,7 +1180,7 @@ contract RollupTest is L1MessageBaseTest {
         hevm.startPrank(alice);
         hevm.expectRevert("Pausable: paused");
         batchDataInput = IRollup.BatchDataInput(0, new bytes(0), 0, 0, stateRoot, stateRoot, bytes32(uint256(4)));
-        rollup.commitBatch(batchDataInput);
+        rollup.commitBatch(batchDataInput, batchSignatureInput);
 
         hevm.expectRevert("Pausable: paused");
         rollup.finalizeBatch(new bytes(0));
@@ -1221,10 +1294,23 @@ contract RollupTest is L1MessageBaseTest {
 contract RollupCommitStateTest is L1MessageBaseTest {
     bytes32 public stateRoot = bytes32(uint256(1));
     IRollup.BatchDataInput public batchDataInput;
+    IRollup.BatchSignatureInput public batchSignatureInput;
 
     function setUp() public virtual override {
         super.setUp();
-        _registerAndStakeSubmitter(alice);
+        batchSignatureInput = IRollup.BatchSignatureInput(
+            uint256(0),
+            abi.encode(uint256(0), new address[](0), uint256(0), new address[](0), uint256(0), new address[](0)),
+            bytes("0x")
+        );
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(alice);
+        address[] memory add = new address[](1);
+        add[0] = alice;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(add, new address[](0));
+        hevm.prank(alice);
+        l1Staking.register{value: STAKING_VALUE}(stakerInfo.tmKey, stakerInfo.blsKey);
     }
 
     function _genesisBatchHeader() internal pure returns (bytes memory batchHeader0) {
@@ -1248,7 +1334,7 @@ contract RollupCommitStateTest is L1MessageBaseTest {
             stateRoot,
             stateRoot,
             bytes32(uint256(4)),
-            bytes32(0),
+            keccak256(batchSignatureInput.sequencerSets),
             parentBatchHash
         );
     }
@@ -1267,7 +1353,7 @@ contract RollupCommitStateTest is L1MessageBaseTest {
             mstore(add(batchHeader1, add(0x20, 89)), bytesData1)
             mstore(add(batchHeader1, add(0x20, 121)), bytesData1)
             mstore(add(batchHeader1, add(0x20, 153)), bytesData4)
-            mstore(add(batchHeader1, add(0x20, 185)), 0)
+            mstore(add(batchHeader1, add(0x20, 185)), 0xf1f58308e98844ec99e2990d88bfb36e1a30f0e6591e62af90ae6f8498a1b067)
             mstore(add(batchHeader1, add(0x20, 217)), parentBatchHash)
             mstore(add(batchHeader1, add(0x20, 249)), 0)
         }
@@ -1287,6 +1373,7 @@ contract RollupCommitStateTest is L1MessageBaseTest {
         hevm.prank(alice);
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1ForProof,
             hex"deadbeef"
         );
@@ -1310,11 +1397,11 @@ contract RollupCommitStateTest is L1MessageBaseTest {
         hevm.prank(alice);
         rollup.commitBatchWithProof(
             batchDataInput,
+            batchSignatureInput,
             batchHeader1ForProof,
             hex"deadbeef"
         );
-        bytes32 expectedBatchHash = keccak256(batchHeader1ForProof);
-        assertEq(rollup.committedBatches(1), expectedBatchHash);
+        assertEq(rollup.committedBatches(1), 0x25c3e4fee90e53de960c1092746c431ab570eacf8513011902fa65f10c814541);
         assertGt(uint256(rollup.batchBlobVersionedHashes(1)), 0);
 
         // Revert batch 1 (blob hash is preserved)
@@ -1328,8 +1415,8 @@ contract RollupCommitStateTest is L1MessageBaseTest {
         // Recommit with commitState (no blob in tx; uses stored blob hash)
         batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
         hevm.prank(alice);
-        rollup.commitState(batchDataInput);
-        assertEq(rollup.committedBatches(1), expectedBatchHash);
+        rollup.commitState(batchDataInput, batchSignatureInput);
+        assertEq(rollup.committedBatches(1), 0x25c3e4fee90e53de960c1092746c431ab570eacf8513011902fa65f10c814541);
         assertEq(uint256(rollup.lastCommittedBatchIndex()), 1);
     }
 
@@ -1341,7 +1428,7 @@ contract RollupCommitStateTest is L1MessageBaseTest {
         _setupCommitStatePrecondition();
         batchDataInput = IRollup.BatchDataInput(0, _genesisBatchHeader(), 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
         hevm.prank(alice);
-        rollup.commitState(batchDataInput);
+        rollup.commitState(batchDataInput, batchSignatureInput);
         // Without blob in tx, commitState succeeds. Revert "commitState must not carry blob" is hit only when blobhash(0) != 0 (blob tx).
         assertEq(rollup.lastCommittedBatchIndex(), 1);
     }
@@ -1355,315 +1442,59 @@ contract RollupCommitStateTest is L1MessageBaseTest {
         batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
         hevm.prank(alice);
         hevm.expectRevert("no stored blob hash for this batch");
-        rollup.commitState(batchDataInput);
+        rollup.commitState(batchDataInput, batchSignatureInput);
     }
 
     /// @dev commitState can only be called by an active staker.
-    function test_commitState_only_active_submitter() public {
+    function test_commitState_only_active_staker() public {
         _setupCommitStatePrecondition();
         batchDataInput = IRollup.BatchDataInput(0, _genesisBatchHeader(), 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
         hevm.prank(address(1));
-        hevm.expectRevert("only active submitter allowed");
-        rollup.commitState(batchDataInput);
+        hevm.expectRevert("only active staker allowed");
+        rollup.commitState(batchDataInput, batchSignatureInput);
     }
 
-    /// @dev commitBatch is fresh-blob only even when a stale stored hash exists.
-    function test_commitBatch_requires_blob_when_stored_hash_exists() public {
+    /// @dev Mutual exclusion: (1) commitBatch reverts when stored blob hash exists; (2) commitState reverts when no stored hash (see test_commitState_reverts_when_no_stored_blob_hash).
+    function test_commitState_commitBatch_mutual_exclusion() public {
         bytes memory batchHeader0 = _genesisBatchHeader();
         hevm.prank(multisig);
         rollup.importGenesisBatch(batchHeader0);
 
-        // A real blob transaction may overwrite this stale value; a no-blob call cannot.
+        // When there IS stored blob hash for batch 1, commitBatch must revert
         _setStoredBlobHash(1);
         batchDataInput = IRollup.BatchDataInput(0, batchHeader0, 1, 0, stateRoot, stateRoot, bytes32(uint256(4)));
         hevm.prank(alice);
-        hevm.expectRevert("must carry blob");
-        rollup.commitBatch(batchDataInput);
+        hevm.expectRevert("commitBatch requires no stored blob hash");
+        rollup.commitBatch(batchDataInput, batchSignatureInput);
     }
 
-}
-
-contract RollupSubmitterCutoverTest is L1MessageBaseTest {
-    bytes32 internal constant ROOT_1 = bytes32(uint256(1));
-    bytes32 internal constant ROOT_2 = bytes32(uint256(2));
-    bytes32 internal constant ROOT_3 = bytes32(uint256(3));
-    uint256 internal constant BATCH_DATA_STORE_SLOT = 162;
-    uint256 internal constant PENDING_BATCH_COUNT_SLOT = 174;
-
-    function setUp() public virtual override {
-        super.setUp();
-        _registerAndStakeSubmitter(alice);
-        _registerAndStakeSubmitter(bob);
-    }
-
-    function test_currentSelectorsAreDistinctFromPreSubmitterSelectors() public {
-        assertEq(IRollup.commitBatch.selector, bytes4(0x41f756da));
-        assertEq(IRollup.commitState.selector, bytes4(0x67caa37a));
-        assertEq(IRollup.commitBatchWithProof.selector, bytes4(0x1544ba3a));
-        assertTrue(IRollup.commitBatch.selector != bytes4(0x428868b5));
-        assertTrue(IRollup.commitState.selector != bytes4(0x1e8825be));
-        assertTrue(IRollup.commitBatchWithProof.selector != bytes4(0x4e8f1d67));
-    }
-
-    function test_liabilityReleasedExactlyByRevertAndFinalize() public {
-        bytes memory header0 = _importGenesis();
-        bytes memory header1 = _commitStateAs(alice, header0, 1, ROOT_1, ROOT_2);
-        bytes memory header2 = _commitStateAs(bob, header1, 2, ROOT_2, ROOT_3);
-
-        assertEq(rollup.pendingBatchCount(alice), 1);
-        assertEq(rollup.pendingBatchCount(bob), 1);
-        (, , , address batch1Submitter) = rollup.batchDataStore(1);
-        (, , , address batch2Submitter) = rollup.batchDataStore(2);
-        assertEq(batch1Submitter, alice);
-        assertEq(batch2Submitter, bob);
-
-        hevm.prank(multisig);
-        rollup.revertBatch(header2, 1);
-        assertEq(rollup.pendingBatchCount(alice), 1);
-        assertEq(rollup.pendingBatchCount(bob), 0);
-
-        hevm.warp(block.timestamp + finalizationPeriodSeconds + 1);
-        rollup.finalizeBatch(header1);
-        assertEq(rollup.pendingBatchCount(alice), 0);
-    }
-
-    function test_challengeAndSlashDoNotReleaseLiability() public {
-        bytes memory header0 = _importGenesis();
-        bytes memory header1 = _commitStateAs(alice, header0, 1, ROOT_1, ROOT_2);
-        bytes32 batchHash = rollup.committedBatches(1);
-
-        hevm.prank(bob);
-        rollup.challengeState{value: CHALLENGE_DEPOSIT}(1, batchHash);
-        hevm.warp(block.timestamp + proofWindow + 1);
-        hevm.prank(alice);
-        rollup.proveState(header1, hex"01");
-
-        assertEq(rollup.pendingBatchCount(alice), 1);
-        assertEq(rollup.revertReqIndex(), 1);
-        assertEq(submitter.stakeOf(alice), 0);
-
-        hevm.prank(multisig);
-        rollup.revertBatch(header1, 1);
-        assertEq(rollup.pendingBatchCount(alice), 0);
-        assertEq(rollup.revertReqIndex(), 0);
-    }
-
-    function test_permissionlessProofUsesZeroSubmitterAndZeroHeaderField() public {
-        bytes memory header0 = _importGenesis();
-        _setupDelayAndWarpForProof();
-        _mockMessageQueueNotDelayedForProof();
-        _mockVerifierForProof();
-
-        bytes memory header1 = _createBatchHeaderV0ForProof(
-            1,
-            0,
-            0,
-            _computeDataHash(1, 0),
-            ROOT_1,
-            ROOT_2,
-            bytes32(uint256(101)),
-            bytes32(0),
-            rollup.committedBatches(0)
-        );
-        IRollup.BatchDataInput memory input = IRollup.BatchDataInput(
-            0,
-            header0,
-            1,
-            0,
-            ROOT_1,
-            ROOT_2,
-            bytes32(uint256(101))
-        );
-
-        hevm.prank(address(0xBEEF));
-        rollup.commitBatchWithProof(input, header1, hex"01");
-
-        (, , , address liable) = rollup.batchDataStore(1);
-        assertEq(liable, address(0));
-        assertEq(rollup.pendingBatchCount(address(0xBEEF)), 0);
-        bytes32 sequencerSetVerifyHash;
-        assembly {
-            sequencerSetVerifyHash := mload(add(add(header1, 0x20), 185))
-        }
-        assertEq(sequencerSetVerifyHash, bytes32(0));
-        assertEq(rollup.committedBatches(1), keccak256(header1));
-    }
-
-    function test_liabilityUnderflowFailsClosed() public {
-        bytes memory header0 = _importGenesis();
-        bytes memory header1 = _commitStateAs(alice, header0, 1, ROOT_1, ROOT_2);
-        bytes32 countSlot = keccak256(abi.encode(alice, PENDING_BATCH_COUNT_SLOT));
-        hevm.store(address(rollup), countSlot, bytes32(0));
-
-        hevm.prank(multisig);
-        hevm.expectRevert("pending batch count underflow");
-        rollup.revertBatch(header1, 1);
-        assertEq(rollup.lastCommittedBatchIndex(), 1);
-    }
-
-    function test_initialize2And3AreOwnerOnly() public {
-        hevm.prank(alice);
-        hevm.expectRevert("Ownable: caller is not the owner");
-        rollup.initialize2(ROOT_1);
-        hevm.prank(multisig);
-        rollup.initialize2(ROOT_1);
-
-        hevm.prank(alice);
-        hevm.expectRevert("Ownable: caller is not the owner");
-        rollup.initialize3(3600);
-        hevm.prank(multisig);
-        rollup.initialize3(3600);
-    }
-
-    function test_initialize4ValidatesInterfaceAndClearsLegacyTailOwnerField() public {
-        _importGenesis();
-        bytes32 batchDataBase = keccak256(abi.encode(uint256(0), BATCH_DATA_STORE_SLOT));
-        hevm.store(address(rollup), bytes32(uint256(batchDataBase) + 3), bytes32(uint256(uint160(alice))));
-        (uint256 originBefore, uint256 finalizeBefore, uint256 blockBefore, address legacyTail) = rollup
-            .batchDataStore(0);
-        assertEq(legacyTail, alice);
-
-        hevm.prank(alice);
-        hevm.expectRevert("Ownable: caller is not the owner");
-        rollup.initialize4(address(submitter));
-
-        hevm.prank(multisig);
-        hevm.expectRevert("invalid submitter");
-        rollup.initialize4(address(0x1234));
-
-        SubmitterCandidateMock malformed = new SubmitterCandidateMock(address(rollup), CHALLENGE_DEPOSIT, 0);
-        malformed.setReturnMode(SubmitterCandidateMock.ReturnMode.Short);
-        hevm.prank(multisig);
-        hevm.expectRevert("invalid submitter interface");
-        rollup.initialize4(address(malformed));
-        malformed.setReturnMode(SubmitterCandidateMock.ReturnMode.Long);
-        hevm.prank(multisig);
-        hevm.expectRevert("invalid submitter interface");
-        rollup.initialize4(address(malformed));
-        malformed.setReturnMode(SubmitterCandidateMock.ReturnMode.BadAddressEncoding);
-        hevm.prank(multisig);
-        hevm.expectRevert("invalid rollup encoding");
-        rollup.initialize4(address(malformed));
-
-        SubmitterCandidateMock mismatch = new SubmitterCandidateMock(address(1), CHALLENGE_DEPOSIT, 0);
-        hevm.prank(multisig);
-        hevm.expectRevert("submitter rollup mismatch");
-        rollup.initialize4(address(mismatch));
-        SubmitterCandidateMock badActive = new SubmitterCandidateMock(address(rollup), CHALLENGE_DEPOSIT, 1);
-        hevm.prank(multisig);
-        hevm.expectRevert("invalid submitter state");
-        rollup.initialize4(address(badActive));
-        SubmitterCandidateMock zeroDeposit = new SubmitterCandidateMock(address(rollup), 0, 0);
-        hevm.prank(multisig);
-        hevm.expectRevert("invalid submitter state");
-        rollup.initialize4(address(zeroDeposit));
-
-        hevm.prank(multisig);
-        rollup.initialize4(address(submitter));
-        assertEq(rollup.submitterContract(), address(submitter));
-        (uint256 originAfter, uint256 finalizeAfter, uint256 blockAfter, address tailSubmitter) = rollup.batchDataStore(
-            0
-        );
-        assertEq(originAfter, originBefore);
-        assertEq(finalizeAfter, finalizeBefore);
-        assertEq(blockAfter, blockBefore);
-        assertEq(tailSubmitter, address(0));
-
-        hevm.prank(multisig);
-        hevm.expectRevert("Initializable: contract is already initialized");
-        rollup.initialize4(address(submitter));
-    }
-
-    function test_initialize4PendingBatchRevertsWithoutConsumingVersion() public {
-        bytes memory header0 = _importGenesis();
-        bytes memory header1 = _commitStateAs(alice, header0, 1, ROOT_1, ROOT_2);
-
-        hevm.prank(multisig);
-        hevm.expectRevert("pending batches");
-        rollup.initialize4(address(submitter));
-
-        hevm.prank(multisig);
-        rollup.revertBatch(header1, 1);
-        hevm.prank(multisig);
-        rollup.initialize4(address(submitter));
-    }
-
-    function _importGenesis() internal returns (bytes memory header0) {
-        header0 = new bytes(BatchHeaderCodecV0.BATCH_HEADER_LENGTH);
-        assembly {
-            mstore(add(header0, add(0x20, 25)), 1)
-            mstore(add(header0, add(0x20, 57)), 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014)
-            mstore(add(header0, add(0x20, 121)), 1)
-        }
-        hevm.prank(multisig);
-        rollup.importGenesisBatch(header0);
-    }
-
-    function _commitStateAs(
-        address actor,
-        bytes memory parentHeader,
-        uint256 batchIndex,
-        bytes32 previousRoot,
-        bytes32 postRoot
-    ) internal returns (bytes memory header) {
-        _setStoredBlobHash(batchIndex);
-        hevm.mockCall(
-            address(l1MessageQueueWithGasPriceOracle),
-            abi.encodeWithSignature("getFirstUnfinalizedMessageEnqueueTime()"),
-            abi.encode(block.timestamp)
-        );
-        bytes32 withdrawalRoot = bytes32(batchIndex + 100);
-        IRollup.BatchDataInput memory input = IRollup.BatchDataInput(
-            0,
-            parentHeader,
-            uint64(batchIndex),
-            0,
-            previousRoot,
-            postRoot,
-            withdrawalRoot
-        );
-        hevm.prank(actor);
-        rollup.commitState(input);
-
-        header = _buildStateHeader(batchIndex, previousRoot, postRoot, withdrawalRoot);
-        assertEq(rollup.committedBatches(batchIndex), keccak256(header));
-    }
-
-    function _buildStateHeader(
-        uint256 batchIndex,
-        bytes32 previousRoot,
-        bytes32 postRoot,
-        bytes32 withdrawalRoot
-    ) internal view returns (bytes memory header) {
-        header = new bytes(BatchHeaderCodecV0.BATCH_HEADER_LENGTH);
-        bytes32 dataHash = _computeDataHash(uint64(batchIndex), 0);
-        bytes32 parentHash = rollup.committedBatches(batchIndex - 1);
-        assembly {
-            let p := add(header, 0x20)
-            mstore(p, 0)
-            mstore(add(p, 1), shl(192, batchIndex))
-            mstore(add(p, 25), dataHash)
-            mstore(add(p, 57), 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014)
-            mstore(add(p, 89), previousRoot)
-            mstore(add(p, 121), postRoot)
-            mstore(add(p, 153), withdrawalRoot)
-            mstore(add(p, 185), 0)
-            mstore(add(p, 217), parentHash)
-        }
-    }
 }
 
 /// @dev Tests for Rollup V2 multi-blob batch header support (simplified: 257-byte header with aggregated blob hash).
 contract RollupCommitBatchV2Test is L1MessageBaseTest {
     bytes32 public stateRoot = bytes32(uint256(1));
+    IRollup.BatchSignatureInput public batchSignatureInput;
     bytes public batchHeader0;
     bytes32 public batchHash0;
 
     function setUp() public virtual override {
         super.setUp();
 
+        batchSignatureInput = IRollup.BatchSignatureInput(
+            uint256(0),
+            abi.encode(uint256(0), new address[](0), uint256(0), new address[](0), uint256(0), new address[](0)),
+            bytes("0x")
+        );
 
-        _registerAndStakeSubmitter(alice);
+        // Register staker
+        hevm.deal(alice, 5 * STAKING_VALUE);
+        Types.StakerInfo memory stakerInfo = ffi.generateStakerInfo(alice);
+        address[] memory addrs = new address[](1);
+        addrs[0] = alice;
+        hevm.prank(multisig);
+        l1Staking.updateWhitelist(addrs, new address[](0));
+        hevm.prank(alice);
+        l1Staking.register{value: STAKING_VALUE}(stakerInfo.tmKey, stakerInfo.blsKey);
 
         // Import genesis batch (V0)
         bytes memory _genesis = new bytes(249);
@@ -1726,7 +1557,7 @@ contract RollupCommitBatchV2Test is L1MessageBaseTest {
                          Rollup Integration Tests
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev commitBatch with must carry blob (reverts in test env where blobhash(0)=0).
+    /// @dev commitBatch with V2 requires at least 1 blob (reverts in test env where blobhash(0)=0).
     function test_commitBatchV2_reverts_without_blob() public {
         IRollup.BatchDataInput memory batchDataInput = IRollup.BatchDataInput({
             version: 2,
@@ -1739,8 +1570,8 @@ contract RollupCommitBatchV2Test is L1MessageBaseTest {
         });
 
         hevm.prank(alice);
-        hevm.expectRevert("must carry blob");
-        rollup.commitBatch(batchDataInput);
+        hevm.expectRevert("V2 requires at least 1 blob");
+        rollup.commitBatch(batchDataInput, batchSignatureInput);
     }
 
     /// @dev V2 _loadBatchHeader accepts a valid 257-byte V2 header (uses V1 loader).

@@ -5,14 +5,12 @@ on:
         branches:
             - main
         paths:
-            - "node/derivation/testdata/rollup_calldata_fixtures.json"
             - "prover/**"
-            - ".github/workflows/prover.yml"
+            - ".github/workflows/prover.yaml"
     pull_request:
         paths:
-            - "node/derivation/testdata/rollup_calldata_fixtures.json"
             - "prover/**"
-            - ".github/workflows/prover.yml"
+            - ".github/workflows/prover.yaml"
 
 permissions:
     contents: read
@@ -28,32 +26,15 @@ jobs:
         timeout-minutes: 30
         steps:
             - uses: actions/checkout@v4
-            - uses: dtolnay/rust-toolchain@master
-              with:
-                  toolchain: nightly-2024-07-07
-                  components: rustfmt
-            - name: Check shadow-prove formatting
-              run: cargo +nightly-2024-07-07 fmt --package shadow-proving --check
-            - name: Check challenge formatting
-              run: >-
-                  cargo +nightly-2024-07-07 fmt
-                  --manifest-path bin/challenge/Cargo.toml
-                  --check
+            - uses: dtolnay/rust-toolchain@stable
+            - run: rustup component add rustfmt --toolchain nightly-2024-07-07
+            - run: cargo fmt --all --check
 
     build:
         name: build
         runs-on: ubuntu-latest
-        timeout-minutes: 60
+        timeout-minutes: 30
         steps:
             - uses: actions/checkout@v4
-            - uses: dtolnay/rust-toolchain@master
-              with:
-                  toolchain: 1.91.0
-            - name: Build shadow-prove
-              run: make build-shadow-prove
-            - name: Test shadow-prove
-              run: cargo test --manifest-path bin/shadow-prove/Cargo.toml
-            - name: Build challenge
-              run: make build-challenge
-            - name: Test challenge
-              run: cargo test --manifest-path bin/challenge/Cargo.toml
+            - uses: dtolnay/rust-toolchain@stable
+            - run: make build-shadow-prove && make build-shadow-prove

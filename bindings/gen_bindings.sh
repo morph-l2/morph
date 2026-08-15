@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#/bin/bash
 set -eu
 
 CONTRACTS_PATH="../contracts/"
@@ -54,5 +54,4 @@ abigen \
 # Place import "github.com/ethereum/go-ethereum" to "github.com/morph-l2/go-ethereum"
 TO_REPLACED_STRING="github.com/ethereum/go-ethereum"
 NEW_STRING="github.com/morph-l2/go-ethereum"
-sed -i.bak -e "s#${TO_REPLACED_STRING}#${NEW_STRING}#g" ./${PACKAGE}/${TYPE_LOWER}.go
-rm -f ./${PACKAGE}/${TYPE_LOWER}.go.bak
+sed -i "" -e "s#${TO_REPLACED_STRING}#${NEW_STRING}#g" ./${PACKAGE}/${TYPE_LOWER}.go

@@ -47,7 +47,7 @@ export const deployContractProxies = async (
         ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName
 
     const RollupProxyStorageName = ProxyStorageName.RollupProxyStorageName
-    const SubmitterProxyStorageName = ProxyStorageName.SubmitterProxyStorageName
+    const L1StakingProxyStorageName = ProxyStorageName.L1StakingProxyStorageName
     const L1SequencerProxyStorageName = ProxyStorageName.L1SequencerProxyStorageName
 
     const L1GatewayRouterProxyStorageName = ProxyStorageName.L1GatewayRouterProxyStorageName
@@ -106,9 +106,9 @@ export const deployContractProxies = async (
         return err
     }
 
-    // ************************ batch submitter contract deploy ************************
-    // SubmitterProxy deploy
-    err = await deployContractProxyByStorageName(hre, path, deployer, SubmitterProxyStorageName)
+    // ************************ staking contracts deploy ************************
+    // StakingProxy deploy
+    err = await deployContractProxyByStorageName(hre, path, deployer, L1StakingProxyStorageName)
     if (err != "") {
         return err
     }
@@ -281,7 +281,7 @@ export const deployContractProxiesConcurrently = async (
         const proxyStorageNames = [
             ProxyStorageName.L1CrossDomainMessengerProxyStorageName,
             ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName,
-            ProxyStorageName.SubmitterProxyStorageName,
+            ProxyStorageName.L1StakingProxyStorageName,
             ProxyStorageName.L1SequencerProxyStorageName,
             ProxyStorageName.RollupProxyStorageName,
             ProxyStorageName.L1GatewayRouterProxyStorageName,

@@ -14,8 +14,6 @@ import (
 	ldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
-var testBatchConfig = BatchConfig{BlockInterval: 10_000, Timeout: 10_000_000}
-
 type testLevelDB struct {
 	db *leveldb.DB
 }
@@ -28,13 +26,6 @@ func openTestKV(t *testing.T) SealedBatchKV {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	return &testLevelDB{db: db}
-}
-
-func requireBatchIntegration(t *testing.T) {
-	t.Helper()
-	if os.Getenv("MORPH_BATCH_INTEGRATION") != "1" {
-		t.Skip("set MORPH_BATCH_INTEGRATION=1 with local L1/L2 RPCs to run integration test")
-	}
 }
 
 func (d *testLevelDB) GetBytes(key []byte) ([]byte, error) {

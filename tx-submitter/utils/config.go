@@ -1,13 +1,10 @@
 package utils
 
 import (
-	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/urfave/cli"
 
-	"morph-l2/common/batch"
 	"morph-l2/tx-submitter/flags"
 )
 
@@ -31,13 +28,8 @@ type Config struct {
 
 	// RollupAddress is the Rollup contract address.
 	RollupAddress string
-	// SubmitterAddress is the Submitter qualification and stake contract.
-	SubmitterAddress string
-
-	// Static batch sealing configuration. Values are snapshotted before cutover
-	// and must remain identical across the working and standby instances.
-	BatchBlockInterval uint64
-	BatchTimeout       uint64
+	// StakingAddress
+	L1StakingAddress string
 
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
@@ -54,10 +46,17 @@ type Config struct {
 	// finalize
 	// if start finalize
 	Finalize bool
+	// L2 contract
+	L2SequencerAddress string
+	L2GovAddress       string
+
 	// metrics
 	MetricsServerEnable bool
 	MetricsHostname     string
 	MetricsPort         uint64
+
+	// decentralized
+	PriorityRollup bool
 
 	// tx fee limit
 	TxFeeLimit uint64
@@ -83,10 +82,6 @@ type Config struct {
 
 	// journal file path
 	JournalFilePath string
-	// BatchConfigPreflight prints the effective static batch configuration and exits.
-	BatchConfigPreflight         bool
-	BatchConfigSourceBlockNumber uint64
-	BatchConfigSourceBlockHash   string
 	// tip bump
 	TipFeeBump uint64
 	MaxTip     uint64
@@ -104,6 +99,14 @@ type Config struct {
 	ExternalSignRsaPriv string
 	// rough estimate gas switch
 	RoughEstimateGas bool
+	// rotator interval buffer
+	RotatorBuffer int64
+	// listener process path
+	StakingEventStoreFilename string
+	// l1 staking deployed block number
+	L1StakingDeployedBlockNumber uint64
+	// event indexer index step
+	EventIndexStep uint64
 	// leveldb path name
 	LeveldbPathName            string
 	BlockNotIncreasedThreshold int64
@@ -113,39 +116,6 @@ type Config struct {
 	MaxBlobCount int
 	// unix timestamp at which V2 multi-blob batch format is activated (0 = disabled)
 	BatchV2UpgradeTime uint64
-}
-
-// BatchConfig returns the immutable configuration consumed by common/batch.
-func (c Config) BatchConfig() batch.BatchConfig {
-	return batch.BatchConfig{
-		BlockInterval: c.BatchBlockInterval,
-		Timeout:       c.BatchTimeout,
-	}
-}
-
-// BatchConfigReport is the stable, machine-readable preflight output used by
-// operators to compare all working and standby instances before cutover.
-type BatchConfigReport struct {
-	BlockInterval     uint64 `json:"batch_block_interval"`
-	Timeout           uint64 `json:"batch_timeout"`
-	SourceBlockNumber uint64 `json:"source_block_number"`
-	SourceBlockHash   string `json:"source_block_hash"`
-	Hash              string `json:"config_hash"`
-}
-
-func (c Config) BatchConfigReport() BatchConfigReport {
-	bc := c.BatchConfig()
-	return BatchConfigReport{
-		BlockInterval:     bc.BlockInterval,
-		Timeout:           bc.Timeout,
-		SourceBlockNumber: c.BatchConfigSourceBlockNumber,
-		SourceBlockHash:   c.BatchConfigSourceBlockHash,
-		Hash:              bc.Hash().Hex(),
-	}
-}
-
-func (c Config) BatchConfigReportJSON() ([]byte, error) {
-	return json.Marshal(c.BatchConfigReport())
 }
 
 // NewConfig parses the DriverConfig from the provided flags or environment variables.
@@ -161,15 +131,18 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		TxTimeout:  ctx.GlobalDuration(flags.TxTimeoutFlag.Name),
 		// finalize
 		Finalize: ctx.GlobalBool(flags.FinalizeFlag.Name),
-		// L1 contracts and static batch configuration
-		SubmitterAddress:   ctx.GlobalString(flags.SubmitterAddressFlag.Name),
-		RollupAddress:      ctx.GlobalString(flags.RollupAddressFlag.Name),
-		BatchBlockInterval: ctx.GlobalUint64(flags.BatchBlockIntervalFlag.Name),
-		BatchTimeout:       ctx.GlobalUint64(flags.BatchTimeoutFlag.Name),
+		// L1 contract
+		L1StakingAddress: ctx.GlobalString(flags.L1StakingAddressFlag.Name),
+		RollupAddress:    ctx.GlobalString(flags.RollupAddressFlag.Name),
+		// L2 contract
+		L2SequencerAddress: ctx.GlobalString(flags.L2SequencerAddressFlag.Name),
+		L2GovAddress:       ctx.GlobalString(flags.L2GovAddressFlag.Name),
 		// metrics
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnable.Name),
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostname.Name),
 		MetricsPort:         ctx.GlobalUint64(flags.MetricsPort.Name),
+		// decentralized
+		PriorityRollup: ctx.GlobalBool(flags.PriorityRollupFlag.Name),
 		// tx config
 		TxFeeLimit: ctx.GlobalUint64(flags.TxFeeLimitFlag.Name),
 
@@ -187,15 +160,12 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 
 		GasLimitBuffer: ctx.GlobalUint64(flags.GasLimitBuffer.Name),
 
-		JournalFilePath:              ctx.GlobalString(flags.JournalFlag.Name),
-		BatchConfigPreflight:         ctx.GlobalBool(flags.BatchConfigPreflightFlag.Name),
-		BatchConfigSourceBlockNumber: ctx.GlobalUint64(flags.BatchConfigSourceBlockNumberFlag.Name),
-		BatchConfigSourceBlockHash:   ctx.GlobalString(flags.BatchConfigSourceBlockHashFlag.Name),
-		TipFeeBump:                   ctx.GlobalUint64(flags.TipFeeBumpFlag.Name),
-		MaxTip:                       ctx.GlobalUint64(flags.MaxTipFlag.Name),
-		MinTip:                       ctx.GlobalUint64(flags.MinTipFlag.Name),
-		MaxBaseFee:                   ctx.GlobalUint64(flags.MaxBaseFeeFlag.Name),
-		MaxTxsInPendingPool:          ctx.GlobalUint64(flags.MaxTxsInPendingPoolFlag.Name),
+		JournalFilePath:     ctx.GlobalString(flags.JournalFlag.Name),
+		TipFeeBump:          ctx.GlobalUint64(flags.TipFeeBumpFlag.Name),
+		MaxTip:              ctx.GlobalUint64(flags.MaxTipFlag.Name),
+		MinTip:              ctx.GlobalUint64(flags.MinTipFlag.Name),
+		MaxBaseFee:          ctx.GlobalUint64(flags.MaxBaseFeeFlag.Name),
+		MaxTxsInPendingPool: ctx.GlobalUint64(flags.MaxTxsInPendingPoolFlag.Name),
 
 		// external sign
 		ExternalSign:        ctx.GlobalBool(flags.ExternalSign.Name),
@@ -206,6 +176,15 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		ExternalSignRsaPriv: ctx.GlobalString(flags.ExternalSignRsaPriv.Name),
 		// rough estimate gas switch
 		RoughEstimateGas: ctx.GlobalBool(flags.RoughEstimateGasFlag.Name),
+		// rotator interval buffer
+		RotatorBuffer: ctx.GlobalInt64(flags.RotatorBufferFlag.Name),
+
+		// path
+		StakingEventStoreFilename: ctx.GlobalString(flags.StakingEventStoreFileFlag.Name),
+		// l1 staking deployed block number
+		L1StakingDeployedBlockNumber: ctx.GlobalUint64(flags.L1StakingDeployedBlocknumFlag.Name),
+		// index step
+		EventIndexStep: ctx.GlobalUint64(flags.EventIndexStepFlag.Name),
 		// leveldb path name
 		LeveldbPathName: ctx.GlobalString(flags.LeveldbPathNameFlag.Name),
 		// BlockNotIncreasedThreshold
@@ -216,10 +195,6 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MaxBlobCount: ctx.GlobalInt(flags.MaxBlobCountFlag.Name),
 		// BatchV2UpgradeTime
 		BatchV2UpgradeTime: ctx.GlobalUint64(flags.BatchV2UpgradeTimeFlag.Name),
-	}
-
-	if err := cfg.BatchConfig().Validate(); err != nil {
-		return Config{}, fmt.Errorf("invalid static batch configuration: %w", err)
 	}
 
 	return cfg, nil

@@ -23,15 +23,23 @@ interface IRollup {
         bytes32 withdrawalRoot;
     }
 
+    /// @param signedSequencers The bitmap of signed sequencers
+    /// @param sequencerSets    The latest 3 sequencer sets
+    /// @param signature        The BLS signature
+    struct BatchSignatureInput {
+        uint256 signedSequencersBitmap;
+        bytes sequencerSets;
+        bytes signature;
+    }
+
     /// @param originTimestamp
     /// @param finalizeTimestamp
     /// @param blockNumber
-    /// @param submitter The account responsible for the batch, or zero for permissionless submissions.
     struct BatchData {
         uint256 originTimestamp;
         uint256 finalizeTimestamp;
         uint256 blockNumber;
-        address submitter;
+        uint256 signedSequencersBitmap;
     }
 
     /// @dev Structure to store information about a batch challenge.
@@ -120,9 +128,6 @@ interface IRollup {
     /// @param amount    claimed amount.
     event ProveRemainingClaimed(address receiver, uint256 amount);
 
-    /// @notice Emitted when the legacy staking dependency is replaced with Submitter.
-    event SubmitterContractUpdated(address indexed oldAddr, address indexed newAddr);
-
     /// @notice Emitted when the state of Challenge is updated.
     /// @param batchIndex       The index of the batch.
     /// @param challenger       The address of challenger.
@@ -169,30 +174,36 @@ interface IRollup {
     /// @notice Return the rollup config of finalizationPeriodSeconds.
     function finalizationPeriodSeconds() external view returns (uint256);
 
-    /// @notice Number of committed, non-terminated batches attributable to a submitter.
-    function pendingBatchCount(address submitter) external view returns (uint256);
-
     /*****************************
      * Public Mutating Functions *
      *****************************/
 
     /// @notice Commit a batch of transactions on layer 1.
     ///
-    /// @param batchDataInput The BatchDataInput struct
-    function commitBatch(BatchDataInput calldata batchDataInput) external payable;
+    /// @param batchDataInput       The BatchDataInput struct
+    /// @param batchSignatureInput  The BatchSignatureInput struct
+    function commitBatch(
+        BatchDataInput calldata batchDataInput,
+        BatchSignatureInput calldata batchSignatureInput
+    ) external payable;
 
     /// @notice Commit batch state when blob hash is already stored (recommit after revert without blob).
     /// @dev Requires batchBlobVersionedHashes[nextBatchIndex] != 0.
-    function commitState(BatchDataInput calldata batchDataInput) external;
+    function commitState(
+        BatchDataInput calldata batchDataInput,
+        BatchSignatureInput calldata batchSignatureInput
+    ) external;
 
     /// @notice Commit a batch with ZKP proof for permissionless submission.
     /// @dev This function allows anyone to submit batches when the sequencer is offline or censoring.
     ///
-    /// @param batchDataInput The BatchDataInput struct
-    /// @param batchHeader    The batch header for ZKP verification
-    /// @param batchProof     The ZKP proof data
+    /// @param batchDataInput       The BatchDataInput struct
+    /// @param batchSignatureInput  The BatchSignatureInput struct
+    /// @param batchHeader          The batch header for ZKP verification
+    /// @param batchProof           The ZKP proof data
     function commitBatchWithProof(
         BatchDataInput calldata batchDataInput,
+        BatchSignatureInput calldata batchSignatureInput,
         bytes calldata batchHeader,
         bytes calldata batchProof
     ) external;

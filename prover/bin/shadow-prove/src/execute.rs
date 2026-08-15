@@ -124,7 +124,6 @@ mod tests {
 
     // cargo test -p shadow-proving --lib -- execute::tests::test_execute_range --exact --nocapture -- --start-block 0x35 --end-block 0x36 --rpc http://127.0.0.1:9545
     #[test]
-    #[ignore = "requires an external L2 RPC and explicit CLI fixture arguments"]
     fn test_execute_range() {
         env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
 
@@ -139,7 +138,6 @@ mod tests {
 
     // cargo test -p shadow-proving --lib -- execute::tests::test_execute_block --exact --nocapture -- --block-number 19997 --rpc http://127.0.0.1:9545
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore = "requires an external L2 RPC and explicit CLI fixture arguments"]
     async fn test_execute_block() {
         env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
 
@@ -154,7 +152,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires a local L2 RPC fixture"]
     async fn test_execute_batch() {
         env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
         let handle = tokio::spawn(async move {
@@ -174,7 +171,6 @@ mod tests {
         handle.await.unwrap();
     }
     #[tokio::test]
-    #[ignore = "requires a local L2 RPC fixture"]
     async fn test_execute_remote() {
         env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
         let provider =
@@ -188,10 +184,8 @@ mod tests {
         println!("batch_info.post_state_root: {:?}", batch_info.post_state_root);
     }
 
-    // cargo test --package shadow-proving --lib -- execute::tests::test_execute_local --exact
-    // --nocapture
+    // cargo test --package shadow-proving --lib -- execute::tests::test_execute_local --exact --nocapture
     #[tokio::test]
-    #[ignore = "requires pre-generated local executor fixtures"]
     async fn test_execute_local() {
         env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
         let dir = "../../testdata/state";
@@ -215,7 +209,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires a production L2 RPC and writes a local fixture"]
     async fn execute_batch_input() {
         env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
         let provider = ProviderBuilder::new()
@@ -266,7 +259,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires a pre-generated local executor fixture"]
     async fn execute_batch_input_local() {
         env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
         let file = File::open("proof/shadow_input.json").unwrap();

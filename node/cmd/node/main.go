@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"net"
 	"net/http"
@@ -18,7 +17,6 @@ import (
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	tmconfig "github.com/tendermint/tendermint/config"
 	tmcrypto "github.com/tendermint/tendermint/crypto"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	tmnode "github.com/tendermint/tendermint/node"
@@ -138,9 +136,6 @@ func L2NodeMain(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := restorePersistedUpgradeHeight(tmCfg); err != nil {
-		return fmt.Errorf("restore persisted sequencer upgrade height: %w", err)
-	}
 
 	// Load derivation config here (not just before the switch below): its
 	// VerifyMode decides whether this node runs the Tendermint consensus node,
@@ -166,12 +161,23 @@ func L2NodeMain(ctx *cli.Context) error {
 		pubKey, _ = tmVal.GetPubKey()
 	}
 
-	// Reuse the shared syncer instance. NewExecutor starts it independently of
-	// validator membership, and Derivation.Start may safely invoke Start again.
+	// Reuse the shared syncer instance -- DevSequencer mode is the only path
+	// that pulls a syncer out of NewExecutor, so we hand back the same one
+	// rather than letting NewExecutor open a second store + syncer.
 	newSyncerFunc := func() (*sync.Syncer, error) { return syncer, nil }
 	executor, err = node.NewExecutor(newSyncerFunc, nodeConfig, pubKey)
 	if err != nil {
 		return err
+	}
+
+	// Eagerly start the L1 message syncer for post-upgrade sequencer nodes that
+	// are NOT in the PBFT validator set (separated-deployment / HA cluster).
+	// In the combined-deployment case, updateSequencerSet already started the
+	// syncer inside NewExecutor, so SetSyncer is a no-op there.
+	if signer != nil && executor.Syncer() == nil {
+		executor.SetSyncer(syncer)
+		syncer.Start()
+		nodeConfig.Logger.Info("L1 syncer start", "reason", "post-upgrade always start")
 	}
 
 	haService, err = initHAService(ctx, home, nodeConfig.Logger)
@@ -288,46 +294,6 @@ func L2NodeMain(ctx *cli.Context) error {
 	}
 
 	return nil
-}
-
-// upgradeHeightSnapshotStore holds the height restored from Tendermint's state
-// DB while NewExecutor is constructed. SetupNode subsequently rewires the
-// upgrade package to the live DB. An unexpected early write fails hard instead
-// of pretending that critical consensus state was persisted.
-type upgradeHeightSnapshotStore struct {
-	height int64
-}
-
-func (s upgradeHeightSnapshotStore) Get([]byte) ([]byte, error) {
-	if s.height < 0 {
-		return nil, nil
-	}
-	var encoded [8]byte
-	binary.BigEndian.PutUint64(encoded[:], uint64(s.height))
-	return encoded[:], nil
-}
-
-func (upgradeHeightSnapshotStore) Set([]byte, []byte) error {
-	return fmt.Errorf("live Tendermint upgrade store is not wired yet")
-}
-
-// restorePersistedUpgradeHeight makes the persisted H available before
-// NewExecutor performs its initial validator lookup. Tendermint normally wires
-// this store inside NewNode, which is necessarily constructed after Executor.
-func restorePersistedUpgradeHeight(tmCfg *tmconfig.Config) error {
-	stateDB, err := tmnode.DefaultDBProvider(&tmnode.DBContext{ID: "state", Config: tmCfg})
-	if err != nil {
-		return err
-	}
-	if err := upgrade.SetStore(stateDB); err != nil {
-		_ = stateDB.Close()
-		return err
-	}
-	height := upgrade.UpgradeBlockHeight()
-	if err := stateDB.Close(); err != nil {
-		return err
-	}
-	return upgrade.SetStore(upgradeHeightSnapshotStore{height: height})
 }
 
 // initHAService builds the HA config and creates the HAService.

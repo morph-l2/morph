@@ -23,7 +23,7 @@ export const RollupInit = async (
     // Load the contracts we need to interact with.
     const ZkEvmVerifierV1Address = getContractAddressByName(path, ImplStorageName.ZkEvmVerifierV1StorageName)
     const L1MessageQueueWithGasPriceOracleProxyAddress = getContractAddressByName(path, ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName)
-    const SubmitterProxyAddress = getContractAddressByName(path, ProxyStorageName.SubmitterProxyStorageName)
+    const L1StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.L1StakingProxyStorageName)
 
     // Rollup config
     const RollupProxyAddress = getContractAddressByName(path, ProxyStorageName.RollupProxyStorageName)
@@ -60,7 +60,7 @@ export const RollupInit = async (
 
         if (!ethers.utils.isAddress(L1MessageQueueWithGasPriceOracleProxyAddress)
             || !ethers.utils.isAddress(MultipleVersionRollupVerifierContract.address)
-            || !ethers.utils.isAddress(SubmitterProxyAddress)
+            || !ethers.utils.isAddress(L1StakingProxyAddress)
 
         ) {
             console.error('please check your address')
@@ -70,7 +70,7 @@ export const RollupInit = async (
         await IRollupProxy.upgradeToAndCall(
             RollupImplAddress,
             RollupFactory.interface.encodeFunctionData('initialize', [
-                SubmitterProxyAddress,
+                L1StakingProxyAddress,
                 L1MessageQueueWithGasPriceOracleProxyAddress,
                 MultipleVersionRollupVerifierContract.address,
                 finalizationPeriodSeconds,
@@ -97,8 +97,8 @@ export const RollupInit = async (
         )
         await assertContractVariable(
             contractTmp,
-            'submitterContract',
-            SubmitterProxyAddress
+            'l1StakingContract',
+            L1StakingProxyAddress
         )
         await assertContractVariable(
             contractTmp,

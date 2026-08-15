@@ -7,37 +7,9 @@ import (
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/crypto/bls12381"
 	"github.com/tendermint/tendermint/crypto/ed25519"
-	"github.com/tendermint/tendermint/upgrade"
 )
 
 const tmKeySize = ed25519.PubKeySize
-
-// Keep the protected pre-cutover update path addressable for symbol-level
-// audits even though all production entry points now use validatorSetAtHeight.
-// The method bodies below intentionally remain unchanged apart from removing
-// the old syncer-start side effect.
-var _ = (*Executor).updateSequencerSet
-
-func cloneValidatorKeys(keys [][]byte) [][]byte {
-	cloned := make([][]byte, len(keys))
-	for i := range keys {
-		cloned[i] = bytes.Clone(keys[i])
-	}
-	return cloned
-}
-
-// validatorSetAtHeight is the single validator data-source boundary. The
-// upgrade package intentionally switches strictly after the persisted height:
-// H is historical, H+1 is static.
-func (e *Executor) validatorSetAtHeight(height uint64) ([][]byte, error) {
-	if upgrade.IsUpgraded(int64(height)) {
-		return cloneValidatorKeys(e.staticValidatorTmKeys), nil
-	}
-	if e.legacyValidatorSetAtHeightFunc != nil {
-		return e.legacyValidatorSetAtHeightFunc(int64(height))
-	}
-	return e.getValidatorsAtHeight(int64(height))
-}
 
 func (e *Executor) sequencerSetUpdates(height uint64) ([][]byte, error) {
 	seqHash, err := e.sequencerCaller.SequencerSetVerifyHash(nil)
@@ -127,7 +99,19 @@ func (e *Executor) updateSequencerSet(height uint64) ([][]byte, error) {
 
 	_, isSequencer := e.seqTmKeySet[tmPKBz]
 	if !e.isSequencer && isSequencer {
-		e.logger.Info("I am a sequencer")
+		e.logger.Info("I am a sequencer, start to launch syncer")
+		if e.syncer == nil {
+			syncer, err := e.newSyncerFunc()
+			if err != nil {
+				e.logger.Error("failed to create syncer", "error", err)
+				return nil, err
+			}
+			e.syncer = syncer
+			e.l1MsgReader = syncer // syncer works as l1MsgReader
+			e.syncer.Start()
+		} else {
+			go e.syncer.Start()
+		}
 	} else if e.isSequencer && !isSequencer {
 		// as the derivation always need the syncer running, it should not be stopped
 
