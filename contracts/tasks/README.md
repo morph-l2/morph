@@ -23,3 +23,16 @@ or
 `yarn hardhat upgradeProxyWithProxyAdmin --proxyadminaddr 0x5FbDB2315678afecb367f032d93F642f64180aa3 \
 --proxyaddr 0x8a791620dd6260079bf849dc5567adc3f2fdc318 --newimpladdr 0x4ed7c70f96b99c776995fb64377f0d4ab3b0e1c1 \
 --network l1`
+
+For the one-time Rollup cutover to Submitter, use the dedicated task instead of
+the generic proxy upgrade. It checks that committed batches are fully finalized,
+that no challenge or revert request is pending, and then calls
+`ProxyAdmin.upgradeAndCall(initialize4)` atomically:
+
+`yarn hardhat upgradeRollupProxy --proxyadminaddr <proxy-admin> \
+--rollupproxyaddr <rollup-proxy> --submitterproxyaddr <submitter-proxy> \
+--chainid <l2-chain-id> --network <l1-network>`
+
+For a fresh deployment, `batchSubmitterPks` must be a JSON array whose order
+matches `batchSubmitterAddresses` in the selected deploy config. The `register`
+task owner-authorizes and stakes every configured work or backup submitter.

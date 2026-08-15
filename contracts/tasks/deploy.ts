@@ -13,14 +13,14 @@ import {
     deployContractProxiesConcurrently,
     deployContractImpls,
     deployContractImplsConcurrently,
+    SubmitterInit,
     MessengerInit,
     RollupInit,
     GatewayInit,
-    StakingInit,
     AdminTransfer,
     AdminTransferConcurrently,
     ContractInit,
-    StakingRegister,
+    SubmitterRegister,
     SequencerInit,
 } from '../deploy/index'
 import { ethers } from "ethers";
@@ -97,6 +97,13 @@ task("initialize")
             return
         }
 
+        console.log('\n---------------------------------- Submitter init ----------------------------------')
+        err = await SubmitterInit(hre, storagePath, deployer, config)
+        if (err != '') {
+            console.log('Submitter init failed, err: ', err)
+            return
+        }
+
         console.log('\n---------------------------------- Messenger init ----------------------------------')
         err = await MessengerInit(hre, storagePath, deployer, config)
         if (err != '') {
@@ -113,12 +120,6 @@ task("initialize")
         err = await GatewayInit(hre, storagePath, deployer, config)
         if (err != '') {
             console.log('Rollup init failed, err: ', err)
-            return
-        }
-        console.log('\n---------------------------------- Staking init ----------------------------------')
-        err = await StakingInit(hre, storagePath, deployer, config)
-        if (err != '') {
-            console.log('Staking init failed, err: ', err)
             return
         }
         console.log('\n---------------------------------- Sequencer init ----------------------------------')
@@ -152,25 +153,23 @@ task("initialize")
 
 task("fund")
     .setAction(async (taskArgs, hre) => {
-        console.log('\n---------------------------------- Fund Staking ----------------------------------')
+        console.log('\n---------------------------------- Fund Submitters ----------------------------------')
         const signer = await hre.ethers.getSigners()
-        console.log(process.env.l2SequencerPks)
-        let l2SequencerPkList = JSON.parse(process.env.l2SequencerPks);
-        console.log(l2SequencerPkList)
-        for (let i = 0; i < l2SequencerPkList.length; i++) {
-            let sequencer = new ethers.Wallet(l2SequencerPkList[i], hre.ethers.provider)
+        const batchSubmitterPkList: string[] = JSON.parse(process.env.batchSubmitterPks || "[]");
+        for (let i = 0; i < batchSubmitterPkList.length; i++) {
+            const submitter = new ethers.Wallet(batchSubmitterPkList[i], hre.ethers.provider)
             const tx = {
-                to: sequencer.address,
+                to: submitter.address,
                 value: ethers.utils.parseEther("100")
             }
-            let balance = (await sequencer.getBalance()).toString()
+            let balance = (await submitter.getBalance()).toString()
 
             if (balance.length < 20) {
                 let receipt = await signer[0].sendTransaction(tx)
                 await receipt.wait()
             }
-            balance = (await sequencer.getBalance()).toString()
-            console.log(`${sequencer.address} has balance: ${balance}`)
+            balance = (await submitter.getBalance()).toString()
+            console.log(`${submitter.address} has balance: ${balance}`)
         }
     })
 
@@ -181,14 +180,22 @@ task("register")
         // Initialization parameters
         const storagePath = taskArgs.storagepath
         const config = hre.deployConfig
-        let l2SequencerPkList = JSON.parse(process.env.l2SequencerPks);
-        for (let i = 0; i < l2SequencerPkList.length; i++) {
-            let sequencer = new ethers.Wallet(l2SequencerPkList[i], hre.ethers.provider)
-            console.log(`\n---------------------------------- register  sequencer-${i} ----------------------------------`)
-            console.log(`sequencer-${i}:` + await sequencer.getAddress() + ', Balance: ' + await sequencer.getBalance())
-            let err = await StakingRegister(hre, storagePath, sequencer, config.l2SequencerTmKeys[i], config.l2SequencerBlsKeys[i])
+        const owner = await hre.ethers.provider.getSigner();
+        const batchSubmitterPkList: string[] = JSON.parse(process.env.batchSubmitterPks || "[]");
+        const configuredAddresses: string[] = config.batchSubmitterAddresses;
+        if (batchSubmitterPkList.length !== configuredAddresses.length || batchSubmitterPkList.length === 0) {
+            throw new Error("batchSubmitterPks must contain one key for every configured work or backup submitter")
+        }
+        for (let i = 0; i < batchSubmitterPkList.length; i++) {
+            const submitter = new ethers.Wallet(batchSubmitterPkList[i], hre.ethers.provider)
+            if (configuredAddresses[i].toLowerCase() !== submitter.address.toLowerCase()) {
+                throw new Error(`batch submitter key ${i} does not match configured address`)
+            }
+            console.log(`\n---------------------------------- register submitter-${i} ----------------------------------`)
+            console.log(`submitter-${i}:` + submitter.address + ', Balance: ' + await submitter.getBalance())
+            const err = await SubmitterRegister(hre, storagePath, owner, submitter)
             if (err != '') {
-                console.log(`Deploy Staking Sequencer-${i} failed, err: `, err)
+                console.log(`Register Submitter-${i} failed, err: `, err)
                 return
             }
         }

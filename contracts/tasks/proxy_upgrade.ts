@@ -224,38 +224,58 @@ task("upgradeSystemDictatorImpl")
     })
 
 /*
-Proxy__Rollup
-
-cast call 0xb7f8bc63bbcad18155201308c8f3540b07f84f5e "layer2ChainId()(uint64)" --rpc-url http://127.0.0.1:9545
-53077
-
-cast call 0xb7f8bc63bbcad18155201308c8f3540b07f84f5e "MESSENGER()(address)" --rpc-url http://127.0.0.1:9545  
-0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
-
-yarn hardhat upgradeRollupImpl --chainid 53077 --l1cdmproxyaddr 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9 --network l1 
-
-yarn hardhat upgradeProxy --proxyaddr 0xb7f8bc63bbcad18155201308c8f3540b07f84f5e --newimpladdr 0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f --network l1
+One-time Submitter cutover for an existing Rollup. The task deploys the new
+implementation, checks the drain gates, and calls ProxyAdmin.upgradeAndCall
+with initialize4(address) in the same transaction.
 */
 task("upgradeRollupProxy")
     .addParam("proxyadminaddr")
     .addParam("rollupproxyaddr")
+    .addParam("submitterproxyaddr")
     .addParam("chainid")
     .setAction(async (taskArgs, hre) => {
+        if (
+            !hre.ethers.utils.isAddress(taskArgs.proxyadminaddr) ||
+            !hre.ethers.utils.isAddress(taskArgs.rollupproxyaddr) ||
+            !hre.ethers.utils.isAddress(taskArgs.submitterproxyaddr)
+        ) {
+            throw new Error("invalid ProxyAdmin, Rollup, or Submitter address")
+        }
+
         const ProxyAdminFactory = await hre.ethers.getContractFactory('ProxyAdmin')
         const proxyAdmin = ProxyAdminFactory.attach(taskArgs.proxyadminaddr)
-        // upgrade
-        const chainID = taskArgs.chainid
         const RollupFactory = await hre.ethers.getContractFactory("Rollup");
-        const rollupNewImpl = await RollupFactory.deploy(chainID);
+        const rollup = await hre.ethers.getContractAt("Rollup", taskArgs.rollupproxyaddr)
+        const lastCommitted = await rollup.lastCommittedBatchIndex()
+        const lastFinalized = await rollup.lastFinalizedBatchIndex()
+        if (!lastCommitted.eq(lastFinalized)) {
+            throw new Error(`Rollup is not drained: committed=${lastCommitted} finalized=${lastFinalized}`)
+        }
+        if (await rollup.inChallenge()) {
+            throw new Error("Rollup has a challenge in progress")
+        }
+        if (!(await rollup.revertReqIndex()).isZero()) {
+            throw new Error("Rollup has a pending revert request")
+        }
+
+        const rollupNewImpl = await RollupFactory.deploy(taskArgs.chainid);
         await rollupNewImpl.deployed()
         console.log("new rollupNewImpl contract address: ", rollupNewImpl.address)
-        if (!hre.ethers.utils.isAddress(taskArgs.rollupproxyaddr) || !hre.ethers.utils.isAddress(rollupNewImpl.address)) {
-            console.log(`not address ${taskArgs.rollupproxyaddr} ${rollupNewImpl.address}`)
-            return
-        }
-        const res = await proxyAdmin.upgrade(taskArgs.rollupproxyaddr, rollupNewImpl.address)
+
+        const initializer = RollupFactory.interface.encodeFunctionData("initialize4", [
+            taskArgs.submitterproxyaddr,
+        ])
+        const res = await proxyAdmin.upgradeAndCall(
+            taskArgs.rollupproxyaddr,
+            rollupNewImpl.address,
+            initializer
+        )
         const rec = await res.wait()
-        console.log(`upgrade rollup ${rec.status === 1}`)
+        const configuredSubmitter = await rollup.submitterContract()
+        if (configuredSubmitter.toLowerCase() !== taskArgs.submitterproxyaddr.toLowerCase()) {
+            throw new Error("Rollup Submitter cutover verification failed")
+        }
+        console.log(`upgrade Rollup and initialize Submitter dependency ${rec.status === 1}`)
     })
 
 /*
