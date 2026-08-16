@@ -435,13 +435,20 @@ async fn detecte_challenge_event(latest: U64, l1_rollup: &RollupType, l1_provide
                 return None;
             }
         };
-        if batch_in_challenge && !is_batch_finalized {
+        if should_read_commit_calldata(batch_in_challenge, is_batch_finalized) {
             return Some(batch_index);
         }
         log::debug!("batch status not in challenge or already finalized, batch index = {:#?}", batch_index);
     }
     log::info!("all batch's status not in challenge now");
     None
+}
+
+/// Commit calldata is only needed after the on-chain status checks identify a live challenge.
+/// In particular, batches finalized before the strict upgrade cutover must not reach the
+/// transaction lookup and calldata decoder in `handle_with_prover`.
+fn should_read_commit_calldata(batch_in_challenge: bool, is_batch_finalized: bool) -> bool {
+    batch_in_challenge && !is_batch_finalized
 }
 
 #[derive(Default, Clone)]
@@ -634,6 +641,16 @@ mod tests {
 
     fn push_call_result(mock: &MockProvider, token: Token) {
         mock.push::<Bytes, _>(Bytes::from(encode(&[token]))).unwrap();
+    }
+
+    #[test]
+    fn strict_upgrade_state_closes_calldata_gate_for_finalized_legacy_batches() {
+        // initialize4 requires no live challenge and all committed batches to be finalized.
+        assert!(!should_read_commit_calldata(false, true));
+        // Even a stale challenge event cannot make a finalized batch reach calldata lookup.
+        assert!(!should_read_commit_calldata(true, true));
+        assert!(!should_read_commit_calldata(false, false));
+        assert!(should_read_commit_calldata(true, false));
     }
 
     #[tokio::test]

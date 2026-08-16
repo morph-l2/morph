@@ -1,4 +1,11 @@
-use crate::{abi::decode_commit_batch, metrics::METRICS, BatchInfo, SHADOW_PROVING_BLOCKS_RANGE};
+use crate::{
+    abi::{
+        decode_commit_batch, target_batch_block_range, target_batch_header_from_next_commit,
+        CommitBatchInput,
+    },
+    metrics::METRICS,
+    BatchInfo, SHADOW_PROVING_BLOCKS_RANGE,
+};
 use alloy_consensus::Transaction;
 use alloy_network::{Network, ReceiptResponse};
 use alloy_primitives::{hex, Address, Bytes, Keccak256, TxHash, B256, U256, U64};
@@ -163,12 +170,12 @@ where
                 return Err(anyhow!("find commit_batch log error"));
             }
         };
-        let batch_input = batch_input_inspect(&self.l1_provider, next_tx_hash)
+        let batch_input = commit_batch_input_inspect(&self.l1_provider, next_tx_hash)
             .await
             .ok_or_else(|| anyhow!("Failed to inspect batch header"))?;
 
         log::info!("Found the committed batch, batch index = {:#?}", batch_index_hash.0);
-        Ok(Some((batch_info, batch_input.0)))
+        Ok(Some((batch_info, target_batch_header_from_next_commit(&batch_input))))
     }
 
     /// Fetch a specified batch from l1-rollup by batch_num.
@@ -320,12 +327,12 @@ where
         };
 
         // next(batch_num+1) commitBatch calldata contains curr(batch_num) parentBatchHeader.
-        let batch_input = batch_input_inspect(&self.l1_provider, next_tx_hash)
+        let batch_input = commit_batch_input_inspect(&self.l1_provider, next_tx_hash)
             .await
             .ok_or_else(|| anyhow!("Failed to inspect batch header"))?;
 
         log::info!("Found the specified batch (prev/curr/next): {:?}", batch_index_hash);
-        Ok(Some((batch_info, batch_input.0)))
+        Ok(Some((batch_info, target_batch_header_from_next_commit(&batch_input))))
     }
 
     /**
@@ -416,11 +423,12 @@ where
         prev_batch_hash: TxHash,
         current_batch_hash: TxHash,
     ) -> Option<((u64, u64), u64)> {
-        let prev_batch_input = batch_input_inspect(&self.l1_provider, prev_batch_hash).await?;
+        let prev_batch_input =
+            commit_batch_input_inspect(&self.l1_provider, prev_batch_hash).await?;
         let current_batch_input =
-            batch_input_inspect(&self.l1_provider, current_batch_hash).await?;
-        let start_block = prev_batch_input.1 + 1;
-        let end_block = current_batch_input.1;
+            commit_batch_input_inspect(&self.l1_provider, current_batch_hash).await?;
+        let (start_block, end_block) =
+            target_batch_block_range(&prev_batch_input, &current_batch_input);
 
         if start_block == 0 {
             log::error!("batch_blocks_inspect: start_block = 0, tx_hash =  {:#?}", prev_batch_hash);
@@ -510,7 +518,10 @@ where
     }
 }
 
-pub async fn batch_input_inspect(l1_provider: &DynProvider, hash: TxHash) -> Option<(Bytes, u64)> {
+async fn commit_batch_input_inspect(
+    l1_provider: &DynProvider,
+    hash: TxHash,
+) -> Option<CommitBatchInput> {
     //Step1.  Get transaction
     let result = l1_provider.get_transaction_by_hash(hash).await;
     let tx = match result {
@@ -538,6 +549,11 @@ pub async fn batch_input_inspect(l1_provider: &DynProvider, hash: TxHash) -> Opt
         log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", hash);
         return None;
     };
+    Some(input)
+}
+
+pub async fn batch_input_inspect(l1_provider: &DynProvider, hash: TxHash) -> Option<(Bytes, u64)> {
+    let input = commit_batch_input_inspect(l1_provider, hash).await?;
     Some((input.parent_batch_header, input.last_block_number))
 }
 #[tokio::test]

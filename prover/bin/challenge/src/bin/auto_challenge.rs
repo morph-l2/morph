@@ -121,9 +121,8 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, mi
         return Ok(());
     }
 
-    logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
-    let batch_index = match logs.get(logs.len() - 2) {
-        Some(log) => log.topics[1].to_low_u64_be(),
+    let batch_index = match candidate_batch_index_from_events(&mut logs) {
+        Some(batch_index) => batch_index,
         None => {
             log::error!("find commit_batch log error");
             return Ok(());
@@ -202,6 +201,13 @@ async fn auto_challenge(l1_provider: &Provider<Http>, l1_rollup: &RollupType, mi
     Ok(())
 }
 
+/// Select the penultimate committed batch using event metadata only. Deliberately accepting
+/// `Log` values rather than transactions keeps auto-challenge independent of commit calldata.
+fn candidate_batch_index_from_events(logs: &mut [Log]) -> Option<u64> {
+    logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
+    logs.get(logs.len() - 2).map(|log| log.topics[1].to_low_u64_be())
+}
+
 async fn detecte_challenge(latest: U64, l1_rollup: &RollupType, l1_provider: &Provider<Http>) -> Option<bool> {
     let start = if latest > U64::from(7200) {
         // Depends on proof window
@@ -249,4 +255,35 @@ async fn detecte_challenge(latest: U64, l1_rollup: &RollupType, l1_provider: &Pr
 // Check layer2 state.
 async fn verify_state_transition() {
     // Do nothing
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn commit_batch_event(block_number: u64, batch_index: u64) -> Log {
+        Log {
+            block_number: Some(block_number.into()),
+            topics: vec![H256::zero(), H256::from_low_u64_be(batch_index)],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn selects_candidate_from_event_metadata_without_a_transaction_hash() {
+        let mut logs = vec![commit_batch_event(12, 42), commit_batch_event(10, 40), commit_batch_event(11, 41)];
+        assert!(logs.iter().all(|log| log.transaction_hash.is_none()));
+
+        assert_eq!(candidate_batch_index_from_events(&mut logs), Some(41));
+    }
+
+    #[test]
+    fn source_has_no_commit_transaction_lookup_or_calldata_decoder() {
+        let source = include_str!("auto_challenge.rs");
+        let transaction_lookup = ["get_", "transaction"].concat();
+        let commit_decoder = ["decode_", "commit_batch"].concat();
+
+        assert!(!source.contains(&transaction_lookup));
+        assert!(!source.contains(&commit_decoder));
+    }
 }

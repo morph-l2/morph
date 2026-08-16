@@ -23,6 +23,20 @@ pub struct CommitBatchInput {
     pub last_block_number: u64,
 }
 
+/// Derive the target batch's L2 block range from the previous and target commits.
+pub fn target_batch_block_range(
+    previous: &CommitBatchInput,
+    target: &CommitBatchInput,
+) -> (u64, u64) {
+    (previous.last_block_number + 1, target.last_block_number)
+}
+
+/// A commit carries its parent's header, so the commit after the target is the source of the
+/// target batch header.
+pub fn target_batch_header_from_next_commit(next: &CommitBatchInput) -> Bytes {
+    next.parent_batch_header.clone()
+}
+
 /// Decode the pre- or post-upgrade commitBatch calldata handled by shadow-prove.
 pub fn decode_commit_batch(data: &[u8]) -> Result<CommitBatchInput> {
     let selector =
@@ -61,12 +75,48 @@ sol!(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_primitives::{B256, U256};
 
     const PRE_SUBMITTER_COMMIT_BATCH: &str = "0x428868b500000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000160000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000030390000000000000000000000000000000000000000000000000000000000000007111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222223333333333333333333333333333333333333333333333333333333333333333000000000000000000000000000000000000000000000000000000000000000301020300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000009000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000002aabb0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002ccdd000000000000000000000000000000000000000000000000000000000000";
     const POST_SUBMITTER_COMMIT_BATCH: &str = "0x41f756da0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000003039000000000000000000000000000000000000000000000000000000000000000711111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222333333333333333333333333333333333333333333333333333333333333333300000000000000000000000000000000000000000000000000000000000000030102030000000000000000000000000000000000000000000000000000000000";
 
     fn calldata(value: &str) -> Vec<u8> {
         alloy_primitives::hex::decode(value.trim_start_matches("0x")).unwrap()
+    }
+
+    fn post_submitter_commit_batch(parent_batch_header: &[u8], last_block_number: u64) -> Vec<u8> {
+        Rollup::commitBatchCall {
+            batchDataInput: IRollup::BatchDataInput {
+                version: 2,
+                parentBatchHeader: Bytes::copy_from_slice(parent_batch_header),
+                lastBlockNumber: last_block_number,
+                numL1Messages: 0,
+                prevStateRoot: B256::ZERO,
+                postStateRoot: B256::ZERO,
+                withdrawalRoot: B256::ZERO,
+            },
+        }
+        .abi_encode()
+    }
+
+    fn pre_submitter_commit_batch(parent_batch_header: &[u8], last_block_number: u64) -> Vec<u8> {
+        PreSubmitterRollup::commitBatchCall {
+            batchDataInput: pre_submitter::IRollup::BatchDataInput {
+                version: 2,
+                parentBatchHeader: Bytes::copy_from_slice(parent_batch_header),
+                lastBlockNumber: last_block_number,
+                numL1Messages: 0,
+                prevStateRoot: B256::ZERO,
+                postStateRoot: B256::ZERO,
+                withdrawalRoot: B256::ZERO,
+            },
+            batchSignatureInput: pre_submitter::IRollup::BatchSignatureInput {
+                signedSequencersBitmap: U256::ZERO,
+                sequencerSets: Bytes::new(),
+                signature: Bytes::new(),
+            },
+        }
+        .abi_encode()
     }
 
     #[test]
@@ -88,5 +138,23 @@ mod tests {
         assert!(decode_commit_batch(&[0x67, 0xca, 0xa3, 0x7a]).is_err());
         assert!(decode_commit_batch(&[0x15, 0x44, 0xba, 0x3a]).is_err());
         assert!(decode_commit_batch(&[0x4e, 0x8f, 0x1d, 0x67]).is_err());
+    }
+
+    #[test]
+    fn decodes_and_assembles_old_new_new_cutover_window() {
+        let old_calldata = pre_submitter_commit_batch(b"old-parent", 99);
+        let target_calldata = post_submitter_commit_batch(b"target-parent", 109);
+        let next_calldata = post_submitter_commit_batch(b"target-header", 119);
+        assert_eq!(&old_calldata[..4], PreSubmitterRollup::commitBatchCall::SELECTOR);
+        assert_eq!(&target_calldata[..4], Rollup::commitBatchCall::SELECTOR);
+        assert_eq!(&next_calldata[..4], Rollup::commitBatchCall::SELECTOR);
+
+        let old = decode_commit_batch(&old_calldata).unwrap();
+        let target = decode_commit_batch(&target_calldata).unwrap();
+        let next = decode_commit_batch(&next_calldata).unwrap();
+
+        assert_eq!(target_batch_block_range(&old, &target), (100, 109));
+        assert_eq!(target_batch_header_from_next_commit(&next).as_ref(), b"target-header");
+        assert_ne!(target.parent_batch_header, target_batch_header_from_next_commit(&next));
     }
 }

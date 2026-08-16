@@ -25,6 +25,16 @@ const PRECISION: u64 = 10u64.pow(9);
 const MAX_COMMIT_SCALAR: u64 = 10u64.pow(9 + 6);
 const MAX_BLOB_SCALAR: u64 = 10u64.pow(9 + 2);
 
+fn select_blob_sample_calldata(blob_hash_count: usize, tx_input: &[u8]) -> Option<&[u8]> {
+    (blob_hash_count > 0).then_some(tx_input)
+}
+
+fn decode_selected_blob_sample_last_block_number(
+    selected_calldata: Option<&[u8]>,
+) -> eyre::Result<Option<u64>> {
+    selected_calldata.map(decode_commit_batch_last_block_number).transpose()
+}
+
 // Main struct to manage overhead information
 pub struct ScalarUpdater {
     l1_provider: Provider<Http>, // L1 provider for HTTP connections
@@ -298,10 +308,12 @@ impl ScalarUpdater {
             })?;
 
         let indexed_hashes = data_and_hashes_from_txs(&blob_block.transactions, &blob_tx);
-        if indexed_hashes.is_empty() {
+        let selected_calldata =
+            select_blob_sample_calldata(indexed_hashes.len(), blob_tx.input.as_ref());
+        let Some(selected_calldata) = selected_calldata else {
             log::info!("no blob in this batch, batch_tx_hash: {:#?}", tx_hash);
             return Ok((0, 0, 0));
-        }
+        };
 
         // Waiting for the next L1 block to be produced.
         let next_block_num = block_num + 1;
@@ -337,18 +349,21 @@ impl ScalarUpdater {
         };
 
         // Parse last_block_num
-        if blob_tx.input.is_empty() {
+        if selected_calldata.is_empty() {
             log::warn!("batch inspect: tx.input is empty, tx_hash =  {:#?}", tx_hash);
             return Err(ScalarError::Error(anyhow!(format!("commitBatch tx.input empty"))));
         }
-        let last_block_num = if let Ok(last_block_num) =
-            decode_commit_batch_last_block_number(&blob_tx.input)
-        {
-            last_block_num
-        } else {
-            log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", tx_hash);
-            return Err(ScalarError::Error(anyhow!(format!("decode commitBatch tx.input error",))));
-        };
+        let last_block_num =
+            match decode_selected_blob_sample_last_block_number(Some(selected_calldata)) {
+                Ok(Some(last_block_num)) => last_block_num,
+                Ok(None) => unreachable!("blob sample calldata was selected above"),
+                Err(_) => {
+                    log::error!("batch inspect: decode tx.input error, tx_hash =  {:#?}", tx_hash);
+                    return Err(ScalarError::Error(anyhow!(format!(
+                        "decode commitBatch tx.input error",
+                    ))));
+                }
+            };
 
         let indexes: Vec<u64> = indexed_hashes.iter().map(|item| item.index).collect();
         let sidecars_rt = self
@@ -389,6 +404,18 @@ mod tests {
 
     use super::*;
     use std::{env::var, str::FromStr, sync::Arc};
+
+    #[test]
+    fn no_blob_sample_skips_selector_decoding() {
+        let unknown_selector = [0xde, 0xad, 0xbe, 0xef];
+
+        let no_blob_calldata = select_blob_sample_calldata(0, &unknown_selector);
+        assert!(no_blob_calldata.is_none());
+        assert_eq!(decode_selected_blob_sample_last_block_number(no_blob_calldata).unwrap(), None);
+
+        let blob_calldata = select_blob_sample_calldata(1, &unknown_selector);
+        assert!(decode_selected_blob_sample_last_block_number(blob_calldata).is_err());
+    }
 
     #[tokio::test]
     #[ignore]
