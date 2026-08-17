@@ -72,6 +72,7 @@ type RollupBatchReader interface {
 	CommittedBatches(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error)
 	LastCommittedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
 	LastFinalizedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
+	LegacyCutoverBatchIndex(opts *bind.CallOpts) (*big.Int, error)
 	BatchDataStore(opts *bind.CallOpts, batchIndex *big.Int) (struct {
 		OriginTimestamp   *big.Int
 		FinalizeTimestamp *big.Int

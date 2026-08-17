@@ -13,6 +13,7 @@ import (
 type IRollup interface {
 	LastCommittedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
 	LastFinalizedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
+	LegacyCutoverBatchIndex(opts *bind.CallOpts) (*big.Int, error)
 	FinalizeBatch(*bind.TransactOpts, []byte) (*types.Transaction, error)
 	BatchInsideChallengeWindow(opts *bind.CallOpts, batchIndex *big.Int) (bool, error)
 	BatchExist(opts *bind.CallOpts, batchIndex *big.Int) (bool, error)

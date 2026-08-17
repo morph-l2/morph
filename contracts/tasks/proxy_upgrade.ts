@@ -225,31 +225,47 @@ task("upgradeSystemDictatorImpl")
 
 /*
 One-time Submitter cutover for an existing Rollup. The task deploys the new
-implementation, checks the drain gates, and calls ProxyAdmin.upgradeAndCall
-with initialize4(address) in the same transaction.
+implementation, checks the cutover gates, and calls ProxyAdmin.upgradeAndCall
+with initialize4(address,uint256) in the same transaction.
 */
 task("upgradeRollupProxy")
     .addParam("proxyadminaddr")
     .addParam("rollupproxyaddr")
     .addParam("submitterproxyaddr")
-    .addParam("chainid")
+    .addParam("submitteroperatoraddr")
+    .addParam("expectedcutoverbatchindex")
     .setAction(async (taskArgs, hre) => {
         if (
             !hre.ethers.utils.isAddress(taskArgs.proxyadminaddr) ||
             !hre.ethers.utils.isAddress(taskArgs.rollupproxyaddr) ||
-            !hre.ethers.utils.isAddress(taskArgs.submitterproxyaddr)
+            !hre.ethers.utils.isAddress(taskArgs.submitterproxyaddr) ||
+            !hre.ethers.utils.isAddress(taskArgs.submitteroperatoraddr) ||
+            taskArgs.proxyadminaddr === hre.ethers.constants.AddressZero ||
+            taskArgs.rollupproxyaddr === hre.ethers.constants.AddressZero ||
+            taskArgs.submitterproxyaddr === hre.ethers.constants.AddressZero ||
+            taskArgs.submitteroperatoraddr === hre.ethers.constants.AddressZero
         ) {
-            throw new Error("invalid ProxyAdmin, Rollup, or Submitter address")
+            throw new Error("invalid ProxyAdmin, Rollup, Submitter, or active operator address")
         }
 
-        const ProxyAdminFactory = await hre.ethers.getContractFactory('ProxyAdmin')
+        const ProxyAdminFactory = await hre.ethers.getContractFactory("ProxyAdmin")
         const proxyAdmin = ProxyAdminFactory.attach(taskArgs.proxyadminaddr)
-        const RollupFactory = await hre.ethers.getContractFactory("Rollup");
+        const RollupFactory = await hre.ethers.getContractFactory("Rollup")
         const rollup = await hre.ethers.getContractAt("Rollup", taskArgs.rollupproxyaddr)
+        const layer2ChainID = await rollup.LAYER_2_CHAIN_ID()
+        let expectedCutover: ethers.BigNumber
+        try {
+            expectedCutover = hre.ethers.BigNumber.from(taskArgs.expectedcutoverbatchindex)
+        } catch {
+            throw new Error("invalid expected cutover batch index")
+        }
+        if (expectedCutover.lt(0)) {
+            throw new Error("invalid expected cutover batch index")
+        }
         const lastCommitted = await rollup.lastCommittedBatchIndex()
         const lastFinalized = await rollup.lastFinalizedBatchIndex()
-        if (!lastCommitted.eq(lastFinalized)) {
-            throw new Error(`Rollup is not drained: committed=${lastCommitted} finalized=${lastFinalized}`)
+        if (!lastCommitted.eq(expectedCutover)) {
+            throw new Error(`Rollup cutover batch mismatch: expected=${expectedCutover} committed=${lastCommitted}`)
         }
         if (await rollup.inChallenge()) {
             throw new Error("Rollup has a challenge in progress")
@@ -258,24 +274,79 @@ task("upgradeRollupProxy")
             throw new Error("Rollup has a pending revert request")
         }
 
-        const rollupNewImpl = await RollupFactory.deploy(taskArgs.chainid);
+        const submitterCode = await hre.ethers.provider.getCode(taskArgs.submitterproxyaddr)
+        if (submitterCode === "0x") {
+            throw new Error("Submitter proxy has no code")
+        }
+        const submitter = await hre.ethers.getContractAt("Submitter", taskArgs.submitterproxyaddr)
+        let configuredRollup: string
+        let configuredOwner: string
+        let minimumStake: ethers.BigNumber
+        let challengeDeposit: ethers.BigNumber
+        let rewardPercentage: ethers.BigNumber
+        let operatorIsActive: boolean
+        try {
+            ;[configuredRollup, configuredOwner, minimumStake, challengeDeposit, rewardPercentage, operatorIsActive] =
+                await Promise.all([
+                    submitter.rollupContract(),
+                    submitter.owner(),
+                    submitter.minimumStake(),
+                    submitter.challengeDeposit(),
+                    submitter.rewardPercentage(),
+                    submitter.isActive(taskArgs.submitteroperatoraddr),
+                ])
+        } catch (error) {
+            const reason = error instanceof Error ? error.message : String(error)
+            throw new Error(`Submitter semantic preflight failed: ${reason}`)
+        }
+        if (configuredRollup.toLowerCase() !== taskArgs.rollupproxyaddr.toLowerCase()) {
+            throw new Error(
+                `Submitter rollup mismatch: expected=${taskArgs.rollupproxyaddr} actual=${configuredRollup}`
+            )
+        }
+        if (
+            configuredOwner === hre.ethers.constants.AddressZero ||
+            minimumStake.isZero() ||
+            challengeDeposit.isZero() ||
+            rewardPercentage.isZero() ||
+            rewardPercentage.gt(100)
+        ) {
+            throw new Error("Submitter owner or parameters are invalid")
+        }
+        if (!operatorIsActive) {
+            throw new Error(`Submitter operator is not active: ${taskArgs.submitteroperatoraddr}`)
+        }
+
+        const rollupNewImpl = await RollupFactory.deploy(layer2ChainID)
         await rollupNewImpl.deployed()
         console.log("new rollupNewImpl contract address: ", rollupNewImpl.address)
 
         const initializer = RollupFactory.interface.encodeFunctionData("initialize4", [
             taskArgs.submitterproxyaddr,
+            expectedCutover,
         ])
-        const res = await proxyAdmin.upgradeAndCall(
-            taskArgs.rollupproxyaddr,
-            rollupNewImpl.address,
-            initializer
-        )
+        const res = await proxyAdmin.upgradeAndCall(taskArgs.rollupproxyaddr, rollupNewImpl.address, initializer)
         const rec = await res.wait()
         const configuredSubmitter = await rollup.submitterContract()
         if (configuredSubmitter.toLowerCase() !== taskArgs.submitterproxyaddr.toLowerCase()) {
             throw new Error("Rollup Submitter cutover verification failed")
         }
-        console.log(`upgrade Rollup and initialize Submitter dependency ${rec.status === 1}`)
+        const configuredCutover = await rollup.legacyCutoverBatchIndex()
+        if (!configuredCutover.eq(expectedCutover)) {
+            throw new Error(
+                `Rollup legacy cutover verification failed: expected=${expectedCutover} actual=${configuredCutover}`
+            )
+        }
+        const configuredChainID = await rollup.LAYER_2_CHAIN_ID()
+        if (!configuredChainID.eq(layer2ChainID)) {
+            throw new Error(
+                `Rollup L2 chain ID verification failed: expected=${layer2ChainID} actual=${configuredChainID}`
+            )
+        }
+        console.log(
+            `upgrade Rollup and initialize Submitter dependency ${rec.status === 1}; ` +
+                `cutover=${configuredCutover} finalized=${lastFinalized} l2ChainID=${configuredChainID}`
+        )
     })
 
 /*

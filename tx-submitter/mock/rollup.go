@@ -16,6 +16,7 @@ import (
 type MockRollup struct {
 	lastCommittedBatchIndex *big.Int
 	lastFinalizedBatchIndex *big.Int
+	legacyCutoverBatchIndex *big.Int
 	insideChallengeWindow   bool
 	batchExists             bool
 	storedBlobHash          [32]byte
@@ -27,6 +28,7 @@ func NewMockRollup() *MockRollup {
 	return &MockRollup{
 		lastCommittedBatchIndex: big.NewInt(0),
 		lastFinalizedBatchIndex: big.NewInt(0),
+		legacyCutoverBatchIndex: big.NewInt(0),
 		insideChallengeWindow:   false,
 		batchExists:             false,
 	}
@@ -40,6 +42,11 @@ func (m *MockRollup) LastCommittedBatchIndex(opts *bind.CallOpts) (*big.Int, err
 // LastFinalizedBatchIndex implements IRollup
 func (m *MockRollup) LastFinalizedBatchIndex(opts *bind.CallOpts) (*big.Int, error) {
 	return m.lastFinalizedBatchIndex, nil
+}
+
+// LegacyCutoverBatchIndex implements IRollup.
+func (m *MockRollup) LegacyCutoverBatchIndex(opts *bind.CallOpts) (*big.Int, error) {
+	return m.legacyCutoverBatchIndex, nil
 }
 
 // FinalizeBatch implements IRollup
@@ -104,6 +111,11 @@ func (m *MockRollup) SetLastCommittedBatchIndex(index *big.Int) {
 // SetLastFinalizedBatchIndex sets the mock value for LastFinalizedBatchIndex
 func (m *MockRollup) SetLastFinalizedBatchIndex(index *big.Int) {
 	m.lastFinalizedBatchIndex = index
+}
+
+// SetLegacyCutoverBatchIndex sets the immutable pre-upgrade batch boundary.
+func (m *MockRollup) SetLegacyCutoverBatchIndex(index *big.Int) {
+	m.legacyCutoverBatchIndex = index
 }
 
 // SetBatchInsideChallengeWindow sets the mock value for BatchInsideChallengeWindow

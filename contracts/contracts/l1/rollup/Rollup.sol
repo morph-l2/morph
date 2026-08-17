@@ -24,6 +24,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice The zero versioned hash.
     bytes32 internal constant ZERO_VERSIONED_HASH = 0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014;
 
+    /// @notice EIP-1967 storage slot containing the current proxy admin.
+    bytes32 private constant EIP1967_PROXY_ADMIN_SLOT =
+        0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable LAYER_2_CHAIN_ID;
 
@@ -102,6 +106,10 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /// @notice Store blob versioned hash per batch index. Preserved across revertBatch so recommit can reuse.
     /// @dev Placed after rollupDelayPeriod for upgrade-safe storage layout (forward compatibility).
     mapping(uint256 batchIndex => bytes32 blobVersionedHash) public batchBlobVersionedHashes;
+
+    /// @inheritdoc IRollup
+    /// @dev Appended to Rollup's own storage layout. This is an audit marker; transition safety relies on the cutover runbook.
+    uint256 public override legacyCutoverBatchIndex;
 
     /**********************
      * Function Modifiers *
@@ -196,13 +204,17 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
 
     /// @notice One-time cutover from the legacy staking address to the Submitter proxy.
     /// @dev Called atomically through the existing ProxyAdmin upgradeAndCall flow.
-    function initialize4(address _newSubmitter) external reinitializer(4) {
+    /// @param _newSubmitter The new Submitter proxy.
+    /// @param _expectedLegacyCutoverBatchIndex The last committed batch expected by the cutover operator.
+    function initialize4(address _newSubmitter, uint256 _expectedLegacyCutoverBatchIndex) external reinitializer(4) {
+        require(_msgSender() == _getProxyAdmin(), "only proxy admin");
         require(_newSubmitter != address(0) && _newSubmitter.code.length > 0, "invalid submitter");
-        require(lastCommittedBatchIndex == lastFinalizedBatchIndex, "pending batches");
+        require(lastCommittedBatchIndex == _expectedLegacyCutoverBatchIndex, "cutover batch mismatch");
         require(!inChallenge, "challenge in progress");
         require(revertReqIndex == 0, "pending revert request");
 
-        emit SubmitterContractUpdated(submitterContract, _newSubmitter);
+        legacyCutoverBatchIndex = _expectedLegacyCutoverBatchIndex;
+        emit SubmitterContractUpdated(submitterContract, _newSubmitter, _expectedLegacyCutoverBatchIndex);
         submitterContract = _newSubmitter;
     }
 
@@ -712,6 +724,14 @@ contract Rollup is IRollup, OwnableUpgradeable, PausableUpgradeable {
     /**********************
      * Internal Functions *
      **********************/
+
+    /// @dev Read the current EIP-1967 admin from proxy storage. It is zero on the implementation contract.
+    function _getProxyAdmin() internal view returns (address admin) {
+        bytes32 slot = EIP1967_PROXY_ADMIN_SLOT;
+        assembly {
+            admin := sload(slot)
+        }
+    }
 
     /// @dev Internal function to pop finalized l1 messages.
     /// @param totalL1MessagePopped The total number of L1 messages popped in all batches including current batch.

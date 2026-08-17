@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"morph-l2/bindings/bindings"
+	"morph-l2/common/batch"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/mock"
@@ -107,6 +108,26 @@ func TestPreCheckUsesSubmitterActivity(t *testing.T) {
 
 	submitter.SetError(errors.New("rpc unavailable"))
 	require.ErrorContains(t, r.PreCheck(), "check Submitter activity")
+}
+
+func TestSealBatchRollupCannotSubmitAfterLegacyCacheInitFailure(t *testing.T) {
+	r, _, _, rollupContract := setupTestRollup(t)
+	r.cfg.SealBatch = true
+	rollupContract.SetLastFinalizedBatchIndex(big.NewInt(10))
+	rollupContract.SetLastCommittedBatchIndex(big.NewInt(12))
+	rollupContract.SetLegacyCutoverBatchIndex(big.NewInt(12))
+
+	initErr := r.batchCache.Init()
+	require.ErrorIs(t, initErr, batch.ErrLegacyTransitionCacheRequired)
+	cachedBatch, getErr := r.batchCache.Get(13)
+	require.ErrorIs(t, getErr, batch.ErrBatchCacheNotInitialized)
+	require.Nil(t, cachedBatch)
+
+	// Even a direct call (defence in depth beyond Start's loop gate) cannot
+	// create or enqueue a commit while cache validation remains unsuccessful.
+	require.NoError(t, r.rollup())
+	require.Zero(t, r.pendingTxs.Len())
+	require.Zero(t, r.pendingTxs.GetPindex())
 }
 
 // TestHandleDiscardedTx tests the handling of discarded transactions

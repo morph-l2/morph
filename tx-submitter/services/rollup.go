@@ -227,17 +227,6 @@ func (r *Rollup) Start() error {
 		r.metrics.SetHasPendingFinalizeBatch(hasPendingFinalizeBatch)
 	})
 
-	go utils.Loop(r.ctx, r.cfg.RollupInterval, func() {
-		r.rollupFinalizeMu.Lock()
-		defer r.rollupFinalizeMu.Unlock()
-		if err := r.rollup(); err != nil {
-			if utils.IsRpcErr(err) {
-				r.metrics.IncRpcErrors()
-			}
-			log.Error("rollup failed,wait for the next try", "error", err)
-		}
-	})
-
 	if r.cfg.Finalize {
 		go utils.Loop(r.ctx, r.cfg.FinalizeInterval, func() {
 			r.rollupFinalizeMu.Lock()
@@ -266,39 +255,69 @@ func (r *Rollup) Start() error {
 	})
 
 	if r.cfg.SealBatch {
-		var batchCacheSyncMu sync.Mutex
+		batchCacheReady := make(chan struct{})
 
 		go func() {
-			batchCacheSyncMu.Lock()
-			defer batchCacheSyncMu.Unlock()
 			for {
-
-				if err = r.batchCache.InitAndSyncFromDatabase(); err != nil {
-					log.Error("init and sync from database failed, wait for the next try", "error", err)
-					time.Sleep(5 * time.Second)
+				if initErr := r.batchCache.InitAndSyncFromDatabase(); initErr != nil {
+					log.Error("init and sync from database failed, wait for the next try", "error", initErr)
+					retry := time.NewTimer(5 * time.Second)
+					select {
+					case <-r.ctx.Done():
+						retry.Stop()
+						return
+					case <-retry.C:
+					}
 					continue
 				}
-				break
+
+				// In SealBatch mode the commit loop must not exist before the
+				// migrated cache has passed transition validation. Finalization
+				// and pending-transaction processing are started independently
+				// above and remain available while initialization is retried.
+				close(batchCacheReady)
+				r.startRollupLoop()
+				return
 			}
 		}()
 
-		go utils.Loop(r.ctx, r.cfg.TxProcessInterval, func() {
-			batchCacheSyncMu.Lock()
-			defer batchCacheSyncMu.Unlock()
-			if err = r.batchCache.AssembleCurrentBatchHeader(); err != nil {
-				log.Error("assemble current batch failed, wait for the next try", "error", err)
+		go func() {
+			select {
+			case <-r.ctx.Done():
 				return
+			case <-batchCacheReady:
 			}
-			if index, err := r.batchCache.LatestBatchIndex(); err != nil {
-				log.Error("cannot get the latest batch index from batch cache", "error", err)
-				return
-			} else {
-				r.metrics.SetLastCacheBatchIndex(index)
-			}
-		})
+			utils.Loop(r.ctx, r.cfg.TxProcessInterval, func() {
+				if assembleErr := r.batchCache.AssembleCurrentBatchHeader(); assembleErr != nil {
+					log.Error("assemble current batch failed, wait for the next try", "error", assembleErr)
+					return
+				}
+				if index, err := r.batchCache.LatestBatchIndex(); err != nil {
+					log.Error("cannot get the latest batch index from batch cache", "error", err)
+					return
+				} else {
+					r.metrics.SetLastCacheBatchIndex(index)
+				}
+			})
+		}()
+	} else {
+		r.startRollupLoop()
 	}
 
 	return nil
+}
+
+func (r *Rollup) startRollupLoop() {
+	go utils.Loop(r.ctx, r.cfg.RollupInterval, func() {
+		r.rollupFinalizeMu.Lock()
+		defer r.rollupFinalizeMu.Unlock()
+		if err := r.rollup(); err != nil {
+			if utils.IsRpcErr(err) {
+				r.metrics.IncRpcErrors()
+			}
+			log.Error("rollup failed,wait for the next try", "error", err)
+		}
+	})
 }
 
 func (r *Rollup) ProcessTx() error {

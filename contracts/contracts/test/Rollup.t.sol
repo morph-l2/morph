@@ -2,7 +2,7 @@
 pragma solidity =0.8.24;
 
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
-import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IRollup} from "../l1/rollup/IRollup.sol";
 import {Rollup} from "../l1/rollup/Rollup.sol";
 import {BatchHeaderCodecV0} from "../libraries/codec/BatchHeaderCodecV0.sol";
@@ -1359,8 +1359,24 @@ contract RollupSubmitterUpgradeTest is L1MessageBaseTest {
     uint256 internal constant BATCH_DATA_STORE_SLOT = 162;
     uint256 internal constant IN_CHALLENGE_SLOT = 166;
     uint256 internal constant REVERT_REQ_INDEX_SLOT = 168;
+    uint256 internal constant LEGACY_CUTOVER_BATCH_INDEX_SLOT = 174;
+
+    function test_initialize4RejectsNonAdminOnFreshProxy() public {
+        Rollup nextImplementation = new Rollup(layer2ChainID);
+        TransparentUpgradeableProxy freshProxy =
+            new TransparentUpgradeableProxy(address(nextImplementation), address(proxyAdmin), new bytes(0));
+        Rollup freshRollup = Rollup(payable(address(freshProxy)));
+
+        hevm.prank(alice);
+        hevm.expectRevert("only proxy admin");
+        freshRollup.initialize4(address(submitter), 0);
+
+        assertEq(freshRollup.submitterContract(), address(0));
+        assertEq(freshRollup.legacyCutoverBatchIndex(), 0);
+    }
 
     function test_initialize4IsAtomicThroughProxyAdminAndRunsOnce() public {
+        uint256 expectedCutoverBatchIndex = 7;
         Rollup nextImplementation = new Rollup(layer2ChainID);
         bytes32 batchDataBase = keccak256(abi.encode(uint256(0), BATCH_DATA_STORE_SLOT));
         bytes32 legacyOwnerSlot = bytes32(uint256(batchDataBase) + 3);
@@ -1368,36 +1384,43 @@ contract RollupSubmitterUpgradeTest is L1MessageBaseTest {
         hevm.store(address(rollup), legacyOwnerSlot, legacyValue);
         bytes32 storedBlobSlot = keccak256(abi.encode(uint256(7), BATCH_BLOB_VERSIONED_HASHES_SLOT));
         hevm.store(address(rollup), storedBlobSlot, bytes32(uint256(0x1234)));
+        hevm.store(address(rollup), bytes32(LAST_FINALIZED_BATCH_INDEX_SLOT), bytes32(uint256(5)));
+        hevm.store(address(rollup), bytes32(LAST_COMMITTED_BATCH_INDEX_SLOT), bytes32(expectedCutoverBatchIndex));
 
         hevm.prank(multisig);
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(payable(address(rollup))),
             address(nextImplementation),
-            abi.encodeCall(Rollup.initialize4, (address(submitter)))
+            abi.encodeCall(Rollup.initialize4, (address(submitter), expectedCutoverBatchIndex))
         );
 
         assertEq(rollup.submitterContract(), address(submitter));
+        assertEq(rollup.lastFinalizedBatchIndex(), 5);
+        assertEq(rollup.lastCommittedBatchIndex(), expectedCutoverBatchIndex);
+        assertEq(rollup.legacyCutoverBatchIndex(), expectedCutoverBatchIndex);
+        assertEq(
+            uint256(hevm.load(address(rollup), bytes32(LEGACY_CUTOVER_BATCH_INDEX_SLOT))), expectedCutoverBatchIndex
+        );
         assertEq(hevm.load(address(rollup), legacyOwnerSlot), legacyValue);
         assertEq(rollup.batchBlobVersionedHashes(7), bytes32(uint256(0x1234)));
 
         hevm.prank(multisig);
         hevm.expectRevert("Initializable: contract is already initialized");
-        rollup.initialize4(address(submitter));
+        rollup.initialize4(address(submitter), expectedCutoverBatchIndex);
     }
 
-    function test_initialize4ChecksDrainChallengeAndRevertBeforeCutover() public {
+    function test_initialize4ChecksExpectedCutoverChallengeAndRevertBeforeCutover() public {
         Rollup nextImplementation = new Rollup(layer2ChainID);
 
         hevm.store(address(rollup), bytes32(LAST_COMMITTED_BATCH_INDEX_SLOT), bytes32(uint256(1)));
         hevm.prank(multisig);
-        hevm.expectRevert("pending batches");
+        hevm.expectRevert("cutover batch mismatch");
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(payable(address(rollup))),
             address(nextImplementation),
-            abi.encodeCall(Rollup.initialize4, (address(submitter)))
+            abi.encodeCall(Rollup.initialize4, (address(submitter), 0))
         );
 
-        hevm.store(address(rollup), bytes32(LAST_COMMITTED_BATCH_INDEX_SLOT), bytes32(0));
         hevm.store(address(rollup), bytes32(LAST_FINALIZED_BATCH_INDEX_SLOT), bytes32(0));
         hevm.store(address(rollup), bytes32(IN_CHALLENGE_SLOT), bytes32(uint256(1)));
         hevm.prank(multisig);
@@ -1405,7 +1428,7 @@ contract RollupSubmitterUpgradeTest is L1MessageBaseTest {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(payable(address(rollup))),
             address(nextImplementation),
-            abi.encodeCall(Rollup.initialize4, (address(submitter)))
+            abi.encodeCall(Rollup.initialize4, (address(submitter), 1))
         );
 
         hevm.store(address(rollup), bytes32(IN_CHALLENGE_SLOT), bytes32(0));
@@ -1415,7 +1438,7 @@ contract RollupSubmitterUpgradeTest is L1MessageBaseTest {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(payable(address(rollup))),
             address(nextImplementation),
-            abi.encodeCall(Rollup.initialize4, (address(submitter)))
+            abi.encodeCall(Rollup.initialize4, (address(submitter), 1))
         );
 
         hevm.store(address(rollup), bytes32(REVERT_REQ_INDEX_SLOT), bytes32(0));
@@ -1423,15 +1446,17 @@ contract RollupSubmitterUpgradeTest is L1MessageBaseTest {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(payable(address(rollup))),
             address(nextImplementation),
-            abi.encodeCall(Rollup.initialize4, (address(submitter)))
+            abi.encodeCall(Rollup.initialize4, (address(submitter), 1))
         );
         assertEq(rollup.submitterContract(), address(submitter));
+        assertEq(rollup.legacyCutoverBatchIndex(), 1);
     }
 
     function test_newSubmissionSelectors() public {
         assertEq(IRollup.commitBatch.selector, bytes4(0x41f756da));
         assertEq(IRollup.commitState.selector, bytes4(0x67caa37a));
         assertEq(IRollup.commitBatchWithProof.selector, bytes4(0x1544ba3a));
+        assertEq(Rollup.initialize4.selector, bytes4(0x843bc9a1));
     }
 }
 

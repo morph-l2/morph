@@ -121,7 +121,12 @@ interface IRollup {
     event ProveRemainingClaimed(address receiver, uint256 amount);
 
     /// @notice Emitted when the legacy staking dependency is replaced with Submitter.
-    event SubmitterContractUpdated(address indexed oldAddr, address indexed newAddr);
+    /// @param oldAddr The legacy staking dependency.
+    /// @param newAddr The new Submitter dependency.
+    /// @param legacyCutoverBatchIndex The last committed batch at the atomic cutover.
+    event SubmitterContractUpdated(
+        address indexed oldAddr, address indexed newAddr, uint256 indexed legacyCutoverBatchIndex
+    );
 
     /// @notice Emitted when the state of Challenge is updated.
     /// @param batchIndex       The index of the batch.
@@ -149,6 +154,9 @@ interface IRollup {
 
     /// @notice The latest finalized batch index.
     function lastCommittedBatchIndex() external view returns (uint256);
+
+    /// @notice The last committed batch index captured by the Submitter cutover.
+    function legacyCutoverBatchIndex() external view returns (uint256);
 
     /// @notice Return the batch hash of a committed batch.
     /// @param batchIndex The index of the batch.

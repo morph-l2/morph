@@ -22,7 +22,7 @@ func TestCurrentRollupBindingShape(t *testing.T) {
 		"commitBatch":          {selector: "41f756da", inputs: 1},
 		"commitState":          {selector: "67caa37a", inputs: 1},
 		"commitBatchWithProof": {selector: "1544ba3a", inputs: 3},
-		"initialize4":          {selector: "f8fa010f", inputs: 1},
+		"initialize4":          {selector: "843bc9a1", inputs: 2},
 	}
 	for name, want := range expected {
 		method, ok := current.Methods[name]
@@ -46,6 +46,15 @@ func TestCurrentRollupBindingShape(t *testing.T) {
 	}
 	if _, ok := current.Methods["pendingBatchCount"]; ok {
 		t.Fatal("generated Rollup binding must not contain pendingBatchCount")
+	}
+	if method, ok := current.Methods["legacyCutoverBatchIndex"]; !ok ||
+		len(method.Outputs) != 1 || method.Outputs[0].Type.String() != "uint256" {
+		t.Fatalf("generated Rollup binding has invalid legacyCutoverBatchIndex getter: %v", method)
+	}
+	cutoverEvent, ok := current.Events["SubmitterContractUpdated"]
+	if !ok || len(cutoverEvent.Inputs) != 3 ||
+		!cutoverEvent.Inputs[2].Indexed || cutoverEvent.Inputs[2].Type.String() != "uint256" {
+		t.Fatalf("SubmitterContractUpdated must index the cutover batch: %v", cutoverEvent)
 	}
 }
 
@@ -89,6 +98,7 @@ func TestCurrentStorageLayoutsAreGenerated(t *testing.T) {
 		"submitterContract":        151,
 		"batchDataStore":           162,
 		"batchBlobVersionedHashes": 173,
+		"legacyCutoverBatchIndex":  174,
 	}
 	for _, entry := range RollupStorageLayout.Storage {
 		if entry.Label == "pendingBatchCount" {
