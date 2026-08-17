@@ -926,7 +926,7 @@ pub fn to_nibs(slice: &[u8]) -> Vec<u8> {
 /// bytes.
 pub fn to_encoded_path(mut nibs: &[u8], is_leaf: bool) -> Vec<u8> {
     let mut prefix = (is_leaf as u8) * 0x20;
-    if nibs.len() % 2 != 0 {
+    if !nibs.len().is_multiple_of(2) {
         prefix += 0x10 + nibs[0];
         nibs = &nibs[1..];
     }
@@ -986,7 +986,7 @@ pub fn mpt_from_proof(proof_nodes: &[MptNode]) -> Result<MptNode, FromProofError
                 if let Some(child) = children.iter_mut().flatten().find(
                     |child| matches!(child.as_data(), MptNodeData::Digest(d) if d == child_ref),
                 ) {
-                    *child = Box::new(replacement);
+                    **child = replacement;
                 } else {
                     return Err(FromProofError::NodeHasInvalidSuccessor(i));
                 }

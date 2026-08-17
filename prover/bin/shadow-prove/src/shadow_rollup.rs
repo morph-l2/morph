@@ -473,7 +473,7 @@ where
         hasher.update(prev_state_root);
         hasher.update(post_state_root);
         hasher.update(withdrawal_root);
-        hasher.update(&B256::default());
+        hasher.update(B256::default());
         hasher.update(data_hash);
         hasher.update(blob_input);
         Ok(hasher.finalize())
