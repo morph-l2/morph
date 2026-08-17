@@ -2,7 +2,9 @@ use crate::types::batch::BatchInfo;
 use crate::types::error::ClientError;
 use crate::types::input::BlockInput;
 use prover_executor_core::MorphExecutor;
-use prover_primitives::predeployed::l2_to_l1_message::{WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT};
+use prover_primitives::predeployed::l2_to_l1_message::{
+    SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT, WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT,
+};
 use reth_trie::{HashedPostState, KeccakKeyHasher};
 use revm::context::BlockEnv;
 use revm::database::State;
@@ -44,16 +46,18 @@ fn execute(mut block_inputs: Vec<BlockInput>) -> Result<BatchInfo, ClientError> 
         }
     }
 
-    // The withdrawal root is derived from the state of the last verified block.
-    // The former sequencer-root public-input field is now a fixed zero and does
-    // not require a dedicated storage witness.
+    // The post-withdraw-root & post-sequencer-root is required for public inputs.
+    // Tt is derived from the state of the last verified block.
     let post_withdraw_root =
         latest_block.get_storage_value(WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT)?;
+    let post_sequencer_root =
+        latest_block.get_storage_value(SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT)?;
 
     Ok(BatchInfo::from_block_inputs(
         &block_inputs,
         latest_block.current_block.post_state_root,
         post_withdraw_root.into(),
+        post_sequencer_root.into(),
     ))
 }
 

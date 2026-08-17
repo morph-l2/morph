@@ -3,7 +3,9 @@ use alloy_provider::{DynProvider, Provider};
 use anyhow::{bail, Context};
 use prover_executor_core::MorphExecutor;
 use prover_primitives::{
-    predeployed::l2_to_l1_message::{WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT},
+    predeployed::l2_to_l1_message::{
+        SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT, WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT,
+    },
     TxTrace,
 };
 use prover_storage_rpc::basic_rpc_db::{BasicRpcDb, RpcDb};
@@ -134,6 +136,14 @@ async fn load_predeployed_contracts(
         .fetch_storage_at(WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT)
         .await
         .context("failed to fetch WITHDRAW_ROOT_ADDRESS storage slot")?;
+    rpc_db
+        .fetch_account_info(SEQUENCER_ROOT_ADDRESS)
+        .await
+        .context("failed to fetch SEQUENCER_ROOT_ADDRESS account info")?;
+    rpc_db
+        .fetch_storage_at(SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT)
+        .await
+        .context("failed to fetch SEQUENCER_ROOT_ADDRESS storage slot")?;
     Ok(())
 }
 

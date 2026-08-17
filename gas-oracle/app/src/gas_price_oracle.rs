@@ -4,6 +4,7 @@ use crate::{
     l1_base_fee::BaseFeeUpdater,
     read_parse_env,
 };
+use remote_signer_client::SignerClient;
 use ethers::{
     prelude::*,
     providers::{Http, Provider},
@@ -11,7 +12,6 @@ use ethers::{
     types::Address,
 };
 use eyre::anyhow;
-use remote_signer_client::SignerClient;
 use std::{env::var, error::Error, str::FromStr, sync::Arc, time::Duration};
 use tokio::time::sleep;
 
@@ -23,37 +23,6 @@ use crate::{metrics::*, read_env_var};
 
 const DEFAULT_PRIVATE_KEY: &str =
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-
-#[derive(Clone, Copy)]
-enum ScalarUpdateStage {
-    Startup,
-    Periodic,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-enum ScalarUpdateOutcome {
-    Applied,
-    SkippedAfterError,
-}
-
-fn handle_scalar_update_result<E: std::fmt::Debug>(
-    stage: ScalarUpdateStage,
-    result: Result<(), E>,
-) -> ScalarUpdateOutcome {
-    match stage {
-        ScalarUpdateStage::Startup => {
-            result.expect("overhead_update err");
-            ScalarUpdateOutcome::Applied
-        }
-        ScalarUpdateStage::Periodic => match result {
-            Ok(()) => ScalarUpdateOutcome::Applied,
-            Err(e) => {
-                log::error!("overhead_updater err: {:?}", e);
-                ScalarUpdateOutcome::SkippedAfterError
-            }
-        },
-    }
-}
 
 struct Config {
     l1_rpc: String,
@@ -166,7 +135,7 @@ async fn start_updater(
     mut scalar_updater: ScalarUpdater,
 ) {
     base_fee_updater.update().await.expect("base_fee_update err");
-    handle_scalar_update_result(ScalarUpdateStage::Startup, scalar_updater.update().await);
+    scalar_updater.update().await.expect("overhead_update err");
 
     tokio::spawn(async move {
         let mut update_times = 0;
@@ -185,7 +154,10 @@ async fn start_updater(
             }
             // Waiting for confirmation of the previous transaction.
             sleep(Duration::from_millis(6000)).await;
-            handle_scalar_update_result(ScalarUpdateStage::Periodic, scalar_updater.update().await);
+            let _ = scalar_updater
+                .update()
+                .await
+                .map_err(|e| log::error!("overhead_updater err: {:?}", e));
             update_times = 0
         }
     });
@@ -305,28 +277,6 @@ async fn handle_metrics() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::panic::catch_unwind;
-
-    fn unknown_selector_error() -> eyre::Error {
-        crate::abi::decode_commit_batch_last_block_number(&[0xde, 0xad, 0xbe, 0xef]).unwrap_err()
-    }
-
-    #[test]
-    fn startup_scalar_update_panics_on_unknown_selector_error() {
-        let panic = catch_unwind(|| {
-            handle_scalar_update_result(ScalarUpdateStage::Startup, Err(unknown_selector_error()))
-        });
-
-        assert!(panic.is_err());
-    }
-
-    #[test]
-    fn periodic_scalar_update_skips_unknown_selector_error() {
-        let outcome =
-            handle_scalar_update_result(ScalarUpdateStage::Periodic, Err(unknown_selector_error()));
-
-        assert_eq!(outcome, ScalarUpdateOutcome::SkippedAfterError);
-    }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[ignore]

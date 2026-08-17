@@ -58,7 +58,8 @@ cargo run --release --features local --package morph-prove --bin prove  -- --blo
 cargo run --release --package morph-prove --bin prove  -- --start-block 0x35 --end-block 0x37 --rpc http://127.0.0.1:8545 --use-rpc-db --prove
 ```
 
-Set `SAVE_FIXTURE=true` when a Solidity proof fixture is required. Set `PROVER_PROOF_DIR` to the consumer root; for example, `PROVER_PROOF_DIR="$PWD/bin/shadow-prove"` writes the shadow verifier fixture to `bin/shadow-prove/contracts/src/fixtures/plonk-fixture.json`.
+This command also generates a fixture that can be used to test the verification of SP1 zkVM proofs
+inside Solidity.
 
 ### Retrieve the Verification Key
 

@@ -252,6 +252,7 @@ mod tests {
             &inputs,
             B256::default(),
             B256::default(),
+            B256::default(),
         );
         println!("batch_info: {batch_info:?}");
         println!("batch_info.data_hash: {:?}", hex::encode_prefixed(batch_info.data_hash()));
@@ -265,6 +266,7 @@ mod tests {
         let inputs: Vec<BlockInput> = serde_json::from_reader(reader).unwrap();
         let batch_info = prover_executor_client::types::batch::BatchInfo::from_block_inputs(
             &inputs,
+            B256::default(),
             B256::default(),
             B256::default(),
         );

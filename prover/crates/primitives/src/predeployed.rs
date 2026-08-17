@@ -37,4 +37,10 @@ pub mod l2_to_l1_message {
         address!("0x5300000000000000000000000000000000000001");
     /// Withdraw root slot
     pub const WITHDRAW_ROOT_SLOT: U256 = uint!(33_U256);
+
+    /// Sequencer root address
+    pub const SEQUENCER_ROOT_ADDRESS: Address =
+        address!("0x5300000000000000000000000000000000000017");
+    /// Sequencer root slot
+    pub const SEQUENCER_ROOT_SLOT: U256 = uint!(101_U256);
 }
