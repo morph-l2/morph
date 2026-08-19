@@ -127,7 +127,7 @@ func TestSealBatchRollupCannotSubmitWhileCacheRebuildFails(t *testing.T) {
 	require.False(t, ok)
 	require.Nil(t, cachedHeader)
 
-	// Even a direct call (defence in depth beyond Start's loop gate) cannot
+	// Even a direct call (defense in depth beyond Start's loop gate) cannot
 	// create or enqueue a commit while cache validation remains unsuccessful.
 	require.NoError(t, r.rollup())
 	require.Zero(t, r.pendingTxs.Len())
