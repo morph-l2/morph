@@ -110,7 +110,7 @@ func TestPreCheckUsesSubmitterActivity(t *testing.T) {
 	require.ErrorContains(t, r.PreCheck(), "check Submitter activity")
 }
 
-func TestSealBatchRollupCannotSubmitAfterLegacyCacheInitFailure(t *testing.T) {
+func TestSealBatchRollupCannotSubmitWhileCacheRebuildFails(t *testing.T) {
 	r, _, _, rollupContract := setupTestRollup(t)
 	r.cfg.SealBatch = true
 	rollupContract.SetLastFinalizedBatchIndex(big.NewInt(10))
@@ -118,10 +118,14 @@ func TestSealBatchRollupCannotSubmitAfterLegacyCacheInitFailure(t *testing.T) {
 	rollupContract.SetLegacyCutoverBatchIndex(big.NewInt(12))
 
 	initErr := r.batchCache.Init()
-	require.ErrorIs(t, initErr, batch.ErrLegacyTransitionCacheRequired)
+	require.Error(t, initErr)
+	require.NotErrorIs(t, initErr, batch.ErrLegacyTransitionCacheRequired)
 	cachedBatch, getErr := r.batchCache.Get(13)
 	require.ErrorIs(t, getErr, batch.ErrBatchCacheNotInitialized)
 	require.Nil(t, cachedBatch)
+	cachedHeader, ok := r.batchCache.GetSealedBatchHeader(13)
+	require.False(t, ok)
+	require.Nil(t, cachedHeader)
 
 	// Even a direct call (defence in depth beyond Start's loop gate) cannot
 	// create or enqueue a commit while cache validation remains unsuccessful.

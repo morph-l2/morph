@@ -82,7 +82,10 @@ type RollupBatchReader interface {
 	FilterFinalizeBatch(opts *bind.FilterOpts, batchIndex []*big.Int, batchHash [][32]byte) (*bindings.RollupFinalizeBatchIterator, error)
 }
 
-// L2GovCaller reads the withdrawal tree root used when assembling batches.
+// L2GovCaller reads historical withdrawal and sequencer-set state used when
+// replaying committed batches. Live post-cutover sealing does not read the
+// sequencer contract.
 type L2GovCaller interface {
 	GetTreeRoot(opts *bind.CallOpts) ([32]byte, error)
+	GetSequencerSetBytes(opts *bind.CallOpts) ([]byte, common.Hash, error)
 }

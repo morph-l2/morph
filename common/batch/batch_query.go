@@ -53,6 +53,9 @@ func (bc *BatchCache) getLastFinalizeBatchHeaderFromRollupByIndex(index uint64) 
 			endBlock = startBlock - 1
 			continue
 		}
+		if finalizeEventIter == nil {
+			return nil, fmt.Errorf("filter finalized batch %d returned a nil iterator", index)
+		}
 		defer func() { _ = finalizeEventIter.Close() }()
 		// Iterate through query results
 		for finalizeEventIter.Next() {
