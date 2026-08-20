@@ -3,13 +3,13 @@ import deployEmptyContract from './011-EmptyContract'
 import {deployContractProxies,deployContractProxiesConcurrently} from './013-DeployProxys'
 import deployZkEvmVerifierV1 from './012-Verifier'
 import {deployContractImpls, deployContractImplsConcurrently} from './014-DeployImpls'
+import SubmitterInit from './015-SubmitterInit'
 import MessengerInit from './015-MessengerInit'
 import RollupInit from './016-RollupInit'
 import GatewayInit from './017-GatewayInit'
-import StakingInit from './018-StakingInit'
 import {AdminTransfer,AdminTransferByProxyStorageName, AdminTransferConcurrently} from './019-AdminTransfer'
 import ContractInit from './020-ContractInit'
-import StakingRegister from './021-StakingRegister'
+import SubmitterRegister from './021-SubmitterRegister'
 import SequencerInit from './022-SequencerInit'
 
 
@@ -21,14 +21,14 @@ export {
     deployContractProxiesConcurrently,
     deployContractImpls,
     deployContractImplsConcurrently,
+    SubmitterInit,
     MessengerInit,
     RollupInit,
     GatewayInit,
-    StakingInit,
     AdminTransfer,
     AdminTransferByProxyStorageName,
     AdminTransferConcurrently,
     ContractInit,
-    StakingRegister,
+    SubmitterRegister,
     SequencerInit
 }

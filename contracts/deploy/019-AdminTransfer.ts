@@ -108,7 +108,7 @@ export const AdminTransferConcurrently = async (
     const contractsToChange = [
         ProxyStorageName.L1CrossDomainMessengerProxyStorageName,
         ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName,
-        ProxyStorageName.L1StakingProxyStorageName,
+        ProxyStorageName.SubmitterProxyStorageName,
         ProxyStorageName.L1SequencerProxyStorageName,  // Added L1Sequencer
         ProxyStorageName.RollupProxyStorageName,
         ProxyStorageName.L1GatewayRouterProxyStorageName,
@@ -159,7 +159,7 @@ export const AdminTransfer = async (
     const L1MessageQueueWithGasPriceOracleProxyStorageName = ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName
 
     const RollupProxyStorageName = ProxyStorageName.RollupProxyStorageName
-    const L1StakingProxyStorageName = ProxyStorageName.L1StakingProxyStorageName
+    const SubmitterProxyStorageName = ProxyStorageName.SubmitterProxyStorageName
     const L1SequencerProxyStorageName = ProxyStorageName.L1SequencerProxyStorageName
 
     const L1GatewayRouterProxyStorageName = ProxyStorageName.L1GatewayRouterProxyStorageName
@@ -187,9 +187,9 @@ export const AdminTransfer = async (
         return err
     }
 
-    // ************************ staking contracts admin change ************************
-    // StakingProxy admin change
-    err = await AdminTransferByProxyStorageName(hre, path, deployer, L1StakingProxyStorageName)
+    // ************************ batch submitter contract admin change ************************
+    // SubmitterProxy admin change
+    err = await AdminTransferByProxyStorageName(hre, path, deployer, SubmitterProxyStorageName)
     if (err != '') {
         return err
     }

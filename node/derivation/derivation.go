@@ -49,6 +49,7 @@ type Derivation struct {
 	L2ToL1MessagePasser   *bindings.L2ToL1MessagePasser
 
 	rollupABI             *abi.ABI
+	preSubmitterRollupABI *abi.ABI
 	legacyRollupABI       *abi.ABI // before remove skipMap
 	beforeMoveBlockCtxABI *abi.ABI
 
@@ -108,6 +109,10 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 	if err != nil {
 		return nil, err
 	}
+	preSubmitterRollupAbi, err := types.PreSubmitterRollupMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
 	legacyRollupAbi, err := types.LegacyRollupMetaData.GetAbi()
 	if err != nil {
 		return nil, err
@@ -135,6 +140,7 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		syncer:                syncer,
 		rollup:                rollup,
 		rollupABI:             rollupAbi,
+		preSubmitterRollupABI: preSubmitterRollupAbi,
 		legacyRollupABI:       legacyRollupAbi,
 		beforeMoveBlockCtxABI: beforeMoveBlockCtxAbi,
 		logger:                logger,
@@ -605,6 +611,9 @@ func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uin
 
 func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 	var batch geth.RPCRollupBatch
+	if len(data) < 4 {
+		return batch, types.ErrNotCommitBatchTx
+	}
 	if bytes.Equal(d.beforeMoveBlockCtxABI.Methods["commitBatch"].ID, data[:4]) {
 		args, err := d.beforeMoveBlockCtxABI.Methods["commitBatch"].Inputs.Unpack(data[4:])
 		if err != nil {
@@ -626,6 +635,7 @@ func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 			PostStateRoot:     common.BytesToHash(rollupBatchData.PostStateRoot[:]),
 			WithdrawRoot:      common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
 		}
+		return batch, nil
 	} else if bytes.Equal(d.legacyRollupABI.Methods["commitBatch"].ID, data[:4]) {
 		args, err := d.legacyRollupABI.Methods["commitBatch"].Inputs.Unpack(data[4:])
 		if err != nil {
@@ -648,56 +658,56 @@ func (d *Derivation) UnPackData(data []byte) (geth.RPCRollupBatch, error) {
 			PostStateRoot:     common.BytesToHash(rollupBatchData.PostStateRoot[:]),
 			WithdrawRoot:      common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
 		}
-	} else if bytes.Equal(d.rollupABI.Methods["commitBatch"].ID, data[:4]) {
-		args, err := d.rollupABI.Methods["commitBatch"].Inputs.Unpack(data[4:])
-		if err != nil {
-			return batch, fmt.Errorf("submitBatches Unpack error:%v", err)
-		}
-		rollupBatchData := args[0].(struct {
-			Version           uint8     "json:\"version\""
-			ParentBatchHeader []uint8   "json:\"parentBatchHeader\""
-			LastBlockNumber   uint64    "json:\"lastBlockNumber\""
-			NumL1Messages     uint16    "json:\"numL1Messages\""
-			PrevStateRoot     [32]uint8 "json:\"prevStateRoot\""
-			PostStateRoot     [32]uint8 "json:\"postStateRoot\""
-			WithdrawalRoot    [32]uint8 "json:\"withdrawalRoot\""
-		})
-		batch = geth.RPCRollupBatch{
-			Version:           uint(rollupBatchData.Version),
-			ParentBatchHeader: rollupBatchData.ParentBatchHeader,
-			LastBlockNumber:   rollupBatchData.LastBlockNumber,
-			NumL1Messages:     rollupBatchData.NumL1Messages,
-			PrevStateRoot:     common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
-			PostStateRoot:     common.BytesToHash(rollupBatchData.PostStateRoot[:]),
-			WithdrawRoot:      common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
-		}
-	} else if bytes.Equal(d.rollupABI.Methods["commitBatchWithProof"].ID, data[:4]) {
-		args, err := d.rollupABI.Methods["commitBatchWithProof"].Inputs.Unpack(data[4:])
-		if err != nil {
-			return batch, fmt.Errorf("commitBatchWithProof Unpack error:%v", err)
-		}
-		rollupBatchData := args[0].(struct {
-			Version           uint8     "json:\"version\""
-			ParentBatchHeader []uint8   "json:\"parentBatchHeader\""
-			LastBlockNumber   uint64    "json:\"lastBlockNumber\""
-			NumL1Messages     uint16    "json:\"numL1Messages\""
-			PrevStateRoot     [32]uint8 "json:\"prevStateRoot\""
-			PostStateRoot     [32]uint8 "json:\"postStateRoot\""
-			WithdrawalRoot    [32]uint8 "json:\"withdrawalRoot\""
-		})
-		batch = geth.RPCRollupBatch{
-			Version:           uint(rollupBatchData.Version),
-			ParentBatchHeader: rollupBatchData.ParentBatchHeader,
-			LastBlockNumber:   rollupBatchData.LastBlockNumber,
-			NumL1Messages:     rollupBatchData.NumL1Messages,
-			PrevStateRoot:     common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
-			PostStateRoot:     common.BytesToHash(rollupBatchData.PostStateRoot[:]),
-			WithdrawRoot:      common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
-		}
-	} else {
-		return batch, types.ErrNotCommitBatchTx
+		return batch, nil
+	} else if decoded, matched, err := unpackModernRollupCall(d.preSubmitterRollupABI, data); matched {
+		return decoded, err
+	} else if decoded, matched, err := unpackModernRollupCall(d.rollupABI, data); matched {
+		return decoded, err
 	}
-	return batch, nil
+	return batch, types.ErrNotCommitBatchTx
+}
+
+type modernBatchDataInput struct {
+	Version           uint8
+	ParentBatchHeader []byte
+	LastBlockNumber   uint64
+	NumL1Messages     uint16
+	PrevStateRoot     [32]byte
+	PostStateRoot     [32]byte
+	WithdrawalRoot    [32]byte
+}
+
+// unpackModernRollupCall intentionally recognizes only the two methods that
+// derivation supported before this upgrade. commitState remains unsupported.
+func unpackModernRollupCall(contractABI *abi.ABI, data []byte) (geth.RPCRollupBatch, bool, error) {
+	var batch geth.RPCRollupBatch
+	if contractABI == nil || len(data) < 4 {
+		return batch, false, nil
+	}
+	for _, methodName := range []string{"commitBatch", "commitBatchWithProof"} {
+		method, ok := contractABI.Methods[methodName]
+		if !ok || !bytes.Equal(method.ID, data[:4]) {
+			continue
+		}
+		args, err := method.Inputs.Unpack(data[4:])
+		if err != nil {
+			return batch, true, fmt.Errorf("%s Unpack error:%v", methodName, err)
+		}
+		if len(args) == 0 {
+			return batch, true, fmt.Errorf("%s has no batchDataInput", methodName)
+		}
+		rollupBatchData := *abi.ConvertType(args[0], new(modernBatchDataInput)).(*modernBatchDataInput)
+		return geth.RPCRollupBatch{
+			Version:           uint(rollupBatchData.Version),
+			ParentBatchHeader: rollupBatchData.ParentBatchHeader,
+			LastBlockNumber:   rollupBatchData.LastBlockNumber,
+			NumL1Messages:     rollupBatchData.NumL1Messages,
+			PrevStateRoot:     common.BytesToHash(rollupBatchData.PrevStateRoot[:]),
+			PostStateRoot:     common.BytesToHash(rollupBatchData.PostStateRoot[:]),
+			WithdrawRoot:      common.BytesToHash(rollupBatchData.WithdrawalRoot[:]),
+		}, true, nil
+	}
+	return batch, false, nil
 }
 
 func (d *Derivation) parseBatch(batch geth.RPCRollupBatch) (*BatchInfo, error) {

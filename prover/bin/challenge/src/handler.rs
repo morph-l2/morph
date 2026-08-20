@@ -417,7 +417,6 @@ struct BatchInfo {
     prev_state_root: [u8; 32],
     post_state_root: [u8; 32],
     withdrawal_root: [u8; 32],
-    sequencer_set_verify_hash: [u8; 32],
     parent_batch_hash: [u8; 32],
 }
 
@@ -490,7 +489,6 @@ impl BatchInfo {
         log::debug!("batch_header_ex len: {:#?}", batch_header_ex.len());
 
         self.data_hash = batch_header_ex.get(0..32).unwrap_or_default().try_into().unwrap_or_default();
-        self.sequencer_set_verify_hash = batch_header_ex.get(64..96).unwrap_or_default().try_into().unwrap_or_default();
 
         // All versions: single hash at [32..64] (aggregated for V2, versioned for V0/V1)
         let hash: [u8; 32] = batch_header_ex.get(32..64).unwrap_or_default().try_into().unwrap_or_default();
@@ -510,7 +508,7 @@ impl BatchInfo {
         batch_header.extend_from_slice(&self.prev_state_root);
         batch_header.extend_from_slice(&self.post_state_root);
         batch_header.extend_from_slice(&self.withdrawal_root);
-        batch_header.extend_from_slice(&self.sequencer_set_verify_hash);
+        batch_header.extend_from_slice(&[0u8; 32]);
         batch_header.extend_from_slice(&self.parent_batch_hash);
         batch_header.extend_from_slice(&self.end_block.to_be_bytes());
         Bytes::from(batch_header)

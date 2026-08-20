@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/urfave/cli"
@@ -28,8 +29,12 @@ type Config struct {
 
 	// RollupAddress is the Rollup contract address.
 	RollupAddress string
-	// StakingAddress
-	L1StakingAddress string
+	// SubmitterAddress is the Submitter contract address.
+	SubmitterAddress string
+	// BatchBlockInterval and BatchTimeout are explicit batch sealing triggers.
+	// A zero value disables the corresponding trigger, but not both.
+	BatchBlockInterval uint64
+	BatchTimeout       uint64
 
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
@@ -46,17 +51,10 @@ type Config struct {
 	// finalize
 	// if start finalize
 	Finalize bool
-	// L2 contract
-	L2SequencerAddress string
-	L2GovAddress       string
-
 	// metrics
 	MetricsServerEnable bool
 	MetricsHostname     string
 	MetricsPort         uint64
-
-	// decentralized
-	PriorityRollup bool
 
 	// tx fee limit
 	TxFeeLimit uint64
@@ -99,14 +97,6 @@ type Config struct {
 	ExternalSignRsaPriv string
 	// rough estimate gas switch
 	RoughEstimateGas bool
-	// rotator interval buffer
-	RotatorBuffer int64
-	// listener process path
-	StakingEventStoreFilename string
-	// l1 staking deployed block number
-	L1StakingDeployedBlockNumber uint64
-	// event indexer index step
-	EventIndexStep uint64
 	// leveldb path name
 	LeveldbPathName            string
 	BlockNotIncreasedThreshold int64
@@ -131,18 +121,15 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		TxTimeout:  ctx.GlobalDuration(flags.TxTimeoutFlag.Name),
 		// finalize
 		Finalize: ctx.GlobalBool(flags.FinalizeFlag.Name),
-		// L1 contract
-		L1StakingAddress: ctx.GlobalString(flags.L1StakingAddressFlag.Name),
-		RollupAddress:    ctx.GlobalString(flags.RollupAddressFlag.Name),
-		// L2 contract
-		L2SequencerAddress: ctx.GlobalString(flags.L2SequencerAddressFlag.Name),
-		L2GovAddress:       ctx.GlobalString(flags.L2GovAddressFlag.Name),
+		// L1 contracts and batch sealing configuration
+		RollupAddress:      ctx.GlobalString(flags.RollupAddressFlag.Name),
+		SubmitterAddress:   ctx.GlobalString(flags.SubmitterAddressFlag.Name),
+		BatchBlockInterval: ctx.GlobalUint64(flags.BatchBlockIntervalFlag.Name),
+		BatchTimeout:       ctx.GlobalUint64(flags.BatchTimeoutFlag.Name),
 		// metrics
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnable.Name),
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostname.Name),
 		MetricsPort:         ctx.GlobalUint64(flags.MetricsPort.Name),
-		// decentralized
-		PriorityRollup: ctx.GlobalBool(flags.PriorityRollupFlag.Name),
 		// tx config
 		TxFeeLimit: ctx.GlobalUint64(flags.TxFeeLimitFlag.Name),
 
@@ -176,15 +163,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		ExternalSignRsaPriv: ctx.GlobalString(flags.ExternalSignRsaPriv.Name),
 		// rough estimate gas switch
 		RoughEstimateGas: ctx.GlobalBool(flags.RoughEstimateGasFlag.Name),
-		// rotator interval buffer
-		RotatorBuffer: ctx.GlobalInt64(flags.RotatorBufferFlag.Name),
 
-		// path
-		StakingEventStoreFilename: ctx.GlobalString(flags.StakingEventStoreFileFlag.Name),
-		// l1 staking deployed block number
-		L1StakingDeployedBlockNumber: ctx.GlobalUint64(flags.L1StakingDeployedBlocknumFlag.Name),
-		// index step
-		EventIndexStep: ctx.GlobalUint64(flags.EventIndexStepFlag.Name),
 		// leveldb path name
 		LeveldbPathName: ctx.GlobalString(flags.LeveldbPathNameFlag.Name),
 		// BlockNotIncreasedThreshold
@@ -197,5 +176,16 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		BatchV2UpgradeTime: ctx.GlobalUint64(flags.BatchV2UpgradeTimeFlag.Name),
 	}
 
+	if err := validateBatchSealingConfig(cfg.BatchBlockInterval, cfg.BatchTimeout); err != nil {
+		return Config{}, err
+	}
+
 	return cfg, nil
+}
+
+func validateBatchSealingConfig(blockInterval, timeout uint64) error {
+	if blockInterval == 0 && timeout == 0 {
+		return fmt.Errorf("batch_block_interval and batch_timeout cannot both be zero")
+	}
+	return nil
 }

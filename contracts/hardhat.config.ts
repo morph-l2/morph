@@ -10,12 +10,12 @@ import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/ta
 import { subtask } from "hardhat/config";
 
 
+
 import "./tasks/deploy"
 import "./tasks/overflow_test"
 import "./tasks/check"
 import "./tasks/query"
 import "./tasks/proxy_upgrade"
-import "./tasks/staking_upgrade"
 import "./tasks/verifier_upgrade"
 import "./tasks/token_deploy"
 import "./tasks/mainnet_upgrade"
@@ -51,7 +51,8 @@ module.exports = {
     abiExporter: {
         path: './abi',
         runOnCompile: true,
-        clear: true,
+        // Keep immutable upgrade-boundary ABIs under abi/archive.
+        clear: false,
     },
     bytecodeExporter: {
         path: './data',

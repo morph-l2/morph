@@ -7,7 +7,6 @@ import {EvmVerifier} from "./libs/EvmVerifier.sol";
 /// @title ShadowRollup
 /// @notice This contract maintains data for shadow rollup.
 contract ShadowRollup is Ownable {
-
     /// @notice The chain id of the corresponding layer 2 chain.
     uint64 public immutable layer2ChainId;
 
@@ -20,7 +19,6 @@ contract ShadowRollup is Ownable {
         bytes32 withdrawalRoot;
         bytes32 dataHash;
         bytes32 blobVersionedHash;
-        bytes32 sequencerSetVerifyHash;
     }
 
     mapping(uint256 => BatchStore) public committedBatchStores;
@@ -41,10 +39,7 @@ contract ShadowRollup is Ownable {
     ///
     /// @param _batchIndex The index of batch
     /// @param _batchData The batch data
-    function commitBatch(
-        uint64 _batchIndex,
-        BatchStore calldata _batchData
-    ) external onlyOwner {
+    function commitBatch(uint64 _batchIndex, BatchStore calldata _batchData) external onlyOwner {
         committedBatchStores[_batchIndex] = _batchData;
     }
 
@@ -59,17 +54,14 @@ contract ShadowRollup is Ownable {
                 committedBatchStores[_batchIndex].prevStateRoot,
                 committedBatchStores[_batchIndex].postStateRoot,
                 committedBatchStores[_batchIndex].withdrawalRoot,
-                committedBatchStores[_batchIndex].sequencerSetVerifyHash,
+                bytes32(0),
                 committedBatchStores[_batchIndex].dataHash,
                 committedBatchStores[_batchIndex].blobVersionedHash
             )
         );
 
         // Verify zk-proof
-        EvmVerifier(verifier).verifyBatchProof(
-            _proof,
-            abi.encodePacked(_publicInputHash)
-        );
+        EvmVerifier(verifier).verifyBatchProof(_proof, abi.encodePacked(_publicInputHash));
 
         proveStatus[_batchIndex] = true;
     }

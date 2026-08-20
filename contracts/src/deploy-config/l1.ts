@@ -17,7 +17,7 @@ const config = {
     l2BaseFee: 0.1,  // Gwei
 
     // verify contract config
-    programVkey: '0x00f1b104202c89fe60d973cbf456a4e2e1ec1e7d63c61453b959dda153df798c',
+    programVkey: '0x00da5ade7ec0ec902618c53b616ac96f47de1cb79b450f815a7c6cbebd6ffaef',
     // rollup contract config
     // initialize config
     finalizationPeriodSeconds: 10,
@@ -26,21 +26,16 @@ const config = {
     rollupDelayPeriod: 86400,
 
     // challenge config
-    rollupProposer: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+    batchSubmitterAddresses: ['0x70997970C51812dc3A010C7d01b50e0d17dc79C8'],
     rollupChallenger: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
     // genesis config
     batchHeader: '0x00000000000000000000000000000000000000000000000000886e14341b355178d11a2c9f985f60a1a195973078b688a11aeaebb0c95db595010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c44401400000000000000000000000000000000000000000000000000000000000000002d20dde82426d971e398b3cba11ebb60d0d740b799f85e2f95fd12a1faad8e2f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
 
-    // staking config
-    // staking Cross-Chain config
-    stakingCrossChainGaslimitAdd: 1000000,
-    stakingCrossChainGaslimitRemove: 8000000,
-
-    // staking initialize config
-    stakingLockNumber: 3,
-    stakingChallengeDeposit: 1, // 1 ether
-    stakingMinDeposit: 1, // 1 ether
-    stakingChallengerRewardPercentage: 100,
+    // submitter initialize config
+    submitterOwner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+    submitterChallengeDeposit: 1, // 1 ether
+    submitterMinimumStake: 1, // 1 ether
+    submitterRewardPercentage: 100,
     // register sequencers
     l2SequencerAddresses: [
         "0x783698dCDEBdc96785c5c60ED96113612bA09c2b",

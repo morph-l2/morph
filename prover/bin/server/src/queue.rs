@@ -178,7 +178,6 @@ async fn gen_client_input(
         let mut batch_header: Vec<u8> = Vec::with_capacity(96);
         batch_header.extend_from_slice(&batch_info.data_hash().0);
         batch_header.extend_from_slice(&blob_input.0);
-        batch_header.extend_from_slice(&batch_info.sequencer_root().0);
         let mut batch_file = File::create(proof_dir.join("batch_header.data"))?;
         batch_file.write_all(&batch_header[..]).expect("failed to batch_header");
     } else {

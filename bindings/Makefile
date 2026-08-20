@@ -5,7 +5,7 @@ pkg := bindings
 all: version mkdir bindings more
 
 bindings: \
-	l1-staking-bindings \
+	submitter-bindings \
 	l1-cross-domain-messenger-bindings \
 	l1-standard-erc20-gateway-bindings \
 	l1-eth-gateway-bindings \
@@ -65,9 +65,9 @@ compile-forge:
 	./compile.sh forge
 
 ## L1
-# Staking
-l1-staking-bindings: compile
-	./gen_bindings.sh contracts/l1/staking/L1Staking.sol:L1Staking $(pkg)
+# Submitter
+submitter-bindings: compile
+	./gen_bindings.sh contracts/l1/rollup/Submitter.sol:Submitter $(pkg)
 
 # CrossDomainMessenger
 l1-cross-domain-messenger-bindings: compile
@@ -194,7 +194,7 @@ more: compile-forge
 	go run ./gen/main.go \
 		-artifacts ../contracts/artifacts \
 		-out ./bindings \
-		-contracts ProxyAdmin,TransparentUpgradeableProxy,L2TokenRegistry,L1MessageQueueWithGasPriceOracle,L1USDCGateway,L1Staking,L1CrossDomainMessenger,L1StandardERC20Gateway,L1ETHGateway,L1ERC20Gateway,L1GatewayRouter,L1WETHGateway,L1LidoGateway,Rollup,MultipleVersionRollupVerifier,L2CrossDomainMessenger,GasPriceOracle,L2ToL1MessagePasser,L2TxFeeVault,Sequencer,Gov,Distribute,L2Staking,Record,L2ETHGateway,L2StandardERC20Gateway,L2GatewayRouter,L2WETHGateway,L2ERC20Gateway,L2ERC721Gateway,L2ERC1155Gateway,L2LidoGateway,MorphToken,MorphStandardERC20,MorphStandardERC20Factory,WrappedEther,L2USDCGateway,EnforcedTxGateway,L1ERC721Gateway,L1ERC1155Gateway,L1ReverseCustomGateway,L2WithdrawLockERC20Gateway,L2ReverseCustomGateway,Whitelist,ZkEvmVerifierV1,L2WstETHToken \
+		-contracts ProxyAdmin,TransparentUpgradeableProxy,L2TokenRegistry,L1MessageQueueWithGasPriceOracle,L1USDCGateway,Submitter,L1CrossDomainMessenger,L1StandardERC20Gateway,L1ETHGateway,L1ERC20Gateway,L1GatewayRouter,L1WETHGateway,L1LidoGateway,Rollup,MultipleVersionRollupVerifier,L2CrossDomainMessenger,GasPriceOracle,L2ToL1MessagePasser,L2TxFeeVault,Sequencer,Gov,Distribute,L2Staking,Record,L2ETHGateway,L2StandardERC20Gateway,L2GatewayRouter,L2WETHGateway,L2ERC20Gateway,L2ERC721Gateway,L2ERC1155Gateway,L2LidoGateway,MorphToken,MorphStandardERC20,MorphStandardERC20Factory,WrappedEther,L2USDCGateway,EnforcedTxGateway,L1ERC721Gateway,L1ERC1155Gateway,L1ReverseCustomGateway,L2WithdrawLockERC20Gateway,L2ReverseCustomGateway,Whitelist,ZkEvmVerifierV1,L2WstETHToken \
 		-package bindings
 
 mkdir:
@@ -211,4 +211,3 @@ test:
 lint:
 	GOBIN=$(PWD)/build/bin go run ../build/lint.go
 .PHONY: lint
-

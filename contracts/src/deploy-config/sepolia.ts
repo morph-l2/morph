@@ -18,20 +18,21 @@ const config = {
     /**
      * ---to---legacy property
      */
-    programVkey: '0x00f1b104202c89fe60d973cbf456a4e2e1ec1e7d63c61453b959dda153df798c',
+    programVkey: '0x00da5ade7ec0ec902618c53b616ac96f47de1cb79b450f815a7c6cbebd6ffaef',
     rollupMinDeposit: 0.0001,
     rollupProofWindow: 86400,
     rollupGenesisBlockNumber: 0,
-    rollupProposer: '0x77774B33aFa9Ecef8835D25ff749ff84950e83af',
+    batchSubmitterAddresses: ['0x77774B33aFa9Ecef8835D25ff749ff84950e83af'],
     rollupChallenger: '0x77776ab9Ed7479Ff446f1E3135145e245f2B71B1',
     rollupGenesisStateRoot: '',
     withdrawRoot: '',
     batchHeader: '',
     finalizationPeriodSeconds: 600,
 
-    stakingSequencerSize: 7,
-    stakingLockNumber: 3,
-    stakingMinDeposit: 0.1,
+    submitterOwner: '0x77778E169A7A162aA0D926B0C1a1C0541Ed9E570',
+    submitterMinimumStake: 0.1,
+    submitterChallengeDeposit: 0.1,
+    submitterRewardPercentage: 100,
 
     baseFeeVaultRecipient: '0x77772Fb3715C4B8FC621e23Eda5ABbb34a9D6EAd',
     l1FeeVaultRecipient: '0x77772Fb3715C4B8FC621e23Eda5ABbb34a9D6EAd',

@@ -72,19 +72,20 @@ type RollupBatchReader interface {
 	CommittedBatches(opts *bind.CallOpts, batchIndex *big.Int) ([32]byte, error)
 	LastCommittedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
 	LastFinalizedBatchIndex(opts *bind.CallOpts) (*big.Int, error)
+	LegacyCutoverBatchIndex(opts *bind.CallOpts) (*big.Int, error)
 	BatchDataStore(opts *bind.CallOpts, batchIndex *big.Int) (struct {
-		OriginTimestamp        *big.Int
-		FinalizeTimestamp      *big.Int
-		BlockNumber            *big.Int
-		SignedSequencersBitmap *big.Int
+		OriginTimestamp   *big.Int
+		FinalizeTimestamp *big.Int
+		BlockNumber       *big.Int
+		Submitter         common.Address
 	}, error)
 	FilterFinalizeBatch(opts *bind.FilterOpts, batchIndex []*big.Int, batchHash [][32]byte) (*bindings.RollupFinalizeBatchIterator, error)
 }
 
-// L2GovCaller reads batch-related Gov / bridge / sequencer data on L2.
+// L2GovCaller reads historical withdrawal and sequencer-set state used when
+// replaying committed batches. Live post-cutover sealing does not read the
+// sequencer contract.
 type L2GovCaller interface {
-	BatchBlockInterval(opts *bind.CallOpts) (*big.Int, error)
-	BatchTimeout(opts *bind.CallOpts) (*big.Int, error)
 	GetTreeRoot(opts *bind.CallOpts) ([32]byte, error)
 	GetSequencerSetBytes(opts *bind.CallOpts) ([]byte, common.Hash, error)
 }

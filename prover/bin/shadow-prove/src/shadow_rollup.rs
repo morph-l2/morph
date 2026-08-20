@@ -331,7 +331,7 @@ where
         //   * prevStateHash           32          bytes32     89      Preview state root
         //   * postStateHash           32          bytes32     121     Post state root
         //   * withdrawRootHash        32          bytes32     153     L2 withdrawal tree root hash
-        //   * sequencerSetVerifyHash  32          bytes32     185     L2 sequencers set verify hash
+        //   * sequencerSetVerifyHash  32          0bytes32     185     L2 sequencers set verify hash
         //   * parentBatchHash         32          bytes32     217     The parent batch hash
         //   * skippedL1MessageBitmap  dynamic     uint256[]   249     A bitmap to indicate which L1 messages are skipped in the batch
         //   @dev Below is the feilds for `BatchHeader` V1
@@ -356,11 +356,6 @@ where
             dataHash: batch_header.get(25..57).unwrap_or_default().try_into().unwrap_or_default(),
             blobVersionedHash: batch_header
                 .get(57..89)
-                .unwrap_or_default()
-                .try_into()
-                .unwrap_or_default(),
-            sequencerSetVerifyHash: batch_header
-                .get(185..217)
                 .unwrap_or_default()
                 .try_into()
                 .unwrap_or_default(),
@@ -459,28 +454,26 @@ where
         let post_state_root: &[u8] = batch_header.get(121..153).unwrap_or_default();
         let withdrawal_root: &[u8] = batch_header.get(153..185).unwrap_or_default();
         let data_hash: &[u8] = batch_header.get(25..57).unwrap_or_default();
-        let sequencer_set_verify_hash: &[u8] = batch_header.get(185..217).unwrap_or_default();
 
         // All versions: blob input at offset 57 (aggregated hash for V2, versioned hash for V0/V1)
         let blob_input: &[u8] = batch_header.get(57..89).unwrap_or_default();
 
         log::info!(
             "calc_batch_pi, version = {}, prevStateRoot = {:?}, postStateRoot = {:?}, withdrawalRoot = {:?},
-            dataHash = {:?}, blobInput = {:?}, sequencerSetVerifyHash = {:?}",
+            dataHash = {:?}, blobInput = {:?}", 
             version,
             hex::encode_prefixed(prev_state_root),
             hex::encode_prefixed(post_state_root),
             hex::encode_prefixed(withdrawal_root),
             hex::encode_prefixed(data_hash),
             hex::encode_prefixed(blob_input),
-            hex::encode_prefixed(sequencer_set_verify_hash),
         );
         let mut hasher = Keccak256::new();
         hasher.update(chain_id.to_be_bytes());
         hasher.update(prev_state_root);
         hasher.update(post_state_root);
         hasher.update(withdrawal_root);
-        hasher.update(sequencer_set_verify_hash);
+        hasher.update(B256::default());
         hasher.update(data_hash);
         hasher.update(blob_input);
         Ok(hasher.finalize())
@@ -598,29 +591,22 @@ async fn test_inspect_batch_header() {
             .unwrap_or_default()
             .try_into()
             .unwrap_or_default(),
-        sequencerSetVerifyHash: batch_header
-            .get(185..217)
-            .unwrap_or_default()
-            .try_into()
-            .unwrap_or_default(),
     };
 
     println!(
         "sync batch of {:?}, prevStateRoot = {:?}, postStateRoot = {:?}, withdrawalRoot = {:?},
-            dataHash = {:?}, blobVersionedHash = {:?}, sequencerSetVerifyHash = {:?}",
+            dataHash = {:?}, blobVersionedHash = {:?}",
         "batch_info.batch_index",
         hex::encode(batch_store.prevStateRoot.as_slice()),
         hex::encode(batch_store.postStateRoot.as_slice()),
         hex::encode(batch_store.withdrawalRoot.as_slice()),
         hex::encode(batch_store.dataHash.as_slice()),
         hex::encode(batch_store.blobVersionedHash.as_slice()),
-        hex::encode(batch_store.sequencerSetVerifyHash.as_slice()),
     );
     // prevStateRoot =
     // "13a862a764f09e1300ad485fadcc130741d400e8d5be3dbb968901e6590e25ca", postStateRoot =
     // "20a6aa14638839f76d2b233499439e45cd315434f9628902793c421ec71fcb0c", withdrawalRoot =
     // "eda0cccc67b86712eea4536d186be3d412b86c4c56741d641d1bbfdd26b5d40b",         dataHash =
     // "89a1c4692d97c7a4a516b35bc46963da3425af5273cb5a7b8ee2cdcf41c6fa65", blobVersionedHash =
-    // "013f8fabf23fba03c52572d3403d175d952937cdd78bb8e9e06eb6ffa751fd2a", sequencerSetVerifyHash =
-    // "60f10881edf25485d6d9db1c3a634c002bf4da64cce0f9a0f528e00f1ead3dec"
+    // "013f8fabf23fba03c52572d3403d175d952937cdd78bb8e9e06eb6ffa751fd2a"
 }

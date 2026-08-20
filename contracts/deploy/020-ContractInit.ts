@@ -31,20 +31,6 @@ export const ContractInit = async (
         let rec = await res.wait()
         console.log(`set base fee ${rec.status === 1} setL2BaseFee(${await GasPriceOracle.l2BaseFee()}) gwei`)
 
-        const WhitelistImplAddress = getContractAddressByName(path, ImplStorageName.Whitelist)
-        const L1StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.L1StakingProxyStorageName)
-        const WhitelistCheckerImpl = await hre.ethers.getContractAt(ContractFactoryName.Whitelist, WhitelistImplAddress, deployer)
-        let addList = [L1StakingProxyAddress]
-        res = await WhitelistCheckerImpl.updateWhitelistStatus(addList, true)
-        rec = await res.wait()
-        for (let i = 0; i < addList.length; i++) {
-            let res = await WhitelistCheckerImpl.isSenderAllowed(addList[i])
-            if (res != true) {
-                console.error('whitelist check failed')
-                return ''
-            }
-        }
-        console.log(`add ${addList} to whitelist success`)
     }
 
     // ------------------ rollup init -----------------
@@ -54,14 +40,11 @@ export const ContractInit = async (
         // import genesis batch 
         const batchHeader: string = config.batchHeader
 
-        // submitter and challenger
-        const submitter: string = config.rollupProposer
+        // challenger
         const challenger: string = config.rollupChallenger
         const rollupDelayPeriod: number = config.rollupDelayPeriod
 
-        if (!ethers.utils.isAddress(submitter)
-            || !ethers.utils.isAddress(challenger)
-        ) {
+        if (!ethers.utils.isAddress(challenger)) {
             console.error('please check your address')
             return ''
         }
@@ -83,29 +66,6 @@ export const ContractInit = async (
         res = await Rollup.initialize3(rollupDelayPeriod)
         rec = await res.wait()
         console.log(`initialize3(%s) ${rec.status == 1 ? "success" : "failed"}`)
-    }
-
-    // ------------------ staking init -----------------
-    {
-        const L1StakingProxyAddress = getContractAddressByName(path, ProxyStorageName.L1StakingProxyStorageName)
-        const L1Staking = await hre.ethers.getContractAt(ContractFactoryName.L1Staking, L1StakingProxyAddress, deployer)
-        const whiteListAdd = config.l2SequencerAddresses
-        console.log("Add sequencer address to white list ", config.l2SequencerAddresses)
-        // set sequencer to white list
-        await L1Staking.updateWhitelist(whiteListAdd, [])
-        for (let i = 0; i < config.l2SequencerAddresses.length; i++) {
-            // Wait for the transaction to execute properly.
-            await awaitCondition(
-                async () => {
-                    return (
-                        await L1Staking.whitelist(config.l2SequencerAddresses[i]) === true
-                    )
-                },
-                3000,
-                1000
-            )
-            console.log(`address ${config.l2SequencerAddresses[i]} is in white list`)
-        }
     }
 
     // ------------------ router init -----------------
