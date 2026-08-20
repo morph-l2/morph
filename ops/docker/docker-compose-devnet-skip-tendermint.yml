@@ -1,0 +1,136 @@
+# TEST-ONLY overlay: a devnet that is born in single-sequencer mode and never runs
+# PBFT at all. Stack it on top of the base devnet:
+#
+#   cd ops/docker
+#   docker compose -f docker-compose-devnet.yml -f docker-compose-devnet-skip-tendermint.yml up -d
+#
+# Never use any of this on a production network.
+#
+# Why the overlay is needed at all
+# --------------------------------
+# MORPH_NODE_START_IN_SEQUENCER_MODE pre-sets upgrade block height 0, so
+# upgrade.IsUpgraded(1) is true from the first block. That makes the PBFT
+# consensus reactor return early (tendermint consensus/reactor.go:81-85) and the
+# PBFT upgrade callback (tendermint node/node.go:1700) never fires. The only
+# remaining way into sequencer mode is the blocksync hand-over at
+# tendermint blocksync/reactor.go:608, which needs BOTH of:
+#
+#   1. blockSync == true. It is computed as
+#        config.BlockSyncMode && !onlyValidatorIsUs(state, pubKey)   (node/node.go:903)
+#      so a node that holds the ONLY genesis validator key gets blockSync=false,
+#      blocksync/reactor.go:187 does nothing, and the node never starts producing.
+#      Overriding node-0's priv_validator_key.json with a key that is not in the
+#      genesis validator set flips onlyValidatorIsUs to false. This mirrors what
+#      the ha cluster already does: setup_nodes.py:134-141 copies
+#      priv_validator_key.json for node0 only and deletes it everywhere else, so
+#      every ha-node boots with a key tendermint generated for it
+#      (privval.LoadOrGenFilePV, node/node.go:107) rather than the genesis one.
+#
+#   2. At least one tendermint peer, because BlockPool.IsCaughtUp() returns false
+#      while len(pool.peers) == 0 (blocksync/pool.go:186). node-0 and node-1 are
+#      each other's peer via the generated persistent_peers list.
+#
+# Nothing here holds the genesis validator key, which is fine: PBFT never runs,
+# so the genesis validator set is never used to vote. Block production is driven
+# by StateV2 (started at sequencer/broadcast_reactor.go:227) and gated on the L1
+# sequencer contract plus MORPH_NODE_SEQUENCER_PRIVATE_KEY, not on tendermint
+# validator identity.
+#
+# Hand-over is confirmed by these three lines, in order, on node-0 and node-1:
+#   Already upgraded to sequencer mode, consensus reactor will not start
+#   Caught up, stopping pool
+#   Switching to sequencer mode
+#
+# Roles, one per L2 block-apply path in geth:
+#   node-0  sequencer  AssembleL2BlockV2 + NewL2BlockV2 (cached)  -> role=sequencer
+#   node-1  fullnode   NewL2BlockV2 (cold, P2P block sync)        -> role=syncing
+#   node-2  verifier   NewSafeL2Block (rebuilt from L1 batches)   -> role=derived
+
+services:
+  # ========== Sequencer ==========
+  node-0:
+    environment:
+      - MORPH_NODE_START_IN_SEQUENCER_MODE=true
+      # local: run tendermint (so this node can be node-1's peer) and take blocks
+      # from the sequencer P2P layer rather than from L1 derivation.
+      - MORPH_NODE_DERIVATION_VERIFY_MODE=local
+    volumes:
+      # Shadow the genesis validator key so onlyValidatorIsUs() is false and
+      # blockSync stays enabled. See the header for the full chain.
+      - "${PWD}/skip-tendermint/priv_validator_key.json:${NODE_DATA_DIR}/config/priv_validator_key.json:ro"
+
+  # ========== Fullnode: P2P block sync ==========
+  node-1:
+    environment:
+      - MORPH_NODE_START_IN_SEQUENCER_MODE=true
+      - MORPH_NODE_DERIVATION_VERIFY_MODE=local
+      # No MORPH_NODE_SEQUENCER_PRIVATE_KEY: without a signer StateV2 skips
+      # roleCheckRoutine and the broadcast reactor runs applyRoutine instead
+      # (sequencer/broadcast_reactor.go:244), i.e. this node only applies blocks.
+      #
+      # No priv_validator_key.json mount: setup_nodes.py already deletes it for
+      # every node but node0, so tendermint generates a fresh non-genesis key here.
+
+  # ========== Verifier: L1 derivation ==========
+  morph-el-2:
+    container_name: morph-el-2
+    depends_on:
+      - morph-el-0
+    image: morph-geth:latest
+    restart: unless-stopped
+    ports:
+      - "8745:8545"
+      - "8746:8546"
+      - "8551"
+      - "6060"
+      - "30303"
+    volumes:
+      - ".devnet/el2:/db"
+      - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
+      - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/nodekey2:/db/geth/nodekey"
+      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
+    environment:
+      - RUST_LOG=${RUST_LOG}
+    entrypoint:
+      - "/bin/bash"
+      - "/entrypoint.sh"
+
+  node-2:
+    container_name: node-2
+    depends_on:
+      morph-el-2:
+        condition: service_started
+      node-0:
+        condition: service_started
+    image: morph-node:latest
+    restart: unless-stopped
+    ports:
+      - "26656"
+      - "26657"
+      - "26658"
+      - "26660"
+    environment:
+      - MORPH_NODE_L2_ETH_RPC=http://morph-el-2:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://morph-el-2:8551
+      - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
+      - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
+      - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_PORTAL:-0x6900000000000000000000000000000000000001}
+      - MORPH_NODE_L1_CONFIRMATIONS=0
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      - MORPH_NODE_SYNC_START_HEIGHT=${MORPH_NODE_SYNC_START_HEIGHT:-1}
+      - MORPH_NODE_UPGRADE_BATCH_TIME=${BATCH_UPGRADE_TIME}
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${L1_SEQUENCER_CONTRACT}
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
+      # layer1: tendermint is not started at all, so this node is not a peer and
+      # does not need a validator key. It still needs the born-mode switch because
+      # derivation decides the batch/block version from upgrade.IsUpgraded.
+      - MORPH_NODE_START_IN_SEQUENCER_MODE=true
+      - MORPH_NODE_DERIVATION_VERIFY_MODE=layer1
+    volumes:
+      - ".devnet/node2:${NODE_DATA_DIR}"
+      - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
+    command: >
+      morphnode
+      --home $NODE_DATA_DIR
