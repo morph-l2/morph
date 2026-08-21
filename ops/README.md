@@ -61,7 +61,7 @@ one's default points the wrong way:
    the genesis `priv_validator_key.json` — tendermint generates a non-genesis key
    when the file is absent — or put two or more validators in genesis. A node
    holding the sole genesis validator key gets block sync disabled and never
-   starts producing. This one is checked at startup and refuses to boot.
+   starts producing.
 3. **At least one other node running tendermint**, i.e. **two nodes minimum**. The
    hand-over waits for the block pool to report caught up, and a pool with no
    peers never does. A node with `MORPH_NODE_DERIVATION_VERIFY_MODE=layer1` does
@@ -72,8 +72,10 @@ one's default points the wrong way:
    `MORPH_NODE_SEQUENCER_PRIVATE_KEY` and no HA will both produce and fork the
    chain. This is easy to hit when satisfying #3 by copying a node's config.
 
-Only #2 is detected at startup. #1, #3 and #4 fail silently — for #1 and #3 the
-containers stay up, RPC answers, nothing is logged and the height stays at 0.
+None of the four is detected at startup, and #1 to #3 fail silently in the same
+way: the process stays up, RPC answers, nothing is logged, and the block height
+stays at 0. If a node in this mode produces nothing, work down this list before
+looking anywhere else.
 
 ## Endpoints
 
