@@ -92,10 +92,6 @@ services:
     environment:
       - MORPH_NODE_SEQUENCER_PRIVATE_KEY=${SEQUENCER_PRIVATE_KEY}
       - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
-      # TEST-ONLY: this HA cluster defaults to starting directly in sequencer mode
-      # (skip the PBFT phase). Set START_IN_SEQUENCER_MODE=false to instead run the
-      # normal PBFT->sequencer upgrade path. Never enable on a production network.
-      - MORPH_NODE_START_IN_SEQUENCER_MODE=${START_IN_SEQUENCER_MODE:-true}
       - MORPH_NODE_L2_ETH_RPC=http://ha-geth-0:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-0:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
@@ -136,10 +132,6 @@ services:
     environment:
       - MORPH_NODE_SEQUENCER_PRIVATE_KEY=${SEQUENCER_PRIVATE_KEY}
       - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
-      # TEST-ONLY: this HA cluster defaults to starting directly in sequencer mode
-      # (skip the PBFT phase). Set START_IN_SEQUENCER_MODE=false to instead run the
-      # normal PBFT->sequencer upgrade path. Never enable on a production network.
-      - MORPH_NODE_START_IN_SEQUENCER_MODE=${START_IN_SEQUENCER_MODE:-true}
       - MORPH_NODE_L2_ETH_RPC=http://ha-geth-1:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-1:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
@@ -180,10 +172,6 @@ services:
     environment:
       - MORPH_NODE_SEQUENCER_PRIVATE_KEY=${SEQUENCER_PRIVATE_KEY}
       - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
-      # TEST-ONLY: this HA cluster defaults to starting directly in sequencer mode
-      # (skip the PBFT phase). Set START_IN_SEQUENCER_MODE=false to instead run the
-      # normal PBFT->sequencer upgrade path. Never enable on a production network.
-      - MORPH_NODE_START_IN_SEQUENCER_MODE=${START_IN_SEQUENCER_MODE:-true}
       - MORPH_NODE_L2_ETH_RPC=http://ha-geth-2:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-2:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}

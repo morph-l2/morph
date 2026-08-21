@@ -37,7 +37,6 @@ COMMAND="geth \
 --nodiscover \
 --miner.gasprice="0" \
 --metrics \
---metrics.expensive \
 --metrics.addr=0.0.0.0 $optional_bootnodes"
 
 
