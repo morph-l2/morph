@@ -96,7 +96,9 @@ func L2NodeMain(ctx *cli.Context) error {
 	// (pre-set the upgrade block height, skip the PBFT phase). No-op unless
 	// --startInSequencerMode / MORPH_NODE_START_IN_SEQUENCER_MODE is set. Must run
 	// before the upgrade store is wired (SetupNode below). See node/devtool.
-	devtool.ApplyStartInSequencerMode(ctx, nodeConfig.Logger)
+	if err := devtool.ApplyStartInSequencerMode(ctx, nodeConfig.Logger); err != nil {
+		return err
+	}
 
 	home, err := homeDir(ctx)
 	if err != nil {
