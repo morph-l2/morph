@@ -75,7 +75,7 @@ func ApplyStartInSequencerMode(ctx *cli.Context, logger tmlog.Logger) error {
 }
 
 // productionNetwork reports the selected network and whether it is one where this
-// switch must never be honoured. It mirrors sequencerUpgradeNetwork in
+// switch must never be honored. It mirrors sequencerUpgradeNetwork in
 // cmd/node/main.go, which resolves the same two flags one call earlier.
 func productionNetwork(ctx *cli.Context) (string, bool) {
 	if ctx.GlobalBool(flags.MainnetFlag.Name) {
