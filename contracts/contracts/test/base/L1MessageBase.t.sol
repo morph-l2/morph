@@ -7,7 +7,7 @@ import {CommonTest} from "./CommonTest.t.sol";
 import {Whitelist} from "../../libraries/common/Whitelist.sol";
 import {L1CrossDomainMessenger} from "../../l1/L1CrossDomainMessenger.sol";
 import {L1MessageQueueWithGasPriceOracle} from "../../l1/rollup/L1MessageQueueWithGasPriceOracle.sol";
-import {L1Staking} from "../../l1/staking/L1Staking.sol";
+import {Submitter} from "../../l1/rollup/Submitter.sol";
 import {Rollup} from "../../l1/rollup/Rollup.sol";
 import {IRollup} from "../../l1/rollup/IRollup.sol";
 import {BatchHeaderCodecV0} from "../../libraries/codec/BatchHeaderCodecV0.sol";
@@ -15,15 +15,12 @@ import {MockZkEvmVerifier} from "../../mock/MockZkEvmVerifier.sol";
 
 contract L1MessageBaseTest is CommonTest {
     // Staking config
-    L1Staking public l1Staking;
-    L1Staking public l1StakingImpl;
+    Submitter public submitter;
+    Submitter public submitterImpl;
 
     uint256 public constant STAKING_VALUE = 1e18; // 1 eth
     uint256 public constant CHALLENGE_DEPOSIT = 1e18; // 1 eth
-    uint256 public constant LOCK_BLOCKS = 3;
     uint256 public rewardPercentage = 20;
-    uint32 public defaultGasLimitAdd = 1000000;
-    uint32 public defaultGasLimitRemove = 10000000;
 
     // Rollup config
     Rollup public rollup;
@@ -92,6 +89,14 @@ contract L1MessageBaseTest is CommonTest {
         );
     }
 
+    function _registerAndStakeSubmitter(address account) internal {
+        hevm.deal(account, 5 * STAKING_VALUE);
+        hevm.prank(multisig);
+        submitter.addSubmitter(account);
+        hevm.prank(account);
+        submitter.stake{value: STAKING_VALUE}();
+    }
+
     /// @dev Build V0 batch header for commitBatchWithProof (blob = ZERO_VERSIONED_HASH).
     function _createBatchHeaderV0ForProof(
         uint256 batchIndex,
@@ -144,7 +149,7 @@ contract L1MessageBaseTest is CommonTest {
             address(multisig),
             new bytes(0)
         );
-        TransparentUpgradeableProxy l1StakingProxy = new TransparentUpgradeableProxy(
+        TransparentUpgradeableProxy submitterProxy = new TransparentUpgradeableProxy(
             address(emptyContract),
             address(multisig),
             new bytes(0)
@@ -158,7 +163,7 @@ contract L1MessageBaseTest is CommonTest {
             address(alice)
         );
         l1CrossDomainMessengerImpl = new L1CrossDomainMessenger();
-        l1StakingImpl = new L1Staking(payable(l1CrossDomainMessengerProxy));
+        submitterImpl = new Submitter();
 
         // upgrade and initialize
         ITransparentUpgradeableProxy(address(rollupProxy)).upgradeToAndCall(
@@ -166,7 +171,7 @@ contract L1MessageBaseTest is CommonTest {
             abi.encodeCall(
                 Rollup.initialize,
                 (
-                    address(l1StakingProxy),
+                    address(submitterProxy),
                     address(l1MessageQueueWithGasPriceOracleProxy), // _messageQueue
                     address(verifier), // _verifier
                     finalizationPeriodSeconds, // _finalizationPeriodSeconds
@@ -196,19 +201,11 @@ contract L1MessageBaseTest is CommonTest {
                 )
             )
         );
-        ITransparentUpgradeableProxy(address(l1StakingProxy)).upgradeToAndCall(
-            address(l1StakingImpl),
+        ITransparentUpgradeableProxy(address(submitterProxy)).upgradeToAndCall(
+            address(submitterImpl),
             abi.encodeCall(
-                L1Staking.initialize,
-                (
-                    address(rollupProxy),
-                    STAKING_VALUE,
-                    CHALLENGE_DEPOSIT,
-                    LOCK_BLOCKS,
-                    rewardPercentage,
-                    defaultGasLimitAdd,
-                    defaultGasLimitRemove
-                )
+                Submitter.initialize,
+                (multisig, address(rollupProxy), STAKING_VALUE, CHALLENGE_DEPOSIT, rewardPercentage)
             )
         );
 
@@ -217,9 +214,9 @@ contract L1MessageBaseTest is CommonTest {
         l1MessageQueueWithGasPriceOracle = L1MessageQueueWithGasPriceOracle(
             address(l1MessageQueueWithGasPriceOracleProxy)
         );
-        l1Staking = L1Staking(address(l1StakingProxy));
+        submitter = Submitter(payable(address(submitterProxy)));
 
-        _changeAdmin(address(l1Staking));
+        _changeAdmin(address(submitter));
         _changeAdmin(address(rollup));
         _changeAdmin(address(l1CrossDomainMessenger));
         _changeAdmin(address(l1MessageQueueWithGasPriceOracle));

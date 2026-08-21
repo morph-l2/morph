@@ -20,7 +20,7 @@ var (
 	globalGenesisBatchHeaderErr  error
 	globalGenesisBatchHeaderOnce sync.Once
 
-	// Global overrides for cache batch config in tests (instead of updateBatchConfigFromGov).
+	// Explicit cache batch config used by integration-style tests.
 	globalBatchTimeoutForTest  uint64 = 10000000
 	globalBlockIntervalForTest uint64 = 10000
 )
@@ -55,7 +55,7 @@ func initCacheWithGlobalGenesisHeader(cache *BatchCache) error {
 	if globalGenesisBatchHeader == nil {
 		return ErrKeyNotFound
 	}
-	// Use global test knobs instead of querying gov config from chain.
+	// Use the same explicit values passed to NewBatchCache in these tests.
 	cache.batchTimeOut = globalBatchTimeoutForTest
 	cache.blockInterval = globalBlockIntervalForTest
 	headerCopy := make(BatchHeaderBytes, len(*globalGenesisBatchHeader))
@@ -88,7 +88,7 @@ func initCacheWithGlobalGenesisHeader(cache *BatchCache) error {
 func TestBatchCacheInitWithGlobalGenesisHeader(t *testing.T) {
 	testDB := openTestKV(t)
 	a := func(uint64) bool { return true }
-	cache := NewBatchCache(nil, a, 3, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
+	cache := NewBatchCache(nil, a, 3, globalBlockIntervalForTest, globalBatchTimeoutForTest, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
 
 	var batchCacheSyncMu sync.Mutex
 	done := make(chan error, 1)

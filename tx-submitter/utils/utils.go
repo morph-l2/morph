@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"math/big"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -239,13 +238,4 @@ func ParseL1MessageCnt(blockContexts hexutil.Bytes) uint64 {
 	}
 
 	return l1msgcnt
-}
-
-// FormatTime formats a timestamp into RFC3339 format string.
-// Returns "N/A" for nil or non-positive timestamps.
-func FormatTime(timestamp *big.Int) string {
-	if timestamp == nil || timestamp.Int64() <= 0 {
-		return "N/A"
-	}
-	return time.Unix(timestamp.Int64(), 0).Format(time.RFC3339)
 }

@@ -2,11 +2,11 @@ package services
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"testing"
 	"time"
 
-	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/core"
 	ethtypes "github.com/morph-l2/go-ethereum/core/types"
@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"morph-l2/bindings/bindings"
-	"morph-l2/tx-submitter/event"
+	"morph-l2/common/batch"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/mock"
@@ -42,47 +42,18 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 		metrics.UnregisterMetrics()
 	})
 
-	// Create mock event storage
-	eventStorage := mock.NewMockEventInfoStorage()
-	err = eventStorage.Load()
-	require.NoError(t, err)
-
-	// Initialize event storage with test data
-	eventStorage.SetBlockProcessed(1000)
-	eventStorage.SetBlockTime(uint64(time.Now().Unix()))
-	err = eventStorage.Store()
-	require.NoError(t, err)
-
-	// Create mock event indexer
-	indexer := event.NewEventIndexer(
-		nil, // We don't need a real ethclient.Client for testing
-		big.NewInt(0),
-		ethereum.FilterQuery{},
-		100,
-		eventStorage,
-	)
-
-	// Create mock rotator
-	rotator := NewRotator(common.Address{}, common.Address{}, indexer)
-
-	// Create mock L1Staking
-	l1Staking := mock.NewMockL1Staking()
-	// Set some test stakers
-	testStakers := []common.Address{
-		common.HexToAddress("0x1111111111111111111111111111111111111111"),
-		common.HexToAddress("0x2222222222222222222222222222222222222222"),
-	}
-	l1Staking.SetActiveStakers(testStakers)
+	submitter := mock.NewMockSubmitter()
+	submitter.SetActive(crypto.PubkeyToAddress(privateKey.PublicKey), true)
 
 	// Create rollup config
 	defaultCfg := utils.Config{
-		MaxTip:         10e9,
-		MaxBaseFee:     100e9,
-		MinTip:         1e9,
-		TipFeeBump:     100,
-		TxTimeout:      10 * time.Second,
-		PriorityRollup: true,
-		MaxBlobCount:   6, // required by batch.NewBatchCache (must be > 0)
+		MaxTip:             10e9,
+		MaxBaseFee:         100e9,
+		MinTip:             1e9,
+		TipFeeBump:         100,
+		TxTimeout:          10 * time.Second,
+		MaxBlobCount:       6, // required by batch.NewBatchCache (must be > 0)
+		BatchBlockInterval: 100,
 	}
 
 	// Create mock journal
@@ -104,17 +75,15 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 		l1Mock,
 		[]iface.L2Client{l2Mock},
 		mockRollup,
-		l1Staking,
+		submitter,
 		big.NewInt(1),
 		privateKey,
 		common.Address{},
 		rollupAbi,
 		defaultCfg,
 		nil,
-		rotator,
 		nil,
 		nil,
-		eventStorage,
 		nil,
 	)
 
@@ -127,6 +96,42 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 	rollup.reorgDetector = mockReorgDetector
 
 	return rollup, l1Mock, l2Mock, mockRollup
+}
+
+func TestPreCheckUsesSubmitterActivity(t *testing.T) {
+	r, _, _, _ := setupTestRollup(t)
+	submitter := r.Submitter.(*mock.MockSubmitter)
+
+	require.NoError(t, r.PreCheck())
+	submitter.SetActive(r.WalletAddr(), false)
+	require.ErrorContains(t, r.PreCheck(), "not an active submitter")
+
+	submitter.SetError(errors.New("rpc unavailable"))
+	require.ErrorContains(t, r.PreCheck(), "check Submitter activity")
+}
+
+func TestSealBatchRollupCannotSubmitWhileCacheRebuildFails(t *testing.T) {
+	r, _, _, rollupContract := setupTestRollup(t)
+	r.cfg.SealBatch = true
+	rollupContract.SetLastFinalizedBatchIndex(big.NewInt(10))
+	rollupContract.SetLastCommittedBatchIndex(big.NewInt(12))
+	rollupContract.SetLegacyCutoverBatchIndex(big.NewInt(12))
+
+	initErr := r.batchCache.Init()
+	require.Error(t, initErr)
+	require.NotErrorIs(t, initErr, batch.ErrLegacyTransitionCacheRequired)
+	cachedBatch, getErr := r.batchCache.Get(13)
+	require.ErrorIs(t, getErr, batch.ErrBatchCacheNotInitialized)
+	require.Nil(t, cachedBatch)
+	cachedHeader, ok := r.batchCache.GetSealedBatchHeader(13)
+	require.False(t, ok)
+	require.Nil(t, cachedHeader)
+
+	// Even a direct call (defense in depth beyond Start's loop gate) cannot
+	// create or enqueue a commit while cache validation remains unsuccessful.
+	require.NoError(t, r.rollup())
+	require.Zero(t, r.pendingTxs.Len())
+	require.Zero(t, r.pendingTxs.GetPindex())
 }
 
 // TestHandleDiscardedTx tests the handling of discarded transactions

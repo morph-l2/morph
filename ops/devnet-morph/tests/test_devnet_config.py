@@ -52,6 +52,28 @@ class DevnetConfigTest(unittest.TestCase):
         self.assertNotIn("node-2:", compose)
         self.assertNotIn("morph-el-2:8545", compose)
 
+    def test_tx_submitter_uses_submitter_contract_and_explicit_batch_settings(self):
+        compose = (DOCKER_DIR / "docker-compose-devnet.yml").read_text()
+
+        self.assertIn("TX_SUBMITTER_SUBMITTER_ADDRESS=${MORPH_SUBMITTER}", compose)
+        self.assertIn("TX_SUBMITTER_BATCH_BLOCK_INTERVAL=${BATCH_BLOCK_INTERVAL}", compose)
+        self.assertIn("TX_SUBMITTER_BATCH_TIMEOUT=${BATCH_TIMEOUT}", compose)
+        self.assertIn("TX_SUBMITTER_L1_PRIVATE_KEY=${BATCH_SUBMITTER_PRIVATE_KEY}", compose)
+        for removed_setting in (
+            "TX_SUBMITTER_PRIORITY_ROLLUP",
+            "TX_SUBMITTER_L1_STAKING_ADDRESS",
+            "TX_SUBMITTER_L1_STAKING_DEPLOYED_BLOCKNUM",
+        ):
+            self.assertNotIn(removed_setting, compose)
+
+        launcher = (DEVNET_PACKAGE / "devnet" / "__init__.py").read_text()
+        self.assertIn("addresses['Proxy__Submitter']", launcher)
+        self.assertIn("deploy_config['govBatchBlockInterval']", launcher)
+        self.assertIn("deploy_config['govBatchTimeout']", launcher)
+        self.assertIn("batchSubmitterPks", launcher)
+        self.assertIn("args.batch_submitter_private_key", launcher)
+        self.assertNotIn("MORPH_L1STAKING", launcher)
+
     def test_cluster_compose_defines_ha_services(self):
         cluster_compose = DOCKER_DIR / "docker-compose-cluster.yml"
 

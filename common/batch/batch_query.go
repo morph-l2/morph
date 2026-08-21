@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"morph-l2/bindings/bindings"
 
@@ -51,6 +52,9 @@ func (bc *BatchCache) getLastFinalizeBatchHeaderFromRollupByIndex(index uint64) 
 			}
 			endBlock = startBlock - 1
 			continue
+		}
+		if finalizeEventIter == nil {
+			return nil, fmt.Errorf("filter finalized batch %d returned a nil iterator", index)
 		}
 		defer func() { _ = finalizeEventIter.Close() }()
 		// Iterate through query results
@@ -165,13 +169,6 @@ type batchDataInputStruct struct {
 	WithdrawalRoot    [32]uint8 `json:"withdrawalRoot"`
 }
 
-// batchSignatureInputStruct represents the parsed batch signature input structure from ABI
-type batchSignatureInputStruct struct {
-	SignedSequencersBitmap *big.Int `json:"signedSequencersBitmap"`
-	SequencerSets          []uint8  `json:"sequencerSets"`
-	Signature              []uint8  `json:"signature"`
-}
-
 // convertBatchDataInput converts the parsed struct to bindings.IRollupBatchDataInput
 func convertBatchDataInput(s batchDataInputStruct) *bindings.IRollupBatchDataInput {
 	// Convert []uint8 to []byte
@@ -186,21 +183,6 @@ func convertBatchDataInput(s batchDataInputStruct) *bindings.IRollupBatchDataInp
 		PrevStateRoot:     s.PrevStateRoot,
 		PostStateRoot:     s.PostStateRoot,
 		WithdrawalRoot:    s.WithdrawalRoot,
-	}
-}
-
-// convertBatchSignatureInput converts the parsed struct to bindings.IRollupBatchSignatureInput
-func convertBatchSignatureInput(s batchSignatureInputStruct) *bindings.IRollupBatchSignatureInput {
-	// Convert []uint8 to []byte
-	sequencerSets := make([]byte, len(s.SequencerSets))
-	copy(sequencerSets, s.SequencerSets)
-	signature := make([]byte, len(s.Signature))
-	copy(signature, s.Signature)
-
-	return &bindings.IRollupBatchSignatureInput{
-		SignedSequencersBitmap: s.SignedSequencersBitmap,
-		SequencerSets:          sequencerSets,
-		Signature:              signature,
 	}
 }
 
@@ -235,116 +217,49 @@ func parseBatchDataInputFromArgs(args []interface{}) (batchDataInputStruct, erro
 	}, nil
 }
 
-// parseBatchSignatureInputFromArgs safely parses BatchSignatureInput from ABI unpacked arguments
-func parseBatchSignatureInputFromArgs(args []interface{}) (batchSignatureInputStruct, error) {
-	if len(args) < 2 {
-		return batchSignatureInputStruct{}, errors.New("insufficient arguments for batch signature input")
-	}
+// These two compact ABIs freeze the only historical/current commit methods this
+// query supports. The pre-Submitter ABI deliberately includes the complete
+// BatchSignatureInput tuple so historical calldata is decoded with its real
+// layout even though callers only need BatchDataInput.
+const preSubmitterCommitABI = `[
+  {"inputs":[{"components":[{"name":"version","type":"uint8"},{"name":"parentBatchHeader","type":"bytes"},{"name":"lastBlockNumber","type":"uint64"},{"name":"numL1Messages","type":"uint16"},{"name":"prevStateRoot","type":"bytes32"},{"name":"postStateRoot","type":"bytes32"},{"name":"withdrawalRoot","type":"bytes32"}],"name":"batchDataInput","type":"tuple"},{"components":[{"name":"signedSequencersBitmap","type":"uint256"},{"name":"sequencerSets","type":"bytes"},{"name":"signature","type":"bytes"}],"name":"batchSignatureInput","type":"tuple"}],"name":"commitBatch","outputs":[],"stateMutability":"payable","type":"function"},
+  {"inputs":[{"components":[{"name":"version","type":"uint8"},{"name":"parentBatchHeader","type":"bytes"},{"name":"lastBlockNumber","type":"uint64"},{"name":"numL1Messages","type":"uint16"},{"name":"prevStateRoot","type":"bytes32"},{"name":"postStateRoot","type":"bytes32"},{"name":"withdrawalRoot","type":"bytes32"}],"name":"batchDataInput","type":"tuple"},{"components":[{"name":"signedSequencersBitmap","type":"uint256"},{"name":"sequencerSets","type":"bytes"},{"name":"signature","type":"bytes"}],"name":"batchSignatureInput","type":"tuple"},{"name":"_batchHeader","type":"bytes"},{"name":"_batchProof","type":"bytes"}],"name":"commitBatchWithProof","outputs":[],"stateMutability":"nonpayable","type":"function"}
+]`
 
-	// Use comma-ok assertion for safe type checking
-	rawStruct, ok := args[1].(struct {
-		SignedSequencersBitmap *big.Int `json:"signedSequencersBitmap"`
-		SequencerSets          []uint8  `json:"sequencerSets"`
-		Signature              []uint8  `json:"signature"`
-	})
-	if !ok {
-		return batchSignatureInputStruct{}, errors.New("failed to cast batch signature input to expected struct type")
-	}
+const submitterCommitABI = `[
+  {"inputs":[{"components":[{"name":"version","type":"uint8"},{"name":"parentBatchHeader","type":"bytes"},{"name":"lastBlockNumber","type":"uint64"},{"name":"numL1Messages","type":"uint16"},{"name":"prevStateRoot","type":"bytes32"},{"name":"postStateRoot","type":"bytes32"},{"name":"withdrawalRoot","type":"bytes32"}],"name":"batchDataInput","type":"tuple"}],"name":"commitBatch","outputs":[],"stateMutability":"payable","type":"function"},
+  {"inputs":[{"components":[{"name":"version","type":"uint8"},{"name":"parentBatchHeader","type":"bytes"},{"name":"lastBlockNumber","type":"uint64"},{"name":"numL1Messages","type":"uint16"},{"name":"prevStateRoot","type":"bytes32"},{"name":"postStateRoot","type":"bytes32"},{"name":"withdrawalRoot","type":"bytes32"}],"name":"batchDataInput","type":"tuple"},{"name":"_batchHeader","type":"bytes"},{"name":"_batchProof","type":"bytes"}],"name":"commitBatchWithProof","outputs":[],"stateMutability":"nonpayable","type":"function"}
+]`
 
-	return batchSignatureInputStruct{
-		SignedSequencersBitmap: rawStruct.SignedSequencersBitmap,
-		SequencerSets:          rawStruct.SequencerSets,
-		Signature:              rawStruct.Signature,
-	}, nil
-}
-
-// parseCommitBatchTxData parses the commitBatch transaction's input data to get BatchDataInput and BatchSignatureInput
-func parseCommitBatchTxData(txData []byte) (*bindings.IRollupBatchDataInput, *bindings.IRollupBatchSignatureInput, error) {
-	// Get rollup ABI
-	rollupAbi, err := bindings.RollupMetaData.GetAbi()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Check if method ID is commitBatch
-	commitBatchMethod, ok := rollupAbi.Methods["commitBatch"]
-	if !ok {
-		return nil, nil, errors.New("commitBatch method not found in ABI")
-	}
-
-	// Check if the first 4 bytes of transaction data match the method ID
+// parseCommitBatchTxData decodes commitBatch and commitBatchWithProof calldata
+// from either side of the Submitter upgrade. No other selector is accepted.
+func parseCommitBatchTxData(txData []byte) (*bindings.IRollupBatchDataInput, error) {
 	if len(txData) < 4 {
-		return nil, nil, errors.New("transaction data too short")
+		return nil, errors.New("transaction data too short")
 	}
 
-	methodID := txData[:4]
-	if !bytes.Equal(methodID, commitBatchMethod.ID) {
-		// Try commitBatchWithProof
-		commitBatchWithProofMethod, ok := rollupAbi.Methods["commitBatchWithProof"]
-		if !ok {
-			return nil, nil, errors.New("commitBatchWithProof method not found in ABI")
+	for _, rawABI := range []string{preSubmitterCommitABI, submitterCommitABI} {
+		rollupABI, err := abi.JSON(strings.NewReader(rawABI))
+		if err != nil {
+			return nil, fmt.Errorf("parse frozen rollup ABI: %w", err)
 		}
-		if bytes.Equal(methodID, commitBatchWithProofMethod.ID) {
-			// Use commitBatchWithProof method to parse
-			return parseCommitBatchWithProofTxData(txData, rollupAbi)
+		method, err := rollupABI.MethodById(txData[:4])
+		if err != nil {
+			continue
 		}
-		return nil, nil, errors.New("transaction is not a commit batch or commitBatchWithProof")
+		if method.Name != "commitBatch" && method.Name != "commitBatchWithProof" {
+			continue
+		}
+		args, err := method.Inputs.Unpack(txData[4:])
+		if err != nil {
+			return nil, fmt.Errorf("unpack %s calldata: %w", method.Name, err)
+		}
+		batchDataInputRaw, err := parseBatchDataInputFromArgs(args)
+		if err != nil {
+			return nil, fmt.Errorf("parse batch data input: %w", err)
+		}
+		return convertBatchDataInput(batchDataInputRaw), nil
 	}
 
-	// Parse parameters
-	args, err := commitBatchMethod.Inputs.Unpack(txData[4:])
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Parse BatchDataInput using shared helper
-	batchDataInputRaw, err := parseBatchDataInputFromArgs(args)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse batch data input: %w", err)
-	}
-	batchDataInput := convertBatchDataInput(batchDataInputRaw)
-
-	// Parse BatchSignatureInput using shared helper
-	batchSignatureInputRaw, err := parseBatchSignatureInputFromArgs(args)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse batch signature input: %w", err)
-	}
-	batchSignatureInput := convertBatchSignatureInput(batchSignatureInputRaw)
-
-	return batchDataInput, batchSignatureInput, nil
-}
-
-// parseCommitBatchWithProofTxData parses the commitBatchWithProof transaction's input data
-// commitBatchWithProof has 4 parameters: batchDataInput, batchSignatureInput, _batchHeader, _batchProof
-func parseCommitBatchWithProofTxData(txData []byte, rollupAbi *abi.ABI) (*bindings.IRollupBatchDataInput, *bindings.IRollupBatchSignatureInput, error) {
-	commitBatchWithProofMethod, ok := rollupAbi.Methods["commitBatchWithProof"]
-	if !ok {
-		return nil, nil, errors.New("commitBatchWithProof method not found in ABI")
-	}
-
-	// Parse parameters
-	args, err := commitBatchWithProofMethod.Inputs.Unpack(txData[4:])
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Parse BatchDataInput using shared helper
-	batchDataInputRaw, err := parseBatchDataInputFromArgs(args)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse batch data input: %w", err)
-	}
-	batchDataInput := convertBatchDataInput(batchDataInputRaw)
-
-	// Parse BatchSignatureInput using shared helper
-	batchSignatureInputRaw, err := parseBatchSignatureInputFromArgs(args)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse batch signature input: %w", err)
-	}
-	batchSignatureInput := convertBatchSignatureInput(batchSignatureInputRaw)
-
-	// The third parameter is _batchHeader (bytes)
-	// The fourth parameter is _batchProof (bytes)
-	// These parameters don't need to be returned, but can be used for verification
-
-	return batchDataInput, batchSignatureInput, nil
+	return nil, errors.New("transaction is not commitBatch or commitBatchWithProof")
 }

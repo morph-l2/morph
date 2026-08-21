@@ -19,7 +19,6 @@ type Metrics struct {
 	RollupCost              prometheus.Gauge
 	FinalizeCost            prometheus.Gauge
 	CollectedL1FeeSum       prometheus.Gauge
-	IndexerBlockProcessed   prometheus.Gauge
 	LastCommittedBatch      prometheus.Gauge
 	LastFinalizedBatch      prometheus.Gauge
 	HasPendingFinalizeBatch prometheus.Gauge
@@ -61,10 +60,6 @@ func NewMetrics() *Metrics {
 		CollectedL1FeeSum: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "tx_submitter_collected_l1_fee_sum",
 			Help: "Total L1 fees collected in ETH",
-		}),
-		IndexerBlockProcessed: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "tx_submitter_indexer_block_processed",
-			Help: "Latest block number processed by the indexer",
 		}),
 		LastCommittedBatch: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "tx_submitter_last_committed_batch",
@@ -108,7 +103,6 @@ func NewMetrics() *Metrics {
 	_ = prometheus.Register(m.RollupCost)
 	_ = prometheus.Register(m.FinalizeCost)
 	_ = prometheus.Register(m.CollectedL1FeeSum)
-	_ = prometheus.Register(m.IndexerBlockProcessed)
 	_ = prometheus.Register(m.LastCommittedBatch)
 	_ = prometheus.Register(m.LastFinalizedBatch)
 	_ = prometheus.Register(m.LastCacheBatchIndex)
@@ -145,11 +139,6 @@ func (m *Metrics) SetFinalizeCost(cost float64) {
 // SetCollectedL1Fee sets the collected L1 fee metric
 func (m *Metrics) SetCollectedL1Fee(cost float64) {
 	m.CollectedL1FeeSum.Set(cost)
-}
-
-// SetIndexerBlockProcessed sets the indexer block processed metric
-func (m *Metrics) SetIndexerBlockProcessed(blockNumber uint64) {
-	m.IndexerBlockProcessed.Set(float64(blockNumber))
 }
 
 // SetLastCommittedBatch sets the last committed batch index metric
@@ -229,7 +218,6 @@ func (m *Metrics) UnregisterMetrics() {
 	prometheus.Unregister(m.RollupCost)
 	prometheus.Unregister(m.FinalizeCost)
 	prometheus.Unregister(m.CollectedL1FeeSum)
-	prometheus.Unregister(m.IndexerBlockProcessed)
 	prometheus.Unregister(m.LastCommittedBatch)
 	prometheus.Unregister(m.LastFinalizedBatch)
 	prometheus.Unregister(m.HasPendingFinalizeBatch)

@@ -3,7 +3,6 @@ package batch
 import (
 	"bytes"
 	"fmt"
-	"math/big"
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/bindings/predeploys"
@@ -14,11 +13,10 @@ import (
 	"github.com/morph-l2/go-ethereum/crypto"
 )
 
-// L2Gov bundles read-only L2 contracts used when assembling rollup batches.
+// L2Gov provides the historical L2 reads used when assembling rollup batches.
 type L2Gov struct {
 	sequencerContract       *bindings.SequencerCaller
 	l2MessagePasserContract *bindings.L2ToL1MessagePasserCaller
-	govContract             *bindings.GovCaller
 }
 
 // NewL2Gov builds an L2Gov using any ContractCaller (e.g. *ethclient.Client or a multi-client backend).
@@ -34,20 +32,10 @@ func NewL2Gov(backend bind.ContractCaller) (*L2Gov, error) {
 	if err != nil {
 		return nil, err
 	}
-	govContract, err := bindings.NewGovCaller(predeploys.GovAddr, backend)
-	if err != nil {
-		return nil, err
-	}
 	return &L2Gov{
 		sequencerContract:       sequencerContract,
 		l2MessagePasserContract: l2MessagePasserContract,
-		govContract:             govContract,
 	}, nil
-}
-
-// SequencerSetVerifyHash gets the sequencer set verify hash from the Sequencer contract.
-func (c *L2Gov) SequencerSetVerifyHash(opts *bind.CallOpts) ([32]byte, error) {
-	return c.sequencerContract.SequencerSetVerifyHash(opts)
 }
 
 // GetTreeRoot gets the tree root from the L2ToL1MessagePasser contract.
@@ -55,17 +43,9 @@ func (c *L2Gov) GetTreeRoot(opts *bind.CallOpts) ([32]byte, error) {
 	return c.l2MessagePasserContract.GetTreeRoot(opts)
 }
 
-// BatchBlockInterval gets the batch block interval from the Gov contract.
-func (c *L2Gov) BatchBlockInterval(opts *bind.CallOpts) (*big.Int, error) {
-	return c.govContract.BatchBlockInterval(opts)
-}
-
-// BatchTimeout gets the batch timeout from the Gov contract.
-func (c *L2Gov) BatchTimeout(opts *bind.CallOpts) (*big.Int, error) {
-	return c.govContract.BatchTimeout(opts)
-}
-
-// GetSequencerSetBytes returns sequencer set bytes after hash consistency check.
+// GetSequencerSetBytes returns the historical sequencer-set encoding and hash
+// at opts.BlockNumber. The two contract reads are checked against each other so
+// replay never accepts bytes from a different L2 state.
 func (c *L2Gov) GetSequencerSetBytes(opts *bind.CallOpts) ([]byte, common.Hash, error) {
 	hash, err := c.sequencerContract.SequencerSetVerifyHash(opts)
 	if err != nil {
@@ -75,8 +55,12 @@ func (c *L2Gov) GetSequencerSetBytes(opts *bind.CallOpts) ([]byte, common.Hash, 
 	if err != nil {
 		return nil, common.Hash{}, err
 	}
-	if bytes.Equal(hash[:], crypto.Keccak256Hash(setBytes).Bytes()) {
-		return setBytes, hash, nil
+	calculated := crypto.Keccak256Hash(setBytes)
+	if !bytes.Equal(hash[:], calculated[:]) {
+		return nil, common.Hash{}, fmt.Errorf(
+			"sequencer set hash verify failed: bytes=%s contract=%s calculated=%s",
+			hexutil.Encode(setBytes), common.Hash(hash), calculated,
+		)
 	}
-	return nil, common.Hash{}, fmt.Errorf("sequencer set hash verify failed %v: %v", hexutil.Encode(setBytes), common.BytesToHash(hash[:]).String())
+	return setBytes, common.Hash(hash), nil
 }

@@ -25,13 +25,12 @@ pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
     #[cfg(not(target_os = "zkvm"))]
     log::info!(
         "cacl pi hash, prevStateRoot = {:?}, postStateRoot = {:?}, withdrawalRoot = {:?},
-        dataHash = {:?}, blobVersionedHashes = {:?}, sequencerSetVerifyHash = {:?}, batch_version = {}",
+        dataHash = {:?}, blobVersionedHashes = {:?}, batch_version = {}",
         hex::encode(batch_info.prev_state_root().as_slice()),
         hex::encode(batch_info.post_state_root().as_slice()),
         hex::encode(batch_info.withdraw_root().as_slice()),
         hex::encode(batch_info.data_hash().as_slice()),
         versioned_hashes.iter().map(|h| hex::encode(h.as_slice())).collect::<Vec<_>>(),
-        hex::encode(batch_info.sequencer_root().as_slice()),
         input.batch_version,
     );
     let public_input_hash = match input.batch_version {

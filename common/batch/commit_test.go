@@ -13,7 +13,6 @@ import (
 	"morph-l2/common/blob"
 
 	"github.com/holiman/uint256"
-	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/consensus/misc/eip4844"
 	ethtypes "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
@@ -34,7 +33,7 @@ func TestRollupWithProof(t *testing.T) {
 	}
 	testDB := openTestKV(t)
 
-	cache := NewBatchCache(nil, nil, 2, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
+	cache := NewBatchCache(nil, nil, 2, globalBlockIntervalForTest, globalBatchTimeoutForTest, l1Client, &SingleL2Client{C: l2Client}, rollupContract, l2Gov, testDB)
 	err := cache.InitFromRollupByRange()
 	require.NoError(t, err)
 
@@ -53,11 +52,6 @@ func TestRollupWithProof(t *testing.T) {
 
 	batch, err := cache.Get(latestCommitBatchIndex.Uint64() + 1)
 	require.NoError(t, err)
-	h := crypto.Keccak256Hash(batch.CurrentSequencerSetBytes)
-	t.Log("sequencer verify hash:", h.String())
-
-	signature, err := buildSigInput(batch)
-	require.NoError(t, err)
 	rollupBatch := bindings.IRollupBatchDataInput{
 		Version:           uint8(batch.Version),
 		ParentBatchHeader: batch.ParentBatchHeader,
@@ -70,7 +64,7 @@ func TestRollupWithProof(t *testing.T) {
 	tip, gasFeeCap, blobFee, head, err := getGasTipAndCap(l1Client)
 	require.NoError(t, err)
 
-	calldata, err := abi.Pack("commitBatch", rollupBatch, *signature)
+	calldata, err := abi.Pack("commitBatch", rollupBatch)
 	require.NoError(t, err)
 	nonce, err := l1Client.NonceAt(context.Background(), address, nil)
 	require.NoError(t, err)
@@ -184,15 +178,6 @@ func getGasTipAndCap(l1client *ethclient.Client) (*big.Int, *big.Int, *big.Int, 
 	}
 
 	return tip, gasFeeCap, blobFee, head, nil
-}
-
-func buildSigInput(batch *eth.RPCRollupBatch) (*bindings.IRollupBatchSignatureInput, error) {
-	sigData := &bindings.IRollupBatchSignatureInput{
-		SignedSequencersBitmap: common.Big0,
-		SequencerSets:          batch.CurrentSequencerSetBytes,
-		Signature:              []byte("0x"),
-	}
-	return sigData, nil
 }
 
 func sendTx(client *ethclient.Client, txFeeLimit uint64, tx *ethtypes.Transaction) error {

@@ -374,6 +374,36 @@ func (s *BatchStorage) ForceDeleteAllSealedBatches() error {
 	return nil
 }
 
+// ValidateExactKeySet ensures the indices snapshot enumerates every persisted
+// sealed-batch data/header key and no orphan key can bypass startup validation.
+func (s *BatchStorage) ValidateExactKeySet(indices []uint64) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	keys, err := s.db.IteratePrefixKeys([]byte(SealedBatchKeyPrefix))
+	if err != nil {
+		return fmt.Errorf("failed to scan sealed batch keys: %w", err)
+	}
+	expected := make(map[string]struct{}, len(indices)*2+1)
+	if len(indices) != 0 {
+		expected[SealedBatchIndicesKey] = struct{}{}
+	}
+	for _, index := range indices {
+		expected[string(encodeBatchKey(index))] = struct{}{}
+		expected[string(encodeBatchHeaderKey(index))] = struct{}{}
+	}
+	for _, key := range keys {
+		if _, ok := expected[string(key)]; !ok {
+			return fmt.Errorf("orphan sealed batch key %x is not listed in the indices snapshot", key)
+		}
+		delete(expected, string(key))
+	}
+	if len(expected) != 0 {
+		return fmt.Errorf("sealed batch indices snapshot references %d missing persisted keys", len(expected))
+	}
+	return nil
+}
+
 // encodeBatchKey encodes batch index to a byte key
 func encodeBatchKey(batchIndex uint64) []byte {
 	key := make([]byte, len(SealedBatchKeyPrefix)+8)

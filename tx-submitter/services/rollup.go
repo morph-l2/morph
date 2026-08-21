@@ -30,7 +30,6 @@ import (
 	"morph-l2/common/blob"
 	"morph-l2/tx-submitter/constants"
 	"morph-l2/tx-submitter/db"
-	"morph-l2/tx-submitter/event"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/l1checker"
 	"morph-l2/tx-submitter/localpool"
@@ -42,26 +41,23 @@ import (
 const (
 	txSlotSize           = 32 * 1024
 	txMaxSize            = 4 * txSlotSize // 128KB
-	rotatorWait          = 3 * time.Second
 	rollupSumKey         = "rollup_sum"
 	finalizeSumKey       = "finalize_sum"
 	collectedL1FeeSumKey = "collected_l1_fee_sum"
 )
 
 type Rollup struct {
-	ctx         context.Context
-	metrics     *metrics.Metrics
-	l1RpcClient *rpc.Client
-	L1Client    iface.Client
-	L2Clients   []iface.L2Client
-	Rollup      iface.IRollup
-	Staking     iface.IL1Staking
-	chainId     *big.Int
-	privKey     *ecdsa.PrivateKey
-	rollupAddr  common.Address
-	abi         *abi.ABI
-	// rotator
-	rotator          *Rotator
+	ctx              context.Context
+	metrics          *metrics.Metrics
+	l1RpcClient      *rpc.Client
+	L1Client         iface.Client
+	L2Clients        []iface.L2Client
+	Rollup           iface.IRollup
+	Submitter        iface.ISubmitter
+	chainId          *big.Int
+	privKey          *ecdsa.PrivateKey
+	rollupAddr       common.Address
+	abi              *abi.ABI
 	pendingTxs       *PendingTxs
 	rollupFinalizeMu sync.Mutex
 	externalRsaPriv  *rsa.PrivateKey
@@ -81,7 +77,6 @@ type Rollup struct {
 	batchCache       *batch.BatchCache
 	batchCacheLegacy *types.BatchCacheLegacy
 	bm               *l1checker.BlockMonitor
-	eventInfoStorage *event.EventInfoStorage
 	reorgDetector    iface.IReorgDetector
 
 	ChainConfigMap blob.ChainBlobConfigs
@@ -94,17 +89,15 @@ func NewRollup(
 	l1 iface.Client,
 	l2Clients []iface.L2Client,
 	rollup iface.IRollup,
-	staking iface.IL1Staking,
+	submitter iface.ISubmitter,
 	chainId *big.Int,
 	priKey *ecdsa.PrivateKey,
 	rollupAddr common.Address,
 	abi *abi.ABI,
 	cfg utils.Config,
 	rsaPriv *rsa.PrivateKey,
-	rotator *Rotator,
 	ldb *db.Db,
 	bm *l1checker.BlockMonitor,
-	eventInfoStorage *event.EventInfoStorage,
 	l2Caller *types.L2Caller,
 ) *Rollup {
 	reorgDetector := NewReorgDetector(l1)
@@ -114,13 +107,12 @@ func NewRollup(
 		l1RpcClient:     l1RpcClient,
 		L1Client:        l1,
 		Rollup:          rollup,
-		Staking:         staking,
+		Submitter:       submitter,
 		L2Clients:       l2Clients,
 		privKey:         priKey,
 		chainId:         chainId,
 		rollupAddr:      rollupAddr,
 		abi:             abi,
-		rotator:         rotator,
 		cfg:             cfg,
 		signer:          ethtypes.LatestSignerForChainID(chainId),
 		externalRsaPriv: rsaPriv,
@@ -130,17 +122,18 @@ func NewRollup(
 				return cfg.BatchV2UpgradeTime > 0 && blockTimestamp >= cfg.BatchV2UpgradeTime
 			},
 			cfg.MaxBlobCount,
+			cfg.BatchBlockInterval,
+			cfg.BatchTimeout,
 			l1,
 			&iface.L2Clients{Clients: l2Clients},
 			rollup,
 			l2Caller,
 			ldb,
 		),
-		ldb:              ldb,
-		bm:               bm,
-		eventInfoStorage: eventInfoStorage,
-		reorgDetector:    reorgDetector,
-		ChainConfigMap:   blob.ChainConfigMap,
+		ldb:            ldb,
+		bm:             bm,
+		reorgDetector:  reorgDetector,
+		ChainConfigMap: blob.ChainConfigMap,
 	}
 	if !cfg.SealBatch {
 		fetcher := NewBatchFetcher(l2Clients)
@@ -234,17 +227,6 @@ func (r *Rollup) Start() error {
 		r.metrics.SetHasPendingFinalizeBatch(hasPendingFinalizeBatch)
 	})
 
-	go utils.Loop(r.ctx, r.cfg.RollupInterval, func() {
-		r.rollupFinalizeMu.Lock()
-		defer r.rollupFinalizeMu.Unlock()
-		if err := r.rollup(); err != nil {
-			if utils.IsRpcErr(err) {
-				r.metrics.IncRpcErrors()
-			}
-			log.Error("rollup failed,wait for the next try", "error", err)
-		}
-	})
-
 	if r.cfg.Finalize {
 		go utils.Loop(r.ctx, r.cfg.FinalizeInterval, func() {
 			r.rollupFinalizeMu.Lock()
@@ -273,39 +255,69 @@ func (r *Rollup) Start() error {
 	})
 
 	if r.cfg.SealBatch {
-		var batchCacheSyncMu sync.Mutex
+		batchCacheReady := make(chan struct{})
 
 		go func() {
-			batchCacheSyncMu.Lock()
-			defer batchCacheSyncMu.Unlock()
 			for {
-
-				if err = r.batchCache.InitAndSyncFromDatabase(); err != nil {
-					log.Error("init and sync from database failed, wait for the next try", "error", err)
-					time.Sleep(5 * time.Second)
+				if initErr := r.batchCache.InitAndSyncFromDatabase(); initErr != nil {
+					log.Error("init and sync from database failed, wait for the next try", "error", initErr)
+					retry := time.NewTimer(5 * time.Second)
+					select {
+					case <-r.ctx.Done():
+						retry.Stop()
+						return
+					case <-retry.C:
+					}
 					continue
 				}
-				break
+
+				// In SealBatch mode the commit loop must not exist before the
+				// migrated cache has passed transition validation. Finalization
+				// and pending-transaction processing are started independently
+				// above and remain available while initialization is retried.
+				close(batchCacheReady)
+				r.startRollupLoop()
+				return
 			}
 		}()
 
-		go utils.Loop(r.ctx, r.cfg.TxProcessInterval, func() {
-			batchCacheSyncMu.Lock()
-			defer batchCacheSyncMu.Unlock()
-			if err = r.batchCache.AssembleCurrentBatchHeader(); err != nil {
-				log.Error("assemble current batch failed, wait for the next try", "error", err)
+		go func() {
+			select {
+			case <-r.ctx.Done():
 				return
+			case <-batchCacheReady:
 			}
-			if index, err := r.batchCache.LatestBatchIndex(); err != nil {
-				log.Error("cannot get the latest batch index from batch cache", "error", err)
-				return
-			} else {
-				r.metrics.SetLastCacheBatchIndex(index)
-			}
-		})
+			utils.Loop(r.ctx, r.cfg.TxProcessInterval, func() {
+				if assembleErr := r.batchCache.AssembleCurrentBatchHeader(); assembleErr != nil {
+					log.Error("assemble current batch failed, wait for the next try", "error", assembleErr)
+					return
+				}
+				if index, err := r.batchCache.LatestBatchIndex(); err != nil {
+					log.Error("cannot get the latest batch index from batch cache", "error", err)
+					return
+				} else {
+					r.metrics.SetLastCacheBatchIndex(index)
+				}
+			})
+		}()
+	} else {
+		r.startRollupLoop()
 	}
 
 	return nil
+}
+
+func (r *Rollup) startRollupLoop() {
+	go utils.Loop(r.ctx, r.cfg.RollupInterval, func() {
+		r.rollupFinalizeMu.Lock()
+		defer r.rollupFinalizeMu.Unlock()
+		if err := r.rollup(); err != nil {
+			if utils.IsRpcErr(err) {
+				r.metrics.IncRpcErrors()
+			}
+			log.Error("rollup failed,wait for the next try", "error", err)
+		}
+	})
 }
 
 func (r *Rollup) ProcessTx() error {
@@ -324,45 +336,6 @@ func (r *Rollup) ProcessTx() error {
 	txRecords := r.pendingTxs.GetAll()
 	if len(txRecords) == 0 {
 		return nil
-	}
-
-	// Check if this submitter should process transactions
-	if err = r.checkSubmitterTurn(); err != nil {
-		if errors.Is(err, errNotMyTurn) {
-			// If rotator is not configured or not yet initialized, just skip this round safely.
-			if r.rotator == nil || r.rotator.startTime == nil || r.rotator.epoch == nil {
-				log.Info("Awaiting turn for transaction processing, but rotator state is not initialized",
-					"has_rotator", r.rotator != nil)
-				return nil
-			}
-
-			// Get current submitter index for logging
-			activeSubmitter, activeIndex, rotErr := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
-			if rotErr != nil || activeSubmitter == nil {
-				log.Warn("Failed to get current submitter while awaiting turn",
-					"error", rotErr)
-				return nil
-			}
-
-			// Calculate rotation timing information
-			past := (time.Now().Unix() - r.rotator.startTime.Int64()) % r.rotator.epoch.Int64()
-			start := time.Now().Unix() - past
-			end := start + r.rotator.epoch.Int64()
-			timeLeft := end - time.Now().Unix()
-
-			// Format timestamps for human readability
-			endTimeFormatted := utils.FormatTime(big.NewInt(end))
-			timeLeftFormatted := fmt.Sprintf("%dm%ds", timeLeft/60, timeLeft%60)
-
-			log.Info("Awaiting turn for transaction processing",
-				"current_submitter", activeSubmitter.Hex(),
-				"submitter_index", activeIndex,
-				"total_submitters", len(r.rotator.GetSubmitterSet()),
-				"next_rotation", endTimeFormatted,
-				"time_remaining", timeLeftFormatted)
-			return nil
-		}
-		return err
 	}
 
 	// Process each transaction
@@ -390,59 +363,6 @@ func (r *Rollup) detectReorgWithRetry() (bool, uint64, error) {
 		time.Sleep(time.Duration(i+1) * time.Second) // Exponential backoff
 	}
 	return false, 0, lastErr
-}
-
-var errNotMyTurn = errors.New("not my turn")
-
-func (r *Rollup) checkSubmitterTurn() error {
-	// If we are in priority rollup mode or rotator is not configured, always allow processing.
-	if r.cfg.PriorityRollup || r.rotator == nil {
-		return nil
-	}
-
-	activeSubmitter, submitterIndex, err := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
-	if err != nil {
-		return fmt.Errorf("rollup: get current submitter err, %w", err)
-	}
-
-	myAddress := r.WalletAddr().Hex()
-	activeAddress := activeSubmitter.Hex()
-	isMyTurn := activeAddress == myAddress
-
-	// Calculate rotation timing information
-	if r.rotator.startTime == nil || r.rotator.epoch == nil {
-		log.Warn("rotator state not initialized, skipping submitter turn check",
-			"has_rotator", r.rotator != nil)
-		return errNotMyTurn
-	}
-	past := (time.Now().Unix() - r.rotator.startTime.Int64()) % r.rotator.epoch.Int64()
-	start := time.Now().Unix() - past
-	end := start + r.rotator.epoch.Int64()
-	timeLeft := end - time.Now().Unix()
-
-	// Format timestamps for human readability
-	startTimeFormatted := utils.FormatTime(big.NewInt(start))
-	endTimeFormatted := utils.FormatTime(big.NewInt(end))
-	timeLeftFormatted := fmt.Sprintf("%dm%ds", timeLeft/60, timeLeft%60)
-
-	if !isMyTurn {
-		log.Debug("Not active submitter",
-			"active_submitter", activeAddress,
-			"index", submitterIndex,
-			"my_address", myAddress,
-			"total_submitters", len(r.rotator.GetSubmitterSet()),
-			"rotation_end", endTimeFormatted,
-			"time_remaining", timeLeftFormatted)
-		return errNotMyTurn
-	}
-
-	log.Info("Active submitter status",
-		"index", submitterIndex,
-		"total_submitters", len(r.rotator.GetSubmitterSet()),
-		"rotation_start", startTimeFormatted,
-		"rotation_end", endTimeFormatted,
-		"time_remaining", timeLeftFormatted)
-	return nil
 }
 
 // Handle chain reorganization (metrics + pending pool; DetectReorg only detects and updates block history).
@@ -993,84 +913,6 @@ func (r *Rollup) finalize() error {
 }
 
 func (r *Rollup) rollup() error {
-	// Get current block height
-	if !r.cfg.PriorityRollup {
-		activeSubmitter, activeIndex, err := r.rotator.CurrentSubmitter(r.L2Clients, r.Staking)
-		if err != nil {
-			return fmt.Errorf("rollup: get current submitter err, %w", err)
-		}
-
-		err = r.eventInfoStorage.Load()
-		if err != nil {
-			return fmt.Errorf("failed to load storage in rollup: %w", err)
-		}
-		log.Debug("Indexer status",
-			"blocks_processed", r.eventInfoStorage.BlockProcessed(),
-			"last_event_time", r.eventInfoStorage.BlockTime())
-
-		// get current block number
-		blockNumber, err := r.L1Client.BlockNumber(context.Background())
-		if err != nil {
-			return fmt.Errorf("failed to get block number in rollup: %w", err)
-		}
-		// set metrics
-		r.metrics.SetIndexerBlockProcessed(r.eventInfoStorage.BlockProcessed())
-		// check if indexed block number is too old
-		if blockNumber > r.eventInfoStorage.BlockProcessed()+100 {
-			log.Info("Indexer sync required",
-				"module", r.GetModuleName(),
-				"current_block", blockNumber,
-				"processed_block", r.eventInfoStorage.BlockProcessed(),
-				"blocks_behind", blockNumber-r.eventInfoStorage.BlockProcessed())
-			return nil
-		}
-
-		past := (time.Now().Unix() - r.rotator.startTime.Int64()) % r.rotator.epoch.Int64()
-		start := time.Now().Unix() - past
-		end := start + r.rotator.epoch.Int64()
-
-		// Calculate time remaining in current turn
-		timeLeft := end - time.Now().Unix()
-		myAddress := r.WalletAddr().Hex()
-		activeAddress := activeSubmitter.Hex()
-		isMyTurn := activeAddress == myAddress
-		totalSubmitters := len(r.rotator.GetSubmitterSet())
-
-		// Format timestamps for human readability
-		startTimeFormatted := utils.FormatTime(big.NewInt(start))
-		endTimeFormatted := utils.FormatTime(big.NewInt(end))
-		timeLeftFormatted := fmt.Sprintf("%dm%ds", timeLeft/60, timeLeft%60)
-
-		log.Info("Rotation status",
-			"submitter_index", activeIndex,
-			"active_submitter", activeAddress,
-			"my_address", myAddress,
-			"total_submitters", totalSubmitters,
-			"is_my_turn", isMyTurn,
-			"rotation_start", startTimeFormatted,
-			"rotation_end", endTimeFormatted,
-			"time_remaining", timeLeftFormatted)
-
-		if isMyTurn {
-			if timeLeft < r.cfg.RotatorBuffer {
-				bufferFormatted := fmt.Sprintf("%dm%ds", r.cfg.RotatorBuffer/60, r.cfg.RotatorBuffer%60)
-				log.Info("Insufficient time for rollup",
-					"time_remaining", timeLeftFormatted,
-					"buffer_required", bufferFormatted)
-				return nil
-			}
-
-			log.Info("Starting rollup",
-				"submitter_index", activeIndex,
-				"total_submitters", totalSubmitters)
-		} else {
-			log.Info("Skipping rollup - not active submitter",
-				"active_index", activeIndex,
-				"active_submitter", activeAddress)
-			return nil
-		}
-	}
-
 	if pendingN := r.pendingTxs.Len(); pendingN > int(r.cfg.MaxTxsInPendingPool) {
 		log.Info("Pending pool full",
 			"current_size", pendingN,
@@ -1115,10 +957,6 @@ func (r *Rollup) rollup() error {
 		return nil
 	}
 
-	signature, err := r.buildSignatureInput(rpcRollupBatch)
-	if err != nil {
-		return err
-	}
 	rollupBatch := bindings.IRollupBatchDataInput{
 		Version:           uint8(rpcRollupBatch.Version),
 		ParentBatchHeader: rpcRollupBatch.ParentBatchHeader,
@@ -1152,9 +990,9 @@ func (r *Rollup) rollup() error {
 	// calldata encode — commitState reuses stored blob hash and must not carry blob data in tx
 	var calldata []byte
 	if useCommitState {
-		calldata, err = r.abi.Pack("commitState", rollupBatch, *signature)
+		calldata, err = r.abi.Pack("commitState", rollupBatch)
 	} else {
-		calldata, err = r.abi.Pack("commitBatch", rollupBatch, *signature)
+		calldata, err = r.abi.Pack("commitBatch", rollupBatch)
 	}
 	if err != nil {
 		return fmt.Errorf("pack calldata error:%v", err)
@@ -1364,10 +1202,6 @@ func (r *Rollup) tryRebuildRollupCommitTx(tx *ethtypes.Transaction, tip, gasFeeC
 	if err != nil || !exist || rpcRollupBatch == nil {
 		return nil, true, fmt.Errorf("cannot rebuild rollup commit tx: batch %d not in cache (err=%v)", batchIndex, err)
 	}
-	signature, err := r.buildSignatureInput(rpcRollupBatch)
-	if err != nil {
-		return nil, true, err
-	}
 	rollupBatch := bindings.IRollupBatchDataInput{
 		Version:           uint8(rpcRollupBatch.Version),
 		ParentBatchHeader: rpcRollupBatch.ParentBatchHeader,
@@ -1379,7 +1213,7 @@ func (r *Rollup) tryRebuildRollupCommitTx(tx *ethtypes.Transaction, tip, gasFeeC
 	}
 
 	if stored != ([32]byte{}) {
-		calldata, err := r.abi.Pack("commitState", rollupBatch, *signature)
+		calldata, err := r.abi.Pack("commitState", rollupBatch)
 		if err != nil {
 			return nil, true, err
 		}
@@ -1394,7 +1228,7 @@ func (r *Rollup) tryRebuildRollupCommitTx(tx *ethtypes.Transaction, tip, gasFeeC
 		return newTx, true, nil
 	}
 
-	calldata, err := r.abi.Pack("commitBatch", rollupBatch, *signature)
+	calldata, err := r.abi.Pack("commitBatch", rollupBatch)
 	if err != nil {
 		return nil, true, err
 	}
@@ -1426,15 +1260,6 @@ func (r *Rollup) logTxInfo(tx *ethtypes.Transaction, batchIndex uint64) {
 		"size", tx.Size(),
 		"blob_count", len(tx.BlobHashes()),
 	)
-}
-
-func (r *Rollup) buildSignatureInput(batch *eth.RPCRollupBatch) (*bindings.IRollupBatchSignatureInput, error) {
-	sigData := bindings.IRollupBatchSignatureInput{
-		SignedSequencersBitmap: common.Big0,
-		SequencerSets:          batch.CurrentSequencerSetBytes,
-		Signature:              []byte("0x"),
-	}
-	return &sigData, nil
 }
 
 func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, *ethtypes.Header, error) {
@@ -1498,37 +1323,13 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, *ethtypes.Head
 
 // PreCheck is run before the submitter to check whether the submitter can be started
 func (r *Rollup) PreCheck() error {
-
-	// debug stakers
-	stakers, err := r.Staking.GetStakers(nil)
+	isActive, err := r.Submitter.IsActive(nil, r.WalletAddr())
 	if err != nil {
-		log.Debug("get stakers error", "err", err)
-	} else {
-		log.Debug("stakers", "len", len(stakers))
-		for _, s := range stakers {
-			log.Debug("staker", "addr", s.Hex())
-		}
+		return fmt.Errorf("check Submitter activity: %w", err)
 	}
-	// debug active stakers
-	activeStakers, err := r.Staking.GetActiveStakers(nil)
-	if err != nil {
-		log.Debug("get active stakers error", "err", err)
-	} else {
-		log.Debug("active stakers", "len", len(activeStakers))
-		for _, s := range activeStakers {
-			log.Debug("active staker", "addr", s.Hex())
-		}
+	if !isActive {
+		return fmt.Errorf("wallet %s is not an active submitter", r.WalletAddr())
 	}
-
-	isStaker, err := r.IsStaker()
-	if err != nil {
-		return fmt.Errorf("check if this account is sequencer error:%v", err)
-	}
-
-	if !isStaker {
-		return fmt.Errorf("this account is not staker, can not rollup")
-	}
-
 	return nil
 }
 
@@ -1552,106 +1353,12 @@ func GetRollupBatchByIndex(index uint64, clients []iface.L2Client) (*eth.RPCRoll
 			log.Warn("failed to get batch", "error", err)
 			continue
 		}
-		if batch != nil && len(batch.Signatures) > 0 {
+		if batch != nil {
 			return batch, nil
 		}
 	}
 
 	return nil, nil
-}
-
-// query sequencer set from sequencer contract on l2
-func QuerySequencerSet(addr common.Address, clients []iface.L2Client) ([]common.Address, error) {
-	if len(clients) < 1 {
-		return nil, fmt.Errorf("no client to query sequencer set")
-	}
-	for _, client := range clients {
-		// l2 sequencer
-		l2Seqencer, err := bindings.NewSequencer(addr, client)
-		if err != nil {
-			log.Warn("failed to connect to sequencer", "error", err)
-			continue
-		}
-		// get sequencer set
-		seqSet, err := l2Seqencer.GetSequencerSet2(nil)
-		if err != nil {
-			log.Warn("failed to get sequencer set", "error", err)
-			continue
-		}
-		return seqSet, nil
-	}
-	return nil, fmt.Errorf("no sequencer set found after querying all clients")
-}
-
-// query epoch from gov contract on l2
-func GetEpoch(addr common.Address, clients []iface.L2Client) (*big.Int, error) {
-	if len(clients) < 1 {
-		return nil, fmt.Errorf("no client to query epoch")
-	}
-	for _, client := range clients {
-		// l2 gov
-		l2Gov, err := bindings.NewGov(addr, client)
-		if err != nil {
-			log.Warn("failed to connect to gov", "error", err)
-			continue
-		}
-		// get epoch
-		epoch, err := l2Gov.RollupEpoch(nil)
-		if err != nil {
-			log.Warn("failed to get epoch", "error", err)
-			continue
-		}
-		return epoch, nil
-	}
-	return nil, fmt.Errorf("no epoch found after querying all clients")
-}
-
-// query sequencer set update time from sequencer contract on l2
-func GetSequencerSetUpdateTime(addr common.Address, clients []iface.L2Client) (*big.Int, error) {
-	if len(clients) < 1 {
-		return nil, fmt.Errorf("no client to query sequencer set update time")
-	}
-	for _, client := range clients {
-		// l2 sequencer
-		l2Seqencer, err := bindings.NewSequencer(addr, client)
-		if err != nil {
-			log.Warn("failed to connect to sequencer", "error", err)
-			continue
-		}
-		// get sequencer set update time
-		updateTime, err := l2Seqencer.UpdateTime(nil)
-		if err != nil {
-			log.Warn("failed to get sequencer set update time", "error", err)
-			continue
-		}
-		return updateTime, nil
-	}
-	return nil, fmt.Errorf("no sequencer set update time found after querying all clients")
-}
-
-// query epoch update time from gov contract on l2
-func GetEpochUpdateTime(addr common.Address, clients []iface.L2Client) (*big.Int, error) {
-	if len(clients) < 1 {
-		return nil, fmt.Errorf("no client to query epoch update time")
-	}
-	for _, client := range clients {
-		// l2 gov
-		l2Gov, err := bindings.NewGov(addr, client)
-		if err != nil {
-			log.Warn("failed to connect to gov", "error", err)
-			continue
-		}
-		// get epoch update time
-		updateTime, err := l2Gov.RollupEpochUpdateTime(nil)
-		if err != nil {
-			log.Warn("failed to get epoch update time", "error", err)
-			continue
-		}
-		return updateTime, nil
-
-	}
-	return nil, fmt.Errorf("no epoch update time found after querying all clients")
-
 }
 
 func UpdateGasLimit(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
@@ -1928,15 +1635,6 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 	return newTx, nil
 }
 
-func (r *Rollup) IsStaker() (bool, error) {
-
-	isStaker, err := r.Staking.IsStaker(nil, r.WalletAddr())
-	if err != nil {
-		return false, fmt.Errorf("call IsStaker err :%v", err)
-	}
-	return isStaker, nil
-}
-
 func (r *Rollup) EstimateGas(
 	from, to common.Address,
 	data []byte,
@@ -1975,10 +1673,6 @@ func (r *Rollup) RoughRollupGasEstimate(msgcnt uint64) uint64 {
 
 func (r *Rollup) RoughFinalizeGasEstimate() uint64 {
 	return 500_000
-}
-
-func (r *Rollup) GetModuleName() string {
-	return "rollup"
 }
 
 func (r *Rollup) InitFeeMetricsSum() error {
