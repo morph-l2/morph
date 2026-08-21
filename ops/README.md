@@ -86,9 +86,22 @@ looking anywhere else.
 | `morph-el-1` | `8645` | `8646` | — |
 | `ha-geth-0/1/2` | `9145` / `9245` / `9345` | `9146` / `9246` / `9346` | `27657` / `27757` / `27857` |
 
-`ha-node` admin API: `9501` / `9601` / `9701`. Each geth serves metrics on `6060`
-inside its container; add `--metrics.expensive` if you need the
-`chain/account/*` and `chain/storage/*` timers, which are otherwise zero.
+`ha-node` admin API: `9501` / `9601` / `9701`.
+
+Each geth serves metrics on `6060` inside its container, with
+`--metrics.expensive` on. Without that flag every counter behind
+`metrics.EnabledExpensive` stays zero, which blanks `chain/account/*` and
+`chain/storage/*` and also makes `chain/execution` wrong: it is computed as
+processing time minus trie time, so with the trie terms at zero it reports all
+processing as EVM execution.
+
+Two traps if you set the flag yourself:
+
+- It only works as a bare flag. `--metrics.expensive=true` is silently ignored,
+  because `metrics.init()` string-compares `os.Args` before flag parsing. For the
+  same reason a TOML config file cannot enable it.
+- Its "Enabling expensive metrics collection" log line never appears — `init()`
+  runs before the log handler is configured. Check a metric value, not the log.
 
 ## Restarting, stopping, cleaning
 
