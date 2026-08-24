@@ -29,6 +29,12 @@ contract RejectEther {
     }
 }
 
+contract StakePayer {
+    function stakeFor(Submitter submitterContract, address account) external payable {
+        submitterContract.stake{value: msg.value}(account);
+    }
+}
+
 contract SubmitterTest is Test {
     uint256 internal constant MINIMUM_STAKE = 1 ether;
     uint256 internal constant CHALLENGE_DEPOSIT = 2 ether;
@@ -82,13 +88,23 @@ contract SubmitterTest is Test {
 
         vm.prank(alice);
         vm.expectRevert("below minimum stake");
-        submitter.stake{value: MINIMUM_STAKE - 1}();
+        submitter.stake{value: MINIMUM_STAKE - 1}(alice);
         vm.prank(alice);
-        submitter.stake{value: MINIMUM_STAKE}();
+        submitter.stake{value: MINIMUM_STAKE}(alice);
         assertTrue(submitter.isActive(alice));
 
         vm.prank(owner);
         submitter.setMinimumStake(2 ether);
+        assertFalse(submitter.isActive(alice));
+
+        vm.prank(bob);
+        submitter.stake{value: 1 ether}(alice);
+        assertEq(submitter.stakeOf(bob), 0);
+        assertEq(submitter.stakeOf(alice), 2 ether);
+        assertTrue(submitter.isActive(alice));
+
+        vm.prank(owner);
+        submitter.setMinimumStake(3 ether);
         assertFalse(submitter.isActive(alice));
 
         // A threshold increase must not prevent the account from exiting its existing stake.
@@ -96,6 +112,58 @@ contract SubmitterTest is Test {
         submitter.withdraw();
         assertFalse(submitter.registered(alice));
         assertTrue(submitter.withdrawing(alice));
+    }
+
+    function test_anyAccountCanStakeForRegisteredSubmitter() public {
+        vm.prank(bob);
+        vm.expectRevert("not stakeable");
+        submitter.stake{value: MINIMUM_STAKE}(alice);
+
+        vm.prank(bob);
+        vm.expectRevert("not stakeable");
+        submitter.stake{value: MINIMUM_STAKE}(address(0));
+
+        vm.prank(owner);
+        submitter.addSubmitter(alice);
+
+        vm.prank(bob);
+        vm.expectRevert("below minimum stake");
+        submitter.stake(alice);
+
+        uint256 bobBalanceBefore = bob.balance;
+        vm.prank(bob);
+        submitter.stake{value: MINIMUM_STAKE}(alice);
+
+        StakePayer payer = new StakePayer();
+        vm.prank(alice);
+        payer.stakeFor{value: 0.25 ether}(submitter, alice);
+
+        assertEq(bob.balance, bobBalanceBefore - MINIMUM_STAKE);
+        assertEq(submitter.stakeOf(bob), 0);
+        assertFalse(submitter.isActive(bob));
+        assertEq(submitter.stakeOf(address(payer)), 0);
+        assertFalse(submitter.isActive(address(payer)));
+        assertEq(submitter.stakeOf(alice), MINIMUM_STAKE + 0.25 ether);
+        assertTrue(submitter.isActive(alice));
+
+        vm.prank(bob);
+        vm.expectRevert("not withdrawable");
+        submitter.withdraw();
+
+        vm.prank(alice);
+        submitter.withdraw();
+        vm.prank(bob);
+        vm.expectRevert("not stakeable");
+        submitter.stake{value: MINIMUM_STAKE}(alice);
+
+        vm.prank(bob);
+        vm.expectRevert("not withdrawing");
+        submitter.claimWithdrawal(bob);
+
+        uint256 ownerBalanceBefore = owner.balance;
+        vm.prank(alice);
+        submitter.claimWithdrawal(owner);
+        assertEq(owner.balance - ownerBalanceBefore, MINIMUM_STAKE + 0.25 ether);
     }
 
     function test_withdrawWaitsForExitSnapshotAndDoesNotRequireGlobalDrain() public {
@@ -126,7 +194,7 @@ contract SubmitterTest is Test {
 
         vm.prank(alice);
         vm.expectRevert("not stakeable");
-        submitter.stake{value: MINIMUM_STAKE}();
+        submitter.stake{value: MINIMUM_STAKE}(alice);
         vm.prank(owner);
         submitter.addSubmitter(alice);
     }
@@ -184,7 +252,10 @@ contract SubmitterTest is Test {
     }
 
     function test_exitingStakeRemainsSlashable() public {
-        _registerAndStake(alice);
+        vm.prank(owner);
+        submitter.addSubmitter(alice);
+        vm.prank(bob);
+        submitter.stake{value: MINIMUM_STAKE}(alice);
         rollupMock.setBatchIndexes(2, 1);
         vm.prank(alice);
         submitter.withdraw();
@@ -202,7 +273,7 @@ contract SubmitterTest is Test {
         vm.prank(owner);
         submitter.addSubmitter(alice);
         vm.prank(alice);
-        submitter.stake{value: MINIMUM_STAKE}();
+        submitter.stake{value: MINIMUM_STAKE}(alice);
         assertTrue(submitter.isActive(alice));
     }
 
@@ -240,6 +311,6 @@ contract SubmitterTest is Test {
         vm.prank(owner);
         submitter.addSubmitter(account);
         vm.prank(account);
-        submitter.stake{value: MINIMUM_STAKE}();
+        submitter.stake{value: MINIMUM_STAKE}(account);
     }
 }

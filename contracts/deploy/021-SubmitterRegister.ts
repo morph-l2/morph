@@ -10,7 +10,7 @@ export const SubmitterRegister = async (
     hre: HardhatRuntimeEnvironment,
     path: string,
     ownerSigner: any,
-    submitterSigner: any
+    submitter: string
 ): Promise<string> => {
     const proxyAddress = getContractAddressByName(path, ProxyStorageName.SubmitterProxyStorageName);
     if (!ethers.utils.isAddress(proxyAddress)) return "invalid Submitter proxy address";
@@ -25,20 +25,19 @@ export const SubmitterRegister = async (
         return "registration signer is not Submitter owner";
     }
 
-    const account = await submitterSigner.getAddress();
-    if (!(await ownerView.registered(account))) {
-        await (await ownerView.addSubmitter(account)).wait();
+    if (!ethers.utils.isAddress(submitter)) return "invalid Submitter address";
+    if (!(await ownerView.registered(submitter))) {
+        await (await ownerView.addSubmitter(submitter)).wait();
     }
 
-    const submitterView = ownerView.connect(submitterSigner);
-    const minimumStake = await submitterView.minimumStake();
-    const currentStake = await submitterView.stakeOf(account);
+    const minimumStake = await ownerView.minimumStake();
+    const currentStake = await ownerView.stakeOf(submitter);
     if (currentStake.lt(minimumStake)) {
-        await (await submitterView.stake({ value: minimumStake.sub(currentStake) })).wait();
+        await (await ownerView.stake(submitter, { value: minimumStake.sub(currentStake) })).wait();
     }
-    if (!(await submitterView.isActive(account))) return "Submitter did not become active";
+    if (!(await ownerView.isActive(submitter))) return "Submitter did not become active";
 
-    console.log(`Submitter ${account} registered and active with stake ${await submitterView.stakeOf(account)}`);
+    console.log(`Submitter ${submitter} registered and active with stake ${await ownerView.stakeOf(submitter)}`);
     return "";
 };
 

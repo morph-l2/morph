@@ -91,6 +91,14 @@ func TestCurrentSubmitterBindingShape(t *testing.T) {
 	if len(method.Outputs) != 1 || method.Outputs[0].Type.String() != "uint256" {
 		t.Fatalf("withdrawalBatchIndex output must be uint256: %v", method.Outputs)
 	}
+
+	stake := current.Methods["stake"]
+	if got := hex.EncodeToString(stake.ID); got != "26476204" {
+		t.Fatalf("stake selector = %s, want 26476204", got)
+	}
+	if len(stake.Inputs) != 1 || stake.Inputs[0].Type.String() != "address" {
+		t.Fatalf("stake input must identify the credited submitter: %v", stake.Inputs)
+	}
 }
 
 func TestCurrentStorageLayoutsAreGenerated(t *testing.T) {
