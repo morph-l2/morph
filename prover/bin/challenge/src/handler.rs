@@ -1,21 +1,22 @@
 use crate::abi::rollup_abi::{CommitBatchCall, Rollup};
-use crate::external_sign::ExternalSign;
 use crate::metrics::METRICS;
 use crate::util::read_env_var;
 use crate::util::{self, read_parse_env};
+use ethers::abi::FunctionExt;
 use ethers::providers::{Http, Provider};
 use ethers::signers::Wallet;
 use ethers::types::Address;
 use ethers::types::Bytes;
 use ethers::{abi::AbiDecode, prelude::*};
 use eyre::anyhow;
+use remote_signer_client::SignerClient;
 use serde::{Deserialize, Serialize};
 use std::env::var;
 use std::error::Error;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::time::sleep;
+use tokio::time::{sleep, timeout};
 use transaction::eip2718::TypedTransaction;
 
 #[derive(Serialize)]
@@ -50,7 +51,7 @@ pub struct ChallengeHandler {
     l1_rollup: RollupType,
     l1_provider: Provider<Http>,
     l2_rpc: String,
-    ext_signer: Option<ExternalSign>,
+    ext_signer: Option<SignerClient>,
 }
 
 impl ChallengeHandler {
@@ -66,27 +67,28 @@ impl ChallengeHandler {
             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".to_string(),
         );
 
-        let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc).unwrap();
+        let l1_provider: Provider<Http> = Provider::<Http>::try_from(l1_rpc).expect("Cannot build l1 provider");
         let l1_signer = Arc::new(SignerMiddleware::new(
             l1_provider.clone(),
             Wallet::from_str(private_key.as_str())
-                .unwrap()
-                .with_chain_id(l1_provider.get_chainid().await.unwrap().as_u64()),
+                .expect("Cannot build wallet")
+                .with_chain_id(l1_provider.get_chainid().await.expect("Cannot fetch chain_id").as_u64()),
         ));
         let l1_rollup: RollupType = Rollup::new(Address::from_str(l1_rollup_address.as_str()).unwrap(), l1_signer);
 
         let use_ext_sign: bool = read_env_var("HANDLER_EXTERNAL_SIGN", false);
 
         let ext_signer = if use_ext_sign {
-            log::info!("Challenge handler will use external signer");
+            log::info!("Challenge handler will use remote signer");
             let handler_appid: String = read_parse_env("HANDLER_EXTERNAL_SIGN_APPID");
             let privkey_pem: String = read_parse_env("HANDLER_EXTERNAL_SIGN_RSA_PRIV");
             let sign_address: String = read_parse_env("HANDLER_EXTERNAL_SIGN_ADDRESS");
             let sign_chain: String = read_parse_env("HANDLER_EXTERNAL_SIGN_CHAIN");
             let sign_url: String = read_parse_env("HANDLER_EXTERNAL_SIGN_URL");
-            let signer: ExternalSign = ExternalSign::new(&handler_appid, &privkey_pem, &sign_address, &sign_chain, &sign_url)
-                .map_err(|e| anyhow!(format!("Prepare ExternalSign err: {:?}", e)))
-                .unwrap();
+            Address::from_str(&sign_address).unwrap_or_else(|e| panic!("Invalid HANDLER_EXTERNAL_SIGN_ADDRESS: {}", e));
+            let signer = SignerClient::new(&handler_appid, &privkey_pem, &sign_address, &sign_chain, &sign_url)
+                .map_err(|e| anyhow!("Prepare SignerClient err: {:?}", e))
+                .expect("Cannot build remote signer");
             Some(signer)
         } else {
             log::info!("Challenge handler will use local signer");
@@ -107,7 +109,7 @@ impl ChallengeHandler {
     }
     async fn handle_with_prover(&self, l2_rpc: String, l1_provider: &Provider<Http>, l1_rollup: &RollupType) {
         loop {
-            sleep(Duration::from_secs(12)).await;
+            sleep(Duration::from_secs(30)).await;
 
             // Step1. fetch latest blocknum.
             let latest = match l1_provider.get_block_number().await {
@@ -120,7 +122,7 @@ impl ChallengeHandler {
             log::info!("Current L1 block number: {:#?}", latest);
 
             let wallet = if let Some(signer) = &self.ext_signer {
-                Address::from_str(&signer.address).unwrap_or_default()
+                Address::from_str(&signer.address).expect("remote signer address was validated during preparation")
             } else {
                 self.l1_rollup.client().address()
             };
@@ -129,7 +131,7 @@ impl ChallengeHandler {
                 Ok(b) => b,
                 Err(e) => {
                     log::error!("handler_wallet.get_balance error: {:#?}", e);
-                    return;
+                    continue;
                 }
             };
             METRICS.wallet_balance.set(ethers::utils::format_ether(balance).parse().unwrap_or(0.0));
@@ -174,7 +176,7 @@ impl ChallengeHandler {
                 if !batch_proof.proof_data.is_empty() {
                     log::info!("query proof and prove state: {:#?}", batch_index);
                     let batch_header = batch_info.fill_ext(batch_proof.batch_header.clone()).encode();
-                    sleep(Duration::from_secs(600)).await;
+                    sleep(Duration::from_secs(300)).await;
                     self.prove_state(batch_index, batch_header, batch_proof, l1_rollup).await;
                     continue;
                 }
@@ -218,10 +220,10 @@ impl ChallengeHandler {
             }
 
             // Step5. query proof and prove onchain state.
-            let mut max_waiting_time: usize = 1600 * blocks_len as usize; //block_prove_time =30min
-            while max_waiting_time > 300 {
-                sleep(Duration::from_secs(300)).await;
-                max_waiting_time -= 300;
+            let mut max_waiting_time: usize = 300 * (blocks_len as usize + 1); //block_prove_time <=5min
+            while max_waiting_time > 60 {
+                sleep(Duration::from_secs(60)).await;
+                max_waiting_time -= 60;
                 match query_proof(batch_index).await {
                     Some(batch_proof) => {
                         log::debug!("query proof and prove state: {:#?}", batch_index);
@@ -247,8 +249,17 @@ impl ChallengeHandler {
             let proof = Bytes::from(batch_proof.proof_data.clone());
 
             let client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>> = self.l1_rollup.client();
-            let calldata = l1_rollup.prove_state(batch_header.clone(), proof).calldata();
-            let result = send_transaction(self.l1_rollup.address(), calldata, &client, &self.ext_signer, &self.l1_provider).await;
+            let call = l1_rollup.prove_state(batch_header.clone(), proof);
+            let method_sig = call.function.abi_signature();
+            let result = send_transaction(
+                self.l1_rollup.address(),
+                call.calldata(),
+                &client,
+                &self.ext_signer,
+                &self.l1_provider,
+                &method_sig,
+            )
+            .await;
             if let Ok(tx_hash) = result {
                 METRICS.verify_result.set(1);
                 log::info!("prove_state success, batch_index: {:?}, tx_hash: {:#?}", batch_index, tx_hash);
@@ -373,7 +384,8 @@ async fn detecte_challenge_event(latest: U64, l1_rollup: &RollupType, l1_provide
     };
     log::info!(
         "{:#?} batches have already been challenged, and been found in recent {:?} L1 blocks.",
-        logs.len(), query_period
+        logs.len(),
+        query_period
     );
 
     if logs.is_empty() {
@@ -522,14 +534,16 @@ async fn send_transaction(
     contract: Address,
     calldata: Option<Bytes>,
     local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
-    ext_signer: &Option<ExternalSign>,
+    ext_signer: &Option<SignerClient>,
     l2_provider: &Provider<Http>,
+    method_sig: &str,
 ) -> Result<H256, Box<dyn Error>> {
     let req = Eip1559TransactionRequest::new().data(calldata.unwrap_or_default());
     let mut tx = TypedTransaction::Eip1559(req);
     tx.set_to(contract);
     if let Some(signer) = ext_signer {
-        tx.set_from(Address::from_str(&signer.address).unwrap_or_default());
+        let from = Address::from_str(&signer.address).map_err(|e| anyhow!("invalid signer address '{}': {}", signer.address, e))?;
+        tx.set_from(from);
     } else {
         tx.set_from(local_signer.address());
     }
@@ -538,7 +552,7 @@ async fn send_transaction(
         anyhow!("prove_state fill_transaction error: {:#?}", msg)
     })?;
 
-    let signed_tx = sign_tx(tx, local_signer, ext_signer)
+    let signed_tx = sign_tx(tx, local_signer, ext_signer, method_sig)
         .await
         .map_err(|e| anyhow!("prove_state sign_tx error: {}", e))?;
 
@@ -549,8 +563,9 @@ async fn send_transaction(
 
     let tx_hash = pending_tx.tx_hash();
 
-    let receipt = pending_tx
+    let receipt = timeout(Duration::from_secs(120), pending_tx)
         .await
+        .map_err(|_| anyhow!("prove_state check_receipt timeout (120s), tx_hash: {:#?}", tx_hash))?
         .map_err(|e| anyhow!(format!("prove_state check_receipt of {:#?} is error: {:#?}", tx_hash, e)))?
         .ok_or(anyhow!(format!("prove_state check_receipt is none, tx_hash: {:#?}", tx_hash)))?;
 
@@ -564,10 +579,15 @@ async fn send_transaction(
 async fn sign_tx(
     tx: TypedTransaction,
     local_signer: &Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
-    ext_signer: &Option<ExternalSign>,
+    ext_signer: &Option<SignerClient>,
+    method_sig: &str,
 ) -> Result<Bytes, Box<dyn Error>> {
     if let Some(signer) = ext_signer {
-        Ok(signer.request_sign(&tx).await?)
+        log::info!("request remote sign, method_sig: {}", method_sig);
+        let signed_tx = timeout(Duration::from_secs(60), signer.sign(&tx, method_sig))
+            .await
+            .map_err(|_| anyhow!("remote signer timeout (60s), method_sig: {}", method_sig))??;
+        Ok(signed_tx)
     } else {
         let signature = local_signer.signer().sign_transaction(&tx).await?;
         Ok(tx.rlp_signed(&signature))
