@@ -852,9 +852,9 @@ func (r *Rollup) finalize() error {
 	// gas bump
 	gas = r.BumpGas(gas)
 
-	nonce := r.getNextNonce()
-	if nonce == 0 {
-		return fmt.Errorf("failed to get next nonce")
+	nonce, err := r.getNextNonce()
+	if err != nil {
+		return fmt.Errorf("failed to get next nonce: %w", err)
 	}
 
 	tx := ethtypes.NewTx(&ethtypes.DynamicFeeTx{
@@ -1026,9 +1026,9 @@ func (r *Rollup) rollup() error {
 	gas = r.BumpGas(gas)
 
 	// Get next nonce
-	nonce := r.getNextNonce()
-	if nonce == 0 {
-		return fmt.Errorf("failed to get next nonce")
+	nonce, err := r.getNextNonce()
+	if err != nil {
+		return fmt.Errorf("failed to get next nonce: %w", err)
 	}
 
 	// Create and sign transaction (commitState is always type-2, never blob)
@@ -1063,20 +1063,19 @@ func (r *Rollup) rollup() error {
 	return nil
 }
 
-func (r *Rollup) getNextNonce() uint64 {
+func (r *Rollup) getNextNonce() (uint64, error) {
 	nonce, err := r.L1Client.PendingNonceAt(context.Background(), r.WalletAddr())
 	if err != nil {
-		log.Error("Failed to get nonce", "error", err)
-		return 0
+		return 0, fmt.Errorf("failed to get pending nonce: %w", err)
 	}
 	if r.pendingTxs.Len() == 0 {
-		return nonce
+		return nonce, nil
 	}
 	pn := r.pendingTxs.GetNonce()
 	if pn+1 > nonce {
-		return pn + 1
+		return pn + 1, nil
 	}
-	return nonce
+	return nonce, nil
 }
 
 func (r *Rollup) createRollupTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip, gasFeeCap, blobFee *big.Int, calldata []byte, head *ethtypes.Header) (*ethtypes.Transaction, error) {
