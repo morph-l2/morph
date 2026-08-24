@@ -38,6 +38,8 @@ and calls `ProxyAdmin.upgradeAndCall(initialize4)` atomically:
 --submitteroperatoraddr <active-operator> --expectedcutoverbatchindex <K> \
 --network <l1-network>`
 
-For a fresh deployment, `batchSubmitterPks` must be a JSON array whose order
-matches `batchSubmitterAddresses` in the selected deploy config. The `register`
-task owner-authorizes and stakes every configured work or backup submitter.
+For a new deployment, the `register` task reads `batchSubmitterAddresses` from
+the selected deployment configuration and does not require operator private
+keys. The owner authorizes each configured work or backup submitter and calls
+`stake(address)` to fund its deployment-time stake. The operator address does
+not need to send the staking transaction.

@@ -181,18 +181,17 @@ task("register")
         const storagePath = taskArgs.storagepath
         const config = hre.deployConfig
         const owner = await hre.ethers.provider.getSigner();
-        const batchSubmitterPkList: string[] = JSON.parse(process.env.batchSubmitterPks || "[]");
         const configuredAddresses: string[] = config.batchSubmitterAddresses;
-        if (batchSubmitterPkList.length !== configuredAddresses.length || batchSubmitterPkList.length === 0) {
-            throw new Error("batchSubmitterPks must contain one key for every configured work or backup submitter")
+        if (configuredAddresses.length === 0) {
+            throw new Error("batchSubmitterAddresses must contain at least one work or backup submitter")
         }
-        for (let i = 0; i < batchSubmitterPkList.length; i++) {
-            const submitter = new ethers.Wallet(batchSubmitterPkList[i], hre.ethers.provider)
-            if (configuredAddresses[i].toLowerCase() !== submitter.address.toLowerCase()) {
-                throw new Error(`batch submitter key ${i} does not match configured address`)
+        for (let i = 0; i < configuredAddresses.length; i++) {
+            const submitter = configuredAddresses[i]
+            if (!ethers.utils.isAddress(submitter)) {
+                throw new Error(`batch submitter address ${i} is invalid`)
             }
             console.log(`\n---------------------------------- register submitter-${i} ----------------------------------`)
-            console.log(`submitter-${i}:` + submitter.address + ', Balance: ' + await submitter.getBalance())
+            console.log(`submitter-${i}: ${submitter}`)
             const err = await SubmitterRegister(hre, storagePath, owner, submitter)
             if (err != '') {
                 console.log(`Register Submitter-${i} failed, err: `, err)

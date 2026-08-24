@@ -94,7 +94,7 @@ contract L1MessageBaseTest is CommonTest {
         hevm.prank(multisig);
         submitter.addSubmitter(account);
         hevm.prank(account);
-        submitter.stake{value: STAKING_VALUE}();
+        submitter.stake{value: STAKING_VALUE}(account);
     }
 
     /// @dev Build V0 batch header for commitBatchWithProof (blob = ZERO_VERSIONED_HASH).

@@ -65,7 +65,7 @@ describe("upgradeRollupProxy", () => {
         await submitterProxy.deployed()
         const submitter = await ethers.getContractAt("Submitter", submitterProxy.address)
         await (await submitter.addSubmitter(activeOperator.address)).wait()
-        await (await submitter.connect(activeOperator).stake({ value: minimumStake })).wait()
+        await (await submitter.stake(activeOperator.address, { value: minimumStake })).wait()
 
         await setUintStorage(rollupProxy.address, lastFinalizedBatchIndexSlot, 5)
         await setUintStorage(rollupProxy.address, lastCommittedBatchIndexSlot, 7)

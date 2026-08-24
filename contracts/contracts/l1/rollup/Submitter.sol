@@ -108,8 +108,8 @@ contract Submitter is ISubmitter, OwnableUpgradeable, ReentrancyGuardUpgradeable
         rewardPercentage = value;
     }
 
-    function stake() external payable nonReentrant {
-        address submitter = _msgSender();
+    /// @notice Credits the sent ETH to a registered submitter. The payer does not need to be the submitter.
+    function stake(address submitter) external payable nonReentrant {
         require(registered[submitter] && !withdrawing[submitter], "not stakeable");
         uint256 total = stakeOf[submitter] + msg.value;
         require(msg.value > 0 && total >= minimumStake, "below minimum stake");
