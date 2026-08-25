@@ -13,6 +13,7 @@ import (
 	"morph-l2/bindings/bindings"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi"
+	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/rpc"
@@ -178,6 +179,9 @@ func ParseMempoolLatestBatchIndex(id []byte, txs []*types.Transaction) uint64 {
 
 	var res uint64
 	for _, tx := range txs {
+		if len(tx.Data()) < 4 {
+			continue
+		}
 		if bytes.Equal(tx.Data()[:4], id) {
 			pindex := ParseParentBatchIndex(tx.Data())
 			if pindex > res {
