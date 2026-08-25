@@ -7,4 +7,5 @@ edition = "2021"
 [dependencies]
 sp1-sdk = { workspace = true }
 hex = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 

@@ -19,7 +19,6 @@ type Metrics struct {
 	RollupCost              prometheus.Gauge
 	FinalizeCost            prometheus.Gauge
 	CollectedL1FeeSum       prometheus.Gauge
-	IndexerBlockProcessed   prometheus.Gauge
 	LastCommittedBatch      prometheus.Gauge
 	LastFinalizedBatch      prometheus.Gauge
 	HasPendingFinalizeBatch prometheus.Gauge
@@ -28,6 +27,7 @@ type Metrics struct {
 	reorgDepthVal           uint64
 	reorgCountVal           uint64
 	confirmedTxs            *prometheus.CounterVec
+	batchCleanupFailures    prometheus.Counter
 }
 
 // NewMetrics creates a new Metrics instance
@@ -61,10 +61,6 @@ func NewMetrics() *Metrics {
 			Name: "tx_submitter_collected_l1_fee_sum",
 			Help: "Total L1 fees collected in ETH",
 		}),
-		IndexerBlockProcessed: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "tx_submitter_indexer_block_processed",
-			Help: "Latest block number processed by the indexer",
-		}),
 		LastCommittedBatch: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "tx_submitter_last_committed_batch",
 			Help: "Latest batch committed by the submitter",
@@ -92,6 +88,10 @@ func NewMetrics() *Metrics {
 			},
 			[]string{"type"},
 		),
+		batchCleanupFailures: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "tx_submitter_batch_cleanup_failures_total",
+			Help: "Total number of sealed batch cleanup (DeleteUntil) failures after a finalize tx confirmed",
+		}),
 	}
 
 	// Register metrics with Prometheus
@@ -103,13 +103,13 @@ func NewMetrics() *Metrics {
 	_ = prometheus.Register(m.RollupCost)
 	_ = prometheus.Register(m.FinalizeCost)
 	_ = prometheus.Register(m.CollectedL1FeeSum)
-	_ = prometheus.Register(m.IndexerBlockProcessed)
 	_ = prometheus.Register(m.LastCommittedBatch)
 	_ = prometheus.Register(m.LastFinalizedBatch)
 	_ = prometheus.Register(m.LastCacheBatchIndex)
 	_ = prometheus.Register(m.HasPendingFinalizeBatch)
 	_ = prometheus.Register(m.reorgs)
 	_ = prometheus.Register(m.confirmedTxs)
+	_ = prometheus.Register(m.batchCleanupFailures)
 
 	return m
 }
@@ -141,11 +141,6 @@ func (m *Metrics) SetCollectedL1Fee(cost float64) {
 	m.CollectedL1FeeSum.Set(cost)
 }
 
-// SetIndexerBlockProcessed sets the indexer block processed metric
-func (m *Metrics) SetIndexerBlockProcessed(blockNumber uint64) {
-	m.IndexerBlockProcessed.Set(float64(blockNumber))
-}
-
 // SetLastCommittedBatch sets the last committed batch index metric
 func (m *Metrics) SetLastCommittedBatch(index uint64) {
 	m.LastCommittedBatch.Set(float64(index))
@@ -175,6 +170,13 @@ func (m *Metrics) SetHasPendingFinalizeBatch(hasPending bool) {
 func (m *Metrics) IncReorgs() {
 	atomic.AddUint64(&m.reorgCountVal, 1)
 	m.reorgs.Inc()
+}
+
+// IncBatchCleanupFailures increments the sealed batch cleanup failure counter.
+// A non-zero value means a finalize tx confirmed but DeleteUntil failed, so local
+// historical sealed batches may linger; it should drive an alert.
+func (m *Metrics) IncBatchCleanupFailures() {
+	m.batchCleanupFailures.Inc()
 }
 
 // SetReorgDepth sets the reorg depth metric
@@ -216,10 +218,10 @@ func (m *Metrics) UnregisterMetrics() {
 	prometheus.Unregister(m.RollupCost)
 	prometheus.Unregister(m.FinalizeCost)
 	prometheus.Unregister(m.CollectedL1FeeSum)
-	prometheus.Unregister(m.IndexerBlockProcessed)
 	prometheus.Unregister(m.LastCommittedBatch)
 	prometheus.Unregister(m.LastFinalizedBatch)
 	prometheus.Unregister(m.HasPendingFinalizeBatch)
 	prometheus.Unregister(m.reorgs)
 	prometheus.Unregister(m.confirmedTxs)
+	prometheus.Unregister(m.batchCleanupFailures)
 }

@@ -221,6 +221,25 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "address",
+        "name": "oldAddr",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newAddr",
+        "type": "address"
+      }
+    ],
+    "name": "SubmitterContractUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": false,
         "internalType": "address",
         "name": "account",
@@ -386,6 +405,25 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "batchIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "batchBlobVersionedHashes",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "blobVersionedHash",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "owner",
         "type": "address"
@@ -460,9 +498,9 @@
         "type": "uint256"
       },
       {
-        "internalType": "uint256",
-        "name": "signedSequencersBitmap",
-        "type": "uint256"
+        "internalType": "address",
+        "name": "submitter",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -656,28 +694,6 @@
         "internalType": "struct IRollup.BatchDataInput",
         "name": "batchDataInput",
         "type": "tuple"
-      },
-      {
-        "components": [
-          {
-            "internalType": "uint256",
-            "name": "signedSequencersBitmap",
-            "type": "uint256"
-          },
-          {
-            "internalType": "bytes",
-            "name": "sequencerSets",
-            "type": "bytes"
-          },
-          {
-            "internalType": "bytes",
-            "name": "signature",
-            "type": "bytes"
-          }
-        ],
-        "internalType": "struct IRollup.BatchSignatureInput",
-        "name": "batchSignatureInput",
-        "type": "tuple"
       }
     ],
     "name": "commitBatch",
@@ -730,28 +746,6 @@
         "type": "tuple"
       },
       {
-        "components": [
-          {
-            "internalType": "uint256",
-            "name": "signedSequencersBitmap",
-            "type": "uint256"
-          },
-          {
-            "internalType": "bytes",
-            "name": "sequencerSets",
-            "type": "bytes"
-          },
-          {
-            "internalType": "bytes",
-            "name": "signature",
-            "type": "bytes"
-          }
-        ],
-        "internalType": "struct IRollup.BatchSignatureInput",
-        "name": "batchSignatureInput",
-        "type": "tuple"
-      },
-      {
         "internalType": "bytes",
         "name": "_batchHeader",
         "type": "bytes"
@@ -763,6 +757,56 @@
       }
     ],
     "name": "commitBatchWithProof",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint8",
+            "name": "version",
+            "type": "uint8"
+          },
+          {
+            "internalType": "bytes",
+            "name": "parentBatchHeader",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint64",
+            "name": "lastBlockNumber",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint16",
+            "name": "numL1Messages",
+            "type": "uint16"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "prevStateRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "postStateRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "withdrawalRoot",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct IRollup.BatchDataInput",
+        "name": "batchDataInput",
+        "type": "tuple"
+      }
+    ],
+    "name": "commitState",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -880,7 +924,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_l1StakingContract",
+        "name": "_submitterContract",
         "type": "address"
       },
       {
@@ -943,6 +987,19 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "_newSubmitter",
+        "type": "address"
+      }
+    ],
+    "name": "initialize4",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "_batchIndex",
         "type": "uint256"
@@ -973,19 +1030,6 @@
         "internalType": "bool",
         "name": "isChallenger",
         "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "l1StakingContract",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -1206,6 +1250,19 @@
     "name": "setPause",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "submitterContract",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

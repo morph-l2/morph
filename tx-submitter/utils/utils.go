@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"math/big"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -14,7 +13,6 @@ import (
 	"morph-l2/bindings/bindings"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi"
-	"github.com/morph-l2/go-ethereum/common"
 	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/rpc"
@@ -69,12 +67,42 @@ func ParseParentBatchIndex(calldata []byte) uint64 {
 	///   * batchIndex              8           uint64      1       The index of the batch
 	///   * l1MessagePopped         8           uint64      9       Number of L1 messages popped in the batch
 
-	abi, _ := bindings.RollupMetaData.GetAbi()
-	parms, _ := abi.Methods["commitBatch"].Inputs.UnpackValues(calldata[4:])
+	if len(calldata) < 4 {
+		return 0
+	}
+	rollupAbi, err := bindings.RollupMetaData.GetAbi()
+	if err != nil {
+		return 0
+	}
+	sel := calldata[:4]
+	var method abi.Method
+	var ok bool
+	if bytes.Equal(sel, rollupAbi.Methods["commitState"].ID) {
+		method, ok = rollupAbi.Methods["commitState"]
+	} else if bytes.Equal(sel, rollupAbi.Methods["commitBatch"].ID) {
+		method, ok = rollupAbi.Methods["commitBatch"]
+	} else {
+		// Unknown selector: keep legacy behavior (unpack as commitBatch). Matches older fixtures and
+		// any tx whose first tuple matches BatchDataInput layout even if the selector differs.
+		method, ok = rollupAbi.Methods["commitBatch"]
+	}
+	if !ok {
+		return 0
+	}
+	parms, err := method.Inputs.UnpackValues(calldata[4:])
+	if err != nil || len(parms) == 0 {
+		return 0
+	}
 	v := reflect.ValueOf(parms[0])
 	pbh := v.FieldByName("ParentBatchHeader")
-	batchIndex := binary.BigEndian.Uint64(pbh.Bytes()[1:9])
-	return batchIndex
+	if !pbh.IsValid() {
+		return 0
+	}
+	b := pbh.Bytes()
+	if len(b) < 9 {
+		return 0
+	}
+	return binary.BigEndian.Uint64(b[1:9])
 }
 
 // SetFBatchIndex sets the batch index in the calldata while preserving all other data
@@ -169,6 +197,8 @@ func ParseMethod(tx *types.Transaction, a *abi.ABI) string {
 	id := tx.Data()[:4]
 	if bytes.Equal(id, a.Methods["commitBatch"].ID) {
 		return "commitBatch"
+	} else if bytes.Equal(id, a.Methods["commitState"].ID) {
+		return "commitState"
 	} else if bytes.Equal(id, a.Methods["finalizeBatch"].ID) {
 		return "finalizeBatch"
 	} else {
@@ -211,13 +241,4 @@ func ParseL1MessageCnt(blockContexts hexutil.Bytes) uint64 {
 	}
 
 	return l1msgcnt
-}
-
-// FormatTime formats a timestamp into RFC3339 format string.
-// Returns "N/A" for nil or non-positive timestamps.
-func FormatTime(timestamp *big.Int) string {
-	if timestamp == nil || timestamp.Int64() <= 0 {
-		return "N/A"
-	}
-	return time.Unix(timestamp.Int64(), 0).Format(time.RFC3339)
 }

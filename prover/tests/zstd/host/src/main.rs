@@ -1,7 +1,8 @@
-use sp1_sdk::{ProverClient, SP1Stdin};
+use sp1_sdk::{Elf, ProverClient, ProvingKey, SP1Stdin};
 use std::{fs::File, io::Read, path::Path, time::Instant};
 
-fn main() {
+#[tokio::main]
+async fn main() {
     // Setup the logger.
     sp1_sdk::utils::setup_logger();
 
@@ -18,9 +19,10 @@ fn main() {
 
     stdin.write_slice(&data);
 
-    let client = ProverClient::from_env();
+    let client = ProverClient::from_env().await;
     // Execute the program in sp1-vm
-    let (public_values, execution_report) = client.execute(dev_elf, &stdin.clone()).run().unwrap();
+    let (public_values, execution_report) =
+        client.execute(Elf::Static(dev_elf), stdin.clone()).await.unwrap();
     println!("Program executed successfully.");
     // Record the number of cycles executed.
     println!("Number of cycles: {}", execution_report.total_instruction_count());
@@ -31,16 +33,16 @@ fn main() {
     let start = Instant::now();
 
     // Setup the program for proving.
-    let (pk, vk) = client.setup(dev_elf);
+    let pk = client.setup(Elf::Static(dev_elf)).await.unwrap();
 
     // Generate the proof
-    let proof = client.prove(&pk, &stdin).run().expect("failed to generate proof");
+    let proof = client.prove(&pk, stdin).await.expect("failed to generate proof");
 
     let duration_mins = start.elapsed().as_secs() / 60;
     println!("Successfully generated proof!, time use: {:?} minutes", duration_mins);
 
     // Verify the proof.
-    client.verify(&proof, &vk).expect("failed to verify proof");
+    client.verify(&proof, pk.verifying_key(), None).expect("failed to verify proof");
     println!("Successfully verified proof!");
 }
 

@@ -255,7 +255,7 @@ pub trait TxTrace {
                 let tx = TxMorph {
                     chain_id,
                     nonce: self.nonce(),
-                    gas_limit: self.gas_limit() as u128,
+                    gas_limit: self.gas_limit(),
                     max_fee_per_gas: self.max_fee_per_gas(),
                     max_priority_fee_per_gas: self.max_priority_fee_per_gas(),
                     to: self.to(),

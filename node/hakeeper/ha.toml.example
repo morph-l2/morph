@@ -1,0 +1,47 @@
+# Sequencer HA configuration
+# Most fields have sensible defaults; only modify what you need.
+# Machine-specific settings can be overridden via CLI flags (--ha.*).
+
+enabled = true
+
+# Unique server ID. Defaults to hostname if not set.
+# Override: --ha.server-id
+# server_id = ""
+
+# Raft data directory. Defaults to <morph_home>/raft if not set.
+# storage_dir = ""
+
+# Set to true for the FIRST node bootstrapping the cluster.
+# Override: --ha.bootstrap
+bootstrap = false
+
+# Addresses of existing cluster nodes to join (follower only).
+# Override: --ha.join addr1,addr2
+# join_addrs = ["10.0.0.1:9401", "10.0.0.2:9401"]
+
+[consensus]
+listen_addr = "0.0.0.0"
+listen_port = 9400
+# Address that other nodes use to reach this node's Raft port.
+# Supports hostname (e.g. "node-0:9400") or IP (e.g. "10.0.0.1:9400").
+# Using hostname is recommended for Docker/K8s — survives IP changes on restart.
+# Auto-detected from local network interface if not set.
+# Override: --ha.advertised-addr or MORPH_NODE_HA_ADVERTISED_ADDR env
+# advertised_addr = "node-0:9400"
+
+[snapshot]
+interval      = "120s"
+threshold     = 8192
+trailing_logs = 1200     # ~1h at 3s/block
+
+[timeout]
+heartbeat     = "1s"
+leader_lease  = "500ms"
+
+[rpc]
+listen_addr = "0.0.0.0"
+listen_port = 9401
+# Auth token for write APIs (AddVoter, RemoveServer, TransferLeader, etc.).
+# If empty, auth is disabled (not recommended for production).
+# Override: --ha.rpc-token or MORPH_NODE_HA_RPC_TOKEN env var
+# token = ""

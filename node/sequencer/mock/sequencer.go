@@ -57,7 +57,7 @@ func (s *Sequencer) Start() {
 				log.Error("validating failed")
 				continue
 			}
-			if err := s.engine.L2Client().NewL2Block(context.Background(), l2Data, nil); err != nil {
+			if err := s.engine.L2Client().NewL2Block(context.Background(), l2Data); err != nil {
 				log.Error("error occurs when creating l2 block", "error", err)
 				continue
 			}

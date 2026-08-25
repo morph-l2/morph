@@ -32,18 +32,6 @@ var (
 		EnvVar: prefixEnvVar("L2_ENGINE_RPC"),
 	}
 
-	L2NextEthAddr = cli.StringFlag{
-		Name:   "l2next.eth",
-		Usage:  "Address of next L2 geth JSON-RPC endpoints to switch to (optional, for upgrades)",
-		EnvVar: prefixEnvVar("L2_NEXT_ETH_RPC"),
-	}
-
-	L2NextEngineAddr = cli.StringFlag{
-		Name:   "l2next.engine",
-		Usage:  "Address of next L2 geth Engine JSON-RPC endpoints to switch to (optional, for upgrades)",
-		EnvVar: prefixEnvVar("L2_NEXT_ENGINE_RPC"),
-	}
-
 	L2EngineJWTSecret = cli.StringFlag{
 		Name:        "l2.jwt-secret",
 		Usage:       "Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if left empty.",
@@ -70,12 +58,6 @@ var (
 		EnvVar: prefixEnvVar("L2_SEQUENCER_CONTRACT_ADDRESS"),
 	}
 
-	GovAddr = cli.StringFlag{
-		Name:   "govContractAddr",
-		Usage:  "gov contract address",
-		EnvVar: prefixEnvVar("GOV_CONTRACT_ADDRESS"),
-	}
-
 	L1NodeAddr = cli.StringFlag{
 		Name:   "l1.rpc",
 		Usage:  "Address of L1 User JSON-RPC endpoint to use (eth namespace required)",
@@ -84,14 +66,8 @@ var (
 
 	L1BeaconAddr = cli.StringFlag{
 		Name:   "l1.beaconrpc",
-		Usage:  "Address of L1 Beacon JSON-RPC endpoint to use (eth namespace required)",
+		Usage:  "Address of L1 Beacon JSON-RPC endpoint(s) to use (eth namespace required). Supports a comma-separated list; endpoints are tried in order and derivation falls back to the next one when a beacon temporarily fails to serve blob sidecars",
 		EnvVar: prefixEnvVar("L1_ETH_BEACON_RPC"),
-	}
-
-	L1ChainID = cli.Uint64Flag{
-		Name:   "l1.chain-id",
-		Usage:  "L1 Chain ID",
-		EnvVar: prefixEnvVar("L1_CHAIN_ID"),
 	}
 
 	L1Confirmations = cli.Int64Flag{
@@ -180,23 +156,10 @@ var (
 		EnvVar: prefixEnvVar("MOCK_SEQUENCER"),
 	}
 
-	ValidatorEnable = cli.BoolFlag{
+	LegacyValidatorMode = cli.BoolFlag{
 		Name:   "validator",
-		Usage:  "Enable the validator mode",
+		Usage:  "Deprecated compatibility alias for --derivation.verify-mode=layer1",
 		EnvVar: prefixEnvVar("VALIDATOR"),
-	}
-
-	ChallengeEnable = cli.BoolFlag{
-		Name:   "validator.challengeEnable",
-		Usage:  "Enable the validator challenge",
-		EnvVar: prefixEnvVar("VALIDATOR_CHALLENGE_ENABLE"),
-	}
-
-	// validator
-	ValidatorPrivateKey = cli.StringFlag{
-		Name:   "validator.privateKey",
-		Usage:  "Private Key corresponding to SUBSIDY Owner",
-		EnvVar: prefixEnvVar("VALIDATOR_PRIVATE_KEY"),
 	}
 
 	// derivation
@@ -236,19 +199,36 @@ var (
 		EnvVar: prefixEnvVar("DERIVATION_FETCH_BLOCK_RANGE"),
 	}
 
-	// BlockTag options
-	BlockTagSafeConfirmations = cli.Uint64Flag{
-		Name:   "blocktag.safeConfirmations",
-		Usage:  "Number of L1 blocks to wait before considering a batch as safe",
-		EnvVar: prefixEnvVar("BLOCKTAG_SAFE_CONFIRMATIONS"),
-		Value:  10,
-	}
-
 	// L1 Sequencer options
 	L1SequencerContractAddr = cli.StringFlag{
 		Name:   "l1.sequencerContract",
 		Usage:  "L1 Sequencer contract address for signature verification",
 		EnvVar: prefixEnvVar("L1_SEQUENCER_CONTRACT"),
+	}
+
+	// SequencerUpgradeTime overrides the PBFT->single-sequencer upgrade timestamp.
+	// Unit: Unix milliseconds (matches block.Time.UnixMilli()). If unset, --mainnet / --hoodi
+	// selects the corresponding built-in network default; without a network flag, the upgrade
+	// package's existing default is left unchanged.
+	SequencerUpgradeTime = cli.Int64Flag{
+		Name:   "sequencerUpgradeTime",
+		Usage:  "Unix timestamp (milliseconds) at which consensus switches to sequencer mode",
+		EnvVar: prefixEnvVar("SEQUENCER_UPGRADE_TIME"),
+	}
+	// These flags own the block-production interval defaults (single source of
+	// truth). The tendermint sequencer package carries no default, so Value must
+	// stay set here.
+	SequencerBlockInterval = cli.DurationFlag{
+		Name:   "sequencerBlockInterval",
+		Usage:  "Empty-block fallback interval: max time between blocks when the txpool is empty. Must be greater than --sequencerFastBlockInterval.",
+		EnvVar: prefixEnvVar("SEQUENCER_BLOCK_INTERVAL"),
+		Value:  2 * time.Second,
+	}
+	SequencerFastBlockInterval = cli.DurationFlag{
+		Name:   "sequencerFastBlockInterval",
+		Usage:  "Txpool polling interval: a block is produced immediately when pending txs are found. Must be less than --sequencerBlockInterval.",
+		EnvVar: prefixEnvVar("SEQUENCER_FAST_BLOCK_INTERVAL"),
+		Value:  300 * time.Millisecond,
 	}
 
 	L1SyncLagThreshold = cli.DurationFlag{
@@ -265,29 +245,84 @@ var (
 		EnvVar: prefixEnvVar("SEQUENCER_PRIVATE_KEY"),
 	}
 
-	// Batch rules
-	UpgradeBatchTime = cli.Uint64Flag{
-		Name:   "upgrade.batchTime",
-		Usage:  "Batch index at which the sequencers start to upgrade the batch format",
-		EnvVar: prefixEnvVar("UPGRADE_BATCH_TIME"),
+	// Vsock address of the Nitro Enclave signer. Accepts both
+	// `CID:port` (legacy) and `vsock:CID:port` (matches ops-cli's
+	// --addr convention so the same string works in either tool).
+	// Mutually exclusive with sequencer.privateKey — with this set,
+	// the node never sees the plaintext key, signing happens via the
+	// enclave. The signer's EVM address is fetched at startup via
+	// GetPubkey.
+	SequencerEnclaveSignerAddr = cli.StringFlag{
+		Name:   "sequencer.enclaveSignerAddr",
+		Usage:  "Vsock address of the enclave signer: `CID:port` or `vsock:CID:port`. Mutually exclusive with sequencer.privateKey.",
+		EnvVar: prefixEnvVar("SEQUENCER_ENCLAVE_SIGNER_ADDR"),
 	}
+
+	// Sequencer HA flags (all prefixed with ha.)
+	SequencerHAEnabled = cli.BoolFlag{
+		Name:   "ha.enabled",
+		Usage:  "Enable sequencer HA mode (overrides config file).",
+		EnvVar: prefixEnvVar("HA_ENABLED"),
+	}
+	SequencerHAConfig = cli.StringFlag{
+		Name:   "ha.config",
+		Usage:  "Path to sequencer HA config file (TOML). If not set, HA is disabled.",
+		EnvVar: prefixEnvVar("HA_CONFIG"),
+	}
+	SequencerHABootstrap = cli.BoolFlag{
+		Name:   "ha.bootstrap",
+		Usage:  "Bootstrap a new Raft cluster as leader (overrides config file).",
+		EnvVar: prefixEnvVar("HA_BOOTSTRAP"),
+	}
+	SequencerHAJoin = cli.StringSliceFlag{
+		Name:   "ha.join",
+		Usage:  "Management RPC addresses of existing cluster nodes to join (comma-separated, overrides config file).",
+		EnvVar: prefixEnvVar("HA_JOIN"),
+	}
+	SequencerHAServerID = cli.StringFlag{
+		Name:   "ha.server-id",
+		Usage:  "Unique server ID for this node (overrides config file; defaults to hostname).",
+		EnvVar: prefixEnvVar("HA_SERVER_ID"),
+	}
+	SequencerHAAdvertisedAddr = cli.StringFlag{
+		Name:   "ha.advertised-addr",
+		Usage:  "Raft advertised address (host:port). Supports hostname (e.g. node-0:9400) or IP. Auto-detected if not set.",
+		EnvVar: prefixEnvVar("HA_ADVERTISED_ADDR"),
+	}
+	SequencerHARPCToken = cli.StringFlag{
+		Name:   "ha.rpc-token",
+		Usage:  "Auth token for HAKeeper RPC write APIs. If empty, auth is disabled.",
+		EnvVar: prefixEnvVar("HA_RPC_TOKEN"),
+	}
+
 	MainnetFlag = cli.BoolFlag{
 		Name:  "mainnet",
 		Usage: "Morph mainnet",
 	}
 
-	// for test
-	ConsensusSwitchHeight = cli.Int64Flag{
-		Name:   "consensus.switchHeight",
-		Usage:  "Block height at which the consensus switches to sequencer mode. Default -1 means upgrade disabled.",
-		EnvVar: prefixEnvVar("CONSENSUS_SWITCH_HEIGHT"),
-		Value:  -1,
+	HoodiFlag = cli.BoolFlag{
+		Name:  "hoodi",
+		Usage: "Morph Hoodi testnet",
 	}
 
 	DerivationConfirmations = cli.Int64Flag{
 		Name:   "derivation.confirmations",
-		Usage:  "The number of confirmations needed on L1 for finalization. If not set, the default value is l1.confirmations",
+		Usage:  "How deep derivation reads L1: a positive number is a fixed depth below latest, -1 latest, -3 finalized, -4 safe. Applies to every verify mode; defaults to 10 blocks paired with the L1 reorg detector",
 		EnvVar: prefixEnvVar("DERIVATION_CONFIRMATIONS"),
+	}
+
+	DerivationVerifyMode = cli.StringFlag{
+		Name:   "derivation.verify-mode",
+		Usage:  `Batch verification mode (SPEC-005 §4.2). "layer1" pulls beacon blob, decodes, and derives blocks via engine. "local" (default) rebuilds blob bytes from local L2 blocks and compares versioned hashes against L1 (no beacon fetch on the happy path); on versioned hash mismatch the verifier is designed to self-heal by pulling the real blob and re-deriving the batch — currently TODO, blocked on EL number-continuity check relaxation in morph-reth/go-ethereum (separate spec). Selected at startup; not switchable at runtime.`,
+		EnvVar: prefixEnvVar("DERIVATION_VERIFY_MODE"),
+		Value:  "local",
+	}
+
+	DerivationReorgCheckDepth = cli.Uint64Flag{
+		Name:   "derivation.reorg-check-depth",
+		Usage:  "Number of recent L1 blocks to check for reorgs (SPEC-005 §4.7.6). The scan is a no-op when --derivation.confirmations=finalized (L1 finalized doesn't reorg) and load-bearing when set lower; the gate is intentionally absent so behavior is uniform across configs. Default 64.",
+		EnvVar: prefixEnvVar("DERIVATION_REORG_CHECK_DEPTH"),
+		Value:  64,
 	}
 	// Logger
 	LogLevel = &cli.StringFlag{
@@ -328,43 +363,29 @@ var (
 	// metrics
 	MetricsServerEnable = cli.BoolFlag{
 		Name:   "metrics-server-enable",
-		Usage:  "Whether or not to run the embedded metrics server",
+		Usage:  "Whether the layer1 validator serves Prometheus metrics. Overrides [instrumentation] prometheus from config.toml when explicitly set.",
 		EnvVar: prefixEnvVar("METRICS_SERVER_ENABLE"),
 	}
-	MetricsHostname = cli.StringFlag{
-		Name:   "metrics-hostname",
-		Usage:  "The hostname of the metrics server",
-		Value:  "0.0.0.0",
-		EnvVar: prefixEnvVar("METRICS_HOSTNAME"),
-	}
+	// MetricsPort optionally overrides the layer1 validator metrics port. When
+	// unset, the complete Tendermint instrumentation address is preserved.
 	MetricsPort = cli.Uint64Flag{
 		Name:   "metrics-port",
-		Usage:  "The port of the metrics server",
+		Usage:  "Port the validator metrics server binds to. Overrides [instrumentation] prometheus_listen_addr from config.toml when set (layer1 verify mode only).",
 		Value:  26660,
 		EnvVar: prefixEnvVar("METRICS_PORT"),
-	}
-
-	BlsKeyCheckForkHeight = cli.Uint64Flag{
-		Name:   "bls-key-check-fork-height",
-		Usage:  "The height at which the BLS key check fork occurs",
-		EnvVar: prefixEnvVar("BLS_KEY_CHECK_FORK_HEIGHT"),
 	}
 )
 
 var Flags = []cli.Flag{
 	Home,
 	L1NodeAddr,
-	L1ChainID,
 	L1Confirmations,
 	L2EthAddr,
 	L2EngineAddr,
 	L2EngineJWTSecret,
-	L2NextEthAddr,
-	L2NextEngineAddr,
 	MaxL1MessageNumPerBlock,
 	L2CrossDomainMessengerContractAddr,
 	L2SequencerAddr,
-	GovAddr,
 
 	// sync optioins
 	SyncDepositContractAddr,
@@ -383,11 +404,7 @@ var Flags = []cli.Flag{
 	DevSequencer,
 	TendermintConfigPath,
 	MockEnabled,
-	ValidatorEnable,
-	ChallengeEnable,
-
-	// validator
-	ValidatorPrivateKey,
+	LegacyValidatorMode,
 
 	// derivation
 	RollupContractAddress,
@@ -397,22 +414,28 @@ var Flags = []cli.Flag{
 	DerivationLogProgressInterval,
 	DerivationFetchBlockRange,
 	DerivationConfirmations,
+	DerivationVerifyMode,
+	DerivationReorgCheckDepth,
 	L1BeaconAddr,
-
-	// blocktag options
-	BlockTagSafeConfirmations,
 
 	// L1 Sequencer options
 	L1SequencerContractAddr,
 	L1SyncLagThreshold,
+	SequencerUpgradeTime,
+	SequencerBlockInterval,
+	SequencerFastBlockInterval,
 	SequencerPrivateKey,
+	SequencerEnclaveSignerAddr,
+	SequencerHAEnabled,
+	SequencerHAConfig,
+	SequencerHABootstrap,
+	SequencerHAJoin,
+	SequencerHAServerID,
+	SequencerHAAdvertisedAddr,
+	SequencerHARPCToken,
 
-	// consensus
-	ConsensusSwitchHeight,
-
-	// batch rules
-	UpgradeBatchTime,
 	MainnetFlag,
+	HoodiFlag,
 
 	// logger
 	LogLevel,
@@ -425,7 +448,4 @@ var Flags = []cli.Flag{
 	// metrics
 	MetricsServerEnable,
 	MetricsPort,
-	MetricsHostname,
-
-	BlsKeyCheckForkHeight,
 }

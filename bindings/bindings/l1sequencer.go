@@ -29,10 +29,16 @@ var (
 	_ = abi.ConvertType
 )
 
+// L1SequencerHistoryRecord is an auto generated low-level Go binding around an user-defined struct.
+type L1SequencerHistoryRecord struct {
+	StartL2Block  uint64
+	SequencerAddr common.Address
+}
+
 // L1SequencerMetaData contains all meta data concerning the L1Sequencer contract.
 var L1SequencerMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"function\",\"name\":\"getSequencer\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"_owner\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"owner\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"renounceOwnership\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"sequencer\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"transferOwnership\",\"inputs\":[{\"name\":\"newOwner\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"updateSequencer\",\"inputs\":[{\"name\":\"newSequencer\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint8\",\"indexed\":false,\"internalType\":\"uint8\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OwnershipTransferred\",\"inputs\":[{\"name\":\"previousOwner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"newOwner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SequencerUpdated\",\"inputs\":[{\"name\":\"oldSequencer\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"newSequencer\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false}]",
-	Bin: "0x608060405234801561000f575f80fd5b5061081a8061001d5f395ff3fe608060405234801561000f575f80fd5b506004361061007a575f3560e01c8063715018a611610058578063715018a6146100f65780638da5cb5b146100fe578063c4d66de81461011c578063f2fde38b1461012f575f80fd5b806343ae20a31461007e5780634d96a90a146100935780635c1bba38146100d6575b5f80fd5b61009161008c3660046107d3565b610142565b005b60655473ffffffffffffffffffffffffffffffffffffffff165b60405173ffffffffffffffffffffffffffffffffffffffff909116815260200160405180910390f35b6065546100ad9073ffffffffffffffffffffffffffffffffffffffff1681565b6100916102c7565b60335473ffffffffffffffffffffffffffffffffffffffff166100ad565b61009161012a3660046107d3565b6102da565b61009161013d3660046107d3565b6104ed565b61014a6105a4565b73ffffffffffffffffffffffffffffffffffffffff81166101cc576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601160248201527f696e76616c69642073657175656e63657200000000000000000000000000000060448201526064015b60405180910390fd5b60655473ffffffffffffffffffffffffffffffffffffffff90811690821603610251576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600e60248201527f73616d652073657175656e63657200000000000000000000000000000000000060448201526064016101c3565b6065805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681179093556040519116919082907fcd58b762453bd126b48db83f2cecd464f5281dd7e5e6824b528c09d0482984d6905f90a35050565b6102cf6105a4565b6102d85f610625565b565b5f54610100900460ff16158080156102f857505f54600160ff909116105b806103115750303b15801561031157505f5460ff166001145b61039d576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201527f647920696e697469616c697a656400000000000000000000000000000000000060648201526084016101c3565b5f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600117905580156103f9575f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff166101001790555b73ffffffffffffffffffffffffffffffffffffffff8216610476576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600d60248201527f696e76616c6964206f776e65720000000000000000000000000000000000000060448201526064016101c3565b61047e61069b565b61048782610625565b80156104e9575f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b5050565b6104f56105a4565b73ffffffffffffffffffffffffffffffffffffffff8116610598576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f646472657373000000000000000000000000000000000000000000000000000060648201526084016101c3565b6105a181610625565b50565b60335473ffffffffffffffffffffffffffffffffffffffff1633146102d8576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016101c3565b6033805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681179093556040519116919082907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0905f90a35050565b5f54610100900460ff16610731576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e6700000000000000000000000000000000000000000060648201526084016101c3565b6102d85f54610100900460ff166107ca576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e6700000000000000000000000000000000000000000060648201526084016101c3565b6102d833610625565b5f602082840312156107e3575f80fd5b813573ffffffffffffffffffffffffffffffffffffffff81168114610806575f80fd5b939250505056fea164736f6c6343000818000a",
+	ABI: "[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"oldSequencer\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newSequencer\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"startL2Block\",\"type\":\"uint64\"}],\"name\":\"SequencerUpdated\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"getSequencer\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"l2Height\",\"type\":\"uint64\"}],\"name\":\"getSequencerAt\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerHistory\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"startL2Block\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"sequencerAddr\",\"type\":\"address\"}],\"internalType\":\"structL1Sequencer.HistoryRecord[]\",\"name\":\"\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSequencerHistoryLength\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"sequencerHistory\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"startL2Block\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"sequencerAddr\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"firstSequencer\",\"type\":\"address\"}],\"name\":\"setFirstSequencer\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newSequencer\",\"type\":\"address\"},{\"internalType\":\"uint64\",\"name\":\"startL2Block\",\"type\":\"uint64\"}],\"name\":\"updateSequencer\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	Bin: "0x608060405234801561000f575f80fd5b50610fc38061001d5f395ff3fe608060405234801561000f575f80fd5b50600436106100c4575f3560e01c8063715018a61161007d578063c4d66de811610058578063c4d66de8146101b6578063f151ce9e146101c9578063f2fde38b146101dc575f80fd5b8063715018a61461017d578063761a90fd146101855780638da5cb5b14610198575f80fd5b80634d96a90a116100ad5780634d96a90a146100f35780636628aea1146101205780636d8ce3d214610135575f80fd5b80630df8955e146100c85780633d5767ce146100dd575b5f80fd5b6100db6100d6366004610df2565b6101ef565b005b6065546040519081526020015b60405180910390f35b6100fb610391565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016100ea565b610128610434565b6040516100ea9190610e12565b610148610143366004610e80565b6104c1565b6040805167ffffffffffffffff909316835273ffffffffffffffffffffffffffffffffffffffff9091166020830152016100ea565b6100db61050d565b6100db610193366004610eae565b610520565b60335473ffffffffffffffffffffffffffffffffffffffff166100fb565b6100db6101c4366004610df2565b6107a4565b6100fb6101d7366004610edf565b610983565b6100db6101ea366004610df2565b610b4c565b6101f7610be9565b6065541561024c5760405162461bcd60e51b815260206004820152601360248201527f616c726561647920696e697469616c697a65640000000000000000000000000060448201526064015b60405180910390fd5b73ffffffffffffffffffffffffffffffffffffffff81166102af5760405162461bcd60e51b815260206004820152600f60248201527f696e76616c6964206164647265737300000000000000000000000000000000006044820152606401610243565b6040805180820182525f80825273ffffffffffffffffffffffffffffffffffffffff84811660208085018281526065805460018101825590865295517f8ff97419363ffd7000167f130ef7168fbea05faf9251824ca5043f113cc6a7c79096018054915190941668010000000000000000027fffffffff0000000000000000000000000000000000000000000000000000000090911667ffffffffffffffff9096169590951794909417909155925181815290917ffed767db50732333bba543b785430d53a3a836d71064a68ae91809e50eca7bb8910160405180910390a350565b6065545f906103e25760405162461bcd60e51b815260206004820152601760248201527f6e6f2073657175656e63657220636f6e666967757265640000000000000000006044820152606401610243565b606580546103f290600190610f25565b8154811061040257610402610f3e565b5f9182526020909120015468010000000000000000900473ffffffffffffffffffffffffffffffffffffffff16919050565b60606065805480602002602001604051908101604052809291908181526020015f905b828210156104b8575f848152602090819020604080518082019091529084015467ffffffffffffffff8116825268010000000000000000900473ffffffffffffffffffffffffffffffffffffffff1681830152825260019092019101610457565b50505050905090565b606581815481106104d0575f80fd5b5f9182526020909120015467ffffffffffffffff8116915068010000000000000000900473ffffffffffffffffffffffffffffffffffffffff1682565b610515610be9565b61051e5f610c50565b565b610528610be9565b73ffffffffffffffffffffffffffffffffffffffff821661058b5760405162461bcd60e51b815260206004820152600f60248201527f696e76616c6964206164647265737300000000000000000000000000000000006044820152606401610243565b6065546105da5760405162461bcd60e51b815260206004820152600f60248201527f6e6f7420696e697469616c697a656400000000000000000000000000000000006044820152606401610243565b606580546105ea90600190610f25565b815481106105fa576105fa610f3e565b5f9182526020909120015467ffffffffffffffff908116908216116106875760405162461bcd60e51b815260206004820152602d60248201527f73746172744c32426c6f636b206d75737420626520677265617465722074686160448201527f6e206c617374207265636f7264000000000000000000000000000000000000006064820152608401610243565b606580545f919061069a90600190610f25565b815481106106aa576106aa610f3e565b5f9182526020808320919091015460408051808201825267ffffffffffffffff87811680835273ffffffffffffffffffffffffffffffffffffffff8a8116848801818152606580546001810182559a5294517f8ff97419363ffd7000167f130ef7168fbea05faf9251824ca5043f113cc6a7c790990180549551999094167fffffffff00000000000000000000000000000000000000000000000000000000909516949094176801000000000000000098821689021790925592519283529490920490931693509183917ffed767db50732333bba543b785430d53a3a836d71064a68ae91809e50eca7bb8910160405180910390a3505050565b5f54610100900460ff16158080156107c257505f54600160ff909116105b806107db5750303b1580156107db57505f5460ff166001145b61084d5760405162461bcd60e51b815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201527f647920696e697469616c697a65640000000000000000000000000000000000006064820152608401610243565b5f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600117905580156108a9575f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff166101001790555b73ffffffffffffffffffffffffffffffffffffffff821661090c5760405162461bcd60e51b815260206004820152600d60248201527f696e76616c6964206f776e6572000000000000000000000000000000000000006044820152606401610243565b610914610cc6565b61091d82610c50565b801561097f575f80547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b5050565b6065545f90806109d55760405162461bcd60e51b815260206004820152601760248201527f6e6f2073657175656e63657220636f6e666967757265640000000000000000006044820152606401610243565b5f806109e2600184610f25565b90505f5b818311610a81575f60026109fa8486610f6b565b610a049190610f7e565b90508667ffffffffffffffff1660658281548110610a2457610a24610f3e565b5f9182526020909120015467ffffffffffffffff1611610a6057809150828103610a4e5750610a81565b610a59816001610f6b565b9350610a7b565b805f03610a6d5750610a81565b610a78600182610f25565b92505b506109e6565b8567ffffffffffffffff1660658281548110610a9f57610a9f610f3e565b5f9182526020909120015467ffffffffffffffff161115610b025760405162461bcd60e51b815260206004820152601660248201527f6e6f2073657175656e63657220617420686569676874000000000000000000006044820152606401610243565b60658181548110610b1557610b15610f3e565b5f9182526020909120015468010000000000000000900473ffffffffffffffffffffffffffffffffffffffff169695505050505050565b610b54610be9565b73ffffffffffffffffffffffffffffffffffffffff8116610bdd5760405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f64647265737300000000000000000000000000000000000000000000000000006064820152608401610243565b610be681610c50565b50565b60335473ffffffffffffffffffffffffffffffffffffffff16331461051e5760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152606401610243565b6033805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681179093556040519116919082907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0905f90a35050565b5f54610100900460ff16610d425760405162461bcd60e51b815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e670000000000000000000000000000000000000000006064820152608401610243565b61051e5f54610100900460ff16610dc15760405162461bcd60e51b815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e670000000000000000000000000000000000000000006064820152608401610243565b61051e33610c50565b803573ffffffffffffffffffffffffffffffffffffffff81168114610ded575f80fd5b919050565b5f60208284031215610e02575f80fd5b610e0b82610dca565b9392505050565b602080825282518282018190525f919060409081850190868401855b82811015610e73578151805167ffffffffffffffff16855286015173ffffffffffffffffffffffffffffffffffffffff16868501529284019290850190600101610e2e565b5091979650505050505050565b5f60208284031215610e90575f80fd5b5035919050565b803567ffffffffffffffff81168114610ded575f80fd5b5f8060408385031215610ebf575f80fd5b610ec883610dca565b9150610ed660208401610e97565b90509250929050565b5f60208284031215610eef575f80fd5b610e0b82610e97565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b81810381811115610f3857610f38610ef8565b92915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b80820180821115610f3857610f38610ef8565b5f82610fb1577f4e487b71000000000000000000000000000000000000000000000000000000005f52601260045260245ffd5b50049056fea164736f6c6343000818000a",
 }
 
 // L1SequencerABI is the input ABI used to generate the binding from.
@@ -233,6 +239,99 @@ func (_L1Sequencer *L1SequencerCallerSession) GetSequencer() (common.Address, er
 	return _L1Sequencer.Contract.GetSequencer(&_L1Sequencer.CallOpts)
 }
 
+// GetSequencerAt is a free data retrieval call binding the contract method 0xf151ce9e.
+//
+// Solidity: function getSequencerAt(uint64 l2Height) view returns(address)
+func (_L1Sequencer *L1SequencerCaller) GetSequencerAt(opts *bind.CallOpts, l2Height uint64) (common.Address, error) {
+	var out []interface{}
+	err := _L1Sequencer.contract.Call(opts, &out, "getSequencerAt", l2Height)
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// GetSequencerAt is a free data retrieval call binding the contract method 0xf151ce9e.
+//
+// Solidity: function getSequencerAt(uint64 l2Height) view returns(address)
+func (_L1Sequencer *L1SequencerSession) GetSequencerAt(l2Height uint64) (common.Address, error) {
+	return _L1Sequencer.Contract.GetSequencerAt(&_L1Sequencer.CallOpts, l2Height)
+}
+
+// GetSequencerAt is a free data retrieval call binding the contract method 0xf151ce9e.
+//
+// Solidity: function getSequencerAt(uint64 l2Height) view returns(address)
+func (_L1Sequencer *L1SequencerCallerSession) GetSequencerAt(l2Height uint64) (common.Address, error) {
+	return _L1Sequencer.Contract.GetSequencerAt(&_L1Sequencer.CallOpts, l2Height)
+}
+
+// GetSequencerHistory is a free data retrieval call binding the contract method 0x6628aea1.
+//
+// Solidity: function getSequencerHistory() view returns((uint64,address)[])
+func (_L1Sequencer *L1SequencerCaller) GetSequencerHistory(opts *bind.CallOpts) ([]L1SequencerHistoryRecord, error) {
+	var out []interface{}
+	err := _L1Sequencer.contract.Call(opts, &out, "getSequencerHistory")
+
+	if err != nil {
+		return *new([]L1SequencerHistoryRecord), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]L1SequencerHistoryRecord)).(*[]L1SequencerHistoryRecord)
+
+	return out0, err
+
+}
+
+// GetSequencerHistory is a free data retrieval call binding the contract method 0x6628aea1.
+//
+// Solidity: function getSequencerHistory() view returns((uint64,address)[])
+func (_L1Sequencer *L1SequencerSession) GetSequencerHistory() ([]L1SequencerHistoryRecord, error) {
+	return _L1Sequencer.Contract.GetSequencerHistory(&_L1Sequencer.CallOpts)
+}
+
+// GetSequencerHistory is a free data retrieval call binding the contract method 0x6628aea1.
+//
+// Solidity: function getSequencerHistory() view returns((uint64,address)[])
+func (_L1Sequencer *L1SequencerCallerSession) GetSequencerHistory() ([]L1SequencerHistoryRecord, error) {
+	return _L1Sequencer.Contract.GetSequencerHistory(&_L1Sequencer.CallOpts)
+}
+
+// GetSequencerHistoryLength is a free data retrieval call binding the contract method 0x3d5767ce.
+//
+// Solidity: function getSequencerHistoryLength() view returns(uint256)
+func (_L1Sequencer *L1SequencerCaller) GetSequencerHistoryLength(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _L1Sequencer.contract.Call(opts, &out, "getSequencerHistoryLength")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// GetSequencerHistoryLength is a free data retrieval call binding the contract method 0x3d5767ce.
+//
+// Solidity: function getSequencerHistoryLength() view returns(uint256)
+func (_L1Sequencer *L1SequencerSession) GetSequencerHistoryLength() (*big.Int, error) {
+	return _L1Sequencer.Contract.GetSequencerHistoryLength(&_L1Sequencer.CallOpts)
+}
+
+// GetSequencerHistoryLength is a free data retrieval call binding the contract method 0x3d5767ce.
+//
+// Solidity: function getSequencerHistoryLength() view returns(uint256)
+func (_L1Sequencer *L1SequencerCallerSession) GetSequencerHistoryLength() (*big.Int, error) {
+	return _L1Sequencer.Contract.GetSequencerHistoryLength(&_L1Sequencer.CallOpts)
+}
+
 // Owner is a free data retrieval call binding the contract method 0x8da5cb5b.
 //
 // Solidity: function owner() view returns(address)
@@ -264,35 +363,49 @@ func (_L1Sequencer *L1SequencerCallerSession) Owner() (common.Address, error) {
 	return _L1Sequencer.Contract.Owner(&_L1Sequencer.CallOpts)
 }
 
-// Sequencer is a free data retrieval call binding the contract method 0x5c1bba38.
+// SequencerHistory is a free data retrieval call binding the contract method 0x6d8ce3d2.
 //
-// Solidity: function sequencer() view returns(address)
-func (_L1Sequencer *L1SequencerCaller) Sequencer(opts *bind.CallOpts) (common.Address, error) {
+// Solidity: function sequencerHistory(uint256 ) view returns(uint64 startL2Block, address sequencerAddr)
+func (_L1Sequencer *L1SequencerCaller) SequencerHistory(opts *bind.CallOpts, arg0 *big.Int) (struct {
+	StartL2Block  uint64
+	SequencerAddr common.Address
+}, error) {
 	var out []interface{}
-	err := _L1Sequencer.contract.Call(opts, &out, "sequencer")
+	err := _L1Sequencer.contract.Call(opts, &out, "sequencerHistory", arg0)
 
+	outstruct := new(struct {
+		StartL2Block  uint64
+		SequencerAddr common.Address
+	})
 	if err != nil {
-		return *new(common.Address), err
+		return *outstruct, err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+	outstruct.StartL2Block = *abi.ConvertType(out[0], new(uint64)).(*uint64)
+	outstruct.SequencerAddr = *abi.ConvertType(out[1], new(common.Address)).(*common.Address)
 
-	return out0, err
+	return *outstruct, err
 
 }
 
-// Sequencer is a free data retrieval call binding the contract method 0x5c1bba38.
+// SequencerHistory is a free data retrieval call binding the contract method 0x6d8ce3d2.
 //
-// Solidity: function sequencer() view returns(address)
-func (_L1Sequencer *L1SequencerSession) Sequencer() (common.Address, error) {
-	return _L1Sequencer.Contract.Sequencer(&_L1Sequencer.CallOpts)
+// Solidity: function sequencerHistory(uint256 ) view returns(uint64 startL2Block, address sequencerAddr)
+func (_L1Sequencer *L1SequencerSession) SequencerHistory(arg0 *big.Int) (struct {
+	StartL2Block  uint64
+	SequencerAddr common.Address
+}, error) {
+	return _L1Sequencer.Contract.SequencerHistory(&_L1Sequencer.CallOpts, arg0)
 }
 
-// Sequencer is a free data retrieval call binding the contract method 0x5c1bba38.
+// SequencerHistory is a free data retrieval call binding the contract method 0x6d8ce3d2.
 //
-// Solidity: function sequencer() view returns(address)
-func (_L1Sequencer *L1SequencerCallerSession) Sequencer() (common.Address, error) {
-	return _L1Sequencer.Contract.Sequencer(&_L1Sequencer.CallOpts)
+// Solidity: function sequencerHistory(uint256 ) view returns(uint64 startL2Block, address sequencerAddr)
+func (_L1Sequencer *L1SequencerCallerSession) SequencerHistory(arg0 *big.Int) (struct {
+	StartL2Block  uint64
+	SequencerAddr common.Address
+}, error) {
+	return _L1Sequencer.Contract.SequencerHistory(&_L1Sequencer.CallOpts, arg0)
 }
 
 // Initialize is a paid mutator transaction binding the contract method 0xc4d66de8.
@@ -337,6 +450,27 @@ func (_L1Sequencer *L1SequencerTransactorSession) RenounceOwnership() (*types.Tr
 	return _L1Sequencer.Contract.RenounceOwnership(&_L1Sequencer.TransactOpts)
 }
 
+// SetFirstSequencer is a paid mutator transaction binding the contract method 0x0df8955e.
+//
+// Solidity: function setFirstSequencer(address firstSequencer) returns()
+func (_L1Sequencer *L1SequencerTransactor) SetFirstSequencer(opts *bind.TransactOpts, firstSequencer common.Address) (*types.Transaction, error) {
+	return _L1Sequencer.contract.Transact(opts, "setFirstSequencer", firstSequencer)
+}
+
+// SetFirstSequencer is a paid mutator transaction binding the contract method 0x0df8955e.
+//
+// Solidity: function setFirstSequencer(address firstSequencer) returns()
+func (_L1Sequencer *L1SequencerSession) SetFirstSequencer(firstSequencer common.Address) (*types.Transaction, error) {
+	return _L1Sequencer.Contract.SetFirstSequencer(&_L1Sequencer.TransactOpts, firstSequencer)
+}
+
+// SetFirstSequencer is a paid mutator transaction binding the contract method 0x0df8955e.
+//
+// Solidity: function setFirstSequencer(address firstSequencer) returns()
+func (_L1Sequencer *L1SequencerTransactorSession) SetFirstSequencer(firstSequencer common.Address) (*types.Transaction, error) {
+	return _L1Sequencer.Contract.SetFirstSequencer(&_L1Sequencer.TransactOpts, firstSequencer)
+}
+
 // TransferOwnership is a paid mutator transaction binding the contract method 0xf2fde38b.
 //
 // Solidity: function transferOwnership(address newOwner) returns()
@@ -358,25 +492,25 @@ func (_L1Sequencer *L1SequencerTransactorSession) TransferOwnership(newOwner com
 	return _L1Sequencer.Contract.TransferOwnership(&_L1Sequencer.TransactOpts, newOwner)
 }
 
-// UpdateSequencer is a paid mutator transaction binding the contract method 0x43ae20a3.
+// UpdateSequencer is a paid mutator transaction binding the contract method 0x761a90fd.
 //
-// Solidity: function updateSequencer(address newSequencer) returns()
-func (_L1Sequencer *L1SequencerTransactor) UpdateSequencer(opts *bind.TransactOpts, newSequencer common.Address) (*types.Transaction, error) {
-	return _L1Sequencer.contract.Transact(opts, "updateSequencer", newSequencer)
+// Solidity: function updateSequencer(address newSequencer, uint64 startL2Block) returns()
+func (_L1Sequencer *L1SequencerTransactor) UpdateSequencer(opts *bind.TransactOpts, newSequencer common.Address, startL2Block uint64) (*types.Transaction, error) {
+	return _L1Sequencer.contract.Transact(opts, "updateSequencer", newSequencer, startL2Block)
 }
 
-// UpdateSequencer is a paid mutator transaction binding the contract method 0x43ae20a3.
+// UpdateSequencer is a paid mutator transaction binding the contract method 0x761a90fd.
 //
-// Solidity: function updateSequencer(address newSequencer) returns()
-func (_L1Sequencer *L1SequencerSession) UpdateSequencer(newSequencer common.Address) (*types.Transaction, error) {
-	return _L1Sequencer.Contract.UpdateSequencer(&_L1Sequencer.TransactOpts, newSequencer)
+// Solidity: function updateSequencer(address newSequencer, uint64 startL2Block) returns()
+func (_L1Sequencer *L1SequencerSession) UpdateSequencer(newSequencer common.Address, startL2Block uint64) (*types.Transaction, error) {
+	return _L1Sequencer.Contract.UpdateSequencer(&_L1Sequencer.TransactOpts, newSequencer, startL2Block)
 }
 
-// UpdateSequencer is a paid mutator transaction binding the contract method 0x43ae20a3.
+// UpdateSequencer is a paid mutator transaction binding the contract method 0x761a90fd.
 //
-// Solidity: function updateSequencer(address newSequencer) returns()
-func (_L1Sequencer *L1SequencerTransactorSession) UpdateSequencer(newSequencer common.Address) (*types.Transaction, error) {
-	return _L1Sequencer.Contract.UpdateSequencer(&_L1Sequencer.TransactOpts, newSequencer)
+// Solidity: function updateSequencer(address newSequencer, uint64 startL2Block) returns()
+func (_L1Sequencer *L1SequencerTransactorSession) UpdateSequencer(newSequencer common.Address, startL2Block uint64) (*types.Transaction, error) {
+	return _L1Sequencer.Contract.UpdateSequencer(&_L1Sequencer.TransactOpts, newSequencer, startL2Block)
 }
 
 // L1SequencerInitializedIterator is returned from FilterInitialized and is used to iterate over the raw logs and unpacked data for Initialized events raised by the L1Sequencer contract.
@@ -737,12 +871,13 @@ func (it *L1SequencerSequencerUpdatedIterator) Close() error {
 type L1SequencerSequencerUpdated struct {
 	OldSequencer common.Address
 	NewSequencer common.Address
+	StartL2Block uint64
 	Raw          types.Log // Blockchain specific contextual infos
 }
 
-// FilterSequencerUpdated is a free log retrieval operation binding the contract event 0xcd58b762453bd126b48db83f2cecd464f5281dd7e5e6824b528c09d0482984d6.
+// FilterSequencerUpdated is a free log retrieval operation binding the contract event 0xfed767db50732333bba543b785430d53a3a836d71064a68ae91809e50eca7bb8.
 //
-// Solidity: event SequencerUpdated(address indexed oldSequencer, address indexed newSequencer)
+// Solidity: event SequencerUpdated(address indexed oldSequencer, address indexed newSequencer, uint64 startL2Block)
 func (_L1Sequencer *L1SequencerFilterer) FilterSequencerUpdated(opts *bind.FilterOpts, oldSequencer []common.Address, newSequencer []common.Address) (*L1SequencerSequencerUpdatedIterator, error) {
 
 	var oldSequencerRule []interface{}
@@ -761,9 +896,9 @@ func (_L1Sequencer *L1SequencerFilterer) FilterSequencerUpdated(opts *bind.Filte
 	return &L1SequencerSequencerUpdatedIterator{contract: _L1Sequencer.contract, event: "SequencerUpdated", logs: logs, sub: sub}, nil
 }
 
-// WatchSequencerUpdated is a free log subscription operation binding the contract event 0xcd58b762453bd126b48db83f2cecd464f5281dd7e5e6824b528c09d0482984d6.
+// WatchSequencerUpdated is a free log subscription operation binding the contract event 0xfed767db50732333bba543b785430d53a3a836d71064a68ae91809e50eca7bb8.
 //
-// Solidity: event SequencerUpdated(address indexed oldSequencer, address indexed newSequencer)
+// Solidity: event SequencerUpdated(address indexed oldSequencer, address indexed newSequencer, uint64 startL2Block)
 func (_L1Sequencer *L1SequencerFilterer) WatchSequencerUpdated(opts *bind.WatchOpts, sink chan<- *L1SequencerSequencerUpdated, oldSequencer []common.Address, newSequencer []common.Address) (event.Subscription, error) {
 
 	var oldSequencerRule []interface{}
@@ -807,9 +942,9 @@ func (_L1Sequencer *L1SequencerFilterer) WatchSequencerUpdated(opts *bind.WatchO
 	}), nil
 }
 
-// ParseSequencerUpdated is a log parse operation binding the contract event 0xcd58b762453bd126b48db83f2cecd464f5281dd7e5e6824b528c09d0482984d6.
+// ParseSequencerUpdated is a log parse operation binding the contract event 0xfed767db50732333bba543b785430d53a3a836d71064a68ae91809e50eca7bb8.
 //
-// Solidity: event SequencerUpdated(address indexed oldSequencer, address indexed newSequencer)
+// Solidity: event SequencerUpdated(address indexed oldSequencer, address indexed newSequencer, uint64 startL2Block)
 func (_L1Sequencer *L1SequencerFilterer) ParseSequencerUpdated(log types.Log) (*L1SequencerSequencerUpdated, error) {
 	event := new(L1SequencerSequencerUpdated)
 	if err := _L1Sequencer.contract.UnpackLog(event, "SequencerUpdated", log); err != nil {

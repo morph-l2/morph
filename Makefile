@@ -1,7 +1,7 @@
 ################## update dependencies ####################
-ETHEREUM_SUBMODULE_COMMIT_OR_TAG := morph-v2.2.1
-ETHEREUM_TARGET_VERSION := morph-v2.2.1
-TENDERMINT_TARGET_VERSION := v0.3.4
+ETHEREUM_SUBMODULE_COMMIT_OR_TAG := 5744b8f66ec4070a535ed12200db48028df29d93
+ETHEREUM_TARGET_VERSION := v1.10.14-0.20260824023452-5744b8f66ec4
+TENDERMINT_TARGET_VERSION := v0.3.9
 
 
 ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum
@@ -25,11 +25,11 @@ update_mod:
 .PHONY: update_all_mod
 update_all_mod:
 	@$(MAKE) update_mod MODULE=bindings
+	@$(MAKE) update_mod MODULE=common
 	@$(MAKE) update_mod MODULE=contracts
 	@$(MAKE) update_mod MODULE=node
 	@$(MAKE) update_mod MODULE=ops/l2-genesis
 	@$(MAKE) update_mod MODULE=ops/tools
-	@$(MAKE) update_mod MODULE=oracle
 	@$(MAKE) update_mod MODULE=tx-submitter
 	@$(MAKE) update_mod MODULE=token-price-oracle
 
@@ -44,7 +44,7 @@ submodules:
 	@if [ -d "go-ethereum" ]; then \
 		echo "Updating go-ethereum submodule to tag $(ETHEREUM_SUBMODULE_COMMIT_OR_TAG)..."; \
 		cd go-ethereum && \
-		git fetch --tags && \
+		git fetch --tags --force && \
 		git checkout $(ETHEREUM_SUBMODULE_COMMIT_OR_TAG) && \
 		cd ..; \
 	fi
@@ -95,7 +95,6 @@ fmt-go:
 	cd $(PWD)/node/ && go mod tidy
 	cd $(PWD)/ops/l2-genesis/ && go mod tidy
 	cd $(PWD)/ops/tools/ && go mod tidy
-	cd $(PWD)/oracle/ && go mod tidy
 	cd $(PWD)/tx-submitter/ && go mod tidy
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs gofmt -w -s
 	find . -name '*.go' -type f -not -path "./go-ethereum*" -not -name '*.pb.go' | xargs misspell -w
@@ -135,26 +134,93 @@ go-ubuntu-builder:
 	fi
 .PHONY: go-ubuntu-builder
 
-################## devnet 4 nodes ####################
+################## devnet 2 nodes ####################
 
-devnet-up: submodules go-ubuntu-builder
-	python3 ops/devnet-morph/main.py --polyrepo-dir=.
+EXECUTION_CLIENT ?= geth
+DEVNET_CLUSTER ?= false
+DEVNET_CLUSTER_ENABLED := $(filter true 1 yes,$(DEVNET_CLUSTER))
+DEVNET_SEQUENCER_PRIVATE_KEY ?= 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+DEVNET_SEQUENCER_ADDRESS ?= 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+DEVNET_SEQUENCER_UPGRADE_OFFSET_SECONDS ?= 0
+MORPH_RETH_BUILD_FROM_SOURCE ?= false
+ifeq ($(MORPH_RETH_BUILD_FROM_SOURCE),true)
+MORPH_RETH_IMAGE ?= morph-reth:latest
+MORPH_RETH_ENTRYPOINT ?= /app/morph-reth
+else
+MORPH_RETH_IMAGE ?= ghcr.io/morph-l2/morph-reth:latest
+MORPH_RETH_ENTRYPOINT ?= /usr/local/bin/morph-reth
+endif
+MORPH_RETH_DIR ?= ../morph-reth
+MORPH_RETH_BUILD_PROFILE ?= release
+MORPH_RETH_RUSTFLAGS ?=
+MORPH_RETH_DOCKER_TARGET ?= builder
+export MORPH_RETH_IMAGE
+export MORPH_RETH_DIR
+export MORPH_RETH_BUILD_PROFILE
+export MORPH_RETH_RUSTFLAGS
+export MORPH_RETH_DOCKER_TARGET
+export MORPH_RETH_ENTRYPOINT
+DEVNET_COMPOSE_FILES := -f docker-compose-devnet.yml
+DEVNET_CLEAN_COMPOSE_FILES := -f docker-compose-devnet.yml -f docker-compose-reth.yml -f docker-compose-cluster.yml
+
+ifeq ($(EXECUTION_CLIENT),geth)
+DEVNET_EXECUTION_DEPS := submodules
+else ifeq ($(EXECUTION_CLIENT),reth)
+DEVNET_COMPOSE_FILES += -f docker-compose-reth.yml
+ifeq ($(MORPH_RETH_BUILD_FROM_SOURCE),true)
+DEVNET_EXECUTION_DEPS := reth
+else
+DEVNET_EXECUTION_DEPS := reth-image
+endif
+else
+$(error unsupported EXECUTION_CLIENT "$(EXECUTION_CLIENT)", expected "geth" or "reth")
+endif
+ifneq ($(DEVNET_CLUSTER_ENABLED),)
+DEVNET_COMPOSE_FILES += -f docker-compose-cluster.yml
+endif
+
+devnet-up: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder
+	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT) \
+		$(if $(DEVNET_CLUSTER_ENABLED),--cluster,) \
+		--sequencer-private-key=$(DEVNET_SEQUENCER_PRIVATE_KEY) \
+		--sequencer-address=$(DEVNET_SEQUENCER_ADDRESS) \
+		--sequencer-upgrade-offset-seconds=$(DEVNET_SEQUENCER_UPGRADE_OFFSET_SECONDS)
 .PHONY: devnet-up
 
-devnet-up-debugccc:
-	python3 ops/devnet-morph/main.py --polyrepo-dir=. --debugccc
+devnet-up-cluster:
+	$(MAKE) devnet-up DEVNET_CLUSTER=true
+.PHONY: devnet-up-cluster
+
+devnet-up-reth:
+	$(MAKE) devnet-up EXECUTION_CLIENT=reth
+.PHONY: devnet-up-reth
+
+devnet-up-cluster-reth:
+	$(MAKE) devnet-up EXECUTION_CLIENT=reth DEVNET_CLUSTER=true
+.PHONY: devnet-up-cluster-reth
+
+devnet-up-debugccc: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder
+	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT) --debugccc \
+		$(if $(DEVNET_CLUSTER_ENABLED),--cluster,) \
+		--sequencer-private-key=$(DEVNET_SEQUENCER_PRIVATE_KEY) \
+		--sequencer-address=$(DEVNET_SEQUENCER_ADDRESS) \
+		--sequencer-upgrade-offset-seconds=$(DEVNET_SEQUENCER_UPGRADE_OFFSET_SECONDS)
 .PHONY: devnet-up-debugccc
 
 devnet-down:
-	cd ops/docker && docker compose -f docker-compose-4nodes.yml down
+	cd ops/docker && docker compose $(DEVNET_COMPOSE_FILES) down
 .PHONY: devnet-down
 
-devnet-clean-build: devnet-down devnet-l1-clean
-	docker volume ls --filter name=docker-* --format='{{.Name}}' | xargs -r docker volume rm
+devnet-down-reth:
+	$(MAKE) devnet-down EXECUTION_CLIENT=reth
+.PHONY: devnet-down-reth
+
+devnet-clean-build: devnet-l1-clean
+	cd ops/docker && docker compose $(DEVNET_CLEAN_COMPOSE_FILES) down --volumes --remove-orphans
+	docker volume ls --filter label=com.docker.compose.project=docker --format='{{.Name}}' | xargs docker volume rm 2>/dev/null || true
 	rm -rf ops/l2-genesis/.devnet
 	rm -rf ops/docker/.devnet
-	rm -rf ops/docker/consensus/beacondata ops/docker/consensus/validatordata ops/docker/consensus/genesis.ssz
-	rm -rf ops/docker/execution/geth
+	rm -rf ops/docker/consensus ops/docker/execution
 .PHONY: devnet-clean-build
 
 devnet-clean: devnet-clean-build
@@ -170,22 +236,31 @@ devnet-l1-clean:
 .PHONY: devnet-l1-clean
 
 devnet-logs:
-	@(cd ops/docker && docker-compose logs -f)
+	@(cd ops/docker && docker compose $(DEVNET_COMPOSE_FILES) logs -f)
 .PHONY: devnet-logs
 
+reth-image:
+	docker pull "$(MORPH_RETH_IMAGE)"
+.PHONY: reth-image
+
+reth:
+	@test -d "$(MORPH_RETH_DIR)" || (echo "morph-reth directory not found: $(MORPH_RETH_DIR)" && exit 1)
+	docker build -t "$(MORPH_RETH_IMAGE)" --target "$(MORPH_RETH_DOCKER_TARGET)" --build-arg BUILD_PROFILE="$(MORPH_RETH_BUILD_PROFILE)" --build-arg RUSTFLAGS="$(MORPH_RETH_RUSTFLAGS)" "$(MORPH_RETH_DIR)"
+.PHONY: reth
+
 # tx-submitter
-SUBMITTERS := $(shell grep -o 'tx-submitter-[0-9]*[^:]' ops/docker/docker-compose-4nodes.yml | sort | uniq)
+SUBMITTERS := $(shell grep -o 'tx-submitter-[0-9]*[^:]' ops/docker/docker-compose-devnet.yml | sort | uniq)
 rebuild-all-tx-submitter:
 	@for submitter in $(SUBMITTERS); do \
-		docker compose -f ./ops/docker/docker-compose-4nodes.yml up -d --build $$submitter --no-deps; \
+		docker compose -f ./ops/docker/docker-compose-devnet.yml up -d --build $$submitter --no-deps; \
 	done
 stop-all-tx-submitter:
 	@for submitter in $(SUBMITTERS); do \
-		docker compose -f ./ops/docker-compose-4nodes.yml stop $$submitter; \
+		docker compose -f ./ops/docker/docker-compose-devnet.yml stop $$submitter; \
 	done
 start-all-tx-submitter:
 	@for submitter in $(SUBMITTERS); do \
-		docker compose -f ./ops/docker-compose-4nodes.yml start $$submitter; \
+		docker compose -f ./ops/docker/docker-compose-devnet.yml start $$submitter; \
 	done
 
 # build geth

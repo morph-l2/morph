@@ -13,19 +13,20 @@ const config = {
     sequencerWindowSize: 200,
     channelTimeout: 120,
 
-    programVkey: '0x00940d658cf507217304ec5f7ca5558e2e0fd67881485f604b63588c31a8792f',
+    programVkey: '0x00da5ade7ec0ec902618c53b616ac96f47de1cb79b450f815a7c6cbebd6ffaef',
     rollupMinDeposit: 1,
     rollupProofWindow: 100,
     rollupGenesisBlockNumber: 0,
     proofRewardPercent: 70,
-    rollupProposer: '0xE70a4102e4caA3d9B8968FFb142E6A2ceFd22Ec3',
+    batchSubmitterAddresses: ['0xE70a4102e4caA3d9B8968FFb142E6A2ceFd22Ec3'],
     rollupChallenger: '0xF730477971E88b3162ed7FD950Be63474975bdC3',
     rollupGenesisStateRoot: '',
     finalizationPeriodSeconds: 2,
 
-    stakingMinDeposit: 1,
-    stakingSequencerSize: 3,
-    stakingLockNumber: 3,
+    submitterOwner: '0xD77c708607e72f520c2841E359cF54fca75d9C04',
+    submitterMinimumStake: 1,
+    submitterChallengeDeposit: 1,
+    submitterRewardPercentage: 100,
     /**
      *  Only used for SystemConfig
      *  --------from--------

@@ -10,13 +10,13 @@ import (
 	"strings"
 
 	"github.com/morph-l2/go-ethereum/common"
+	"github.com/morph-l2/go-ethereum/common/hexutil"
 	"github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/urfave/cli"
 
 	"morph-l2/bindings/hardhat"
 	"morph-l2/morph-deployer/morph-chain-ops/genesis"
-	node "morph-l2/node/core"
 )
 
 var Subcommands = cli.Commands{
@@ -111,15 +111,15 @@ var Subcommands = cli.Commands{
 			var genesisBatchHeaderBytes []byte
 			genBatchHeaderFile := ctx.String("outfile.genbatchheader")
 			if len(genBatchHeaderFile) > 0 {
-				genesisBatchHeader, err := node.GenesisBatchHeader(l2GenesisBlock.Header())
+				var err error
+				genesisBatchHeaderBytes, err = genesis.GenesisBatchHeader(l2GenesisBlock.Header())
 				if err != nil {
 					return err
 				}
-				fmt.Printf("generated genesis batch header bytes: %x \n", genesisBatchHeader.Bytes())
-				if err := writeGenesisFile(genBatchHeaderFile, genesisBatchHeader); err != nil {
+				fmt.Printf("generated genesis batch header bytes: %x \n", genesisBatchHeaderBytes)
+				if err := writeGenesisFile(genBatchHeaderFile, hexutil.Bytes(genesisBatchHeaderBytes)); err != nil {
 					return err
 				}
-				genesisBatchHeaderBytes = genesisBatchHeader.Bytes()
 			}
 
 			rollupConfig, err := config.RollupConfig(l1StartBlock, l2GenesisBlockHash, l2GenesisBlock.Number().Uint64(), l2GenesisBlock.Root(), withdrawRoot, genesisBatchHeaderBytes)

@@ -1,11 +1,9 @@
-use crate::utils::{beneficiary_by_chain_id, query_block, query_state_root, HostExecutorOutput};
+use crate::utils::{beneficiary_by_chain_id, query_block, HostExecutorOutput};
 use alloy_provider::{DynProvider, Provider};
 use anyhow::{bail, Context};
 use prover_executor_core::MorphExecutor;
 use prover_primitives::{
-    predeployed::l2_to_l1_message::{
-        SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT, WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT,
-    },
+    predeployed::l2_to_l1_message::{WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT},
     TxTrace,
 };
 use prover_storage_rpc::basic_rpc_db::{BasicRpcDb, RpcDb};
@@ -29,6 +27,10 @@ impl HostExecutor {
         let block = query_block(block_number, provider)
             .await
             .with_context(|| format!("query_block failed for block {block_number}"))?;
+        // Post-MPT migration (PR #886), the L2 state trie is a standard Ethereum MPT, so
+        // `header.state_root` is authoritative and replaces the previous custom `morph_diskRoot`
+        // RPC field. The root is re-derived locally below and checked against this value.
+        let post_state_root = block.header.state_root;
 
         // layer2 chain id
         let chain_id =
@@ -40,30 +42,23 @@ impl HostExecutor {
         // We use a per-chain hardcoded address as the sequencer/beneficiary.
         let beneficiary = beneficiary_by_chain_id(chain_id);
 
-        // mpt root at this block
-        let disk_root = query_state_root(block_number, provider)
-            .await
-            .with_context(|| format!("query_state_root failed for block {block_number}"))?;
-
         // We need a previous block root to initialize the RPC-backed DB.
         let prev_block_number = block_number
             .checked_sub(1)
             .context("HostExecutor::execute_block requires block_number > 0 (needs prev state)")?;
-        let prev_disk_root =
-            query_state_root(prev_block_number, provider).await.with_context(|| {
-                format!("query_state_root failed for prev block {prev_block_number}")
-            })?;
+
+        let prev_block = query_block(prev_block_number, provider)
+            .await
+            .with_context(|| format!("query_block failed for prev block {prev_block_number}"))?;
+        // Same rationale as `post_state_root`: header state_root is the MPT root.
+        let prev_state_root = prev_block.header.state_root;
 
         let tx_count = block.transactions.len();
         let block_num = block.header.number.to::<u64>();
 
         // Init DB (RPC-backed, rooted at previous block).
-        let rpc_db = BasicRpcDb::new(
-            provider.clone(),
-            chain_id,
-            prev_block_number,
-            prev_disk_root.disk_root,
-        );
+        let rpc_db =
+            BasicRpcDb::new(provider.clone(), chain_id, prev_block_number, prev_state_root);
 
         // Warm up predeployed contract info.
         load_predeployed_contracts(&rpc_db).await?;
@@ -108,7 +103,7 @@ impl HostExecutor {
             ));
             state_for_verification.state_root()
         };
-        let expected_state_root = disk_root.disk_root;
+        let expected_state_root = block.header.state_root;
         if computed_state_root != expected_state_root {
             bail!(
                 "Mismatched state root after executing block {block_number}: expected {expected_state_root:?}, got {computed_state_root:?}"
@@ -122,8 +117,8 @@ impl HostExecutor {
             block,
             state,
             codes: rpc_db.bytecodes(),
-            prev_state_root: prev_disk_root.disk_root,
-            post_state_root: disk_root.disk_root,
+            prev_state_root,
+            post_state_root,
         })
     }
 }
@@ -139,14 +134,6 @@ async fn load_predeployed_contracts(
         .fetch_storage_at(WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT)
         .await
         .context("failed to fetch WITHDRAW_ROOT_ADDRESS storage slot")?;
-    rpc_db
-        .fetch_account_info(SEQUENCER_ROOT_ADDRESS)
-        .await
-        .context("failed to fetch SEQUENCER_ROOT_ADDRESS account info")?;
-    rpc_db
-        .fetch_storage_at(SEQUENCER_ROOT_ADDRESS, SEQUENCER_ROOT_SLOT)
-        .await
-        .context("failed to fetch SEQUENCER_ROOT_ADDRESS storage slot")?;
     Ok(())
 }
 

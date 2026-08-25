@@ -87,8 +87,13 @@ async fn metric_mng() {
 }
 
 async fn start_prover() {
-    let mut prover = Prover::new(Arc::clone(&PROVE_QUEUE)).unwrap();
-    prover.prove_for_queue().await;
+    match Prover::new(Arc::clone(&PROVE_QUEUE)).await {
+        Ok(mut prover) => prover.prove_for_queue().await,
+        Err(err) => {
+            log::error!("failed to initialize prover: {err:#}");
+            PROVE_RESULT.set(2);
+        }
+    }
 }
 
 async fn handle_metrics() -> String {

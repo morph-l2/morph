@@ -12,6 +12,9 @@ on:
             - "gas-oracle/**"
             - ".github/workflows/gas-oracle.yaml"
 
+permissions:
+    contents: read
+
 defaults:
     run:
         working-directory: "gas-oracle"

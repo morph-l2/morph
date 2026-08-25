@@ -9,6 +9,7 @@ import (
 
 	"github.com/morph-l2/go-ethereum/common"
 	gethTypes "github.com/morph-l2/go-ethereum/core/types"
+	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	"github.com/urfave/cli"
@@ -40,7 +41,9 @@ func TestSyncer_GetL1Message(t *testing.T) {
 	store.WriteLatestSyncedL1Height(100)
 	syncConfig := DefaultConfig()
 	_ = syncConfig.SetCliContext(ctx)
-	syncer, err := NewSyncer(context.Background(), store, syncConfig, tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)))
+	l1Client, err := ethclient.Dial(syncConfig.L1.Addr)
+	require.NoError(t, err)
+	syncer, err := NewSyncer(context.Background(), store, syncConfig, tmlog.NewTMLogger(tmlog.NewSyncWriter(os.Stdout)), l1Client)
 	require.NotNil(t, syncer)
 	require.NoError(t, err)
 

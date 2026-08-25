@@ -1,11 +1,11 @@
 version: '3.8'
 
 volumes:
-  sequencer_geth_data:
+  sequencer_el_data:
   sequencer_node_data:
 
 services:
-  sequencer_geth:
+  morph-el-0:
     image: morph/l2geth:latest
     ports:
       - "8545:8545"
@@ -18,7 +18,7 @@ services:
       timeout: 5s
       retries: 3
     volumes:
-      - "sequencer_geth_data:${GETH_DATA_DIR}"
+      - "sequencer_el_data:${GETH_DATA_DIR}"
       - "${PWD}/jwt-secret.txt:${JWT_SECRET_PATH}"
       - "${PWD}/genesis_geth.json:${GENESIS_FILE_PATH}"
     entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
@@ -27,7 +27,7 @@ services:
 
   sequencer_node:
     depends_on:
-      sequencer_geth:
+      morph-el-0:
         condition: service_started
     build:
       context: ..
@@ -37,8 +37,8 @@ services:
       - "26656:26656"
     environment:
       - EMPTY_BLOCK_DELAY=true
-      - MORPH_NODE_L2_ETH_RPC=http://sequencer_geth:8545
-      - MORPH_NODE_L2_ENGINE_RPC=http://sequencer_geth:8551
+      - MORPH_NODE_L2_ETH_RPC=http://morph-el-0:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://morph-el-0:8551
       - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
       ## todo need to replace it to a public network
       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
@@ -54,7 +54,7 @@ services:
 
   tx-submitter:
     depends_on:
-      sequencer_geth:
+      morph-el-0:
         condition: service_started
       sequencer_node:
         condition: service_started
@@ -62,7 +62,7 @@ services:
     command: rollup
     environment:
       - TX_SUBMITTER_L1_PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-      - TX_SUBMITTER_L2_RPC_URL=http://sequencer_geth:8545
+      - TX_SUBMITTER_L2_RPC_URL=http://morph-el-0:8545
       - TX_SUBMITTER_L1_RPC_URL=${L1_ETH_RPC}
       - TX_SUBMITTER_ROLLUP_CONTRACT_ADDRESS=0x6900000000000000000000000000000000000010
       - TX_SUBMITTER_EVENT_NAME=SubmitBatches

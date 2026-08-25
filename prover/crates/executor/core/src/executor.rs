@@ -8,6 +8,7 @@ use morph_chainspec::hardfork::MorphHardforks;
 use morph_chainspec::MORPH_HOODI;
 use morph_chainspec::MORPH_MAINNET;
 use morph_primitives::MorphTxEnvelope;
+use morph_revm::L1BlockInfo;
 use morph_revm::MorphBlockEnv;
 use morph_revm::MorphEvm;
 use revm::MainContext;
@@ -36,7 +37,8 @@ impl<DB: Database> MorphExecutor<DB> {
             .with_db(db)
             .with_block(input.block_env)
             .with_cfg(input.cfg_env)
-            .with_tx(Default::default());
+            .with_tx(Default::default())
+            .with_chain(L1BlockInfo::default());
 
         let evm = MorphEvm::new(ctx, NoOpInspector {});
         Self { inner: evm }

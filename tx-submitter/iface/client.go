@@ -38,6 +38,11 @@ type L2Clients struct {
 	Clients []L2Client
 }
 
+// Len returns the number of configured L2 clients.
+func (c *L2Clients) Len() int {
+	return len(c.Clients)
+}
+
 // getFirstClient returns the first available client, or an error if no clients are available
 func (c *L2Clients) getFirstClient() (L2Client, error) {
 	if len(c.Clients) == 0 {
@@ -254,8 +259,8 @@ func (c *L2Clients) GetRollupBatchByIndex(ctx context.Context, batchIndex uint64
 		if err != nil {
 			return err
 		}
-		if result != nil && len(result.Signatures) > 0 {
-			return nil
+		if result == nil {
+			return errors.New("rollup batch not found")
 		}
 		return nil
 	})

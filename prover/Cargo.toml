@@ -19,7 +19,7 @@ resolver = "2"
 [workspace.package]
 version = "2.0.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.91.0"
 authors = ["developers"]
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/morph-l2/morph/tree/main/prover"
@@ -28,7 +28,7 @@ repository = "https://github.com/morph-l2/morph/tree/main/prover"
 [workspace.dependencies]
 # General Utilities
 anyhow = "1.0"
-cfg-if = "1.0.0"
+cfg-if = "1.0.4"
 clap = "4"
 csv = "1.3"
 ctor = "0.2"
@@ -59,10 +59,13 @@ prometheus = { version = "0.9", features = ["process"] }
 prometheus-client = "0.22"
 
 # Compression
+# zstd decompression, the pure Rust implementation used in riscv client.
 ruzstd = { git = "https://github.com/KillingSpark/zstd-rs.git", branch = "master" }
-zstd = { git = "https://github.com/scroll-tech/zstd-rs", branch = "hack/mul-block", features = [
+# zstd compression, the C implementation used in host.
+zstd = { git = "https://github.com/morph-l2/zstd-rs.git", branch = "zstd-dev", features = [
     "experimental",
 ] }
+
 
 # Crypto
 c-kzg = "2.1.5"
@@ -117,15 +120,15 @@ revm = { version = "33.1.0", features = [
 reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.0", default-features = false }
 reth-storage-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.0", default-features = false }
 reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.0", default-features = false }
-morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "release/0.1.x" }
-morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", branch = "release/0.1.x" }
-morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", branch = "release/0.1.x" }
+morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", tag = "v0.2.0" }
+morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", tag = "v0.2.0" }
+morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", tag = "v0.2.0" }
 
 
 # ZK / SP1
-sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", tag = "v5.2.4" }
-sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git", tag = "v5.2.4" }
-sp1-verifier = { git = "https://github.com/succinctlabs/sp1.git", tag = "v5.2.4" }
+sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", tag = "v6.2.0" }
+sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git", tag = "v6.2.0" }
+sp1-verifier = { git = "https://github.com/succinctlabs/sp1.git", tag = "v6.2.0" }
 
 # Workspace Members
 morph-prove = { path = "bin/host", default-features = false }
@@ -145,8 +148,10 @@ missing-debug-implementations = "deny"
 
 [patch.crates-io]
 # Precompile patches
-sha2 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", tag = "patch-sha2-0.10.9-sp1-4.0.0", package = "sha2" }
-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-5.0.0", package = "substrate-bn" }
-sha3 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", tag = "patch-sha3-0.10.8-sp1-4.0.0" }
-k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-5.0.0" }
-p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-5.0.0" }
+k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-6.2.0" }
+p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-6.2.0" }
+
+# Use the same local zstd implementation for transitive users (notably sp1-sdk)
+# to avoid multiple libzstd C implementations with different experimental
+# parameter numbers being linked into the same binary.
+zstd = { git = "https://github.com/morph-l2/zstd-rs.git", branch = "zstd-dev" }
