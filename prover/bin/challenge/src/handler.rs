@@ -16,7 +16,7 @@ use std::error::Error;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::time::{sleep, timeout};
+use tokio::time::{sleep, timeout, Instant};
 use transaction::eip2718::TypedTransaction;
 
 #[derive(Serialize)]
@@ -45,6 +45,7 @@ mod task_status {
 type RollupType = Rollup<SignerMiddleware<Provider<Http>, LocalWallet>>;
 
 const MAX_RETRY_TIMES: u8 = 2;
+const EXT_SIGNER_PROBE_INTERVAL: Duration = Duration::from_secs(10 * 60);
 
 #[derive(Clone)]
 pub struct ChallengeHandler {
@@ -108,8 +109,19 @@ impl ChallengeHandler {
         Ok(())
     }
     async fn handle_with_prover(&self, l2_rpc: String, l1_provider: &Provider<Http>, l1_rollup: &RollupType) {
+        let mut next_ext_signer_probe_at = Instant::now();
+
         loop {
             sleep(Duration::from_secs(30)).await;
+
+            if self.ext_signer.is_some() && Instant::now() >= next_ext_signer_probe_at {
+                // Schedule the next attempt before probing so failures are not retried every loop.
+                next_ext_signer_probe_at = Instant::now() + EXT_SIGNER_PROBE_INTERVAL;
+                if let Err(e) = self.probe_ext_signer(l1_rollup).await {
+                    log::error!("ext-signer health check failed: {:#?}", e);
+                    continue;
+                }
+            }
 
             // Step1. fetch latest blocknum.
             let latest = match l1_provider.get_block_number().await {
@@ -166,11 +178,11 @@ impl ChallengeHandler {
             log::info!(
                 "batch info: batch index = {:#?}, blocks len = {:#?}, start_block = {:#?}, end_block = {:#?}",
                 batch_info.batch_index,
-                batch_info.end_block - batch_info.start_block + 1,
+                blocks_len,
                 batch_info.start_block,
                 batch_info.end_block,
             );
-            METRICS.blocks_len.set((batch_info.end_block - batch_info.start_block + 1) as i64);
+            METRICS.blocks_len.set(blocks_len as i64);
 
             if let Some(batch_proof) = query_proof(batch_index).await {
                 if !batch_proof.proof_data.is_empty() {
@@ -220,7 +232,7 @@ impl ChallengeHandler {
             }
 
             // Step5. query proof and prove onchain state.
-            let mut max_waiting_time: usize = 300 * (blocks_len as usize + 1); //block_prove_time <=5min
+            let mut max_waiting_time: usize = 20 * 60;
             while max_waiting_time > 60 {
                 sleep(Duration::from_secs(60)).await;
                 max_waiting_time -= 60;
@@ -240,6 +252,30 @@ impl ChallengeHandler {
                 }
             }
         }
+    }
+
+    /// Probes ext-signer with a representative `l1_rollup.prove_state` transaction.
+    /// The signed transaction is discarded and must never be broadcast.
+    async fn probe_ext_signer(&self, l1_rollup: &RollupType) -> Result<(), Box<dyn Error>> {
+        let Some(signer) = &self.ext_signer else {
+            return Ok(());
+        };
+
+        // Match the encoded batch-header and Plonk-proof lengths used by real calls.
+        // The placeholder contents are intentionally invalid because this tx is sign-only.
+        let call = l1_rollup.prove_state(Bytes::from(vec![1u8; 257]), Bytes::from(vec![1u8; 864]));
+        let method_sig = call.function.abi_signature();
+        let mut tx = TypedTransaction::Eip1559(Eip1559TransactionRequest::new().data(call.calldata().unwrap_or_default()));
+        tx.set_to(l1_rollup.address());
+        tx.set_from(Address::from_str(&signer.address).map_err(|e| anyhow!("invalid signer address '{}': {}", signer.address, e))?);
+        tx.set_chain_id(l1_rollup.client().signer().chain_id());
+
+        log::info!("request ext-signer health check, method_sig: {}", method_sig);
+        let signed_tx = timeout(Duration::from_secs(20), signer.sign(&tx, &method_sig))
+            .await
+            .map_err(|_| anyhow!("remote signer timeout (20s), method_sig: {}", method_sig))??;
+        log::info!("ext-signer health check succeeded, signed_tx_len: {}", signed_tx.len());
+        Ok(())
     }
 
     async fn prove_state(&self, batch_index: u64, batch_header: Bytes, batch_proof: ProveResult, l1_rollup: &RollupType) -> bool {
