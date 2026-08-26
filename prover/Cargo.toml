@@ -59,8 +59,8 @@ prometheus = { version = "0.9", features = ["process"] }
 prometheus-client = "0.22"
 
 # DA Codec
-morph-da-encoder-core = { git = "https://github.com/morph-l2/morph-da-codec.git", branch = "main" }
-morph-da-decoder-core = { git = "https://github.com/morph-l2/morph-da-codec.git", branch = "main" }
+morph-da-encoder-core = { git = "https://github.com/morph-l2/morph-da-codec.git", rev = "681727561e38d07c3ca7ad3017bea7f165b68783" }
+morph-da-decoder-core = { git = "https://github.com/morph-l2/morph-da-codec.git", rev = "681727561e38d07c3ca7ad3017bea7f165b68783" }
 
 
 # Crypto

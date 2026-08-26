@@ -4367,7 +4367,7 @@ dependencies = [
 [[package]]
 name = "morph-da-decoder-core"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/morph-da-codec.git?branch=main#681727561e38d07c3ca7ad3017bea7f165b68783"
+source = "git+https://github.com/morph-l2/morph-da-codec.git?rev=681727561e38d07c3ca7ad3017bea7f165b68783#681727561e38d07c3ca7ad3017bea7f165b68783"
 dependencies = [
  "ruzstd",
 ]
@@ -4375,7 +4375,7 @@ dependencies = [
 [[package]]
 name = "morph-da-encoder-core"
 version = "0.1.0"
-source = "git+https://github.com/morph-l2/morph-da-codec.git?branch=main#681727561e38d07c3ca7ad3017bea7f165b68783"
+source = "git+https://github.com/morph-l2/morph-da-codec.git?rev=681727561e38d07c3ca7ad3017bea7f165b68783#681727561e38d07c3ca7ad3017bea7f165b68783"
 dependencies = [
  "zstd",
 ]

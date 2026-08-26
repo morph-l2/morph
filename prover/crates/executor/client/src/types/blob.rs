@@ -1,9 +1,6 @@
 use anyhow::anyhow;
 use morph_da_decoder_core::decompress_morph_da_zstd;
 
-/// This magic number is included at the start of a single Zstandard frame
-pub const MAGIC_NUM: u32 = 0xFD2F_B528;
-
 /// The number of coefficients (BLS12-381 scalars) to represent the blob polynomial in
 /// evaluationform.
 pub const BLOB_WIDTH: usize = 4096;
