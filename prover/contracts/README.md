@@ -17,5 +17,5 @@ $ forge test
 
 ### Deploy
 ```
-forge create --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --rpc-url http://localhost:8545 prover/contracts/src/EvmVerifier.sol:EvmVerifier --constructor-args 0x00da5ade7ec0ec902618c53b616ac96f47de1cb79b450f815a7c6cbebd6ffaef
+forge create --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --rpc-url http://localhost:8545 prover/contracts/src/EvmVerifier.sol:EvmVerifier --constructor-args 0x001fe18a35489f0e7ae203bc2b1f26b7696f00bafa8000518c94a479d29c4076
 ```
