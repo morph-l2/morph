@@ -271,7 +271,7 @@ impl ChallengeHandler {
         tx.set_chain_id(l1_rollup.client().signer().chain_id());
 
         log::info!("request ext-signer health check, method_sig: {}", method_sig);
-        let signed_tx = timeout(Duration::from_secs(20), signer.sign(&tx, &method_sig))
+        let signed_tx = timeout(Duration::from_secs(20), signer.sign_v1(&tx))
             .await
             .map_err(|_| anyhow!("remote signer timeout (20s), method_sig: {}", method_sig))??;
         log::info!("ext-signer health check succeeded, signed_tx_len: {}", signed_tx.len());
@@ -620,7 +620,7 @@ async fn sign_tx(
 ) -> Result<Bytes, Box<dyn Error>> {
     if let Some(signer) = ext_signer {
         log::info!("request remote sign, method_sig: {}", method_sig);
-        let signed_tx = timeout(Duration::from_secs(60), signer.sign(&tx, method_sig))
+        let signed_tx = timeout(Duration::from_secs(60), signer.sign_v1(&tx))
             .await
             .map_err(|_| anyhow!("remote signer timeout (60s), method_sig: {}", method_sig))??;
         Ok(signed_tx)
