@@ -1,4 +1,3 @@
-
 /// Predeployed L2ToL1Message
 pub mod l2_to_l1_message {
     use alloy_primitives::{address, uint, Address, U256};
