@@ -70,7 +70,7 @@ impl BlockInput {
             .parent_state
             .storage_tries
             .get(&hashed_address)
-            .expect("A storage trie must be provided for each account");
+            .ok_or(ClientError::MissingTrie(address))?;
         let account =
             self.parent_state.state_trie.get_rlp::<TrieAccount>(hashed_address.as_slice())?;
         let storage_root = account.map_or(EMPTY_ROOT_HASH, |account| account.storage_root);
@@ -79,8 +79,7 @@ impl BlockInput {
         }
 
         Ok(storage_trie
-            .get_rlp::<U256>(keccak256(index.to_be_bytes::<32>()).as_slice())
-            .expect("Can get from MPT")
+            .get_rlp::<U256>(keccak256(index.to_be_bytes::<32>()).as_slice())?
             .unwrap_or_default())
     }
 }
