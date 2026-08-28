@@ -23,6 +23,7 @@ type L1ClientWrapper struct {
 	CallContractResult []byte
 	CodeAtErr          error
 	CodeAtResult       []byte
+	EstimateGasErr     error
 	BaseFee            *big.Int
 	Header             *types.Header
 	// Track transactions and their status
@@ -191,6 +192,9 @@ func (l *L1ClientWrapper) SuggestGasTipCap(ctx context.Context) (*big.Int, error
 }
 
 func (l *L1ClientWrapper) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
+	if l.EstimateGasErr != nil {
+		return 0, l.EstimateGasErr
+	}
 	return 21000, nil
 }
 
