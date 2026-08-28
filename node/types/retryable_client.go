@@ -282,10 +282,6 @@ func (rc *RetryableClient) SetBlockTags(ctx context.Context, safeBlockHash commo
 //     block, derivation logs an Error, and the next poll re-evaluates.
 //   - DiscontinuousBlockError: structurally invalid input that no amount
 //     of retry will fix.
-//   - context.Canceled / context.DeadlineExceeded: the caller's context is
-//     already done (typically process shutdown), so no retry can succeed.
-//     The backoff loop is not context-bound, so without this the caller is
-//     held for the full 30-minute budget after cancellation.
 //
 // retryableError returns true for transient errors that should be retried.
 // Permanent logic errors (wrong block number, missing parent) and block
@@ -293,9 +289,6 @@ func (rc *RetryableClient) SetBlockTags(ctx context.Context, safeBlockHash commo
 // because the same payload will always fail and only delay error surfacing.
 func retryableError(err error) bool {
 	if errors.Is(err, ethereum.NotFound) {
-		return false
-	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
 	msg := err.Error()

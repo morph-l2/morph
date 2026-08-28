@@ -1,7 +1,6 @@
 package types
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -75,14 +74,6 @@ func TestRetryableError_NotFoundIsPermanent(t *testing.T) {
 	if retryableError(wrapped) {
 		t.Fatal("wrapped ethereum.NotFound must be non-retryable")
 	}
-}
-
-// The backoff loop is not context-bound, so a canceled caller only unblocks
-// if the context error itself is classified permanent.
-func TestRetryableError_ContextErrorsArePermanent(t *testing.T) {
-	require.False(t, retryableError(context.Canceled))
-	require.False(t, retryableError(context.DeadlineExceeded))
-	require.False(t, retryableError(fmt.Errorf("BlockNumber: %w", context.Canceled)))
 }
 
 func TestRetryableError_DiscontinuousBlockIsPermanent(t *testing.T) {

@@ -775,7 +775,11 @@ func (d *Derivation) getL1Message(l1MessagePopped, l1MsgNum uint64) ([]types.L1M
 func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 	var lastHeader *eth.Header
 	for _, blockData := range rollupData.blockContexts {
-		latestBlockNumber, err := d.l2Client.BlockNumber(d.ctx)
+		// Deliberately not d.ctx: RetryableClient's backoff loop is not
+		// context-bound and treats a canceled context as retryable, so
+		// passing d.ctx here would spin until the 30-minute retry budget
+		// expires instead of returning.
+		latestBlockNumber, err := d.l2Client.BlockNumber(context.Background())
 		if err != nil {
 			return nil, fmt.Errorf("get derivation geth block number error:%v", err)
 		}
