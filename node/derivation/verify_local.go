@@ -116,20 +116,17 @@ func (d *Derivation) fetchBatchInfoOutline(ctx context.Context, txHash common.Ha
 //
 // Failure paths intentionally inline metric inc + structured log + error
 // construction at each kind site rather than route through a shared
-// helper. One error-wrapping invariant the call site (derivation.go)
-// relies on:
+// helper. On error wrapping:
 //
-//   - kind=versioned_hash_mismatch and kind=blob_count_mismatch wrap
-//     ErrBatchVerifyDivergence so the call site flips BatchStatus to
-//     stateException ONLY on a real "verifier reached unequal verdict";
-//     transient / runtime errors must NOT light up the divergence alert.
-//     versioned_hash_mismatch will additionally be the self-heal trigger
-//     once the EL change lands (see file-level comment).
+//   - kind=blob_count_mismatch wraps ErrBatchVerifyDivergence, but this
+//     function's call site in derivation.go only logs and retries -- it
+//     does not read the sentinel. BatchStatus=stateException is set only
+//     on verifyBatchRoots failures (state / withdrawal root vs L1).
 //
 // All other kinds are plain errors. When you add a new kind, decide
 // deliberately whether it represents "verifier could not run" (no
 // sentinel) vs "verifier produced a divergence verdict" (wrap
-// ErrBatchVerifyDivergence) and update the SentinelContract test.
+// ErrBatchVerifyDivergence).
 func (d *Derivation) rebuildBlob(ctx context.Context, batchInfo *BatchInfo) ([]common.Hash, error) {
 	d.metrics.IncLocalVerifyTriggered()
 
