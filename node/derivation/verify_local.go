@@ -23,11 +23,18 @@ import (
 // declared by the L1 commitBatch tx (carried in BatchInfo.blobHashes).
 //
 // State / withdrawal root verification (verify.go::verifyBatchRoots) is
-// independent of this path and runs after success. Only that check can
-// set BatchStatus=stateException.
+// independent of this path and runs after success.
 //
-// Hash mismatch after rebuild is handled in derivation.go (self-heal via
-// deriveForce). blob_count_mismatch is a packing error: log and retry.
+// On versioned_hash_mismatch the spec (SPEC-005 §4.3) calls for a
+// single-batch self-heal: pull the real blob from beacon, decode + derive
+// the batch via the layer1 engine API path (which would replace the
+// locally divergent blocks via EL forkchoice), then re-run the shared
+// verifyBatchRoots. That self-heal is **currently TODO** and not wired
+// up here -- it is blocked on the EL number-continuity check (`params.Number
+// == latestNumber + 1` in morph-reth `crates/engine-api/src/builder.rs`
+// and go-ethereum `eth/catalyst/l2_api.go`) being relaxed in a separate
+// spec. Until then a versioned_hash_mismatch falls through to the legacy
+// failure path (log + return + retry next poll).
 //
 // Mode is selected at startup via --derivation.verify-mode and is not
 // switchable at runtime.
@@ -107,12 +114,19 @@ func (d *Derivation) fetchBatchInfoOutline(ctx context.Context, txHash common.Ha
 // range and compares them against batchInfo.blobHashes (taken from the L1
 // commitBatch tx). Returns nil on match.
 //
-// Failure paths log a structured kind and return a plain error. The call
-// site logs and retries; it does not set stateException.
+// Failure paths intentionally inline metric inc + structured log + error
+// construction at each kind site rather than route through a shared
+// helper. On error wrapping:
 //
-// blob_count_mismatch means local packing disagrees with the L1 commit
-// tx's blob count. That is not a state-root verdict and must not wrap
-// ErrBatchVerifyDivergence.
+//   - kind=blob_count_mismatch wraps ErrBatchVerifyDivergence, but this
+//     function's call site in derivation.go only logs and retries -- it
+//     does not read the sentinel. BatchStatus=stateException is set only
+//     on verifyBatchRoots failures (state / withdrawal root vs L1).
+//
+// All other kinds are plain errors. When you add a new kind, decide
+// deliberately whether it represents "verifier could not run" (no
+// sentinel) vs "verifier produced a divergence verdict" (wrap
+// ErrBatchVerifyDivergence).
 func (d *Derivation) rebuildBlob(ctx context.Context, batchInfo *BatchInfo) ([]common.Hash, error) {
 	d.metrics.IncLocalVerifyTriggered()
 
@@ -207,8 +221,8 @@ func (d *Derivation) rebuildBlob(ctx context.Context, batchInfo *BatchInfo) ([]c
 				"rebuiltHashes", hashesHexCSV(rebuilt),
 				"expectedHashes", hashesHexCSV(batchInfo.blobHashes),
 			}, logBase...)...)
-		return nil, fmt.Errorf("local verify [blob_count_mismatch]: blob count mismatch (rebuilt=%d, l1=%d)",
-			len(rebuilt), len(batchInfo.blobHashes))
+		return nil, fmt.Errorf("local verify [blob_count_mismatch]: blob count mismatch (rebuilt=%d, l1=%d): %w",
+			len(rebuilt), len(batchInfo.blobHashes), ErrBatchVerifyDivergence)
 	}
 	return rebuilt, nil
 }

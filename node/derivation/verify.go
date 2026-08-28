@@ -10,13 +10,19 @@ import (
 	eth "github.com/morph-l2/go-ethereum/core/types"
 )
 
-// ErrBatchVerifyDivergence is wrapped by verifyBatchRoots when local
-// stateRoot or withdrawalRoot disagrees with L1 calldata. derivation.go
-// sets BatchStatus=stateException only on that path.
+// ErrBatchVerifyDivergence is wrapped by verification errors that represent
+// a true "verifier reached a verdict of inconsistent" — i.e. the local
+// chain disagrees with what L1 committed. Currently produced by:
+//   - verifyBatchRoots, when local stateRoot or withdrawalRoot ≠ L1 calldata
+//   - verify_local's rebuildBlob, for kind blob_count_mismatch
 //
-// Blob/content errors (rebuildBlob count or hash mismatch) are a different
-// class and must not wrap this sentinel. Transient failures (RPC, parse,
-// encode) also must not wrap it.
+// Only the verifyBatchRoots call site in derivation.go gates
+// `metrics.SetBatchStatus(stateException)` on errors.Is(err,
+// ErrBatchVerifyDivergence); the rebuildBlob failure path logs and retries
+// without inspecting the sentinel. Transient or runtime errors
+// (RPC down, tx parsing failure, encoding bug, ...) intentionally do NOT
+// wrap this sentinel: they reflect "verifier could not run", not "verifier
+// determined divergence", and must not light up the divergence alert.
 var ErrBatchVerifyDivergence = errors.New("batch verify: divergence verdict")
 
 // verifyBatchRoots verifies the local state root and withdrawal root against the

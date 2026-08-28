@@ -20,9 +20,12 @@ type Metrics struct {
 	LatestBatchIndex metrics.Gauge
 	SyncedBatchIndex metrics.Gauge
 
-	// LocalVerifyTriggered increments once per local-verify batch.
-	// Failures are Error logs. BatchStatus=stateException is set only from
-	// verifyBatchRoots, not from this path.
+	// LocalVerifyTriggered increments once per batch processed under
+	// VerifyModeLocal -- presence/absence on dashboards confirms the local
+	// verifier is running. Failure tracking is intentionally not split into
+	// separate counters; failures surface as Error logs only --
+	// BatchStatus=stateException is set from verifyBatchRoots, not from
+	// this path.
 	LocalVerifyTriggered metrics.Counter
 
 	// Tag management metrics. SafeL2BlockNumber / FinalizedL2BlockNumber are
