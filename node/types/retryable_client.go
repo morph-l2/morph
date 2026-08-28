@@ -46,26 +46,20 @@ const (
 type RetryableClient struct {
 	authClient *authclient.Client
 	ethClient  *ethclient.Client
+	b          backoff.BackOff
 	logger     tmlog.Logger
 }
 
 func NewRetryableClient(authClient *authclient.Client, ethClient *ethclient.Client, logger tmlog.Logger) *RetryableClient {
 	logger = logger.With("module", "retryClient")
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = GethRetryMaxElapsedTime
 	return &RetryableClient{
 		authClient: authClient,
 		ethClient:  ethClient,
+		b:          bo,
 		logger:     logger,
 	}
-}
-
-// retryPolicy builds the backoff for a single call. It is bound to ctx so a
-// canceled caller (process shutdown) aborts the retry loop instead of
-// spinning until GethRetryMaxElapsedTime. A per-call instance is required:
-// backoff.BackOff carries attempt state and these methods run concurrently.
-func retryPolicy(ctx context.Context) backoff.BackOffContext {
-	bo := backoff.NewExponentialBackOff()
-	bo.MaxElapsedTime = GethRetryMaxElapsedTime
-	return backoff.WithContext(bo, ctx)
 }
 
 func (rc *RetryableClient) AssembleL2Block(ctx context.Context, number *big.Int, transactions eth.Transactions) (ret *catalyst.ExecutableL2Data, err error) {
@@ -81,7 +75,7 @@ func (rc *RetryableClient) AssembleL2Block(ctx context.Context, number *big.Int,
 		}
 		ret = resp
 		return nil
-	}, retryPolicy(ctx)); retryErr != nil {
+	}, rc.b); retryErr != nil {
 		return nil, retryErr
 	}
 	return
@@ -99,7 +93,7 @@ func (rc *RetryableClient) ValidateL2Block(ctx context.Context, executableL2Data
 		}
 		ret = resp
 		return nil
-	}, retryPolicy(ctx)); retryErr != nil {
+	}, rc.b); retryErr != nil {
 		return false, retryErr
 	}
 	return
@@ -118,7 +112,7 @@ func (rc *RetryableClient) NewL2Block(ctx context.Context, executableL2Data *cat
 			err = respErr
 		}
 		return nil
-	}, retryPolicy(ctx)); retryErr != nil {
+	}, rc.b); retryErr != nil {
 		return retryErr
 	}
 	return
@@ -139,7 +133,7 @@ func (rc *RetryableClient) NewL2BlockV2(ctx context.Context, executableL2Data *c
 		}
 		header = respHeader
 		return nil
-	}, retryPolicy(ctx)); retryErr != nil {
+	}, rc.b); retryErr != nil {
 		return nil, retryErr
 	}
 	return
@@ -157,7 +151,7 @@ func (rc *RetryableClient) NewSafeL2Block(ctx context.Context, safeL2Data *catal
 		}
 		ret = resp
 		return nil
-	}, retryPolicy(ctx)); retryErr != nil {
+	}, rc.b); retryErr != nil {
 		return nil, retryErr
 	}
 	return
@@ -175,7 +169,7 @@ func (rc *RetryableClient) BlockNumber(ctx context.Context) (ret uint64, err err
 		}
 		ret = resp
 		return nil
-	}, retryPolicy(ctx)); retryErr != nil {
+	}, rc.b); retryErr != nil {
 		return 0, retryErr
 	}
 	return
@@ -194,7 +188,7 @@ func (rc *RetryableClient) HeaderByNumber(ctx context.Context, blockNumber *big.
 		}
 		ret = resp
 		return nil
-	}, retryPolicy(ctx)); retryErr != nil {
+	}, rc.b); retryErr != nil {
 		return nil, retryErr
 	}
 	return
@@ -213,7 +207,7 @@ func (rc *RetryableClient) BlockByNumber(ctx context.Context, blockNumber *big.I
 		}
 		ret = resp
 		return nil
-	}, retryPolicy(ctx)); retryErr != nil {
+	}, rc.b); retryErr != nil {
 		return nil, retryErr
 	}
 	return
@@ -231,7 +225,7 @@ func (rc *RetryableClient) CallContract(ctx context.Context, call ethereum.CallM
 		}
 		ret = resp
 		return nil
-	}, retryPolicy(ctx)); retryErr != nil {
+	}, rc.b); retryErr != nil {
 		return nil, retryErr
 	}
 	return
@@ -249,7 +243,7 @@ func (rc *RetryableClient) CodeAt(ctx context.Context, contract common.Address, 
 		}
 		ret = resp
 		return nil
-	}, retryPolicy(ctx)); retryErr != nil {
+	}, rc.b); retryErr != nil {
 		return nil, retryErr
 	}
 	return
@@ -266,7 +260,7 @@ func (rc *RetryableClient) SetBlockTags(ctx context.Context, safeBlockHash commo
 			err = respErr
 		}
 		return nil
-	}, retryPolicy(ctx)); retryErr != nil {
+	}, rc.b); retryErr != nil {
 		return retryErr
 	}
 	return
@@ -288,9 +282,10 @@ func (rc *RetryableClient) SetBlockTags(ctx context.Context, safeBlockHash commo
 //     block, derivation logs an Error, and the next poll re-evaluates.
 //   - DiscontinuousBlockError: structurally invalid input that no amount
 //     of retry will fix.
-//   - context.Canceled / context.DeadlineExceeded: the caller is gone (or
-//     the process is shutting down). Retrying cannot succeed and would
-//     hold the caller for the full backoff budget.
+//   - context.Canceled / context.DeadlineExceeded: the caller's context is
+//     already done (typically process shutdown), so no retry can succeed.
+//     The backoff loop is not context-bound, so without this the caller is
+//     held for the full 30-minute budget after cancellation.
 //
 // retryableError returns true for transient errors that should be retried.
 // Permanent logic errors (wrong block number, missing parent) and block
@@ -329,7 +324,7 @@ func (rc *RetryableClient) AssembleL2BlockV2(ctx context.Context, parentHash com
 		}
 		ret = resp
 		return nil
-	}, retryPolicy(ctx)); retryErr != nil {
+	}, rc.b); retryErr != nil {
 		return nil, retryErr
 	}
 	return

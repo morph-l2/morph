@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
-	"github.com/cenkalti/backoff/v4"
 	"github.com/morph-l2/go-ethereum"
 	"github.com/stretchr/testify/require"
 )
@@ -79,30 +77,12 @@ func TestRetryableError_NotFoundIsPermanent(t *testing.T) {
 	}
 }
 
-// A canceled or expired context must be permanent, and retryPolicy must be
-// bound to the caller's context. Together these bound how long an in-flight
-// call holds the caller during shutdown; without them a canceled caller
-// still waits out the full GethRetryMaxElapsedTime budget.
+// The backoff loop is not context-bound, so a canceled caller only unblocks
+// if the context error itself is classified permanent.
 func TestRetryableError_ContextErrorsArePermanent(t *testing.T) {
 	require.False(t, retryableError(context.Canceled))
 	require.False(t, retryableError(context.DeadlineExceeded))
 	require.False(t, retryableError(fmt.Errorf("BlockNumber: %w", context.Canceled)))
-}
-
-func TestRetryPolicy_StopsOnCanceledContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	attempts := 0
-	start := time.Now()
-	err := backoff.Retry(func() error {
-		attempts++
-		return errors.New("connection refused")
-	}, retryPolicy(ctx))
-
-	require.Error(t, err)
-	require.Equal(t, 1, attempts, "canceled context must not be retried")
-	require.Less(t, time.Since(start), time.Second)
 }
 
 func TestRetryableError_DiscontinuousBlockIsPermanent(t *testing.T) {
