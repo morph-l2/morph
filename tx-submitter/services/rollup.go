@@ -750,6 +750,9 @@ func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 }
 
 func (r *Rollup) finalize() error {
+	if err := r.ensureActiveSubmitter(); err != nil {
+		return fmt.Errorf("skip finalize: %w", err)
+	}
 	// get last finalized
 	lastFinalized, err := r.Rollup.LastFinalizedBatchIndex(nil)
 	if err != nil {
@@ -841,7 +844,7 @@ func (r *Rollup) finalize() error {
 			"error", err,
 		)
 
-		if r.cfg.RoughEstimateGas {
+		if r.cfg.RoughEstimateGas && !utils.IsExecutionRevertErr(err) {
 			gas = r.RoughFinalizeGasEstimate()
 			log.Info("rough estimate finalize gas", "gas", gas)
 		} else {
@@ -913,6 +916,9 @@ func (r *Rollup) finalize() error {
 }
 
 func (r *Rollup) rollup() error {
+	if err := r.ensureActiveSubmitter(); err != nil {
+		return fmt.Errorf("skip rollup: %w", err)
+	}
 	if pendingN := r.pendingTxs.Len(); pendingN > int(r.cfg.MaxTxsInPendingPool) {
 		log.Info("Pending pool full",
 			"current_size", pendingN,
@@ -1009,8 +1015,9 @@ func (r *Rollup) rollup() error {
 	gas, err := r.EstimateGas(r.WalletAddr(), r.rollupAddr, calldata, gasFeeCap, tip, estimateBlobHashes, estimateBlobFeeCap)
 	if err != nil {
 		log.Warn("Estimate gas failed", "batch_index", batchIndex, "error", err)
-		// Use estimation based on L1 message count
-		if r.cfg.RoughEstimateGas {
+		// Use estimation based on L1 message count. A revert is never guessed
+		// around: the tx would be mined only to fail, burning the blob fee.
+		if r.cfg.RoughEstimateGas && !utils.IsExecutionRevertErr(err) {
 			msgcnt := utils.ParseL1MessageCnt(rpcRollupBatch.BlockContexts)
 			gas = r.RoughRollupGasEstimate(msgcnt)
 			log.Info("Using rough gas estimation",
@@ -1322,6 +1329,18 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, *ethtypes.Head
 
 // PreCheck is run before the submitter to check whether the submitter can be started
 func (r *Rollup) PreCheck() error {
+	return r.ensureActiveSubmitter()
+}
+
+// ensureActiveSubmitter reports whether the configured wallet is an active
+// submitter right now. commitBatch / commitState / finalizeBatch all carry
+// onlyActiveSubmitter, so submitting while inactive mines a reverting tx; for a
+// blob tx the blob fee is charged even on revert. A submitter can be removed,
+// slashed, priced out by a raised minimum stake, or start withdrawing at any
+// point after startup, so every submitting loop must re-check instead of
+// trusting the one-shot startup result. Callers must treat an RPC error here as
+// "do not submit" rather than assuming the wallet is still eligible.
+func (r *Rollup) ensureActiveSubmitter() error {
 	isActive, err := r.Submitter.IsActive(nil, r.WalletAddr())
 	if err != nil {
 		return fmt.Errorf("check Submitter activity: %w", err)
