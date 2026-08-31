@@ -84,9 +84,56 @@ looking anywhere else.
 | L1 | `9545` | `9546` | beacon `4000` |
 | `morph-el-0` | `8545` | `8546` | `node-0` → `26657` |
 | `morph-el-1` | `8645` | `8646` | — |
-| `ha-geth-0/1/2` | `9145` / `9245` / `9345` | `9146` / `9246` / `9346` | `27657` / `27757` / `27857` |
+| `ha-el-0/1/2` | `9145` / `9245` / `9345` | `9146` / `9246` / `9346` | `27657` / `27757` / `27857` |
 
 `ha-node` admin API: `9501` / `9601` / `9701`.
+
+The execution-layer services are named `el` rather than `geth` because either
+client can back them: `docker-compose-cluster.yml` defines them as geth, and
+`docker-compose-reth.yml` overrides them to reth. That override only works
+because the cluster file is layered *before* the reth file — later `-f` files
+win, so the reverse order silently leaves the cluster on geth.
+
+## Execution-layer peering
+
+Discovery is off everywhere (`--nodiscover` / `--disable-discovery`), so peers
+are configured explicitly and the topology is fixed:
+
+- geth reads `static-nodes.json` (mounted into `morph-el-1`) and, for the
+  cluster, `static-nodes-cluster.json` (mounted into all three `ha-el-*`).
+- reth ignores those files and takes `--trusted-peers` on the command line.
+
+Both clients derive their identity from the same `nodekey*` / `ha-nodekey*`
+files, so a node's enode is the same whichever client is running. reth needs
+`--p2p-secret-key` for this; without it, it invents a random identity per
+datadir and no peer list can be written in advance. The key files must not have
+a trailing newline — reth rejects those with `malformed or out-of-range secret
+key`, while geth tolerates them either way.
+
+`morph-el-0` and `morph-el-1` only know each other. The `ha-el-*` nodes dial
+both of those plus each other, which keeps `ha-el-*` names out of the
+non-cluster setup, where they would not resolve.
+
+## Consensus-layer peering
+
+`setup_nodes.py` writes `persistent_peers` for every tendermint home, deriving
+each node ID from the `node_key.json` that ends up installed — which is why the
+key files are copied before the peer list is built. Overwriting a
+`node_key.json` changes the node's identity, so a hardcoded ID silently goes
+stale.
+
+The list contains only the nodes that actually run tendermint: `node-0` and the
+three `ha-node-*`. `node-1` runs with
+`MORPH_NODE_DERIVATION_VERIFY_MODE=layer1` and never starts tendermint, and
+`node-2` has no compose service at all; listing either just produces endless
+reconnect and DNS failures.
+
+The `ha-node-*` reaching each other matters: the sequencer hand-over waits for
+the block pool to report caught up, and a pool whose only peers are unreachable
+never does. That is the silent-stall-at-height-0 failure described above.
+
+RPC is served on `0.0.0.0:26657` inside each container so the published ports in
+the table above are actually reachable from the host.
 
 Each geth serves metrics on `6060` inside its container, with
 `--metrics.expensive` on. Without that flag every counter behind

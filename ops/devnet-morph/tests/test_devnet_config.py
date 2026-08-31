@@ -43,7 +43,7 @@ class DevnetConfigTest(unittest.TestCase):
         makefile = (REPO_ROOT / "Makefile").read_text()
 
         self.assertIn(
-            "DEVNET_CLEAN_COMPOSE_FILES := -f docker-compose-devnet.yml -f docker-compose-reth.yml -f docker-compose-cluster.yml",
+            "DEVNET_CLEAN_COMPOSE_FILES := -f docker-compose-devnet.yml -f docker-compose-cluster.yml -f docker-compose-reth.yml",
             makefile,
         )
         self.assertIn("docker compose $(DEVNET_CLEAN_COMPOSE_FILES) down --volumes --remove-orphans", makefile)
@@ -118,11 +118,87 @@ class DevnetConfigTest(unittest.TestCase):
 
         self.assertTrue(cluster_compose.exists())
         compose = cluster_compose.read_text()
-        for service in ("ha-geth-0:", "ha-geth-1:", "ha-geth-2:", "ha-node-0:", "ha-node-1:", "ha-node-2:"):
+        for service in ("ha-el-0:", "ha-el-1:", "ha-el-2:", "ha-node-0:", "ha-node-1:", "ha-node-2:"):
             self.assertIn(service, compose)
+        self.assertNotIn("ha-geth", compose)
         self.assertIn("MORPH_NODE_HA_ENABLED=true", compose)
         self.assertIn("MORPH_NODE_HA_BOOTSTRAP=true", compose)
         self.assertIn("MORPH_NODE_HA_JOIN=ha-node-0:9401", compose)
+        for index in (0, 1, 2):
+            self.assertIn(f"MORPH_NODE_L2_ETH_RPC=http://ha-el-{index}:8545", compose)
+            self.assertIn(f"MORPH_NODE_L2_ENGINE_RPC=http://ha-el-{index}:8551", compose)
+
+    def test_cluster_geth_nodes_peer_with_each_other(self):
+        """The shared static-nodes.json lists only morph-el-*, so the cluster
+        needs its own file or the ha-el nodes never dial each other."""
+        cluster_static_nodes = (DOCKER_DIR / "static-nodes-cluster.json").read_text()
+
+        for host in ("ha-el-0", "ha-el-1", "ha-el-2", "morph-el-0", "morph-el-1"):
+            self.assertIn(f"@{host}:30303", cluster_static_nodes)
+
+        compose = (DOCKER_DIR / "docker-compose-cluster.yml").read_text()
+        # geth only reads the fixed filename, so the mount has to be renamed on
+        # the way in.
+        self.assertIn(
+            '"${PWD}/static-nodes-cluster.json:/db/geth/static-nodes.json"',
+            compose,
+        )
+
+    def test_reth_compose_configures_deterministic_peering(self):
+        compose = (DOCKER_DIR / "docker-compose-reth.yml").read_text()
+
+        # reth cannot read geth's static-nodes.json, so peers are passed as
+        # flags, and a fixed key file is what makes the enodes predictable.
+        for service, key in (
+            ("morph-el-0", "nodekey0"),
+            ("morph-el-1", "nodekey1"),
+            ("ha-el-0", "ha-nodekey0"),
+            ("ha-el-1", "ha-nodekey1"),
+            ("ha-el-2", "ha-nodekey2"),
+        ):
+            self.assertIn(f"{service}:", compose)
+            self.assertIn(f'"${{PWD}}/{key}:/p2p-secret.key"', compose)
+        self.assertEqual(compose.count("--p2p-secret-key=/p2p-secret.key"), 5)
+        self.assertEqual(compose.count("--trusted-peers="), 5)
+
+    def test_execution_client_keys_have_no_trailing_newline(self):
+        """reth rejects a key file with a trailing newline ("malformed or
+        out-of-range secret key"); geth accepts it either way."""
+        for key in ("nodekey0", "nodekey1", "nodekey2",
+                    "ha-nodekey0", "ha-nodekey1", "ha-nodekey2"):
+            contents = (DOCKER_DIR / key).read_bytes()
+            self.assertEqual(len(contents), 64, f"{key} should be 64 hex characters")
+            self.assertFalse(contents.endswith(b"\n"), f"{key} must not end with a newline")
+
+    def test_tendermint_peers_are_derived_from_installed_node_keys(self):
+        sys.path.insert(0, str(DEVNET_PACKAGE))
+        try:
+            setup_nodes = importlib.import_module("devnet.setup_nodes")
+            importlib.reload(setup_nodes)
+        finally:
+            sys.path.remove(str(DEVNET_PACKAGE))
+
+        # Anchored on the ID that used to be hardcoded in persistent_peers.
+        self.assertEqual(
+            setup_nodes.tendermint_node_id(DOCKER_DIR / "node0" / "node_key.json"),
+            "93e27ea2306e158a8146d5f44caaab97496797d2",
+        )
+
+        # node-1 never starts tendermint and node-2 has no compose service, so
+        # neither may appear as a peer.
+        self.assertEqual(
+            setup_nodes.TENDERMINT_PEERS,
+            ("node0", "ha-node0", "ha-node1", "ha-node2"),
+        )
+
+        source = (DEVNET_PACKAGE / "devnet" / "setup_nodes.py").read_text()
+        # Node IDs come from the keys that end up installed, so the copy step
+        # must run before the peer list is built.
+        self.assertLess(
+            source.index("copy_key_files(docker_dir, devnet_dir)"),
+            source.index("persistent_peers = build_persistent_peers(devnet_dir)"),
+        )
+        self.assertIn('laddr = "tcp://0.0.0.0:26657"', source)
 
     def test_compose_file_args_can_enable_cluster_mode(self):
         sys.path.insert(0, str(DEVNET_PACKAGE))
@@ -141,15 +217,18 @@ class DevnetConfigTest(unittest.TestCase):
             devnet.compose_file_args("geth", cluster=True),
             ["-f", "docker-compose-devnet.yml", "-f", "docker-compose-cluster.yml"],
         )
+        # The cluster file must come first so the reth override wins on the
+        # ha-el-* image, entrypoint and command; reversed, the cluster silently
+        # stays on geth.
         self.assertEqual(
             devnet.compose_file_args("reth", cluster=True),
             [
                 "-f",
                 "docker-compose-devnet.yml",
                 "-f",
-                "docker-compose-reth.yml",
-                "-f",
                 "docker-compose-cluster.yml",
+                "-f",
+                "docker-compose-reth.yml",
             ],
         )
 

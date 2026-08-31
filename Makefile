@@ -161,7 +161,15 @@ export MORPH_RETH_RUSTFLAGS
 export MORPH_RETH_DOCKER_TARGET
 export MORPH_RETH_ENTRYPOINT
 DEVNET_COMPOSE_FILES := -f docker-compose-devnet.yml
-DEVNET_CLEAN_COMPOSE_FILES := -f docker-compose-devnet.yml -f docker-compose-reth.yml -f docker-compose-cluster.yml
+DEVNET_CLEAN_COMPOSE_FILES := -f docker-compose-devnet.yml -f docker-compose-cluster.yml -f docker-compose-reth.yml
+
+# The cluster topology is layered before the execution-client override, so that
+# docker-compose-reth.yml has the last word on the ha-el-* image, entrypoint and
+# command. Swapping these two leaves the cluster nodes running geth even when
+# reth was asked for, because later -f files win.
+ifneq ($(DEVNET_CLUSTER_ENABLED),)
+DEVNET_COMPOSE_FILES += -f docker-compose-cluster.yml
+endif
 
 ifeq ($(EXECUTION_CLIENT),geth)
 DEVNET_EXECUTION_DEPS := submodules
@@ -174,9 +182,6 @@ DEVNET_EXECUTION_DEPS := reth-image
 endif
 else
 $(error unsupported EXECUTION_CLIENT "$(EXECUTION_CLIENT)", expected "geth" or "reth")
-endif
-ifneq ($(DEVNET_CLUSTER_ENABLED),)
-DEVNET_COMPOSE_FILES += -f docker-compose-cluster.yml
 endif
 
 devnet-up: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder
