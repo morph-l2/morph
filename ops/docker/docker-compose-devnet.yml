@@ -271,8 +271,12 @@ services:
     restart: unless-stopped
     ports:
       - "6070:6060"
-    command: >
-      ./app
+    command:
+      - /bin/bash
+      - -c
+      - |
+        until (true > /dev/tcp/morph-el-0/8545) 2>/dev/null; do sleep 1; done
+        exec ./app
     environment:
       - GAS_ORACLE_L1_RPC=${L1_ETH_RPC}
       - GAS_ORACLE_L1_BEACON_RPC=${L1_BEACON_CHAIN_RPC}

@@ -60,6 +60,7 @@ log = logging.getLogger()
 
 GWEI = 1e9
 ETH = GWEI * GWEI
+LEGACY_GENESIS_L1_STAKING_PROXY = '0x000000000000000000000000000000000000dEaD'
 
 
 def compose_file_args(execution_client, cluster=False):
@@ -142,7 +143,7 @@ def devnet_l1(paths, result=None):
     # Start layer1 services
     log.info('Starting layer1 services (layer1-el, layer1-cl, layer1-vc)...')
     run_command(['docker', 'compose', '-f', 'docker-compose-devnet.yml', 'up', '-d',
-                 'layer1-el', 'layer1-cl', 'layer1-vc'], check=False, cwd=paths.ops_dir, env={
+                 'layer1-el', 'layer1-cl', 'layer1-vc'], cwd=paths.ops_dir, env={
             'PWD': paths.ops_dir
         })
     
@@ -202,6 +203,11 @@ def devnet_deploy(paths, args):
     deploy_config = read_json(devnet_cfg_orig)
     deploy_config['l1GenesisBlockTimestamp'] = "0x{:x}".format(int(time.time()))
     deploy_config['l1StartingBlockTag'] = 'earliest'
+    # L2Staking still has the historical OTHER_STAKING immutable, but the live
+    # L1Staking contract has been retired. Keep this compatibility address
+    # separate from Proxy__Submitter so it cannot grant staking authority to
+    # the batch submitter contract.
+    deploy_config['l1StakingProxy'] = LEGACY_GENESIS_L1_STAKING_PROXY
     temp_deploy_config = pjoin(paths.devnet_dir, 'deploy-config.json')
     write_json(temp_deploy_config, deploy_config)
 
@@ -251,9 +257,16 @@ def devnet_deploy(paths, args):
     run_command([
         'npx', 'hardhat', 'initialize', '--network', 'l1', '--storagepath', paths.deployment_dir, '--concurrent', 'true'
     ], env={}, cwd=paths.contracts_dir)
+    batch_submitter_env = {
+        'batchSubmitterPks': json.dumps([args.batch_submitter_private_key]),
+        'DEPLOYER_PRIVATE_KEY': args.deployer_private_key,
+    }
+    run_command([
+        'npx', 'hardhat', 'fund', '--network', 'l1'
+    ], env=batch_submitter_env, cwd=paths.contracts_dir)
     run_command([
         'npx', 'hardhat', 'register', '--network', 'l1', '--storagepath', paths.deployment_dir
-    ], env={'batchSubmitterPks': json.dumps([args.batch_submitter_private_key])}, cwd=paths.contracts_dir)
+    ], env=batch_submitter_env, cwd=paths.contracts_dir)
 
     # run_command([
     #     'npx', 'hardhat', 'staking', '--network', 'l1', '--storagepath', paths.deployment_dir
@@ -265,21 +278,6 @@ def devnet_deploy(paths, args):
     for d in deployment:
         addresses[d['name']] = d['address']
     log.info('Passing L1 contracts address:', addresses)
-
-    log.info('Do Staking Sequencer...')
-    deploy_config['l2StakingAddresses']
-    deploy_config['l2StakingPks']
-    deploy_config['l2StakingTmKeys']
-    deploy_config['l2StakingBlsKeys']
-    for i in range(4):
-        run_command(['cast', 'send', addresses['Proxy__L1Staking'],
-                     'register(bytes32,bytes memory)',
-                     deploy_config['l2StakingTmKeys'][i],
-                     deploy_config['l2StakingBlsKeys'][i],
-                     '--rpc-url', 'http://127.0.0.1:9545',
-                     '--value', '1ether',
-                     '--private-key', deploy_config['l2StakingPks'][i]
-                     ])
 
     configure_l1_sequencer(paths, args, addresses, deploy_config)
     sequencer_upgrade_time = int((time.time() + args.sequencer_upgrade_offset_seconds) * 1000)
@@ -310,7 +308,8 @@ def devnet_deploy(paths, args):
         env_data['BATCH_TIMEOUT'] = str(deploy_config['govBatchTimeout'])
         env_data['BATCH_SUBMITTER_PRIVATE_KEY'] = args.batch_submitter_private_key
         env_data['RUST_LOG'] = rust_log_level
-        env_data['Proxy__L1Staking'] = addresses['Proxy__L1Staking']
+        env_data.pop('Proxy__L1Staking', None)
+        env_data.pop('MORPH_L1STAKING', None)
         env_data['L1_SEQUENCER_CONTRACT'] = addresses.get('Proxy__L1Sequencer', '')
         env_data['SEQUENCER_PRIVATE_KEY'] = args.sequencer_private_key
         env_data['ACTIVE_SEQUENCER_PRIVATE_KEY'] = active_sequencer_private_key
@@ -326,7 +325,7 @@ def devnet_deploy(paths, args):
 
 
 
-    run_command(['docker', 'compose', *compose_file_args(args.execution_client, args.cluster), 'up', '-d'], check=False, cwd=paths.ops_dir,
+    run_command(['docker', 'compose', *compose_file_args(args.execution_client, args.cluster), 'up', '-d'], cwd=paths.ops_dir,
                 env={
                     'MORPH_PORTAL': addresses['Proxy__L1MessageQueueWithGasPriceOracle'],
                     'MORPH_ROLLUP': addresses['Proxy__Rollup'],
