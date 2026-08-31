@@ -1,6 +1,9 @@
 prover/
 .git/
 contracts/node_modules/
+gas-oracle/app/target/
+node/build/
+ops/docker/.devnet/
 ops/reth-cross-test/
 ops/publicnode/
 docs/

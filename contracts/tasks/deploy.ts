@@ -181,7 +181,10 @@ task("register")
         const storagePath = taskArgs.storagepath
         const config = hre.deployConfig
         const owner = await hre.ethers.provider.getSigner();
-        const configuredAddresses: string[] = config.batchSubmitterAddresses;
+        const batchSubmitterPkList: string[] = JSON.parse(process.env.batchSubmitterPks || "[]");
+        const configuredAddresses: string[] = batchSubmitterPkList.length > 0
+            ? batchSubmitterPkList.map((privateKey) => new ethers.Wallet(privateKey).address)
+            : config.batchSubmitterAddresses;
         if (configuredAddresses.length === 0) {
             throw new Error("batchSubmitterAddresses must contain at least one work or backup submitter")
         }
