@@ -13,3 +13,8 @@ const (
 func IsCommitLikeMethod(method string) bool {
 	return method == MethodCommitBatch || method == MethodCommitState
 }
+
+// IsRollupMethod returns true for L1 rollup operations tracked by the submitter.
+func IsRollupMethod(method string) bool {
+	return IsCommitLikeMethod(method) || method == MethodFinalizeBatch
+}

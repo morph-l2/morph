@@ -652,15 +652,25 @@ func (r *Rollup) handleDiscardedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 			return nil
 		}
 
-		// If resubmit failed, try to replace it with a simple transfer transaction
-		log.Warn("Resubmit failed, attempting to replace with simple transfer transaction",
-			"hash", tx.Hash().String(),
-			"nonce", tx.Nonce(),
-			"error", err)
-
-		replacedTx, err = r.createReplacementTransferTx(tx)
-		if err != nil {
-			return fmt.Errorf("failed to create replacement transfer tx: %w", err)
+		if constants.IsRollupMethod(method) {
+			log.Warn("Resubmit failed for rollup tx, retrying with fee bump and rebuild",
+				"hash", tx.Hash().String(),
+				"nonce", tx.Nonce(),
+				"method", method,
+				"error", err)
+			replacedTx, err = r.tryRecoverDiscardedRollupTx(tx)
+			if err != nil {
+				return fmt.Errorf("failed to recover discarded rollup tx: %w", err)
+			}
+		} else {
+			log.Warn("Resubmit failed, attempting to replace with simple transfer transaction",
+				"hash", tx.Hash().String(),
+				"nonce", tx.Nonce(),
+				"error", err)
+			replacedTx, err = r.createReplacementTransferTx(tx)
+			if err != nil {
+				return fmt.Errorf("failed to create replacement transfer tx: %w", err)
+			}
 		}
 	}
 
@@ -1855,8 +1865,17 @@ func (r *Rollup) CancelTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, erro
 	return newTx, nil
 }
 
+// tryRecoverDiscardedRollupTx re-submits a discarded commit/finalize tx with fee
+// bumps and commit rebuild logic. Rollup operations must never fall back to an
+// empty-calldata self-transfer, which would consume the nonce without landing
+// the batch on L1.
+func (r *Rollup) tryRecoverDiscardedRollupTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
+	return r.ReSubmitTx(false, tx)
+}
+
 // createReplacementTransferTx creates a simple transfer transaction with the same nonce
-// to replace the original transaction. This is used when resubmission fails.
+// to replace the original transaction. This is used when resubmission fails for
+// non-rollup pending transactions only.
 func (r *Rollup) createReplacementTransferTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 	if tx == nil {
 		return nil, errors.New("nil tx")
