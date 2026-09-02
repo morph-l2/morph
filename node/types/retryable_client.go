@@ -38,10 +38,20 @@ const (
 	InvalidNextL1MsgIndexError = "invalid block.NextL1MsgIndex"
 
 	// Geth connection retry settings
-	GethRetryAttempts       = 60              // max retry attempts
-	GethRetryInterval       = 5 * time.Second // interval between retries
-	GethRetryMaxElapsedTime = 30 * time.Minute
+	GethRetryAttempts = 60              // max retry attempts
+	GethRetryInterval = 5 * time.Second // interval between retries
 )
+
+// GethRetryMaxElapsedTime bounds how long a geth call is retried before giving up.
+// Sequencer nodes lower it to GethRetryMaxElapsedTimeSequencer at boot (see
+// cmd/node/main.go) so a stuck geth surfaces to consensus quickly instead of
+// stalling block production; fullnodes keep the long window because they only
+// need to catch up eventually.
+var GethRetryMaxElapsedTime = 30 * time.Minute
+
+// GethRetryMaxElapsedTimeSequencer is the window used by nodes that can produce
+// blocks (i.e. a signer is configured).
+const GethRetryMaxElapsedTimeSequencer = 1 * time.Minute
 
 type RetryableClient struct {
 	authClient *authclient.Client
