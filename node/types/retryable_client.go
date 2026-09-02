@@ -36,6 +36,7 @@ const (
 	// always fail and only delay error surfacing to the consensus layer.
 	BlockHashMismatchError     = "block hash mismatch"
 	InvalidNextL1MsgIndexError = "invalid block.NextL1MsgIndex"
+	BlockAlreadyKnownError     = "block already known"
 
 	// Geth connection retry settings
 	GethRetryAttempts = 60              // max retry attempts
@@ -306,7 +307,8 @@ func retryableError(err error) bool {
 		!strings.Contains(msg, WrongBlockNumberError) &&
 		!strings.Contains(msg, ParentNotFoundError) &&
 		!strings.Contains(msg, BlockHashMismatchError) &&
-		!strings.Contains(msg, InvalidNextL1MsgIndexError)
+		!strings.Contains(msg, InvalidNextL1MsgIndexError) &&
+		!strings.Contains(msg, BlockAlreadyKnownError)
 }
 
 // ============================================================================
