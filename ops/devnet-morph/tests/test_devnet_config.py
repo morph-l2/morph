@@ -10,6 +10,16 @@ DOCKER_DIR = REPO_ROOT / "ops" / "docker"
 
 
 class DevnetConfigTest(unittest.TestCase):
+    def test_root_dockerignore_excludes_generated_build_outputs(self):
+        dockerignore = (REPO_ROOT / ".dockerignore").read_text().splitlines()
+
+        for generated_path in (
+            "gas-oracle/app/target/",
+            "node/build/",
+            "ops/docker/.devnet/",
+        ):
+            self.assertIn(generated_path, dockerignore)
+
     def test_node_dockerfile_caches_go_dependencies_before_source_copy(self):
         dockerfile = (DOCKER_DIR / "Dockerfile.l2-node").read_text()
 
@@ -59,6 +69,7 @@ class DevnetConfigTest(unittest.TestCase):
         self.assertIn("TX_SUBMITTER_BATCH_BLOCK_INTERVAL=${BATCH_BLOCK_INTERVAL}", compose)
         self.assertIn("TX_SUBMITTER_BATCH_TIMEOUT=${BATCH_TIMEOUT}", compose)
         self.assertIn("TX_SUBMITTER_L1_PRIVATE_KEY=${BATCH_SUBMITTER_PRIVATE_KEY}", compose)
+        self.assertIn("until (true > /dev/tcp/morph-el-0/8545)", compose)
         for removed_setting in (
             "TX_SUBMITTER_PRIORITY_ROLLUP",
             "TX_SUBMITTER_L1_STAKING_ADDRESS",
@@ -72,7 +83,35 @@ class DevnetConfigTest(unittest.TestCase):
         self.assertIn("deploy_config['govBatchTimeout']", launcher)
         self.assertIn("batchSubmitterPks", launcher)
         self.assertIn("args.batch_submitter_private_key", launcher)
-        self.assertNotIn("MORPH_L1STAKING", launcher)
+        fund_command = "'npx', 'hardhat', 'fund', '--network', 'l1'"
+        register_command = "'npx', 'hardhat', 'register', '--network', 'l1'"
+        self.assertIn(fund_command, launcher)
+        self.assertLess(launcher.index(fund_command), launcher.index(register_command))
+        self.assertIn(
+            "deploy_config['l1StakingProxy'] = LEGACY_GENESIS_L1_STAKING_PROXY",
+            launcher,
+        )
+        self.assertIn(
+            "LEGACY_GENESIS_L1_STAKING_PROXY = '0x000000000000000000000000000000000000dEaD'",
+            launcher,
+        )
+        self.assertNotIn("addresses['Proxy__L1Staking']", launcher)
+        self.assertIn("env_data.pop('Proxy__L1Staking', None)", launcher)
+        self.assertIn("env_data.pop('MORPH_L1STAKING', None)", launcher)
+        self.assertNotIn("Proxy__L1Staking", (DOCKER_DIR / ".env").read_text())
+        self.assertNotIn(
+            "'layer1-el', 'layer1-cl', 'layer1-vc'], check=False",
+            launcher,
+        )
+        self.assertNotIn(
+            "'up', '-d'], check=False",
+            launcher,
+        )
+
+        deploy_task = (REPO_ROOT / "contracts" / "tasks" / "deploy.ts").read_text()
+        register_task = deploy_task[deploy_task.index('task("register")'):]
+        self.assertIn('JSON.parse(process.env.batchSubmitterPks || "[]")', register_task)
+        self.assertIn("new ethers.Wallet(privateKey).address", register_task)
 
     def test_cluster_compose_defines_ha_services(self):
         cluster_compose = DOCKER_DIR / "docker-compose-cluster.yml"
