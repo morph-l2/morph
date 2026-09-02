@@ -66,10 +66,14 @@ LEGACY_GENESIS_L1_STAKING_PROXY = '0x000000000000000000000000000000000000dEaD'
 def compose_file_args(execution_client, cluster=False):
     """Return docker-compose -f flags for the chosen L2 execution client."""
     args = ['-f', 'docker-compose-devnet.yml']
-    if execution_client == 'reth':
-        args.extend(['-f', 'docker-compose-reth.yml'])
+    # The cluster topology comes before the execution-client override so that
+    # docker-compose-reth.yml gets the last word on the ha-el-* image,
+    # entrypoint and command. Later -f files win, so reversing these two leaves
+    # the cluster nodes on geth even when reth was requested.
     if cluster:
         args.extend(['-f', 'docker-compose-cluster.yml'])
+    if execution_client == 'reth':
+        args.extend(['-f', 'docker-compose-reth.yml'])
     return args
 
 
