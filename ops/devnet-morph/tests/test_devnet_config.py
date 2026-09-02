@@ -17,6 +17,10 @@ class DevnetConfigTest(unittest.TestCase):
             "gas-oracle/app/target/",
             "node/build/",
             "ops/docker/.devnet/",
+            # Claude Code keeps its worktrees here; on a machine that has used
+            # one, this is the single largest directory in the repo and every
+            # image build would ship it as build context.
+            ".claude/",
         ):
             self.assertIn(generated_path, dockerignore)
 
