@@ -89,10 +89,17 @@ looking anywhere else.
 `ha-node` admin API: `9501` / `9601` / `9701`.
 
 The execution-layer services are named `el` rather than `geth` because either
-client can back them: `docker-compose-cluster.yml` defines them as geth, and
-`docker-compose-reth.yml` overrides them to reth. That override only works
-because the cluster file is layered *before* the reth file — later `-f` files
-win, so the reverse order silently leaves the cluster on geth.
+client can back them: `docker-compose-cluster.yml` defines `ha-el-*` as geth,
+and `docker-compose-cluster-reth.yml` overrides them to reth. That override only
+works because the cluster file is layered *before* the reth files — later `-f`
+files win, so the reverse order silently leaves the cluster on geth.
+
+The `ha-el-*` reth overrides need their own file rather than a section of
+`docker-compose-reth.yml`: compose starts every service a later `-f` file
+introduces, whether or not an earlier file declared it, so overrides living in
+the shared reth file also came up in the non-cluster devnet — without the
+`/genesis.json` and `/jwt-secret.txt` mounts that only the cluster file
+provides, which made them exit with `Invalid value '/genesis.json' for --chain`.
 
 ## Execution-layer peering
 

@@ -161,10 +161,10 @@ export MORPH_RETH_RUSTFLAGS
 export MORPH_RETH_DOCKER_TARGET
 export MORPH_RETH_ENTRYPOINT
 DEVNET_COMPOSE_FILES := -f docker-compose-devnet.yml
-DEVNET_CLEAN_COMPOSE_FILES := -f docker-compose-devnet.yml -f docker-compose-cluster.yml -f docker-compose-reth.yml
+DEVNET_CLEAN_COMPOSE_FILES := -f docker-compose-devnet.yml -f docker-compose-cluster.yml -f docker-compose-reth.yml -f docker-compose-cluster-reth.yml
 
 # The cluster topology is layered before the execution-client override, so that
-# docker-compose-reth.yml has the last word on the ha-el-* image, entrypoint and
+# the reth files have the last word on the ha-el-* image, entrypoint and
 # command. Swapping these two leaves the cluster nodes running geth even when
 # reth was asked for, because later -f files win.
 ifneq ($(DEVNET_CLUSTER_ENABLED),)
@@ -175,6 +175,11 @@ ifeq ($(EXECUTION_CLIENT),geth)
 DEVNET_EXECUTION_DEPS := submodules
 else ifeq ($(EXECUTION_CLIENT),reth)
 DEVNET_COMPOSE_FILES += -f docker-compose-reth.yml
+# The ha-el-* reth overrides are kept out of docker-compose-reth.yml because
+# compose starts any service a later -f file introduces, cluster or not.
+ifneq ($(DEVNET_CLUSTER_ENABLED),)
+DEVNET_COMPOSE_FILES += -f docker-compose-cluster-reth.yml
+endif
 ifeq ($(MORPH_RETH_BUILD_FROM_SOURCE),true)
 DEVNET_EXECUTION_DEPS := reth
 else

@@ -43,7 +43,9 @@ class DevnetConfigTest(unittest.TestCase):
         makefile = (REPO_ROOT / "Makefile").read_text()
 
         self.assertIn(
-            "DEVNET_CLEAN_COMPOSE_FILES := -f docker-compose-devnet.yml -f docker-compose-cluster.yml -f docker-compose-reth.yml",
+            "DEVNET_CLEAN_COMPOSE_FILES := -f docker-compose-devnet.yml "
+            "-f docker-compose-cluster.yml -f docker-compose-reth.yml "
+            "-f docker-compose-cluster-reth.yml",
             makefile,
         )
         self.assertIn("docker compose $(DEVNET_CLEAN_COMPOSE_FILES) down --volumes --remove-orphans", makefile)
@@ -152,14 +154,47 @@ class DevnetConfigTest(unittest.TestCase):
         for service, key in (
             ("morph-el-0", "nodekey0"),
             ("morph-el-1", "nodekey1"),
+        ):
+            self.assertIn(f"{service}:", compose)
+            self.assertIn(f'"${{PWD}}/{key}:/p2p-secret.key"', compose)
+        self.assertEqual(compose.count("--p2p-secret-key=/p2p-secret.key"), 2)
+        self.assertEqual(compose.count("--trusted-peers="), 2)
+
+    def test_reth_compose_leaves_cluster_services_to_the_cluster_reth_file(self):
+        """compose starts every service a later -f file introduces, even one no
+        earlier file declared. ha-el-* overrides parked in the shared reth file
+        therefore came up in the non-cluster devnet as well, missing the
+        /genesis.json and /jwt-secret.txt mounts that only
+        docker-compose-cluster.yml supplies, and exited with
+        "Invalid value '/genesis.json' for --chain"."""
+        compose = (DOCKER_DIR / "docker-compose-reth.yml").read_text()
+
+        for service in ("ha-el-0", "ha-el-1", "ha-el-2"):
+            self.assertNotIn(f"{service}:", compose)
+        for key in ("ha-nodekey0", "ha-nodekey1", "ha-nodekey2"):
+            self.assertNotIn(key, compose)
+
+    def test_cluster_reth_compose_overrides_the_ha_execution_clients(self):
+        cluster_reth = DOCKER_DIR / "docker-compose-cluster-reth.yml"
+
+        self.assertTrue(cluster_reth.exists())
+        compose = cluster_reth.read_text()
+
+        self.assertIn("${MORPH_RETH_IMAGE:-ghcr.io/morph-l2/morph-reth:latest}", compose)
+        self.assertIn("${MORPH_RETH_ENTRYPOINT:-/usr/local/bin/morph-reth}", compose)
+        for service, key in (
             ("ha-el-0", "ha-nodekey0"),
             ("ha-el-1", "ha-nodekey1"),
             ("ha-el-2", "ha-nodekey2"),
         ):
             self.assertIn(f"{service}:", compose)
             self.assertIn(f'"${{PWD}}/{key}:/p2p-secret.key"', compose)
-        self.assertEqual(compose.count("--p2p-secret-key=/p2p-secret.key"), 5)
-        self.assertEqual(compose.count("--trusted-peers="), 5)
+        self.assertEqual(compose.count("--p2p-secret-key=/p2p-secret.key"), 3)
+        self.assertEqual(compose.count("--trusted-peers="), 3)
+        # Nothing here may redefine the plain devnet's execution clients, or
+        # they would be reconfigured only in cluster mode.
+        for service in ("morph-el-0:", "morph-el-1:"):
+            self.assertNotIn(f"  {service}", compose)
 
     def test_execution_client_keys_have_no_trailing_newline(self):
         """reth rejects a key file with a trailing newline ("malformed or
@@ -209,6 +244,8 @@ class DevnetConfigTest(unittest.TestCase):
             sys.path.remove(str(DEVNET_PACKAGE))
 
         self.assertEqual(devnet.compose_file_args("geth"), ["-f", "docker-compose-devnet.yml"])
+        # The ha-el-* reth overrides must not reach the non-cluster devnet:
+        # compose would start those services without the cluster's mounts.
         self.assertEqual(
             devnet.compose_file_args("reth"),
             ["-f", "docker-compose-devnet.yml", "-f", "docker-compose-reth.yml"],
@@ -229,6 +266,8 @@ class DevnetConfigTest(unittest.TestCase):
                 "docker-compose-cluster.yml",
                 "-f",
                 "docker-compose-reth.yml",
+                "-f",
+                "docker-compose-cluster-reth.yml",
             ],
         )
 
