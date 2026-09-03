@@ -352,7 +352,33 @@ func TestCancelTx(t *testing.T) {
 	cancelBlobFeeCap := cancelBlobTx.BlobGasFeeCap()
 	require.True(t, cancelBlobFeeCap.Cmp(new(big.Int).Mul(originalBlobFeeCap, big.NewInt(2))) >= 0, "cancel blob tx blob fee cap should be at least 2x of original")
 	require.Equal(t, 1, len(cancelBlobTx.BlobHashes()))
+	require.NotNil(t, cancelBlobTx.BlobTxSidecar())
 	require.Equal(t, 1, len(cancelBlobTx.BlobTxSidecar().Blobs))
+
+}
+
+func TestBuildCancelBlobSidecarVersion(t *testing.T) {
+	t.Parallel()
+	baseFee := big.NewInt(1e9)
+	excess := uint64(0)
+	preOsakaHead := &types.Header{BaseFee: baseFee, Time: 1700000000, Number: big.NewInt(12_965_000), ExcessBlobGas: &excess}
+	osakaHead := &types.Header{BaseFee: baseFee, Time: 1764798551, Number: big.NewInt(12_965_000), ExcessBlobGas: &excess}
+	t.Run("v0 before osaka fork", func(t *testing.T) {
+		t.Parallel()
+		sidecar, hash, err := buildCancelBlobSidecar(preOsakaHead, 1)
+		require.NoError(t, err)
+		require.Equal(t, types.BlobSidecarVersion0, sidecar.Version)
+		require.Len(t, sidecar.Proofs, 1)
+		require.NotEqual(t, common.Hash{}, hash)
+	})
+	t.Run("v1 at osaka fork", func(t *testing.T) {
+		t.Parallel()
+		sidecar, hash, err := buildCancelBlobSidecar(osakaHead, 1)
+		require.NoError(t, err)
+		require.Equal(t, types.BlobSidecarVersion1, sidecar.Version)
+		require.NotEmpty(t, sidecar.Proofs)
+		require.NotEqual(t, common.Hash{}, hash)
+	})
 }
 
 func TestTxStateTransition(t *testing.T) {
