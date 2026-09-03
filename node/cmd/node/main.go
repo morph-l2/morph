@@ -140,6 +140,14 @@ func L2NodeMain(ctx *cli.Context) error {
 		return fmt.Errorf("failed to init L1 sequencer components: %w", err)
 	}
 
+	// Nodes that can produce blocks must fail fast on a stuck geth. Set before the
+	// executor and derivation clients are built, since both read this at construction.
+	if signer != nil {
+		types.GethRetryMaxElapsedTime = types.GethRetryMaxElapsedTimeSequencer
+	}
+	nodeConfig.Logger.Info("geth retry window configured",
+		"maxElapsed", types.GethRetryMaxElapsedTime, "isSequencer", signer != nil)
+
 	// ========== Executor + sequencer / mock ==========
 	tmCfg, err := sequencer.LoadTmConfig(ctx, home)
 	if err != nil {
