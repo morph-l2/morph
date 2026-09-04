@@ -19,11 +19,13 @@ alloy-primitives = { workspace = true, features = [
 ] }
 prover-primitives = { workspace = true }
 prover-mpt = { workspace = true }
+morph-primitives = { workspace = true }
 alloy-rpc-types = { workspace = true }
 alloy-rpc-types-debug = { workspace = true }
 alloy-transport = { workspace = true }
 alloy-provider = { workspace = true }
 alloy-consensus = { workspace = true }
+alloy-rlp = { workspace = true }
 reth-storage-errors = { workspace = true }
 async-trait = { workspace = true }
 reth-trie = { workspace = true }

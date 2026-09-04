@@ -19,10 +19,13 @@ alloy-network = { workspace = true }
 alloy-rpc-types = { workspace = true }
 alloy-rpc-types-debug = { workspace = true }
 alloy-primitives = { workspace = true }
+alloy-consensus.workspace = true
 reth-trie.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 log = { workspace = true }
+morph-rpc = { workspace = true }
+morph-primitives.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true }

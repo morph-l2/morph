@@ -2,7 +2,11 @@ use std::{fs::File, io::BufReader, path::PathBuf};
 
 use alloy_provider::{Provider, ProviderBuilder};
 use clap::Parser;
-use morph_prove::{execute::execute_batch, utils::command_args::parse_u64_auto_radix, BatchProver};
+use morph_prove::{
+    execute::{execute_batch, InputSource},
+    utils::command_args::parse_u64_auto_radix,
+    BatchProver,
+};
 use prover_executor_client::types::input::ExecutorInput;
 use prover_executor_host::{blob::get_blob_infos_from_traces, trace::trace_to_input};
 use prover_primitives::types::BlockTrace;
@@ -17,9 +21,17 @@ struct Args {
     /// Block trace file path (json).
     #[clap(long, default_value = "./testdata/mpt/mainnet_25215.json")]
     block_path: String,
-    /// Whether to use RPC to fetch traces instead of local file.
-    #[clap(long)]
+    /// Fetch block state via per-account `eth_getProof` RPC calls.
+    ///
+    /// Mutually exclusive with `--use-witness`.
+    #[clap(long, conflicts_with = "use_witness")]
     use_rpc_db: bool,
+    /// Fetch block state via a single `debug_executionWitness` RPC call.
+    ///
+    /// Requires a node that supports the `debug_executionWitness` endpoint
+    /// (e.g. reth, recent geth).  Mutually exclusive with `--use-rpc-db`.
+    #[clap(long, conflicts_with = "use_rpc_db")]
+    use_witness: bool,
     /// Start L2 block number.
     #[clap(long = "start-block", default_value_t = 1, alias = "start", value_parser = parse_u64_auto_radix)]
     start_block: u64,
@@ -45,14 +57,16 @@ async fn main() {
     let prover = BatchProver::new().await.expect("failed to initialize BatchProver");
 
     let args = Args::parse();
-    let mut input = if args.use_rpc_db {
+
+    let mut input = if args.use_rpc_db || args.use_witness {
         // Use RPC to fetch state.
+        let source = if args.use_witness { InputSource::Witness } else { InputSource::RpcDb };
         let provider = ProviderBuilder::new().connect_http(args.rpc.parse().unwrap()).erased();
-        execute_batch(1, args.start_block, args.end_block, &provider, true, args.batch_version)
+        execute_batch(1, args.start_block, args.end_block, &provider, source, args.batch_version)
             .await
             .unwrap()
     } else {
-        // Use local traces file.
+        // Use local traces file (sequencer trace RPC or JSON file).
         let block_traces = &mut load_trace(&args.block_path);
         let blocks_inputs = block_traces.iter().map(trace_to_input).collect::<Vec<_>>();
         ExecutorInput {

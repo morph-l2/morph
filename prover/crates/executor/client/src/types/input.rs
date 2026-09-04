@@ -1,6 +1,8 @@
+use alloy_consensus::BlockHeader;
 use alloy_primitives::{map::HashMap, U256};
+use morph_primitives::Block;
 use prover_mpt::EthereumState;
-use prover_primitives::{types::block::L2Block, Address};
+use prover_primitives::Address;
 use prover_storage_witness::TrieDB;
 use reth_trie::{TrieAccount, EMPTY_ROOT_HASH};
 use revm::{primitives::keccak256, state::Bytecode};
@@ -21,21 +23,20 @@ pub struct BlobInfo {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BlockInput {
     /// l2 block info
-    pub current_block: L2Block,
+    pub current_block: Block,
 
     /// state as of the parent block.
     pub parent_state: EthereumState,
 
     /// Account bytecodes.
     pub bytecodes: Vec<Bytecode>,
+
+    /// ChainId
+    pub chain_id: u64,
 }
 
 impl BlockInput {
     fn validate_parent_state(&self) -> Result<(), ClientError> {
-        if self.current_block.prev_state_root != self.parent_state.state_root() {
-            return Err(ClientError::InvalidHeaderStateRoot);
-        }
-
         for (hashed_address, storage_trie) in &self.parent_state.storage_tries {
             let account =
                 self.parent_state.state_trie.get_rlp::<TrieAccount>(hashed_address.as_slice())?;
@@ -57,8 +58,8 @@ impl BlockInput {
         Ok(TrieDB::new(
             &self.parent_state,
             bytecodes_by_hash,
-            self.current_block.chain_id,
-            self.current_block.header.number.to::<u64>(),
+            u64::default(),
+            self.current_block.header.number(),
         ))
     }
 
@@ -91,32 +92,4 @@ pub struct ExecutorInput {
     pub blob_infos: Vec<BlobInfo>,
     #[serde(default)]
     pub batch_version: u8,
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::types::input::L2Block;
-    use alloy_consensus::Typed2718;
-    use prover_primitives::types::BlockTrace;
-    use std::fs::File;
-    use std::io::BufReader;
-
-    #[test]
-    fn test_trace_to_execution_witness() {
-        let block_trace = load_trace("../../../testdata/mpt/local_transfer_eth.json");
-        println!("loaded {} blocks", block_trace.len());
-        let blocks: Vec<L2Block> = block_trace.iter().map(L2Block::from_block_trace).collect();
-
-        let first_block = blocks.first().unwrap();
-        let txs = first_block.transactions.clone();
-        let first_txn = txs.first().unwrap();
-
-        println!("first_txn ty: {:?}", first_txn.ty());
-    }
-
-    fn load_trace(file_path: &str) -> Vec<BlockTrace> {
-        let file = File::open(file_path).unwrap();
-        let reader = BufReader::new(file);
-        serde_json::from_reader(reader).unwrap()
-    }
 }

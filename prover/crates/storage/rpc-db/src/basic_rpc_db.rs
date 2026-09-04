@@ -67,7 +67,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
     pub async fn fetch_account_info(&self, address: Address) -> Result<AccountInfo, RpcDbError> {
         log::debug!("fetching account info for address: {}", address);
         if self.throttle_requests {
-            sleep(Duration::from_millis(50)).await;
+            sleep(Duration::from_millis(20)).await;
         }
 
         // Fetch the proof for the account.
@@ -92,6 +92,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
         let code_hash = if proof.code_hash == B256::ZERO { KECCAK_EMPTY } else { proof.code_hash };
 
         let account_info = AccountInfo {
+            account_id: None,
             nonce: proof.nonce,
             balance: proof.balance,
             code_hash,
@@ -114,7 +115,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
         block_number: u64,
     ) -> Result<alloy_rpc_types::EIP1186AccountProofResponse, RpcDbError> {
         if self.throttle_requests {
-            sleep(Duration::from_millis(50)).await;
+            sleep(Duration::from_millis(20)).await;
         }
         let compact_proof: EIP1186AccountProofResponseCompat = self
             .provider
@@ -136,7 +137,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
     ) -> Result<U256, RpcDbError> {
         log::debug!("fetching storage value at address: {}, index: {}", address, index);
         if self.throttle_requests {
-            sleep(Duration::from_millis(50)).await;
+            sleep(Duration::from_millis(20)).await;
         }
 
         // Fetch the storage value.
@@ -343,6 +344,8 @@ where
                 excess_blob_gas: block.header().excess_blob_gas(),
                 parent_beacon_block_root: block.header().parent_beacon_block_root(),
                 requests_hash: block.header().requests_hash(),
+                block_access_list_hash: block.header().block_access_list_hash(),
+                slot_number: block.header().slot_number(),
             });
         }
 

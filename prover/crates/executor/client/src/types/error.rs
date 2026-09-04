@@ -3,6 +3,8 @@ use prover_mpt::Error as MptError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
+    #[error("Failed to verify raw blob: {0}")]
+    VerifyRawError(#[source] anyhow::Error),
     #[error("Failed to recover senders from signatures")]
     SignatureRecoveryFailed,
     #[error("Block header state root error")]
