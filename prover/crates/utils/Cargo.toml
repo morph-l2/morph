@@ -11,3 +11,4 @@ alloy-network = { workspace = true }
 alloy-json-rpc = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 log = { workspace = true }
+serde_json = { workspace = true }

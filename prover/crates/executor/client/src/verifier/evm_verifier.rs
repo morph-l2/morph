@@ -42,16 +42,6 @@ fn execute(mut block_inputs: Vec<BlockInput>) -> Result<BatchInfo, ClientError> 
     // Execute each block sequentially.
     block_inputs.iter_mut().try_for_each(execute_block)?;
 
-    // Find the last post_state with non-empty transactions, or fall back to the last one
-    let latest_block = block_inputs.last().expect("block_inputs is non-empty");
-    if latest_block.current_block.body.transactions().collect::<Vec<_>>().is_empty() {
-        // If the latest block contains no transactions, verify the MPT state here;
-        // otherwise, verify it during transaction execution.
-        if latest_block.current_block.state_root() != latest_block.parent_state.state_root() {
-            return Err(ClientError::InvalidHeaderStateRoot);
-        }
-    }
-
     BatchInfo::from_block_inputs(prev_state_root.into(), &block_inputs)
 }
 
@@ -75,8 +65,8 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
         return Err(ClientError::InvalidHeaderBaseFee(L2_BASE_FEE, base_fee));
     }
     let chain_id = block_input.chain_id;
-    let block_num = block.number();
-    let txn_count = block.body.transactions.len();
+    let _block_num = block.number();
+    let _txn_count = block.body.transactions.len();
 
     // Build DB, this will internally verify the correctness of mpt.
     let witness_block = block_input.clone();
@@ -102,7 +92,7 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
         });
     }
     #[cfg(not(target_os = "zkvm"))]
-    log::debug!("success execute block_{block_num} in client, txns.len: {txn_count}");
+    log::debug!("success execute block_{_block_num} in client, txns.len: {_txn_count}");
 
     Ok(())
 }

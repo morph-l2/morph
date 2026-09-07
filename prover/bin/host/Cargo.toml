@@ -26,6 +26,7 @@ once_cell = { workspace = true }
 alloy = { workspace = true }
 dotenv = { workspace = true }
 alloy-provider = { workspace = true }
+alloy-primitives = { workspace = true }
 
 # workspace
 prover-executor-host = { workspace = true }

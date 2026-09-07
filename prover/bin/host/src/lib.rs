@@ -1,10 +1,11 @@
+use alloy::primitives::keccak256;
+use alloy_primitives::B256;
 use anyhow::{bail, Context};
 pub mod evm;
 pub mod execute;
 pub mod utils;
 use evm::{save_plonk_fixture, EvmProofFixture};
 use prover_executor_client::{types::input::ExecutorInput, verify};
-use prover_primitives::{alloy_primitives::keccak256, B256};
 use prover_utils::read_env_var;
 #[cfg(feature = "local")]
 use sp1_sdk::CpuProver;
@@ -188,9 +189,10 @@ impl BatchProver<DefaultClient> {
 
 #[cfg(test)]
 mod tests {
-    use prover_primitives::B256;
 
-    use sp1_sdk::{Elf, HashableKey, Prover, ProverClient, ProvingKey, SP1ProofWithPublicValues};
+    use sp1_sdk::{
+        network::B256, Elf, HashableKey, Prover, ProverClient, ProvingKey, SP1ProofWithPublicValues,
+    };
     use sp1_verifier::PlonkVerifier;
 
     use crate::{

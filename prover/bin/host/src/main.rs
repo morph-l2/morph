@@ -8,8 +8,7 @@ use morph_prove::{
     BatchProver,
 };
 use prover_executor_client::types::input::ExecutorInput;
-use prover_executor_host::{blob::get_blob_infos_from_traces, trace::trace_to_input};
-use prover_primitives::types::BlockTrace;
+use prover_executor_host::{blob::get_blob_infos_from_blocks, ClientBlockInput};
 
 /// The arguments for the command.
 #[derive(Parser, Debug)]
@@ -45,7 +44,7 @@ struct Args {
     #[clap(long)]
     save_input: bool,
     /// Batch header version (0/1 = V0/V1, 2 = V2 multi-blob).
-    #[clap(long = "batch-version", default_value_t = 0)]
+    #[clap(long = "batch-version", default_value_t = 2)]
     batch_version: u8,
 }
 
@@ -60,18 +59,20 @@ async fn main() {
 
     let mut input = if args.use_rpc_db || args.use_witness {
         // Use RPC to fetch state.
-        let source = if args.use_witness { InputSource::Witness } else { InputSource::RpcDb };
+        let source =
+            if args.use_witness { InputSource::ExecutionWitness } else { InputSource::Basic };
         let provider = ProviderBuilder::new().connect_http(args.rpc.parse().unwrap()).erased();
         execute_batch(1, args.start_block, args.end_block, &provider, source, args.batch_version)
             .await
             .unwrap()
     } else {
-        // Use local traces file (sequencer trace RPC or JSON file).
-        let block_traces = &mut load_trace(&args.block_path);
-        let blocks_inputs = block_traces.iter().map(trace_to_input).collect::<Vec<_>>();
+        // Use local witness file.
+        let blocks_inputs: Vec<ClientBlockInput> = load_inputs(&args.block_path);
+        let blocks = blocks_inputs.iter().map(|b| b.current_block.clone()).collect::<Vec<_>>();
+
         ExecutorInput {
             block_inputs: blocks_inputs,
-            blob_infos: get_blob_infos_from_traces(block_traces).unwrap(),
+            blob_infos: get_blob_infos_from_blocks(&blocks).unwrap(),
             batch_version: args.batch_version,
         }
     };
@@ -97,7 +98,7 @@ async fn main() {
     }
 }
 
-fn load_trace(file_path: &str) -> Vec<BlockTrace> {
+fn load_inputs(file_path: &str) -> Vec<ClientBlockInput> {
     let file = File::open(file_path).unwrap();
     let reader = BufReader::new(file);
     serde_json::from_reader(reader).unwrap()

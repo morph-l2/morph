@@ -1,14 +1,12 @@
 use crate::utils::{beneficiary_by_chain_id, query_morph_rpc_block, HostExecutorOutput};
+use alloy_consensus::BlockHeader;
 use alloy_primitives::{Address, B256, U256};
 use alloy_provider::{DynProvider, Provider};
 use anyhow::{bail, Context};
 use morph_primitives::{MorphHeader, MorphTxEnvelope};
 use prover_executor_core::MorphExecutor;
 use prover_mpt::EthereumState;
-use prover_primitives::{
-    alloy_consensus::BlockHeader,
-    predeployed::l2_to_l1_message::{WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT},
-};
+use prover_primitives::predeployed::l2_to_l1_message::{WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT};
 use prover_storage_rpc::basic_rpc_db::{BasicRpcDb, RpcDb};
 use prover_storage_rpc::witness_rpc_db::ExecutionWitnessRpcDb;
 use reth_trie::{HashedPostState, KeccakKeyHasher};

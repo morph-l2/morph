@@ -2,8 +2,7 @@ use anyhow::{ensure, Context, Result};
 use morph_da_encoder_core::compress_morph_da_zstd;
 use morph_primitives::Block;
 use prover_executor_client::types::input::BlobInfo;
-use prover_primitives::types::blob::{get_blob_data_from_blocks, get_blob_data_from_traces};
-use prover_primitives::types::BlockTrace;
+use prover_primitives::types::blob::get_blob_data_from_blocks;
 use std::sync::Arc;
 
 /// The number of bytes to represent an unsigned 256 bit number.
@@ -31,30 +30,9 @@ pub fn get_blob_info_from_blocks(blocks: &Vec<Block>) -> Result<BlobInfo> {
     populate_kzg(&blob_data)
 }
 
-// Get blob info from BlockTraces
-pub fn get_blob_info_from_traces(
-    block_traces: &Vec<BlockTrace>,
-) -> Result<BlobInfo, anyhow::Error> {
-    // Assemble batch data from block header and transactions.
-
-    let batch_data = get_blob_data_from_traces(block_traces);
-    // Compress batch data and encode into blob format.
-
-    let blob_data = encode_blob(batch_data)?;
-    // Populate kzg commitment & proof.
-    populate_kzg(&blob_data)
-}
-
 /// Encode batch data from L2 blocks into multiple blob infos (one per 126,976-byte chunk).
 pub fn get_blob_infos_from_blocks(blocks: &[Block]) -> Result<Vec<BlobInfo>> {
     let batch_data = get_blob_data_from_blocks(&blocks.to_vec());
-    let compressed = compresse_batch(batch_data.as_slice())?;
-    encode_multi_blob(compressed)
-}
-
-/// Encode batch data from block traces into multiple blob infos.
-pub fn get_blob_infos_from_traces(traces: &[BlockTrace]) -> Result<Vec<BlobInfo>> {
-    let batch_data = get_blob_data_from_traces(&traces.to_vec());
     let compressed = compresse_batch(batch_data.as_slice())?;
     encode_multi_blob(compressed)
 }

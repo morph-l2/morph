@@ -151,12 +151,10 @@ mod tests {
     use alloy_provider::{Provider, ProviderBuilder};
     use morph_primitives::MorphHeader;
     use prover_executor_client::{types::input::BlockInput, EVMVerifier};
-    use prover_executor_host::{
-        trace::trace_to_input,
-        utils::{assemble_block_input, query_morph_rpc_block, HostExecutorOutput},
+    use prover_executor_host::utils::{
+        assemble_block_input, query_morph_rpc_block, HostExecutorOutput,
     };
-    use prover_primitives::types::BlockTrace;
-    use prover_utils::provider::get_block_trace;
+    use prover_utils::witness::{load_inputs, resolve_block_input_files};
 
     use crate::{
         execute::{
@@ -195,18 +193,18 @@ mod tests {
         let _batch_info = EVMVerifier::verify(block_inputs).unwrap();
     }
 
-    // cargo test -p shadow-proving --lib -- execute::tests::test_execute_block --exact --nocapture -- --block-number 19997 --rpc http://127.0.0.1:9545
+    // cargo test -p shadow-proving --lib -- execute::tests::test_execute_save_block --exact --nocapture -- --block-number 19997 --rpc http://127.0.0.1:9545
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_execute_block() {
+    async fn test_execute_save_block() {
         env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
 
         let (start_block, rpc) = test_args::read_block_number_args_from_argv();
         let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
         let block_input = execute(start_block, &provider).await.unwrap();
         let _ = EVMVerifier::verify(vec![block_input.clone()]).unwrap();
-        let input_path = format!("../../testdata/state/block_{}.data", start_block);
+        let input_path = format!("../../testdata/state/block_{}.json", start_block);
         let file = File::create(&input_path).unwrap();
-        serde_json::to_writer(file, &block_input).unwrap();
+        serde_json::to_writer(file, &vec![block_input]).unwrap();
         println!("Saved executor input to {input_path}");
     }
 
@@ -229,41 +227,18 @@ mod tests {
 
         handle.await.unwrap();
     }
-    #[tokio::test]
-    async fn test_execute_remote() {
-        env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
-        let provider =
-            ProviderBuilder::new().connect_http("http://127.0.0.1:9545".parse().unwrap()).erased();
-
-        let block_trace = get_block_trace::<BlockTrace>(53, &provider).await.unwrap();
-        println!("loaded block_{} traces", block_trace.header.number);
-        let block_input: BlockInput = trace_to_input(&block_trace);
-
-        let batch_info = EVMVerifier::verify(vec![block_input]).unwrap();
-        println!("batch_info.post_state_root: {:?}", batch_info.post_state_root);
-    }
 
     // cargo test --package shadow-proving --lib -- execute::tests::test_execute_local --exact --nocapture
     #[tokio::test]
     async fn test_execute_local() {
         env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
-        let dir = "../../testdata/state";
-        let mut entries: Vec<_> = std::fs::read_dir(dir)
-            .unwrap_or_else(|e| panic!("Failed to read dir {dir}: {e}"))
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("data"))
-            .collect();
-        entries.sort_by_key(|e| e.path());
-        for entry in entries {
-            let path = entry.path();
-            println!("Processing {:?}", path);
-            let file = std::fs::File::open(&path)
-                .unwrap_or_else(|e| panic!("Failed to open {:?}: {e}", path));
-            let reader = std::io::BufReader::new(file);
-            let block_input: BlockInput = serde_json::from_reader(reader)
-                .unwrap_or_else(|e| panic!("Failed to deserialize {:?}: {e}", path));
-            let _ = EVMVerifier::verify(vec![block_input.clone()]).unwrap();
-            println!("block_{:?} verify success", block_input.current_block.number());
+        let paths = resolve_block_input_files(&[]);
+        assert!(!paths.is_empty(), "No block input files found");
+        for path in paths {
+            let block_inputs: Vec<BlockInput> = load_inputs(path.to_str().unwrap());
+            let block_num = block_inputs[0].current_block.number();
+            let _ = EVMVerifier::verify(block_inputs).unwrap();
+            println!("block_{:?} verify success", block_num);
         }
     }
 

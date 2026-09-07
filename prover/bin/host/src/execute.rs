@@ -12,9 +12,9 @@ use prover_executor_host::{
 pub enum InputSource {
     /// Fetch state via per-account `eth_getProof` calls (original behaviour).
     #[default]
-    RpcDb,
+    Basic,
     /// Fetch state via a single `debug_executionWitness` call (reth).
-    Witness,
+    ExecutionWitness,
 }
 
 /// Execute a single block using per-account `eth_getProof` (original RPC-DB path).
@@ -68,7 +68,7 @@ pub async fn execute_batch(
         source,
     );
     let executor_input = match source {
-        InputSource::RpcDb => {
+        InputSource::Basic => {
             // Use per-account eth_getProof RPC calls.
             let mut block_inputs = vec![];
             for block_number in start_block..=end_block {
@@ -85,7 +85,7 @@ pub async fn execute_batch(
                 batch_version,
             }
         }
-        InputSource::Witness => {
+        InputSource::ExecutionWitness => {
             // Use a single debug_executionWitness call per block (reth / geth).
             let mut block_inputs = vec![];
             for block_number in start_block..=end_block {
@@ -139,13 +139,8 @@ mod tests {
     };
 
     use alloy_provider::{Provider, ProviderBuilder};
-    use prover_executor_host::trace::trace_to_input;
-    use prover_primitives::types::BlockTrace;
-    use std::{
-        fs::{self, File},
-        io::BufReader,
-        path::{Path, PathBuf},
-    };
+    use prover_executor_host::ClientBlockInput;
+    use prover_utils::witness::{load_inputs, resolve_block_input_files};
 
     // cargo test -p morph-prove --lib -- execute::tests::test_execute --exact --nocapture -- --block-number 19997 --rpc http://127.0.0.1:9545
     #[test]
@@ -183,8 +178,8 @@ mod tests {
 
     // Examples:
     //   cargo test -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture
-    //   cargo test -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture -- --trace ../../testdata/mpt/mainnet_19720219.json
-    //   cargo test -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture -- --trace ../../testdata/mpt
+    //   cargo test -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture -- --trace ../../testdata/block_inputs/mainnet_19720219.json
+    //   cargo test -p morph-prove --lib -- execute::tests::test_execute_local_traces --exact --nocapture -- --trace ../../testdata/block_inputs
     #[test]
     fn test_execute_local_traces() {
         use prover_executor_client::EVMVerifier;
@@ -194,68 +189,16 @@ mod tests {
             .init();
 
         let provided = command_args::read_execute_local_traces_paths_from_argv();
-        let files = resolve_trace_files(&provided);
+        let files = resolve_block_input_files(&provided);
         assert!(!files.is_empty(), "no trace files found");
 
         for file in files {
             let file_str = file.to_string_lossy();
-            let block_traces = &mut load_trace(&file_str);
-
-            let block_inputs = block_traces.iter().map(trace_to_input).collect::<Vec<_>>();
+            let block_inputs: Vec<ClientBlockInput> = load_inputs(&file_str);
 
             let _ = EVMVerifier::verify(block_inputs).map_err(|e| {
                 println!("execute_local_traces verify error for file {file_str}: {e:?}");
             });
         }
-    }
-
-    fn resolve_trace_files(paths: &[String]) -> Vec<PathBuf> {
-        // Default: run all *.json under testdata/mpt/
-        if paths.is_empty() {
-            let dir = default_mpt_trace_dir();
-            return list_json_files(&dir);
-        }
-
-        let mut out = Vec::new();
-        for p in paths {
-            let pb = PathBuf::from(p);
-            if pb.is_dir() {
-                out.extend(list_json_files(&pb));
-            } else {
-                out.push(pb);
-            }
-        }
-
-        out.sort();
-        out
-    }
-
-    fn default_mpt_trace_dir() -> PathBuf {
-        // bin/host (manifest dir) -> repo_root/testdata/mpt
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../testdata/mpt")
-    }
-
-    fn list_json_files(dir: &Path) -> Vec<PathBuf> {
-        let mut files = Vec::new();
-        if let Ok(rd) = fs::read_dir(dir) {
-            for entry in rd.flatten() {
-                let path = entry.path();
-                if path
-                    .extension()
-                    .and_then(|e| e.to_str())
-                    .is_some_and(|e| e.eq_ignore_ascii_case("json"))
-                {
-                    files.push(path);
-                }
-            }
-        }
-        files.sort();
-        files
-    }
-
-    fn load_trace(file_path: &str) -> Vec<BlockTrace> {
-        let file = File::open(file_path).unwrap();
-        let reader = BufReader::new(file);
-        serde_json::from_reader(reader).unwrap()
     }
 }

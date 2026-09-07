@@ -1,8 +1,7 @@
 use alloy_consensus::BlockHeader;
-use alloy_primitives::{map::HashMap, U256};
+use alloy_primitives::{map::HashMap, Address, U256};
 use morph_primitives::Block;
 use prover_mpt::EthereumState;
-use prover_primitives::Address;
 use prover_storage_witness::TrieDB;
 use reth_trie::{TrieAccount, EMPTY_ROOT_HASH};
 use revm::{primitives::keccak256, state::Bytecode};
@@ -36,7 +35,7 @@ pub struct BlockInput {
 }
 
 impl BlockInput {
-    fn validate_parent_state(&self) -> Result<(), ClientError> {
+    fn validate_storage_trie(&self) -> Result<(), ClientError> {
         for (hashed_address, storage_trie) in &self.parent_state.storage_tries {
             let account =
                 self.parent_state.state_trie.get_rlp::<TrieAccount>(hashed_address.as_slice())?;
@@ -50,7 +49,7 @@ impl BlockInput {
     }
 
     pub fn witness_db(&self) -> Result<TrieDB<'_>, ClientError> {
-        self.validate_parent_state()?;
+        self.validate_storage_trie()?;
 
         let bytecodes_by_hash =
             self.bytecodes.iter().map(|code| (code.hash_slow(), code)).collect::<HashMap<_, _>>();
@@ -58,7 +57,7 @@ impl BlockInput {
         Ok(TrieDB::new(
             &self.parent_state,
             bytecodes_by_hash,
-            u64::default(),
+            self.chain_id,
             self.current_block.header.number(),
         ))
     }

@@ -1,6 +1,6 @@
 use std::{
-    fs::{self, File},
-    io::{BufReader, BufWriter, Write},
+    fs::File,
+    io::Write,
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -16,7 +16,6 @@ use morph_prove::{
 };
 use prover_executor_client::{types::input::ExecutorInput, BlobVerifier, EVMVerifier};
 
-use prover_primitives::types::BlockTrace;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
@@ -151,7 +150,8 @@ async fn gen_client_input(
     batch_version: u8,
 ) -> Result<ExecutorInput, anyhow::Error> {
     // Step1. Get ExecutorInput
-    let input_source = if *PROVER_USE_RPC_DB { InputSource::RpcDb } else { InputSource::Witness };
+    let input_source =
+        if *PROVER_USE_RPC_DB { InputSource::Basic } else { InputSource::ExecutionWitness };
     let executor_input =
         execute_batch(batch_index, start_block, end_block, provider, input_source, batch_version)
             .await?;
@@ -207,22 +207,4 @@ fn save_proof(batch_index: u64, proof: EvmProofFixture) -> Result<(), anyhow::Er
     std::fs::write(batch_dir.join("plonk_proof.json"), serde_json::to_string_pretty(&proof)?)?;
     log::info!("Successfully save evm proof of batch-{:?}", batch_index);
     Ok(())
-}
-
-#[allow(dead_code)]
-fn load_trace(file_path: &str) -> Vec<Vec<BlockTrace>> {
-    let file = File::open(file_path).unwrap();
-    let reader = BufReader::new(file);
-    serde_json::from_reader(reader).unwrap()
-}
-
-#[allow(dead_code)]
-fn save_trace(batch_index: u64, chunk_traces: &Vec<BlockTrace>) {
-    let path = PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{batch_index}"));
-    fs::create_dir_all(&path).unwrap();
-    let file = File::create(path.join("block_traces.json")).unwrap();
-    let writer = BufWriter::new(file);
-
-    serde_json::to_writer_pretty(writer, &chunk_traces).unwrap();
-    log::info!("chunk_traces of batch_index = {:#?} saved", batch_index);
 }
