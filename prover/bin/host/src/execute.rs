@@ -1,10 +1,10 @@
 use alloy_provider::DynProvider;
-use prover_executor_client::{types::input::ExecutorInput, EVMVerifier};
+use prover_executor_client::{EVMVerifier, types::input::ExecutorInput};
 use prover_executor_host::{
+    ClientBlockInput,
     blob::get_blob_infos_from_blocks,
     execute::HostExecutor,
-    utils::{assemble_block_input, HostExecutorOutput},
-    ClientBlockInput,
+    utils::{HostExecutorOutput, assemble_block_input},
 };
 
 /// Data-source strategy for building [`ClientBlockInput`].
@@ -133,14 +133,14 @@ pub async fn execute_continuous(start_block: u64, max_blocks: u64, provider: &Dy
 
 #[cfg(test)]
 mod tests {
+    use alloy_provider::{Provider, ProviderBuilder};
+    use prover_executor_host::ClientBlockInput;
+    use prover_utils::witness::{load_inputs, resolve_block_input_files};
+
     use crate::{
         execute::{execute, execute_continuous, execute_range},
         utils::command_args,
     };
-
-    use alloy_provider::{Provider, ProviderBuilder};
-    use prover_executor_host::ClientBlockInput;
-    use prover_utils::witness::{load_inputs, resolve_block_input_files};
 
     // cargo test -p morph-prove --lib -- execute::tests::test_execute --exact --nocapture -- --block-number 19997 --rpc http://127.0.0.1:9545
     #[test]

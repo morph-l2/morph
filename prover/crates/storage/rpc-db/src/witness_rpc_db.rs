@@ -4,21 +4,20 @@ use std::{
 };
 
 use alloy_consensus::Header;
-use alloy_primitives::{map::HashMap, B256};
+use alloy_primitives::{B256, map::HashMap};
 use alloy_provider::{Network, Provider};
 use alloy_rlp::Decodable;
 use alloy_rpc_types::BlockId;
 use morph_primitives::MorphHeader;
 use prover_mpt::EthereumState;
-
 use reth_storage_errors::{db::DatabaseError, provider::ProviderError};
-use revm::database::DatabaseRef;
-use revm::primitives::keccak256;
-use revm::primitives::{Address, U256};
-use revm::state::{AccountInfo, Bytecode};
+use revm::{
+    database::DatabaseRef,
+    primitives::{Address, U256, keccak256},
+    state::{AccountInfo, Bytecode},
+};
 
-use crate::account_proof::EIP1186AccountProofResponseCompat;
-use crate::error::RpcDbError;
+use crate::{account_proof::EIP1186AccountProofResponseCompat, error::RpcDbError};
 
 /// A database that fetches data via `debug_executionWitness` RPC method.
 ///

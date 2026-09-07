@@ -1,9 +1,10 @@
-use crate::types::input::BlockInput;
 use alloy_consensus::{BlockHeader, SignableTransaction};
 use alloy_primitives::Keccak256;
 use morph_primitives::MorphTxEnvelope;
 use prover_primitives::predeployed::l2_to_l1_message::{WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT};
 use revm::primitives::B256;
+
+use crate::types::input::BlockInput;
 
 /// BatchInfo is metadata of chunk, with following fields:
 /// - state root before this chunk
@@ -110,7 +111,7 @@ impl BatchInfo {
         batch_version: u8,
     ) -> Result<B256, crate::types::error::ClientError> {
         let first_block_input = block_inputs.first().expect("block inputs must not be empty");
-        let original_state_root: B256 = first_block_input.parent_state.state_root().into();
+        let original_state_root: B256 = first_block_input.parent_state.state_root();
         let original_withdraw_root =
             first_block_input.get_storage_value(WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT)?;
 
@@ -170,8 +171,9 @@ impl BatchInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use alloy_primitives::keccak256;
+
+    use super::*;
 
     // LAYER_2_CHAIN_ID used in Rollup.sol test environment
     const TEST_CHAIN_ID: u64 = 53077;
@@ -205,7 +207,7 @@ mod tests {
         let mut concat = [0u8; 64];
         concat[..32].copy_from_slice(h0.as_slice());
         concat[32..].copy_from_slice(h1.as_slice());
-        let aggregated = keccak256(&concat);
+        let aggregated = keccak256(concat);
 
         // V2 public input uses aggregated as blob input
         let mut hasher = Keccak256::new();
@@ -234,7 +236,7 @@ mod tests {
         concat[..32].copy_from_slice(h0.as_slice());
         concat[32..64].copy_from_slice(h1.as_slice());
         concat[64..].copy_from_slice(h2.as_slice());
-        let aggregated = keccak256(&concat);
+        let aggregated = keccak256(concat);
 
         let mut hasher = Keccak256::new();
         hasher.update(TEST_CHAIN_ID.to_be_bytes());

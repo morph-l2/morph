@@ -1,9 +1,10 @@
-use anyhow::{ensure, Context, Result};
+use std::sync::Arc;
+
+use anyhow::{Context, Result, ensure};
 use morph_da_encoder_core::compress_morph_da_zstd;
 use morph_primitives::Block;
 use prover_executor_client::types::input::BlobInfo;
 use prover_primitives::types::blob::get_blob_data_from_blocks;
-use std::sync::Arc;
 
 /// The number of bytes to represent an unsigned 256 bit number.
 const N_BYTES_U256: usize = 32;
@@ -86,7 +87,6 @@ pub fn encode_blob_from_bytes(data: &[u8]) -> Result<[u8; BLOB_DATA_SIZE]> {
 /// So the byte `i` is written to `coefficients[i / 31][1 + (i % 31)]`; the rest is zero-padded.
 /// The resulting bytes can be fed into [`populate_kzg()`](crates/executor/host/src/blob.rs:65) to
 /// compute the KZG commitment and proof.
-///
 pub fn encode_blob(tx_bytes: Vec<u8>) -> Result<[u8; 131072]> {
     if tx_bytes.is_empty() {
         return Ok([0; 131072]);

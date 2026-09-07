@@ -1,9 +1,8 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
 use alloy_primitives::{
-    keccak256,
-    map::{hash_map::Entry, HashMap},
-    Address, B256,
+    Address, B256, keccak256,
+    map::{HashMap, hash_map::Entry},
 };
 use alloy_rpc_types::EIP1186AccountProofResponse;
 use reth_trie::{AccountProof, HashedPostState, HashedStorage, TrieAccount};
@@ -16,8 +15,8 @@ mod execution_witness;
 mod mpt;
 pub use mpt::Error;
 use mpt::{
-    mpt_from_proof, parse_proof, proofs_to_tries, resolve_nodes, transition_proofs_to_tries,
-    MptNode,
+    MptNode, mpt_from_proof, parse_proof, proofs_to_tries, resolve_nodes,
+    transition_proofs_to_tries,
 };
 
 /// Ethereum state trie and account storage tries.

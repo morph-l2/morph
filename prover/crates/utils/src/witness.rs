@@ -1,7 +1,9 @@
-use std::fs;
-use std::fs::File;
-use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    fs::File,
+    io::BufReader,
+    path::{Path, PathBuf},
+};
 
 use serde::de::DeserializeOwned;
 

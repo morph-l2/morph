@@ -1,8 +1,9 @@
-use crate::types::{blob::decode_blob_scalars, error::ClientError, input::BlobInfo};
 use alloy_primitives::B256;
 use anyhow::anyhow;
-use kzg_rs::{get_kzg_settings, Blob as KzgRsBlob, Bytes48};
+use kzg_rs::{Blob as KzgRsBlob, Bytes48, get_kzg_settings};
 use sha2::{Digest as _, Sha256};
+
+use crate::types::{blob::decode_blob_scalars, error::ClientError, input::BlobInfo};
 
 pub struct BlobVerifier;
 

@@ -1,13 +1,13 @@
-use crate::types::batch::BatchInfo;
-use crate::types::error::ClientError;
-use crate::types::input::BlockInput;
 use alloy_consensus::BlockHeader;
 use prover_executor_core::MorphExecutor;
 use reth_trie::{HashedPostState, KeccakKeyHasher};
 
+use crate::types::{batch::BatchInfo, error::ClientError, input::BlockInput};
+
 // use Verifier;
 pub struct EVMVerifier;
 
+// The base fee for L2 blocks.
 const L2_BASE_FEE: u64 = 1_000_000;
 
 impl EVMVerifier {
@@ -42,7 +42,7 @@ fn execute(mut block_inputs: Vec<BlockInput>) -> Result<BatchInfo, ClientError> 
     // Execute each block sequentially.
     block_inputs.iter_mut().try_for_each(execute_block)?;
 
-    BatchInfo::from_block_inputs(prev_state_root.into(), &block_inputs)
+    BatchInfo::from_block_inputs(prev_state_root, &block_inputs)
 }
 
 fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
@@ -50,7 +50,8 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
 
     if block.body.transactions.is_empty() {
         if block.state_root() != block_input.parent_state.state_root() {
-            // For empty blocks, EVM execution is skipped, but the post root is constrained to equal the previous root.
+            // For empty blocks, EVM execution is skipped, but the post root is constrained to equal
+            // the previous root.
             return Err(ClientError::MismatchedStateRoot {
                 block_num: block.header.number(),
                 root_trace: block.state_root(),
@@ -77,7 +78,8 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     let bundle_state = core_executor
         .execute_block(block.clone())
         .map_err(|e| ClientError::BlockExecutionError(format!("{e:#}")))?;
-    // Verify the post-state root by applying the block's transition set to the parent (pre-block) state.
+    // Verify the post-state root by applying the block's transition set to the parent (pre-block)
+    // state.
     let computed_state_root = {
         let hashed_post_state =
             HashedPostState::from_bundle_state::<KeccakKeyHasher>(&bundle_state.state);

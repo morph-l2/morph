@@ -6,18 +6,18 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{PROVER_L2_RPC, PROVER_PROOF_DIR, PROVER_USE_RPC_DB, PROVE_RESULT, PROVE_TIME};
 use alloy_primitives::Keccak256;
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use morph_prove::{
-    evm::EvmProofFixture,
-    execute::{execute_batch, InputSource},
     BatchProver, DefaultClient,
+    evm::EvmProofFixture,
+    execute::{InputSource, execute_batch},
 };
-use prover_executor_client::{types::input::ExecutorInput, BlobVerifier, EVMVerifier};
-
+use prover_executor_client::{BlobVerifier, EVMVerifier, types::input::ExecutorInput};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
+
+use crate::{PROVE_RESULT, PROVE_TIME, PROVER_L2_RPC, PROVER_PROOF_DIR, PROVER_USE_RPC_DB};
 
 // proveRequest
 #[derive(Serialize, Deserialize, Debug)]

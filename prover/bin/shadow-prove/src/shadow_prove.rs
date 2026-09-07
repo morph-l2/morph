@@ -1,15 +1,18 @@
-use crate::{
-    abi::Rollup::{self, RollupInstance},
-    metrics::METRICS,
-    util, BatchInfo,
-    ShadowRollup::ShadowRollupInstance,
-};
+use std::{env::var, time::Duration};
+
 use alloy_network::{Network, ReceiptResponse};
 use alloy_primitives::{Address, Bytes};
 use alloy_provider::{DynProvider, Provider};
 use serde::{Deserialize, Serialize};
-use std::{env::var, time::Duration};
 use tokio::time::sleep;
+
+use crate::{
+    BatchInfo,
+    ShadowRollup::ShadowRollupInstance,
+    abi::Rollup::{self, RollupInstance},
+    metrics::METRICS,
+    util,
+};
 
 const MAX_RETRY_TIMES: u8 = 2;
 
@@ -39,7 +42,8 @@ mod task_status {
     pub const PROVED: &str = "Proved";
 }
 
-// ShadowProver is responsible for proving the batch state onchain through the shadow rollup contract.
+// ShadowProver is responsible for proving the batch state onchain through the shadow rollup
+// contract.
 #[derive(Clone, Debug)]
 pub struct ShadowProver<P, N> {
     shadow_provider: DynProvider,
@@ -115,7 +119,12 @@ where
             // Query existing proof
             if let Some(prove_result) = query_proof(batch_index).await {
                 if !prove_result.error_code.is_empty() {
-                    log::error!("query proof and prove state error, batch_index: {:?}, prove_result.error_code: {:?}, prove_result.error_msg: {:?}", batch_index, prove_result.error_code, prove_result.error_msg);
+                    log::error!(
+                        "query proof and prove state error, batch_index: {:?}, prove_result.error_code: {:?}, prove_result.error_msg: {:?}",
+                        batch_index,
+                        prove_result.error_code,
+                        prove_result.error_msg
+                    );
                     break;
                 }
                 if !prove_result.proof_data.is_empty() {
@@ -171,7 +180,12 @@ where
                 match query_proof(batch_index).await {
                     Some(prove_result) => {
                         if !prove_result.error_code.is_empty() {
-                            log::error!("query proof and prove state error, batch_index: {:?}, prove_result.error_code: {:?}, prove_result.error_msg: {:?}", batch_index, prove_result.error_code, prove_result.error_msg);
+                            log::error!(
+                                "query proof and prove state error, batch_index: {:?}, prove_result.error_code: {:?}, prove_result.error_msg: {:?}",
+                                batch_index,
+                                prove_result.error_code,
+                                prove_result.error_msg
+                            );
                             return;
                         }
                         log::debug!("query proof and prove state: {:#?}", batch_index);
@@ -282,8 +296,9 @@ async fn query_proof(batch_index: u64) -> Option<ProveResult> {
 
 #[test]
 fn test() {
-    use crate::abi::SP1Verifier;
     use alloy_json_rpc::ErrorPayload;
+
+    use crate::abi::SP1Verifier;
     // Sample JSON error payload from an Ethereum JSON RPC response.
     let json = r#"{"code":3,"message":"execution reverted: ","data":"0x810f00230000000000000000000000000000000000000000000000000000000000000001"}"#;
 

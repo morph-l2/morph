@@ -1,25 +1,24 @@
 use alloy::primitives::keccak256;
 use alloy_primitives::B256;
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 pub mod evm;
 pub mod execute;
 pub mod utils;
-use evm::{save_plonk_fixture, EvmProofFixture};
+#[cfg(all(feature = "network", not(feature = "local")))]
+use std::time::Duration;
+use std::time::Instant;
+
+use evm::{EvmProofFixture, save_plonk_fixture};
 use prover_executor_client::{types::input::ExecutorInput, verify};
 use prover_utils::read_env_var;
 #[cfg(feature = "local")]
 use sp1_sdk::CpuProver;
-
-#[cfg(all(feature = "network", not(feature = "local")))]
-use sp1_sdk::{network::FulfillmentStrategy, network::NetworkMode, NetworkProver};
-#[cfg(all(feature = "network", not(feature = "local")))]
-use std::time::Duration;
-
 use sp1_sdk::{
     Elf, HashableKey, ProveRequest, Prover, ProverClient, ProvingKey, SP1ProvingKey, SP1Stdin,
 };
+#[cfg(all(feature = "network", not(feature = "local")))]
+use sp1_sdk::{NetworkProver, network::FulfillmentStrategy, network::NetworkMode};
 use sp1_verifier::PlonkVerifier;
-use std::time::Instant;
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
 pub const BATCH_VERIFIER_ELF: &[u8] = include_bytes!("../../client/elf/verifier-client");
@@ -191,13 +190,13 @@ impl BatchProver<DefaultClient> {
 mod tests {
 
     use sp1_sdk::{
-        network::B256, Elf, HashableKey, Prover, ProverClient, ProvingKey, SP1ProofWithPublicValues,
+        Elf, HashableKey, Prover, ProverClient, ProvingKey, SP1ProofWithPublicValues, network::B256,
     };
     use sp1_verifier::PlonkVerifier;
 
     use crate::{
-        evm::{save_plonk_fixture, EvmProofFixture},
         BATCH_VERIFIER_ELF,
+        evm::{EvmProofFixture, save_plonk_fixture},
     };
 
     #[tokio::test]

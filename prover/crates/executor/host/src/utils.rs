@@ -1,6 +1,6 @@
-use crate::ClientBlockInput;
-use alloy_primitives::hex::FromHex;
-use alloy_primitives::{Address, B256};
+use std::{collections::HashMap, sync::LazyLock};
+
+use alloy_primitives::{Address, B256, hex::FromHex};
 use alloy_provider::{DynProvider, EthGetBlock, Provider};
 use alloy_rpc_types::{BlockNumberOrTag, Header as RpcHeader};
 use anyhow::Context;
@@ -8,8 +8,8 @@ use morph_primitives::Block;
 use prover_mpt::EthereumState;
 use revm::state::Bytecode;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::LazyLock;
+
+use crate::ClientBlockInput;
 
 /// Mapping from chain ID to default coinbase address.
 pub static CHAIN_COINBASE: LazyLock<HashMap<u64, Address>> = LazyLock::new(|| {
@@ -108,8 +108,9 @@ pub async fn query_morph_rpc_block(
 
 #[cfg(test)]
 mod tests {
-    use super::query_morph_rpc_block;
     use alloy_provider::{Provider, ProviderBuilder};
+
+    use super::query_morph_rpc_block;
 
     #[tokio::test]
     #[ignore = "requires public Morph RPC access"]

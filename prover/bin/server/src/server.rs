@@ -1,24 +1,26 @@
-use crate::{
-    queue::{ProveRequest, Prover},
-    read_env_var, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME, REGISTRY,
-};
-use alloy_primitives::hex;
-use axum::{
-    routing::{get, post},
-    Router,
-};
-
-use morph_prove::evm::EvmProofFixture;
-use once_cell::sync::Lazy;
-use prometheus::{Encoder, TextEncoder};
-use serde::{Deserialize, Serialize};
 use std::{
     fs,
     io::{BufReader, Read},
     sync::Arc,
     time::Duration,
 };
+
+use alloy_primitives::hex;
+use axum::{
+    Router,
+    routing::{get, post},
+};
+use morph_prove::evm::EvmProofFixture;
+use once_cell::sync::Lazy;
+use prometheus::{Encoder, TextEncoder};
+use serde::{Deserialize, Serialize};
 use tokio::{sync::Mutex, time::timeout};
+
+use crate::{
+    PROVE_RESULT, PROVE_TIME, PROVER_PROOF_DIR, REGISTRY,
+    queue::{ProveRequest, Prover},
+    read_env_var,
+};
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ProveResult {
     pub error_msg: String,
@@ -206,7 +208,7 @@ async fn query_proof(batch_index: String) -> ProveResult {
             return ProveResult {
                 error_msg: "Read proof dir error".to_string(),
                 ..Default::default()
-            }
+            };
         }
     };
     let mut result = ProveResult {

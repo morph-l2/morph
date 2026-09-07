@@ -1,4 +1,3 @@
-use crate::{BatchInfo, SHADOW_EXECUTE_USE_RPC_DB};
 use alloy_primitives::B256;
 use alloy_provider::DynProvider;
 use anyhow::Context;
@@ -9,9 +8,11 @@ use prover_executor_client::{
 use prover_executor_host::{
     blob::get_blob_infos_from_blocks,
     execute::HostExecutor,
-    utils::{assemble_block_input, HostExecutorOutput},
+    utils::{HostExecutorOutput, assemble_block_input},
 };
 use serde::{Deserialize, Serialize};
+
+use crate::{BatchInfo, SHADOW_EXECUTE_USE_RPC_DB};
 
 #[derive(Serialize)]
 pub struct ExecuteRequest {
@@ -147,21 +148,21 @@ mod tests {
     };
 
     use alloy_consensus::BlockHeader;
-    use alloy_primitives::{hex, Address, B256};
+    use alloy_primitives::{Address, B256, hex};
     use alloy_provider::{Provider, ProviderBuilder};
     use morph_primitives::MorphHeader;
-    use prover_executor_client::{types::input::BlockInput, EVMVerifier};
+    use prover_executor_client::{EVMVerifier, types::input::BlockInput};
     use prover_executor_host::utils::{
-        assemble_block_input, query_morph_rpc_block, HostExecutorOutput,
+        HostExecutorOutput, assemble_block_input, query_morph_rpc_block,
     };
     use prover_utils::witness::{load_inputs, resolve_block_input_files};
 
     use crate::{
+        BatchInfo,
         execute::{
             execute, execute_host_range, execute_host_range_with_witness, test_args,
             try_execute_batch,
         },
-        BatchInfo,
     };
 
     // cargo test -p shadow-proving --lib -- execute::tests::test_execute_range --exact --nocapture -- --start-block 0x35 --end-block 0x36 --rpc http://127.0.0.1:9545

@@ -1,8 +1,8 @@
 pub mod types;
 mod verifier;
+use alloy_primitives::B256;
 #[cfg(not(target_os = "zkvm"))]
 use alloy_primitives::hex;
-use alloy_primitives::B256;
 use prover_primitives::types::blob::get_blob_data_from_blocks;
 use types::input::ExecutorInput;
 pub use verifier::{blob_verifier::BlobVerifier, evm_verifier::EVMVerifier};
@@ -35,7 +35,9 @@ pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
     )?;
     let batch_data_from_blob = match decompress_batch(&batch_bytes) {
         Ok(data) => data,
-        Err(_) => {
+        Err(_e) => {
+            #[cfg(not(target_os = "zkvm"))]
+            log::warn!("decompress_batch error: {:?}", _e);
             // Since the batch is not executed, all post roots remain unchanged
             return Ok(default_pi_hash);
         }

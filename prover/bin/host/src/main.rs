@@ -3,12 +3,12 @@ use std::{fs::File, io::BufReader, path::PathBuf};
 use alloy_provider::{Provider, ProviderBuilder};
 use clap::Parser;
 use morph_prove::{
-    execute::{execute_batch, InputSource},
-    utils::command_args::parse_u64_auto_radix,
     BatchProver,
+    execute::{InputSource, execute_batch},
+    utils::command_args::parse_u64_auto_radix,
 };
 use prover_executor_client::types::input::ExecutorInput;
-use prover_executor_host::{blob::get_blob_infos_from_blocks, ClientBlockInput};
+use prover_executor_host::{ClientBlockInput, blob::get_blob_infos_from_blocks};
 
 /// The arguments for the command.
 #[derive(Parser, Debug)]

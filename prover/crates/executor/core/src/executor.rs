@@ -1,14 +1,16 @@
+use std::sync::Arc;
+
 use anyhow::Result;
-use morph_chainspec::{hardfork::MorphHardfork, MorphChainSpec, MORPH_HOODI, MORPH_MAINNET};
+use morph_chainspec::{MORPH_HOODI, MORPH_MAINNET, MorphChainSpec, hardfork::MorphHardfork};
 use morph_evm::MorphEvmConfig;
 use morph_primitives::{Block as MorphBlock, MorphReceipt};
 use reth_evm::execute::{BasicBlockExecutor, Executor};
 use reth_execution_types::BlockExecutionResult;
 use reth_primitives_traits::RecoveredBlock;
-use revm::database::{BundleState, State, WrapDatabaseRef};
-use revm::Database;
-
-use std::sync::Arc;
+use revm::{
+    Database,
+    database::{BundleState, State, WrapDatabaseRef},
+};
 
 use crate::{DEVNET_CHAIN_ID, MAINNET_CHAIN_ID, TESTNET_CHAIN_ID};
 
@@ -102,8 +104,9 @@ fn retain_changed_accounts(bundle_state: &mut BundleState) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use revm::database::{CacheDB, EmptyDB};
+
+    use super::*;
 
     #[test]
     fn test_create_executor() {

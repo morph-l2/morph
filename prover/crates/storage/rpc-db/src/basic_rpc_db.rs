@@ -5,21 +5,24 @@ use std::{
     time::Duration,
 };
 
-use crate::account_proof::{eip1186_proof_to_account_proof, EIP1186AccountProofResponseCompat};
 use alloy_consensus::{BlockHeader, Header};
-use alloy_primitives::{map::HashMap, StorageKey, U256};
-use alloy_provider::{network::BlockResponse, Network, Provider};
+use alloy_primitives::{StorageKey, U256, map::HashMap};
+use alloy_provider::{Network, Provider, network::BlockResponse};
 use alloy_rpc_types::BlockId;
 use async_trait::async_trait;
 use prover_mpt::EthereumState;
 use reth_storage_errors::{db::DatabaseError, provider::ProviderError};
-use revm::database::BundleState;
-use revm::database::DatabaseRef;
-use revm::primitives::{Address, B256, KECCAK_EMPTY};
-use revm::state::{AccountInfo, Bytecode};
+use revm::{
+    database::{BundleState, DatabaseRef},
+    primitives::{Address, B256, KECCAK_EMPTY},
+    state::{AccountInfo, Bytecode},
+};
 use tokio::time::sleep;
 
-use crate::error::RpcDbError;
+use crate::{
+    account_proof::{EIP1186AccountProofResponseCompat, eip1186_proof_to_account_proof},
+    error::RpcDbError,
+};
 
 /// A database that fetches data from a [Provider] over a [Transport].
 #[derive(Debug, Clone)]
@@ -189,11 +192,7 @@ impl<P: Provider<N> + Clone, N: Network> DatabaseRef for BasicRpcDb<P, N> {
 
         let account_info =
             result.map_err(|e| ProviderError::Database(DatabaseError::Other(e.to_string())))?;
-        if !account_info.exists() {
-            Ok(None)
-        } else {
-            Ok(Some(account_info))
-        }
+        if !account_info.exists() { Ok(None) } else { Ok(Some(account_info)) }
     }
 
     /// Get account code by its hash.
@@ -277,7 +276,7 @@ where
             let keys = used_keys
                 .iter()
                 .map(|key| B256::from(*key))
-                .chain(modified_keys.clone().into_iter())
+                .chain(modified_keys.clone())
                 .collect::<BTreeSet<_>>()
                 .into_iter()
                 .collect::<Vec<_>>();

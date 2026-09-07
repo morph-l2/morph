@@ -1,9 +1,9 @@
 use alloy_consensus::BlockHeader;
-use alloy_primitives::{map::HashMap, Address, U256};
+use alloy_primitives::{Address, U256, map::HashMap};
 use morph_primitives::Block;
 use prover_mpt::EthereumState;
 use prover_storage_witness::TrieDB;
-use reth_trie::{TrieAccount, EMPTY_ROOT_HASH};
+use reth_trie::{EMPTY_ROOT_HASH, TrieAccount};
 use revm::{primitives::keccak256, state::Bytecode};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
