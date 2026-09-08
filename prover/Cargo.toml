@@ -38,7 +38,7 @@ flexi_logger = "0.29"
 log = "0.4"
 once_cell = "1.19"
 thiserror = "2.0.14"
-async-trait = "0.1.89"
+async-trait = "0.1"
 
 # Serialization
 serde = "1.0"
@@ -70,58 +70,58 @@ sha2 = "0.10.8"
 rand = "0.8"
 
 # EVM & Blockchain (Alloy, REVM, Reth)
-alloy = { version = "2.1.1", default-features = false }
+alloy = { version = "2.3.0", default-features = false }
 alloy-chains = { version = "0.2.33", default-features = false }
-alloy-consensus = { version = "2.1.1", default-features = false, features = [
+alloy-consensus = { version = "2.3.0", default-features = false, features = [
     "serde",
     "serde-bincode-compat",
 ] }
-alloy-eips = { version = "2.1.1", default-features = false }
-alloy-evm = "0.37.0"
-alloy-genesis = { version = "2.1.1", default-features = false, features = [
+alloy-eips = { version = "2.3.0", default-features = false }
+alloy-evm = "0.38.0"
+alloy-genesis = { version = "2.3.0", default-features = false, features = [
     "serde-bincode-compat",
 ] }
-alloy-json-rpc = { version = "2.1.1", default-features = false }
-alloy-network = { version = "2.1.1", default-features = false }
-alloy-primitives = { version = "1.6.0", default-features = false, features = [
+alloy-json-rpc = { version = "2.3.0", default-features = false }
+alloy-network = { version = "2.3.0", default-features = false }
+alloy-primitives = { version = "1.6.1", default-features = false, features = [
     "sha3-keccak",
 ] }
-alloy-provider = { version = "2.1.1", default-features = false, features = [
+alloy-provider = { version = "2.3.0", default-features = false, features = [
     "reqwest",
     "reqwest-rustls-tls",
 ] }
 alloy-rlp = "0.3.16"
-alloy-rpc-client = { version = "2.1.1", default-features = false }
-alloy-rpc-types = { version = "2.1.1", default-features = false, features = [
+alloy-rpc-client = { version = "2.3.0", default-features = false }
+alloy-rpc-types = { version = "2.3.0", default-features = false, features = [
     "eth",
 ] }
-alloy-rpc-types-debug = { version = "2.1.1", default-features = false }
-alloy-serde = "2.1.1"
-alloy-transport = { version = "2.1.1", default-features = false }
-alloy-transport-http = { version = "2.1.1", features = [
+alloy-rpc-types-debug = { version = "2.3.0", default-features = false }
+alloy-serde = "2.3.0"
+alloy-transport = { version = "2.3.0", default-features = false }
+alloy-transport-http = { version = "2.3.0", features = [
     "reqwest-rustls-tls",
 ], default-features = false }
-alloy-transport-ws = { version = "2.1.1" }
+alloy-transport-ws = { version = "2.3.0" }
 alloy-trie = "0.9.5"
-alloy-sol-types = { version = "1.6.0", features = ["json"] }
-alloy-contract = { version = "2.1.1", default-features = false }
-alloy-signer-local = { version = "2.1.1", default-features = false }
+alloy-sol-types = { version = "1.6.1", features = ["json"] }
+alloy-contract = { version = "2.3.0", default-features = false }
+alloy-signer-local = { version = "2.3.0", default-features = false }
 rlp = "0.5.2"
 hex-literal = "0.4.1"
-revm = { version = "41.0.0", features = [
+revm = { version = "42.0.1", features = [
     "optional_fee_charge",
     "optional_eip7623",
 ], default-features = false }
-reth-primitives-traits = { version = "0.5.0", default-features = false }
-reth-evm = { git = "https://github.com/paradigmxyz/reth", tag = "v2.4.0", default-features = false }
-reth-execution-types = { git = "https://github.com/paradigmxyz/reth", tag = "v2.4.0", default-features = false }
-reth-storage-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v2.4.0", default-features = false }
-reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v2.4.0", default-features = false }
-morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
-morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
-morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
-morph-evm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main" }
-morph-rpc = { git = "https://github.com/morph-l2/morph-reth.git", branch = "main", default-features = false }
+reth-primitives-traits = { version = "0.6.0", default-features = false }
+reth-evm = { git = "https://github.com/paradigmxyz/reth", tag = "v2.5.2", default-features = false }
+reth-execution-types = { git = "https://github.com/paradigmxyz/reth", tag = "v2.5.2", default-features = false }
+reth-storage-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v2.5.2", default-features = false }
+reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v2.5.2", default-features = false }
+morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", tag = "v1.3.0" }
+morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", tag = "v1.3.0" }
+morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", tag = "v1.3.0" }
+morph-evm = { git = "https://github.com/morph-l2/morph-reth.git", tag = "v1.3.0" }
+morph-rpc = { git = "https://github.com/morph-l2/morph-reth.git", tag = "v1.3.0", default-features = false }
 
 
 # ZK / SP1

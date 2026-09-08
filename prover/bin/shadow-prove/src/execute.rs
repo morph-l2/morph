@@ -12,7 +12,7 @@ use prover_executor_host::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{BatchInfo, SHADOW_EXECUTE_USE_RPC_DB};
+use crate::{BatchInfo, SHADOW_EXECUTE_MODE, ShadowExecuteMode};
 
 #[derive(Serialize)]
 pub struct ExecuteRequest {
@@ -29,11 +29,12 @@ pub struct ExecuteResult {
 }
 
 /// Execute a single block using per-account `eth_getProof` RPC calls.
-pub async fn execute(
+pub async fn execute_with_basic_rpc(
     block_number: u64,
     provider: &DynProvider,
 ) -> Result<BlockInput, anyhow::Error> {
-    let output: HostExecutorOutput = HostExecutor::execute_block(block_number, provider).await?;
+    let output: HostExecutorOutput =
+        HostExecutor::execute_block_with_basic_rpc(block_number, provider).await?;
 
     // let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
     let block_input = assemble_block_input(output);
@@ -58,58 +59,55 @@ pub async fn try_execute_batch(
     provider: &DynProvider,
     batch_version: u8,
 ) -> Result<B256, anyhow::Error> {
-    let client_input = if *SHADOW_EXECUTE_USE_RPC_DB {
-        let start_block = batch.start_block;
-        let end_block = batch.end_block;
-        let provider = provider.clone();
-        let blocks_inputs = tokio::task::spawn_blocking(move || {
-            let runtime = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .context("Failed to build tokio runtime for shadow exec host")?;
-            runtime.block_on(async { execute_host_range(start_block, end_block, &provider).await })
+    let start_block = batch.start_block;
+    let end_block = batch.end_block;
+    let provider = provider.clone();
+    tokio::task::spawn_blocking(move || {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .context("Failed to build tokio runtime for shadow exec host")?;
+        runtime.block_on(async {
+            let execute = async |mode| {
+                let block_inputs = match mode {
+                    ShadowExecuteMode::Rpc => {
+                        execute_range_basic_rpc(start_block, end_block, &provider).await?
+                    }
+                    ShadowExecuteMode::Witness => {
+                        execute_range_with_witness(start_block, end_block, &provider).await?
+                    }
+                    ShadowExecuteMode::Both => unreachable!("execute one mode at a time"),
+                };
+                let blob_infos = get_blob_infos_from_blocks(
+                    &block_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
+                )?;
+                verify(ExecutorInput { block_inputs, blob_infos, batch_version })
+                    .with_context(|| format!("native execution failed ({mode:?})"))
+            };
+
+            match *SHADOW_EXECUTE_MODE {
+                ShadowExecuteMode::Both => {
+                    // Run both paths even if the first returns an error.
+                    let rpc_result = execute(ShadowExecuteMode::Rpc).await;
+                    let witness_result = execute(ShadowExecuteMode::Witness).await;
+                    let rpc_hash = rpc_result.context("basic RPC execution failed")?;
+                    let witness_hash = witness_result.context("witness execution failed")?;
+                    anyhow::ensure!(
+                        rpc_hash == witness_hash,
+                        "RPC and witness execution results differ: rpc={rpc_hash}, witness={witness_hash}"
+                    );
+                    Ok(rpc_hash)
+                }
+                mode => execute(mode).await,
+            }
         })
-        .await
-        .context("spawn_blocking failed")??;
-
-        ExecutorInput {
-            block_inputs: blocks_inputs.clone(),
-            blob_infos: get_blob_infos_from_blocks(
-                &blocks_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
-            )?,
-            batch_version,
-        }
-    } else {
-        // Use debug_executionWitness RPC instead of sequencer's trace rpc.
-        let start_block = batch.start_block;
-        let end_block = batch.end_block;
-        let provider = provider.clone();
-        let blocks_inputs = tokio::task::spawn_blocking(move || {
-            let runtime = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .context("Failed to build tokio runtime for shadow exec host (witness)")?;
-            runtime.block_on(async {
-                execute_host_range_with_witness(start_block, end_block, &provider).await
-            })
-        })
-        .await
-        .context("spawn_blocking failed")??;
-
-        ExecutorInput {
-            block_inputs: blocks_inputs.clone(),
-            blob_infos: get_blob_infos_from_blocks(
-                &blocks_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
-            )?,
-            batch_version,
-        }
-    };
-
-    verify(client_input.clone()).context("native execution failed")
+    })
+    .await
+    .context("spawn_blocking failed")?
 }
 
 /// Execute a range of blocks (inclusive) using per-account `eth_getProof` RPC calls.
-pub async fn execute_host_range(
+pub async fn execute_range_basic_rpc(
     start_block: u64,
     end_block: u64,
     provider: &DynProvider,
@@ -117,14 +115,14 @@ pub async fn execute_host_range(
     log::info!("Executing blocks from {} to {} using host execution", start_block, end_block);
     let mut block_inputs = Vec::new();
     for block_number in start_block..=end_block {
-        let block_input = execute(block_number, provider).await?;
+        let block_input = execute_with_basic_rpc(block_number, provider).await?;
         block_inputs.push(block_input);
     }
     Ok(block_inputs)
 }
 
 /// Execute a range of blocks (inclusive) using `debug_executionWitness` RPC calls.
-pub async fn execute_host_range_with_witness(
+pub async fn execute_range_with_witness(
     start_block: u64,
     end_block: u64,
     provider: &DynProvider,
@@ -160,7 +158,7 @@ mod tests {
     use crate::{
         BatchInfo,
         execute::{
-            execute, execute_host_range, execute_host_range_with_witness, test_args,
+            execute_range_basic_rpc, execute_range_with_witness, execute_with_basic_rpc, test_args,
             try_execute_batch,
         },
     };
@@ -175,7 +173,7 @@ mod tests {
 
         let rt = tokio::runtime::Runtime::new().unwrap();
         let block_inputs =
-            rt.block_on(execute_host_range(start_block, end_block, &provider)).unwrap();
+            rt.block_on(execute_range_basic_rpc(start_block, end_block, &provider)).unwrap();
         let _batch_info = EVMVerifier::verify(block_inputs).unwrap();
     }
 
@@ -188,9 +186,8 @@ mod tests {
         let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
 
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let block_inputs = rt
-            .block_on(execute_host_range_with_witness(start_block, end_block, &provider))
-            .unwrap();
+        let block_inputs =
+            rt.block_on(execute_range_with_witness(start_block, end_block, &provider)).unwrap();
         let _batch_info = EVMVerifier::verify(block_inputs).unwrap();
     }
 
@@ -201,7 +198,7 @@ mod tests {
 
         let (start_block, rpc) = test_args::read_block_number_args_from_argv();
         let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
-        let block_input = execute(start_block, &provider).await.unwrap();
+        let block_input = execute_with_basic_rpc(start_block, &provider).await.unwrap();
         let _ = EVMVerifier::verify(vec![block_input.clone()]).unwrap();
         let input_path = format!("../../testdata/state/block_{}.json", start_block);
         let file = File::create(&input_path).unwrap();

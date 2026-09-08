@@ -18,11 +18,12 @@ pub enum InputSource {
 }
 
 /// Execute a single block using per-account `eth_getProof` (original RPC-DB path).
-pub async fn execute(
+pub async fn execute_with_basic_rpc(
     block_number: u64,
     provider: &DynProvider,
 ) -> Result<ClientBlockInput, anyhow::Error> {
-    let output: HostExecutorOutput = HostExecutor::execute_block(block_number, provider).await?;
+    let output: HostExecutorOutput =
+        HostExecutor::execute_block_with_basic_rpc(block_number, provider).await?;
 
     // let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
     let block_input = assemble_block_input(output);
@@ -72,7 +73,7 @@ pub async fn execute_batch(
             // Use per-account eth_getProof RPC calls.
             let mut block_inputs = vec![];
             for block_number in start_block..=end_block {
-                block_inputs.push(execute(block_number, provider).await?);
+                block_inputs.push(execute_with_basic_rpc(block_number, provider).await?);
             }
             ExecutorInput {
                 block_inputs: block_inputs.clone(),
@@ -114,7 +115,7 @@ pub async fn execute_range(start_block: u64, end_block: u64, provider: &DynProvi
         "end_block ({end_block}) must be >= start_block ({start_block})"
     );
     for block_number in start_block..=end_block {
-        execute(block_number, provider).await.unwrap();
+        execute_with_basic_rpc(block_number, provider).await.unwrap();
     }
 }
 
@@ -127,7 +128,7 @@ pub async fn execute_continuous(start_block: u64, max_blocks: u64, provider: &Dy
             Some(n) => n,
             None => break,
         };
-        execute(block_number, provider).await.unwrap();
+        execute_with_basic_rpc(block_number, provider).await.unwrap();
     }
 }
 
@@ -138,7 +139,7 @@ mod tests {
     use prover_utils::witness::{load_inputs, resolve_block_input_files};
 
     use crate::{
-        execute::{execute, execute_continuous, execute_range},
+        execute::{execute_continuous, execute_range, execute_with_basic_rpc},
         utils::command_args,
     };
 
@@ -151,7 +152,7 @@ mod tests {
         let (block_number, rpc) = command_args::read_execute_args_from_argv();
         let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
 
-        rt.block_on(execute(block_number, &provider)).unwrap();
+        rt.block_on(execute_with_basic_rpc(block_number, &provider)).unwrap();
     }
 
     // cargo test -p morph-prove --lib -- execute::tests::test_execute_range --exact --nocapture -- --start-block 0x35 --end-block 0x36 --rpc http://127.0.0.1:9545

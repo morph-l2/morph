@@ -32,7 +32,7 @@ impl HostExecutor {
     /// 1) fetching block + previous state root
     /// 2) executing all txs against an RPC-backed DB
     /// 3) verifying the computed post-state root
-    pub async fn execute_block(
+    pub async fn execute_block_with_basic_rpc(
         block_number: u64,
         provider: &DynProvider,
     ) -> Result<HostExecutorOutput, anyhow::Error> {
