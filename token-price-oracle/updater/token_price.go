@@ -355,10 +355,11 @@ func (u *PriceUpdater) calculatePriceRatioWithInfo(tokenID uint16, tokenPrice *c
 	tokenScaleFloat := new(big.Float).SetInt(tokenScale)
 	priceRatio.Mul(priceRatio, tokenScaleFloat)
 
-	// Step 3: Scale by 10^(18 - tokenDecimals) in signed integer space.
-	// tokenDecimals is uint8; `18-tokenDecimals` would wrap (24 → 250).
-	// Tokens with more than 18 decimals divide instead of multiply.
-	applyNativeDecimalAdjustment(priceRatio, tokenDecimals)
+	// Step 3: Multiply by 10^(18 - tokenDecimals)
+	// ETH has 18 decimals, so we need to adjust for token decimals
+	decimalAdjustment := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(18)-int64(tokenDecimals)), nil)
+	decimalAdjustmentFloat := new(big.Float).SetInt(decimalAdjustment)
+	priceRatio.Mul(priceRatio, decimalAdjustmentFloat)
 
 	// Step 4: Finally divide by ethPriceUSD
 	priceRatio.Quo(priceRatio, tokenPrice.EthPriceUSD)
@@ -384,25 +385,6 @@ func (u *PriceUpdater) calculatePriceRatioWithInfo(tokenID uint16, tokenPrice *c
 		"price_ratio", priceRatioInt.String())
 
 	return priceRatioInt, nil
-}
-
-// applyNativeDecimalAdjustment multiplies ratio by 10^(18-decimals).
-// When decimals > 18 the exponent is negative, so this divides instead.
-func applyNativeDecimalAdjustment(priceRatio *big.Float, tokenDecimals uint8) {
-	exponent := int64(18) - int64(tokenDecimals)
-	adjustment := new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(absInt64(exponent)), nil))
-	if exponent >= 0 {
-		priceRatio.Mul(priceRatio, adjustment)
-		return
-	}
-	priceRatio.Quo(priceRatio, adjustment)
-}
-
-func absInt64(v int64) int64 {
-	if v < 0 {
-		return -v
-	}
-	return v
 }
 
 // updateBalanceMetrics queries and updates balance metrics
