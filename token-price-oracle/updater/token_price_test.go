@@ -7,7 +7,7 @@ import (
 	"morph-l2/token-price-oracle/client"
 )
 
-func TestCalculatePriceRatioDoesNotWrapDecimalsAbove18(t *testing.T) {
+func TestCalculatePriceRatioScalesDownDecimalsAbove18(t *testing.T) {
 	updater := &PriceUpdater{}
 	price := &client.TokenPrice{
 		TokenID:       1,
@@ -26,8 +26,9 @@ func TestCalculatePriceRatioDoesNotWrapDecimalsAbove18(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// 18-tokenDecimals as uint8 wraps to 250, which would scale by 1e250.
-	if got.Cmp(new(big.Int).Exp(big.NewInt(10), big.NewInt(30), nil)) >= 0 {
-		t.Fatalf("price ratio %s looks like a wrapped 1e250 exponent", got)
+	// 1e6 * (1 USD / 0.5 USD per ETH) * 1e(18-24) = 2.
+	// A uint8 subtraction would wrap to 250 and scale by 1e250 instead.
+	if got.Cmp(big.NewInt(2)) != 0 {
+		t.Fatalf("price ratio = %s, want 2", got)
 	}
 }
