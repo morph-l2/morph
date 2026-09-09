@@ -234,6 +234,7 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         } catch {
             // If call fails, use default value 18
         }
+        if (decimals > 18) revert UnsupportedTokenDecimals();
         
         // Register token (isActive defaults to false)
         // Note: balanceSlot is stored as actualSlot + 1 if needBalanceSlot is true, otherwise 0
@@ -286,6 +287,8 @@ contract L2TokenRegistry is IL2TokenRegistry, OwnableUpgradeable, ReentrancyGuar
         } catch {
             // If call fails, use default value 18
         }
+        if (decimals > 18) revert UnsupportedTokenDecimals();
+
         // Update registration information
         // Note: balanceSlot is stored as actualSlot + 1 if needBalanceSlot is true, otherwise 0
         address oldAddress = tokenRegistry[_tokenID].tokenAddress;

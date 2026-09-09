@@ -70,6 +70,7 @@ interface IL2TokenRegistry {
     error InvalidArrayLength();
     error DifferentLength();
     error ZeroTokenAmount();
+    error UnsupportedTokenDecimals();
 
     /*//////////////////////////////////////////////////////////////
                             Allow List Functions
