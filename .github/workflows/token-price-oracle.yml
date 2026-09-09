@@ -1,0 +1,34 @@
+name: Token-price-oracle
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - "token-price-oracle/**"
+            - ".github/workflows/token-price-oracle.yml"
+    pull_request:
+        paths:
+            - "token-price-oracle/**"
+            - ".github/workflows/token-price-oracle.yml"
+
+permissions:
+    contents: read
+
+defaults:
+    run:
+        working-directory: "token-price-oracle"
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - name: Install Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: 1.24.x
+            - name: Run build
+              run: make build
+            - name: Run tests
+              run: make test
