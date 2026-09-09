@@ -2,19 +2,18 @@ package updater
 
 import (
 	"math/big"
-	"strings"
 	"testing"
 
 	"morph-l2/token-price-oracle/client"
 )
 
-func TestCalculatePriceRatioRejectsDecimalsAboveETH(t *testing.T) {
+func TestCalculatePriceRatioScalesDecimalsAboveETH(t *testing.T) {
 	updater := &PriceUpdater{}
 	price := &client.TokenPrice{
 		TokenID:       1,
 		Symbol:        "TOKEN24",
 		TokenPriceUSD: big.NewFloat(1),
-		EthPriceUSD:   big.NewFloat(2_000),
+		EthPriceUSD:   big.NewFloat(0.5),
 	}
 	info := &TokenInfo{
 		Decimals: 24,
@@ -22,11 +21,13 @@ func TestCalculatePriceRatioRejectsDecimalsAboveETH(t *testing.T) {
 		IsActive: true,
 	}
 
-	_, err := updater.calculatePriceRatioWithInfo(1, price, info)
-	if err == nil {
-		t.Fatal("expected decimals above 18 to be rejected")
+	got, err := updater.calculatePriceRatioWithInfo(1, price, info)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(err.Error(), "unsupported decimals 24") {
-		t.Fatalf("unexpected error: %v", err)
+
+	// 1e6 * (1 / 0.5) * 10^(18-24) = 2. Must not wrap 18-24 as uint8 250.
+	if got.Cmp(big.NewInt(2)) != 0 {
+		t.Fatalf("price ratio = %s, want 2", got)
 	}
 }

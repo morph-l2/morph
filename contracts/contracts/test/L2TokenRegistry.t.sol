@@ -136,14 +136,6 @@ contract L2TokenRegistryTest is Test {
         assertEq(info.decimals, 18); // DAI has 18 decimals
     }
 
-    function test_registerToken_reverts_when_decimals_exceed_18() public {
-        MockERC20 token24 = new MockERC20("24 Decimal Token", "TOKEN24", 24);
-
-        vm.expectRevert(IL2TokenRegistry.UnsupportedTokenDecimals.selector);
-        vm.prank(owner);
-        priceOracle.registerToken(4, address(token24), bytes32(0), false, 1e18);
-    }
-
     function test_registerToken_setsIsActiveToFalse() public {
         vm.prank(owner);
         priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
@@ -420,16 +412,6 @@ contract L2TokenRegistryTest is Test {
         (L2TokenRegistry.TokenInfo memory info, ) = priceOracle.getTokenInfo(TOKEN_ID_USDC);
         assertEq(info.tokenAddress, address(dai));
         assertEq(info.decimals, 18); // Should fetch DAI's decimals
-    }
-
-    function test_updateTokenInfo_reverts_when_decimals_exceed_18() public {
-        vm.prank(owner);
-        priceOracle.registerToken(TOKEN_ID_USDC, address(usdc), BALANCE_SLOT_USDC, true, SCALE_USDC);
-
-        MockERC20 token24 = new MockERC20("24 Decimal Token", "TOKEN24", 24);
-        vm.expectRevert(IL2TokenRegistry.UnsupportedTokenDecimals.selector);
-        vm.prank(owner);
-        priceOracle.updateTokenInfo(TOKEN_ID_USDC, address(token24), BALANCE_SLOT_USDC, true, true, SCALE_USDC);
     }
 
     function test_updateTokenInfo_reverts_when_scale_is_zero() public {
