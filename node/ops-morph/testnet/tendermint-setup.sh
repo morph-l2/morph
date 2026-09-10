@@ -32,5 +32,5 @@ fi
 #sed -i '' 's/@node3:26656/@127.0.0.1:56656/g' ./mytestnet/node0/config/config.toml ./mytestnet/node1/config/config.toml ./mytestnet/node2/config/config.toml ./mytestnet/node3/config/config.toml
 
 
-sed -i '' 's#create_empty_blocks_interval = "0s"#create_empty_blocks_interval = "5s"#g' ./mytestnet/node0/config/config.toml ./mytestnet/node1/config/config.toml ./mytestnet/node2/config/config.toml ./mytestnet/node3/config/config.toml
-sed -i '' 's#timeout_commit = "1s"#timeout_commit = "3s"#g' ./mytestnet/node0/config/config.toml ./mytestnet/node1/config/config.toml ./mytestnet/node2/config/config.toml ./mytestnet/node3/config/config.toml
+sed -i.bak 's#create_empty_blocks_interval = "0s"#create_empty_blocks_interval = "5s"#g' ./mytestnet/node0/config/config.toml ./mytestnet/node1/config/config.toml ./mytestnet/node2/config/config.toml ./mytestnet/node3/config/config.toml && rm -f ./mytestnet/node*/config/config.toml.bak
+sed -i.bak 's#timeout_commit = "1s"#timeout_commit = "3s"#g' ./mytestnet/node0/config/config.toml ./mytestnet/node1/config/config.toml ./mytestnet/node2/config/config.toml ./mytestnet/node3/config/config.toml && rm -f ./mytestnet/node*/config/config.toml.bak
