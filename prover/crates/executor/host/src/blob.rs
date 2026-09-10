@@ -1,10 +1,10 @@
-use crate::zstd_util::{init_zstd_encoder, N_BLOCK_SIZE_TARGET};
 use anyhow::{ensure, Context, Result};
+use morph_da_encoder_core::compress_morph_da_zstd;
 use prover_executor_client::types::input::BlobInfo;
 use prover_primitives::types::blob::{get_blob_data_from_blocks, get_blob_data_from_traces};
 use prover_primitives::types::block::L2Block;
 use prover_primitives::types::BlockTrace;
-use std::{io::Write, sync::Arc};
+use std::sync::Arc;
 
 /// The number of bytes to represent an unsigned 256 bit number.
 const N_BYTES_U256: usize = 32;
@@ -152,10 +152,6 @@ pub fn populate_kzg(blob_bytes: &[u8]) -> Result<BlobInfo> {
 
 /// zstd compress batch data
 pub fn compresse_batch(batch: &[u8]) -> Result<Vec<u8>> {
-    let mut encoder = init_zstd_encoder(N_BLOCK_SIZE_TARGET);
-    encoder.set_pledged_src_size(Some(batch.len() as u64)).context("zstd set_pledged")?;
-    encoder.write_all(batch).context("zstd write_all")?;
-
-    let encoded_bytes: Vec<u8> = encoder.finish().context("zstd finish")?;
+    let encoded_bytes: Vec<u8> = compress_morph_da_zstd(batch).context("compress batch failed")?;
     Ok(encoded_bytes)
 }

@@ -104,11 +104,15 @@ impl DatabaseRef for TrieDB<'_> {
             .inner
             .storage_tries
             .get(hashed_address)
-            .expect("A storage trie must be provided for each account");
+            .ok_or(TrieDBError(format!("storage trie not found for address: {:?}", address)))?;
 
         Ok(storage_trie
             .get_rlp::<U256>(keccak256(index.to_be_bytes::<32>()).as_slice())
-            .expect("Can get from MPT")
+            .map_err(|_| {
+                TrieDBError(format!(
+                    "failed to read storage slot from trie: address={address:?}, slot={index:?}"
+                ))
+            })?
             .unwrap_or_default())
     }
 

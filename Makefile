@@ -1,6 +1,6 @@
 ################## update dependencies ####################
-ETHEREUM_SUBMODULE_COMMIT_OR_TAG := 5744b8f66ec4070a535ed12200db48028df29d93
-ETHEREUM_TARGET_VERSION := v1.10.14-0.20260824023452-5744b8f66ec4
+ETHEREUM_SUBMODULE_COMMIT_OR_TAG := morph-v2.2.6
+ETHEREUM_TARGET_VERSION := morph-v2.2.6
 TENDERMINT_TARGET_VERSION := v0.3.9
 
 
@@ -161,12 +161,25 @@ export MORPH_RETH_RUSTFLAGS
 export MORPH_RETH_DOCKER_TARGET
 export MORPH_RETH_ENTRYPOINT
 DEVNET_COMPOSE_FILES := -f docker-compose-devnet.yml
-DEVNET_CLEAN_COMPOSE_FILES := -f docker-compose-devnet.yml -f docker-compose-reth.yml -f docker-compose-cluster.yml
+DEVNET_CLEAN_COMPOSE_FILES := -f docker-compose-devnet.yml -f docker-compose-cluster.yml -f docker-compose-reth.yml -f docker-compose-cluster-reth.yml
+
+# The cluster topology is layered before the execution-client override, so that
+# the reth files have the last word on the ha-el-* image, entrypoint and
+# command. Swapping these two leaves the cluster nodes running geth even when
+# reth was asked for, because later -f files win.
+ifneq ($(DEVNET_CLUSTER_ENABLED),)
+DEVNET_COMPOSE_FILES += -f docker-compose-cluster.yml
+endif
 
 ifeq ($(EXECUTION_CLIENT),geth)
 DEVNET_EXECUTION_DEPS := submodules
 else ifeq ($(EXECUTION_CLIENT),reth)
 DEVNET_COMPOSE_FILES += -f docker-compose-reth.yml
+# The ha-el-* reth overrides are kept out of docker-compose-reth.yml because
+# compose starts any service a later -f file introduces, cluster or not.
+ifneq ($(DEVNET_CLUSTER_ENABLED),)
+DEVNET_COMPOSE_FILES += -f docker-compose-cluster-reth.yml
+endif
 ifeq ($(MORPH_RETH_BUILD_FROM_SOURCE),true)
 DEVNET_EXECUTION_DEPS := reth
 else
@@ -174,9 +187,6 @@ DEVNET_EXECUTION_DEPS := reth-image
 endif
 else
 $(error unsupported EXECUTION_CLIENT "$(EXECUTION_CLIENT)", expected "geth" or "reth")
-endif
-ifneq ($(DEVNET_CLUSTER_ENABLED),)
-DEVNET_COMPOSE_FILES += -f docker-compose-cluster.yml
 endif
 
 devnet-up: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder

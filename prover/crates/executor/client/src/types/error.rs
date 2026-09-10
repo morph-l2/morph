@@ -27,6 +27,8 @@ pub enum ClientError {
     MissingTrie(Address),
     #[error("Invalid block number found in headers \n expected: {} found: {}", .0, .1)]
     InvalidHeaderBlockNumber(u64, u64),
+    #[error("Invalid base fee found in header \n expected: {} found: {}", .0, .1)]
+    InvalidHeaderBaseFee(u64, u64),
     #[error("Invalid parent header found for block \n expected: {}, found: {}", .0, .1)]
     InvalidHeaderParentHash(FixedBytes<32>, FixedBytes<32>),
     #[error("Failed to validate post exectution state {}", 0)]

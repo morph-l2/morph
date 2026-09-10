@@ -23,8 +23,9 @@ type Metrics struct {
 	// LocalVerifyTriggered increments once per batch processed under
 	// VerifyModeLocal -- presence/absence on dashboards confirms the local
 	// verifier is running. Failure tracking is intentionally not split into
-	// separate counters; failures surface as Error logs and propagate as
-	// ErrBatchVerifyDivergence to BatchStatus=stateException.
+	// separate counters; failures surface as Error logs only --
+	// BatchStatus=stateException is set from verifyBatchRoots, not from
+	// this path.
 	LocalVerifyTriggered metrics.Counter
 
 	// Tag management metrics. SafeL2BlockNumber / FinalizedL2BlockNumber are

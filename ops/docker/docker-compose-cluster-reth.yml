@@ -1,0 +1,97 @@
+# reth overrides for the HA cluster's execution clients, layered on top of
+# docker-compose-cluster.yml, which defines ha-el-* as geth.
+#
+# These live in their own file rather than in docker-compose-reth.yml because
+# compose creates any service a later -f file introduces, whether or not an
+# earlier file declared it. Keeping the ha-el-* overrides in the reth file made
+# them appear in the non-cluster devnet too, where they started without the
+# /genesis.json and /jwt-secret.txt mounts that only the cluster file provides
+# and died with "Invalid value '/genesis.json' for --chain". So this file is
+# passed only when both --cluster and reth are asked for.
+#
+# See docker-compose-reth.yml for why discovery is off, why every node is handed
+# a fixed --p2p-secret-key, and how the enodes below were derived. Peering here
+# mirrors static-nodes-cluster.json: each ha-el-* dials the other two plus both
+# morph-el-*.
+#
+# The command list is spelled out per service because --trusted-peers takes one
+# comma separated value and YAML cannot concatenate an anchor with extra items.
+
+x-reth-service: &reth-service
+  image: ${MORPH_RETH_IMAGE:-ghcr.io/morph-l2/morph-reth:latest}
+  user: "0:0"
+  entrypoint:
+    - ${MORPH_RETH_ENTRYPOINT:-/usr/local/bin/morph-reth}
+
+services:
+  ha-el-0:
+    <<: *reth-service
+    command:
+      - node
+      - --chain=/genesis.json
+      - --datadir=/db
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.port=8545
+      - --http.api=web3,debug,eth,txpool,net,trace,admin,reth
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.port=8546
+      - --ws.api=web3,debug,eth,txpool,net,trace,admin,reth
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --authrpc.jwtsecret=/jwt-secret.txt
+      - --nat=none
+      - --disable-discovery
+      - --p2p-secret-key=/p2p-secret.key
+      - --trusted-peers=enode://73edbabab8727eba67dd5c2964c610decf28ec73e72d5bc395cc5be3c61ebd76cf72ada700b10926c3d2f9e86d64fafb92c6d02deb48c16439040b7c37f86c2d@ha-el-1:30303,enode://4a1a481e53b57ea351a08d945443cdff9cb7911e9121e8240efa99e4214582c0e383a30706349ce1be88b81d0f6344c401823a6624569e20d26880774279c41c@ha-el-2:30303,enode://58e698ea2dd8a76e0cb185d13c1faabf223b60c89fef988c8b89496571056d6c2922109537bb291cd87f2ec09a23ac37d59bde2c7a4885d07b7b641cadff2921@morph-el-0:30303,enode://bd755ce0bc8c06b4444b9013e8d1215a02e2b53f39f746f060c292ba2f6877d7b702374f006a49a7b1506bf1bc027b43824859d081283e6bac97c8600cdf3fee@morph-el-1:30303
+    volumes:
+      - "${PWD}/ha-nodekey0:/p2p-secret.key"
+
+  ha-el-1:
+    <<: *reth-service
+    command:
+      - node
+      - --chain=/genesis.json
+      - --datadir=/db
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.port=8545
+      - --http.api=web3,debug,eth,txpool,net,trace,admin,reth
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.port=8546
+      - --ws.api=web3,debug,eth,txpool,net,trace,admin,reth
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --authrpc.jwtsecret=/jwt-secret.txt
+      - --nat=none
+      - --disable-discovery
+      - --p2p-secret-key=/p2p-secret.key
+      - --trusted-peers=enode://343bbe0507fd72946e8d57d5b42630dc905aed7e512945eb2dfd99a0d27bb1c7e84ba621c3408242d713a972a581374ea83a4d134651c373c4f2e8425ba99857@ha-el-0:30303,enode://4a1a481e53b57ea351a08d945443cdff9cb7911e9121e8240efa99e4214582c0e383a30706349ce1be88b81d0f6344c401823a6624569e20d26880774279c41c@ha-el-2:30303,enode://58e698ea2dd8a76e0cb185d13c1faabf223b60c89fef988c8b89496571056d6c2922109537bb291cd87f2ec09a23ac37d59bde2c7a4885d07b7b641cadff2921@morph-el-0:30303,enode://bd755ce0bc8c06b4444b9013e8d1215a02e2b53f39f746f060c292ba2f6877d7b702374f006a49a7b1506bf1bc027b43824859d081283e6bac97c8600cdf3fee@morph-el-1:30303
+    volumes:
+      - "${PWD}/ha-nodekey1:/p2p-secret.key"
+
+  ha-el-2:
+    <<: *reth-service
+    command:
+      - node
+      - --chain=/genesis.json
+      - --datadir=/db
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.port=8545
+      - --http.api=web3,debug,eth,txpool,net,trace,admin,reth
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.port=8546
+      - --ws.api=web3,debug,eth,txpool,net,trace,admin,reth
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --authrpc.jwtsecret=/jwt-secret.txt
+      - --nat=none
+      - --disable-discovery
+      - --p2p-secret-key=/p2p-secret.key
+      - --trusted-peers=enode://343bbe0507fd72946e8d57d5b42630dc905aed7e512945eb2dfd99a0d27bb1c7e84ba621c3408242d713a972a581374ea83a4d134651c373c4f2e8425ba99857@ha-el-0:30303,enode://73edbabab8727eba67dd5c2964c610decf28ec73e72d5bc395cc5be3c61ebd76cf72ada700b10926c3d2f9e86d64fafb92c6d02deb48c16439040b7c37f86c2d@ha-el-1:30303,enode://58e698ea2dd8a76e0cb185d13c1faabf223b60c89fef988c8b89496571056d6c2922109537bb291cd87f2ec09a23ac37d59bde2c7a4885d07b7b641cadff2921@morph-el-0:30303,enode://bd755ce0bc8c06b4444b9013e8d1215a02e2b53f39f746f060c292ba2f6877d7b702374f006a49a7b1506bf1bc027b43824859d081283e6bac97c8600cdf3fee@morph-el-1:30303
+    volumes:
+      - "${PWD}/ha-nodekey2:/p2p-secret.key"

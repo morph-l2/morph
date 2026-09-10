@@ -4365,6 +4365,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "morph-da-decoder-core"
+version = "0.1.0"
+source = "git+https://github.com/morph-l2/morph-da-codec.git?rev=681727561e38d07c3ca7ad3017bea7f165b68783#681727561e38d07c3ca7ad3017bea7f165b68783"
+dependencies = [
+ "ruzstd",
+]
+
+[[package]]
+name = "morph-da-encoder-core"
+version = "0.1.0"
+source = "git+https://github.com/morph-l2/morph-da-codec.git?rev=681727561e38d07c3ca7ad3017bea7f165b68783#681727561e38d07c3ca7ad3017bea7f165b68783"
+dependencies = [
+ "zstd",
+]
+
+[[package]]
 name = "morph-primitives"
 version = "0.2.0"
 source = "git+https://github.com/morph-l2/morph-reth.git?tag=v0.2.0#7d75856a219f5e86916b79a718d2b846b0149a43"
@@ -4673,7 +4689,7 @@ dependencies = [
  "hashbrown 0.15.5",
  "indexmap 2.12.1",
  "memchr",
- "ruzstd 0.8.3",
+ "ruzstd",
 ]
 
 [[package]]
@@ -5735,6 +5751,7 @@ dependencies = [
  "anyhow",
  "kzg-rs",
  "log",
+ "morph-da-decoder-core",
  "morph-revm",
  "prover-executor-core",
  "prover-mpt",
@@ -5742,7 +5759,6 @@ dependencies = [
  "prover-storage-witness",
  "reth-trie",
  "revm",
- "ruzstd 0.7.2",
  "serde",
  "serde_json",
  "serde_with",
@@ -5776,6 +5792,7 @@ dependencies = [
  "anyhow",
  "c-kzg",
  "log",
+ "morph-da-encoder-core",
  "prover-executor-client",
  "prover-executor-core",
  "prover-mpt",
@@ -5786,7 +5803,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "zstd",
 ]
 
 [[package]]
@@ -7125,19 +7141,11 @@ dependencies = [
 
 [[package]]
 name = "ruzstd"
-version = "0.7.2"
-source = "git+https://github.com/KillingSpark/zstd-rs.git?branch=master#603ee2dfa5f0abe3a8bfc5fad6cb9782cdf37a68"
-dependencies = [
- "twox-hash 1.6.3",
-]
-
-[[package]]
-name = "ruzstd"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7c1c839d570d835527c9a5e4db7cb2198683a988cb9d7293fc8674e6bd58fc8"
 dependencies = [
- "twox-hash 2.1.2",
+ "twox-hash",
 ]
 
 [[package]]
@@ -9541,16 +9549,6 @@ dependencies = [
  "tokio",
  "tower 0.5.2",
  "url",
-]
-
-[[package]]
-name = "twox-hash"
-version = "1.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
-dependencies = [
- "cfg-if 0.1.10",
- "static_assertions",
 ]
 
 [[package]]

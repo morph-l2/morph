@@ -1,9 +1,5 @@
-use anyhow::{anyhow, Context};
-use ruzstd::StreamingDecoder;
-use std::io::Read;
-
-/// This magic number is included at the start of a single Zstandard frame
-pub const MAGIC_NUM: u32 = 0xFD2F_B528;
+use anyhow::anyhow;
+use morph_da_decoder_core::decompress_morph_da_zstd;
 
 /// The number of coefficients (BLS12-381 scalars) to represent the blob polynomial in
 /// evaluationform.
@@ -48,19 +44,8 @@ pub fn get_origin_batch(blob_data: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
 }
 
 pub fn decompress_batch(compressed_batch: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
-    if compressed_batch.iter().all(|&x| x == 0) {
-        // empty batch
-        return Ok(Vec::new());
-    }
-
-    let mut content = MAGIC_NUM.to_le_bytes().to_vec();
-    content.append(&mut compressed_batch.to_vec());
-    let mut x = content.as_slice();
-
-    let mut decoder = StreamingDecoder::new(&mut x)?;
-    let mut result = Vec::new();
-    decoder.read_to_end(&mut result).context("Failed to decompress batch")?;
+    let decoded = decompress_morph_da_zstd(compressed_batch)?;
     #[cfg(not(target_os = "zkvm"))]
-    log::info!("decompressed_batch: {:?}", result.len());
-    Ok(result)
+    log::info!("decompressed_batch: {:?}", decoded.len());
+    Ok(decoded)
 }

@@ -114,12 +114,17 @@ impl Prover {
             let prove_rt = self.batch_prover.prove(&mut input, !shadow).await;
 
             match prove_rt {
-                Ok(Some(proof)) => {
-                    save_proof(batch_index, proof);
-                    PROVE_RESULT.set(1);
-                    let duration_mins = start.elapsed().as_secs() / 60;
-                    PROVE_TIME.set(duration_mins.try_into().unwrap_or_default());
-                }
+                Ok(Some(proof)) => match save_proof(batch_index, proof) {
+                    Ok(()) => {
+                        PROVE_RESULT.set(1);
+                        let duration_mins = start.elapsed().as_secs() / 60;
+                        PROVE_TIME.set(duration_mins.try_into().unwrap_or_default());
+                    }
+                    Err(e) => {
+                        PROVE_RESULT.set(2);
+                        log::error!("Save evm proof of batch-{:?} error: {:?}", batch_index, e);
+                    }
+                },
                 Ok(None) => {
                     PROVE_RESULT.set(2);
                     log::error!("Gen proof of batch-{:?} is none", batch_index)
@@ -196,16 +201,13 @@ async fn gen_client_input(
 }
 
 /// Save evm proof to file.
-fn save_proof(batch_index: u64, proof: EvmProofFixture) {
+fn save_proof(batch_index: u64, proof: EvmProofFixture) -> Result<(), anyhow::Error> {
     let batch_dir =
         PathBuf::from(PROVER_PROOF_DIR.to_string()).join(format!("batch_{batch_index}"));
-    std::fs::create_dir_all(&batch_dir).expect("failed to create proof path");
-    std::fs::write(
-        batch_dir.join("plonk_proof.json"),
-        serde_json::to_string_pretty(&proof).unwrap(),
-    )
-    .expect("failed to write proof");
+    std::fs::create_dir_all(&batch_dir)?;
+    std::fs::write(batch_dir.join("plonk_proof.json"), serde_json::to_string_pretty(&proof)?)?;
     log::info!("Successfully save evm proof of batch-{:?}", batch_index);
+    Ok(())
 }
 
 #[allow(dead_code)]

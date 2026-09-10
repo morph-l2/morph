@@ -14,11 +14,12 @@ import (
 // a true "verifier reached a verdict of inconsistent" — i.e. the local
 // chain disagrees with what L1 committed. Currently produced by:
 //   - verifyBatchRoots, when local stateRoot or withdrawalRoot ≠ L1 calldata
-//   - verify_local's rebuildBlob, for kinds versioned_hash_mismatch and
-//     blob_count_mismatch
+//   - verify_local's rebuildBlob, for kind blob_count_mismatch
 //
-// Call sites in derivation.go gate `metrics.SetBatchStatus(stateException)`
-// on errors.Is(err, ErrBatchVerifyDivergence). Transient or runtime errors
+// Only the verifyBatchRoots call site in derivation.go gates
+// `metrics.SetBatchStatus(stateException)` on errors.Is(err,
+// ErrBatchVerifyDivergence); the rebuildBlob failure path logs and retries
+// without inspecting the sentinel. Transient or runtime errors
 // (RPC down, tx parsing failure, encoding bug, ...) intentionally do NOT
 // wrap this sentinel: they reflect "verifier could not run", not "verifier
 // determined divergence", and must not light up the divergence alert.

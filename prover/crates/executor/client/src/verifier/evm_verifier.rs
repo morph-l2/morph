@@ -10,6 +10,8 @@ use revm::database::State;
 // use Verifier;
 pub struct EVMVerifier;
 
+const L2_BASE_FEE: u64 = 1_000_000;
+
 impl EVMVerifier {
     pub fn verify(blocks: Vec<BlockInput>) -> Result<BatchInfo, ClientError> {
         // Edge case: nothing to execute.
@@ -18,13 +20,20 @@ impl EVMVerifier {
                 "empty batch: no block inputs provided".to_owned(),
             ));
         }
-        // Verify that each block's `prev_state_root` matches the previous block's `post_state_root`.
-        // This ensures the batch is contiguous.
-        if blocks
-            .windows(2)
-            .any(|w| w[0].current_block.post_state_root != w[1].current_block.prev_state_root)
-        {
-            return Err(ClientError::DiscontinuousStateRoot);
+        // Verify that block numbers and state roots are consecutive within the batch.
+        for window in blocks.windows(2) {
+            let previous = window[0].current_block.header.number.to::<u64>();
+            let current = window[1].current_block.header.number.to::<u64>();
+            let expected = previous
+                .checked_add(1)
+                .ok_or(ClientError::InvalidHeaderBlockNumber(previous, current))?;
+            if current != expected {
+                return Err(ClientError::InvalidHeaderBlockNumber(expected, current));
+            }
+
+            if window[0].current_block.post_state_root != window[1].current_block.prev_state_root {
+                return Err(ClientError::DiscontinuousStateRoot);
+            }
         }
         execute(blocks)
     }
@@ -70,7 +79,12 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
         }
         return Ok(());
     }
+
     let header = &block.header;
+    let base_fee = header.base_fee_per_gas.unwrap_or_default().to::<u64>();
+    if base_fee != L2_BASE_FEE {
+        return Err(ClientError::InvalidHeaderBaseFee(L2_BASE_FEE, base_fee));
+    }
     let chain_id = block.chain_id;
     let _tx_count = block.transactions.len();
     let _block_num = header.number.to::<u64>();

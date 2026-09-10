@@ -98,7 +98,10 @@ async fn sign_tx(
 ) -> Result<Bytes, Box<dyn Error>> {
     if let Some(signer) = ext_signer {
         log::info!("request remote sign, method_sig: {}", method_sig);
-        Ok(signer.sign(tx, method_sig).await?)
+        let signed_tx = timeout(Duration::from_secs(60), signer.sign(&tx, method_sig))
+            .await
+            .map_err(|_| anyhow!("remote signer timeout (60s), method_sig: {}", method_sig))??;
+        Ok(signed_tx)
     } else {
         log::info!("request local sign");
         let signature = local_signer.signer().sign_transaction(tx).await?;
