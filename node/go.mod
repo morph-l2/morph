@@ -2,7 +2,7 @@ module morph-l2/node
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.9
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.10-0.20260902105027-c75ab47bb1aa
 
 require (
 	github.com/cenkalti/backoff/v4 v4.1.3
@@ -13,7 +13,7 @@ require (
 	github.com/hashicorp/raft v1.7.3
 	github.com/hashicorp/raft-boltdb/v2 v2.3.1
 	github.com/mdlayher/vsock v1.2.1
-	github.com/morph-l2/go-ethereum v1.10.14-0.20260824023452-5744b8f66ec4
+	github.com/morph-l2/go-ethereum v1.10.14-0.20260908092055-4012f174b967
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.17.0
 	github.com/spf13/viper v1.13.0
