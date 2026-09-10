@@ -1747,6 +1747,39 @@ func (r *Rollup) InitFeeMetricsSum() error {
 	return nil
 }
 
+// buildCancelBlobSidecar builds the empty-blob sidecar for CancelTx, matching
+// createBlobTx / ReSubmitTx blob-version selection.
+func buildCancelBlobSidecar(head *ethtypes.Header, chainID uint64) (*ethtypes.BlobTxSidecar, common.Hash, error) {
+	var emptyBlob kzg4844.Blob
+	emptyCommitment, err := kzg4844.BlobToCommitment(&emptyBlob)
+	if err != nil {
+		return nil, common.Hash{}, fmt.Errorf("failed to create empty blob commitment: %w", err)
+	}
+	sidecar := &ethtypes.BlobTxSidecar{
+		Blobs:       []kzg4844.Blob{emptyBlob},
+		Commitments: []kzg4844.Commitment{emptyCommitment},
+	}
+	switch blob.DetermineBlobVersion(head, chainID) {
+	case ethtypes.BlobSidecarVersion0:
+		sidecar.Version = ethtypes.BlobSidecarVersion0
+		emptyProof, err := kzg4844.ComputeBlobProof(&emptyBlob, emptyCommitment)
+		if err != nil {
+			return nil, common.Hash{}, fmt.Errorf("failed to create empty blob proof: %w", err)
+		}
+		sidecar.Proofs = []kzg4844.Proof{emptyProof}
+	case ethtypes.BlobSidecarVersion1:
+		sidecar.Version = ethtypes.BlobSidecarVersion1
+		proofs, err := blob.MakeCellProof(sidecar.Blobs)
+		if err != nil {
+			return nil, common.Hash{}, fmt.Errorf("failed to create empty cell proof: %w", err)
+		}
+		sidecar.Proofs = proofs
+	default:
+		return nil, common.Hash{}, fmt.Errorf("unsupported blob version")
+	}
+	return sidecar, kZGToVersionedHash(emptyCommitment), nil
+}
+
 // CancelTx creates a new transaction with empty calldata to cancel the original transaction
 func (r *Rollup) CancelTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 	if tx == nil {
@@ -1762,9 +1795,12 @@ func (r *Rollup) CancelTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, erro
 		"nonce", tx.Nonce(),
 	)
 
-	tip, gasFeeCap, blobFeeCap, _, err := r.GetGasTipAndCap()
+	tip, gasFeeCap, blobFeeCap, head, err := r.GetGasTipAndCap()
 	if err != nil {
 		return nil, fmt.Errorf("get gas tip and cap error:%w", err)
+	}
+	if blobFeeCap == nil {
+		blobFeeCap = big.NewInt(0)
 	}
 
 	// bump tip & feeCap
@@ -1801,17 +1837,10 @@ func (r *Rollup) CancelTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, erro
 			Data:      []byte{}, // Empty calldata for cancellation
 		})
 	case ethtypes.BlobTxType:
-		// For blob transactions, we need to keep one empty blob
-		var emptyBlob kzg4844.Blob
-		emptyCommitment, err := kzg4844.BlobToCommitment(&emptyBlob)
+		sidecar, versionedHash, err := buildCancelBlobSidecar(head, r.chainId.Uint64())
 		if err != nil {
-			return nil, fmt.Errorf("failed to create empty blob commitment: %w", err)
+			return nil, err
 		}
-		emptyProof, err := kzg4844.ComputeBlobProof(&emptyBlob, emptyCommitment)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create empty blob proof: %w", err)
-		}
-
 		newTx = ethtypes.NewTx(&ethtypes.BlobTx{
 			ChainID:    uint256.MustFromBig(tx.ChainId()),
 			Nonce:      tx.Nonce(),
@@ -1822,12 +1851,8 @@ func (r *Rollup) CancelTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, erro
 			Value:      uint256.MustFromBig(tx.Value()),
 			Data:       []byte{}, // Empty calldata for cancellation
 			BlobFeeCap: uint256.MustFromBig(blobFeeCap),
-			BlobHashes: []common.Hash{kZGToVersionedHash(emptyCommitment)},
-			Sidecar: &ethtypes.BlobTxSidecar{
-				Blobs:       []kzg4844.Blob{emptyBlob},
-				Commitments: []kzg4844.Commitment{emptyCommitment},
-				Proofs:      []kzg4844.Proof{emptyProof},
-			},
+			BlobHashes: []common.Hash{versionedHash},
+			Sidecar:    sidecar,
 		})
 	default:
 		return nil, fmt.Errorf("cancel unknown tx type:%v", tx.Type())
