@@ -34,6 +34,10 @@ var (
 	RollupEventTopicHash = crypto.Keccak256Hash([]byte(RollupEventTopic))
 )
 
+// stopTimeout bounds how long Stop waits for the main loop to unwind after
+// the context is canceled.
+const stopTimeout = 30 * time.Second
+
 type Derivation struct {
 	ctx                   context.Context
 	node                  *tmnode.Node
@@ -229,8 +233,17 @@ func (d *Derivation) Stop() {
 	if d.cancel != nil {
 		d.cancel()
 	}
-	<-d.stop
-	d.logger.Info("derivation service is stopped")
+	// The main loop only observes ctx.Done() between polls, so a poll that
+	// is mid-RPC still has to unwind. Bound the wait rather than block the
+	// process's shutdown sequence indefinitely: nothing here needs a clean
+	// hand-off, since the L1 cursor is only persisted after a fully
+	// successful poll and any partial derivation is redone on restart.
+	select {
+	case <-d.stop:
+		d.logger.Info("derivation service is stopped")
+	case <-time.After(stopTimeout):
+		d.logger.Error("derivation service did not stop within timeout; abandoning wait", "timeout", stopTimeout)
+	}
 }
 
 func (d *Derivation) derivationBlock(ctx context.Context) {
@@ -546,7 +559,7 @@ func (d *Derivation) fetchRollupLog(ctx context.Context, from, to uint64) ([]eth
 }
 
 func (d *Derivation) fetchRollupDataByTxHash(txHash common.Hash, blockNumber uint64) (*BatchInfo, error) {
-	tx, pending, err := d.l1Client.TransactionByHash(context.Background(), txHash)
+	tx, pending, err := d.l1Client.TransactionByHash(d.ctx, txHash)
 	if err != nil {
 		return nil, err
 	}
@@ -762,6 +775,10 @@ func (d *Derivation) getL1Message(l1MessagePopped, l1MsgNum uint64) ([]types.L1M
 func (d *Derivation) derive(rollupData *BatchInfo) (*eth.Header, error) {
 	var lastHeader *eth.Header
 	for _, blockData := range rollupData.blockContexts {
+		// Deliberately not d.ctx: RetryableClient's backoff loop is not
+		// context-bound and treats a canceled context as retryable, so
+		// passing d.ctx here would spin until the 30-minute retry budget
+		// expires instead of returning.
 		latestBlockNumber, err := d.l2Client.BlockNumber(context.Background())
 		if err != nil {
 			return nil, fmt.Errorf("get derivation geth block number error:%v", err)
