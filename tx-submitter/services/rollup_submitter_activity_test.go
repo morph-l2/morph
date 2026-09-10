@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/binary"
 	"errors"
 	"math/big"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"morph-l2/tx-submitter/mock"
+	"morph-l2/tx-submitter/utils"
 )
 
 // A submitter can be removed, slashed, priced out by a raised minimum stake, or
@@ -68,4 +70,38 @@ func TestFinalizeDoesNotRoughEstimatePastRevert(t *testing.T) {
 	l1Mock.EstimateGasErr = errors.New("connection refused")
 	require.NoError(t, r.finalize())
 	require.Equal(t, 1, r.pendingTxs.Len())
+}
+
+func headerWithBatchIndex(index uint64) hexutil.Bytes {
+	h := make([]byte, 9)
+	h[0] = 1
+	binary.BigEndian.PutUint64(h[1:9], index)
+	return h
+}
+
+// A dropped finalize tx can leave pfinalize ahead of lastFinalized. The contract
+// still requires lastFinalized+1; skipping that batch reverts with
+// "incorrect previous state root".
+func TestFinalizeDoesNotSkipAheadOfLastFinalized(t *testing.T) {
+	r, l1Mock, _, rollupContract := setupTestRollup(t)
+	r.cfg.RoughEstimateGas = true
+	l1Mock.EstimateGasErr = errors.New("connection refused")
+
+	lastFinalized := uint64(27036)
+	next := lastFinalized + 1
+	rollupContract.SetLastFinalizedBatchIndex(new(big.Int).SetUint64(lastFinalized))
+	rollupContract.SetLastCommittedBatchIndex(big.NewInt(27076))
+	rollupContract.SetBatchExists(true)
+	rollupContract.SetBatchInsideChallengeWindow(false)
+	r.pendingTxs.SetPFinalize(next) // stale: previous finalize(27037) was sent then dropped
+	r.batchCacheLegacy.Set(next+1, &eth.RPCRollupBatch{
+		ParentBatchHeader: headerWithBatchIndex(next),
+	})
+
+	require.NoError(t, r.finalize())
+	require.Equal(t, 1, r.pendingTxs.Len())
+	require.Equal(t, next, utils.ParseFBatchIndex(r.pendingTxs.GetAll()[0].Tx.Data()))
+
+	require.NoError(t, r.finalize())
+	require.Equal(t, 1, r.pendingTxs.Len(), "must not send a second finalize while one is pending")
 }
