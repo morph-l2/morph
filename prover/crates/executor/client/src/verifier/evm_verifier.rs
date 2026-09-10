@@ -20,6 +20,12 @@ impl EVMVerifier {
         }
         // Verify block numbers and state roots are consecutive within the batch.
         for window in blocks.windows(2) {
+            // ChainId check
+            if window[0].chain_id != window[1].chain_id {
+                return Err(ClientError::ChainIdNotMatch);
+            }
+
+            // Blocknum check
             let previous = window[0].current_block.number();
             let current = window[1].current_block.number();
             let expected = previous
@@ -28,6 +34,13 @@ impl EVMVerifier {
             if current != expected {
                 return Err(ClientError::InvalidHeaderBlockNumber(expected, current));
             }
+
+            // Block timestamp check
+            if window[0].current_block.timestamp() > window[1].current_block.timestamp() {
+                return Err(ClientError::InvalidBlockTimestamp(current));
+            }
+
+            // StateRoot continuous check
             if window[0].current_block.state_root() != window[1].parent_state.state_root() {
                 return Err(ClientError::DiscontinuousStateRoot);
             }

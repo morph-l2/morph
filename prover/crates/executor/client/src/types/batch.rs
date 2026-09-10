@@ -6,6 +6,8 @@ use revm::primitives::B256;
 
 use crate::types::input::BlockInput;
 
+pub const BATCH_VERSION: u8 = 2u8;
+
 /// BatchInfo is metadata of chunk, with following fields:
 /// - state root before this chunk
 /// - state root after this chunk
@@ -66,6 +68,15 @@ impl BatchInfo {
         data_hasher.finalize()
     }
 
+    /// Calculates the data hash for an invalid blob that is finalized as a no-op batch.
+    /// No L1 messages are executed, so the encoded message count is always zero.
+    fn calculate_invalid_blob_data_hash(last_block_number: u64) -> B256 {
+        let mut data_hasher = Keccak256::new();
+        data_hasher.update(last_block_number.to_be_bytes());
+        data_hasher.update(0u16.to_be_bytes());
+        data_hasher.finalize()
+    }
+
     /// Hashes the L1 messages in the block using the provided hasher.
     pub fn hash_l1_msg(transactions: &Vec<MorphTxEnvelope>, hasher: &mut Keccak256) {
         for tx in transactions {
@@ -75,13 +86,8 @@ impl BatchInfo {
         }
     }
 
-    /// Public input hash for V0/V1, using the single versioned hash directly.
-    pub fn public_input_hash(&self, versioned_hash: &B256) -> B256 {
-        self.public_input_hash_with_blob_input(*versioned_hash)
-    }
-
     /// Public input hash for V2, using keccak256(hash[0] || ... || hash[N-1]) as blob input.
-    pub fn public_input_hash_v2(&self, blob_hashes: &[B256]) -> B256 {
+    pub fn public_input_hash(&self, blob_hashes: &[B256]) -> B256 {
         let mut blob_hasher = Keccak256::new();
         for h in blob_hashes {
             blob_hasher.update(h.as_slice());
@@ -97,7 +103,7 @@ impl BatchInfo {
         hasher.update(self.prev_state_root.as_slice());
         hasher.update(self.post_state_root.as_slice());
         hasher.update(self.withdraw_root.unwrap().as_slice());
-        hasher.update(B256::ZERO.as_slice());
+        hasher.update(B256::ZERO.as_slice()); // The Rollup contract has been fixed at 0.
         hasher.update(self.data_hash.as_slice());
         hasher.update(blob_input.as_slice());
         hasher.finalize()
@@ -105,17 +111,22 @@ impl BatchInfo {
 
     /// Calculates the public input hash for a batch whose blob cannot be decoded or does not
     /// match the block data. Since the batch is not executed, all post roots remain unchanged.
-    pub fn public_input_hash_for_invalid_blob(
+    pub fn _public_input_hash_for_invalid_blob(
         blob_hashes: &[B256],
         block_inputs: &[BlockInput],
-        batch_version: u8,
     ) -> Result<B256, crate::types::error::ClientError> {
         let first_block_input = block_inputs.first().expect("block inputs must not be empty");
         let original_state_root: B256 = first_block_input.parent_state.state_root();
         let original_withdraw_root =
             first_block_input.get_storage_value(WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT)?;
 
-        let data_hash = Self::calculate_data_hash(block_inputs);
+        let last_block_number = block_inputs
+            .last()
+            .expect("block inputs must not be empty")
+            .current_block
+            .header
+            .number();
+        let data_hash = Self::calculate_invalid_blob_data_hash(last_block_number);
 
         let batch_info = BatchInfo {
             chain_id: first_block_input.chain_id,
@@ -125,11 +136,7 @@ impl BatchInfo {
             data_hash,
         };
 
-        Ok(match batch_version {
-            0 | 1 => batch_info.public_input_hash(&blob_hashes[0]),
-            2 => batch_info.public_input_hash_v2(blob_hashes),
-            _ => unreachable!("batch version is validated before calculating the hash"),
-        })
+        Ok(batch_info.public_input_hash(blob_hashes))
     }
 
     /// Chain ID of this chunk
@@ -184,21 +191,9 @@ mod tests {
         B256::from(b)
     }
 
-    /// A single blob is encoded differently by the legacy and aggregated formats.
-    #[test]
-    fn test_public_input_hash_v2_single_blob_differs_from_v1() {
-        let batch = BatchInfo::test_instance(TEST_CHAIN_ID);
-        let h0 = make_hash(0xBEEF);
-
-        let v1_hash = batch.public_input_hash(&h0);
-        let v2_hash = batch.public_input_hash_v2(&[h0]);
-
-        assert_ne!(v1_hash, v2_hash, "V2 single-blob must differ from V1");
-    }
-
     /// V2 aggregated hash for two blobs: keccak256(h0 || h1) matches contract formula.
     #[test]
-    fn test_public_input_hash_v2_two_blobs_matches_contract() {
+    fn test_public_input_hash_two_blobs_matches_contract() {
         let batch = BatchInfo::test_instance(TEST_CHAIN_ID);
         let h0 = make_hash(0xAAAA);
         let h1 = make_hash(0xBBBB);
@@ -220,13 +215,13 @@ mod tests {
         hasher.update(aggregated.as_slice());
         let expected: B256 = hasher.finalize();
 
-        let result = batch.public_input_hash_v2(&[h0, h1]);
+        let result = batch.public_input_hash(&[h0, h1]);
         assert_eq!(result, expected, "V2 two-blob hash must match contract formula");
     }
 
     /// V2 aggregated hash for three blobs: keccak256(h0 || h1 || h2).
     #[test]
-    fn test_public_input_hash_v2_three_blobs() {
+    fn test_public_input_hash_three_blobs() {
         let batch = BatchInfo::test_instance(TEST_CHAIN_ID);
         let h0 = make_hash(0xAAAA);
         let h1 = make_hash(0xBBBB);
@@ -248,31 +243,32 @@ mod tests {
         hasher.update(aggregated.as_slice());
         let expected: B256 = hasher.finalize();
 
-        let result = batch.public_input_hash_v2(&[h0, h1, h2]);
+        let result = batch.public_input_hash(&[h0, h1, h2]);
         assert_eq!(result, expected, "V2 three-blob hash must match contract formula");
     }
 
     /// V2 aggregated hash is order-sensitive: (h0,h1) != (h1,h0).
     #[test]
-    fn test_public_input_hash_v2_order_sensitive() {
+    fn test_public_input_hash_order_sensitive() {
         let batch = BatchInfo::test_instance(TEST_CHAIN_ID);
         let h0 = make_hash(0xAAAA);
         let h1 = make_hash(0xBBBB);
 
-        let fwd = batch.public_input_hash_v2(&[h0, h1]);
-        let rev = batch.public_input_hash_v2(&[h1, h0]);
+        let fwd = batch.public_input_hash(&[h0, h1]);
+        let rev = batch.public_input_hash(&[h1, h0]);
         assert_ne!(fwd, rev, "V2 aggregated hash must be order-sensitive");
     }
 
     #[test]
-    fn test_public_input_hash_v2_matches_v1_with_preaggregated_hash() {
-        let batch = BatchInfo::test_instance(TEST_CHAIN_ID);
-        let h0 = make_hash(0x1234);
+    fn test_invalid_blob_data_hash_uses_zero_l1_messages() {
+        let last_block_number: u64 = 0x0102_0304_0506_0708;
+        let mut encoded = Vec::with_capacity(10);
+        encoded.extend_from_slice(&last_block_number.to_be_bytes());
+        encoded.extend_from_slice(&0u16.to_be_bytes());
 
-        let v2 = batch.public_input_hash_v2(&[h0]);
-        let aggregated = keccak256(h0.as_slice());
-        let v1_with_aggregated_hash = batch.public_input_hash(&aggregated);
-
-        assert_eq!(v1_with_aggregated_hash, v2);
+        assert_eq!(
+            BatchInfo::calculate_invalid_blob_data_hash(last_block_number),
+            keccak256(encoded)
+        );
     }
 }
