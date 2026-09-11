@@ -66,6 +66,59 @@ export const SequencerInit = async (
 
         console.log('L1SequencerProxy upgrade success')
     }
+
+    return ''
+}
+
+// SetFirstSequencer must run *after* the proxy admin has been handed over to
+// ProxyAdmin. While the deployer is still the proxy admin, any call that falls
+// through to the implementation reverts with
+// "TransparentUpgradeableProxy: admin cannot fallback to proxy target".
+export const SetFirstSequencer = async (
+    hre: HardhatRuntimeEnvironment,
+    path: string,
+    deployer: any,
+    configTmp: any
+): Promise<string> => {
+    const L1SequencerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1SequencerProxyStorageName)
+    const L1SequencerFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1Sequencer)
+
+    const L1Sequencer = new ethers.Contract(
+        L1SequencerProxyAddress,
+        L1SequencerFactory.interface,
+        deployer,
+    )
+
+    // deployConfig is a Proxy that throws on unknown keys, so probe with `in`
+    // before reading.
+    const firstSequencer: string = process.env.firstSequencerAddress ||
+        ('firstSequencerAddress' in configTmp ? configTmp.firstSequencerAddress : '')
+    if (!firstSequencer) {
+        // Networks that register the first sequencer out-of-band (devnet does it
+        // from ops/devnet-morph) leave this unset.
+        console.log('firstSequencerAddress not configured, skipping setFirstSequencer')
+        return ''
+    }
+    if (!ethers.utils.isAddress(firstSequencer)) {
+        return `invalid firstSequencerAddress: ${firstSequencer}`
+    }
+
+    if ((await L1Sequencer.getSequencerHistoryLength()).gt(0)) {
+        console.log('First sequencer already set:', await L1Sequencer.getSequencer())
+        return ''
+    }
+
+    console.log('Setting first sequencer:', firstSequencer)
+    const tx = await L1Sequencer.setFirstSequencer(firstSequencer)
+    await tx.wait()
+
+    await assertContractVariable(
+        L1Sequencer,
+        'getSequencer',
+        firstSequencer,
+    )
+
+    console.log('setFirstSequencer success')
     return ''
 }
 
