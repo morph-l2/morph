@@ -67,13 +67,32 @@ export const SequencerInit = async (
         console.log('L1SequencerProxy upgrade success')
     }
 
+    return ''
+}
+
+// SetFirstSequencer must run *after* the proxy admin has been handed over to
+// ProxyAdmin. While the deployer is still the proxy admin, any call that falls
+// through to the implementation reverts with
+// "TransparentUpgradeableProxy: admin cannot fallback to proxy target".
+export const SetFirstSequencer = async (
+    hre: HardhatRuntimeEnvironment,
+    path: string,
+    deployer: any,
+    configTmp: any
+): Promise<string> => {
+    const L1SequencerProxyAddress = getContractAddressByName(path, ProxyStorageName.L1SequencerProxyStorageName)
+    const L1SequencerFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1Sequencer)
+
     const L1Sequencer = new ethers.Contract(
         L1SequencerProxyAddress,
         L1SequencerFactory.interface,
         deployer,
     )
 
-    const firstSequencer: string = process.env.firstSequencerAddress || configTmp.firstSequencerAddress
+    // deployConfig is a Proxy that throws on unknown keys, so probe with `in`
+    // before reading.
+    const firstSequencer: string = process.env.firstSequencerAddress ||
+        ('firstSequencerAddress' in configTmp ? configTmp.firstSequencerAddress : '')
     if (!firstSequencer) {
         // Networks that register the first sequencer out-of-band (devnet does it
         // from ops/devnet-morph) leave this unset.

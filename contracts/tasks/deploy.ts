@@ -22,6 +22,7 @@ import {
     ContractInit,
     SubmitterRegister,
     SequencerInit,
+    SetFirstSequencer,
 } from '../deploy/index'
 import { ethers } from "ethers";
 
@@ -140,7 +141,14 @@ task("initialize")
             return
         }
 
-
+        // Must come after AdminTransfer: while the deployer is still the proxy
+        // admin, calls that fall through to the implementation revert.
+        console.log('\n---------------------------------- Set first sequencer ----------------------------------')
+        err = await SetFirstSequencer(hre, storagePath, deployer, config)
+        if (err != '') {
+            console.log('SetFirstSequencer failed, err: ', err)
+            return
+        }
 
         console.log('\n---------------------------------- Contract Init ----------------------------------')
         err = await ContractInit(hre, storagePath, deployer, config)
