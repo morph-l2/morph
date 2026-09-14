@@ -1,11 +1,19 @@
-# Running a devnet
+# Operational commands
 
-This guide covers new devnet and qanet deployments using the existing launch scripts.
+This guide covers devnet and qanet deployment, standalone L1 commands, genesis
+generation, existing public nodes and diagnostic tools using the existing scripts.
 For QA contracts and services, see [QA deployment](#qa-deployment). For standalone
 genesis generation, see the [L2 genesis guide](l2-genesis/README.md).
 
-All commands run from the repo root. Everything is driven by the `Makefile`; the
-compose files live in `ops/docker/`.
+Examples run from the repository root unless a different directory is stated.
+Devnet commands use the root `Makefile`; Compose files live in `ops/docker/`.
+
+Full devnet/QA deployment requires a confirmed existing `Proxy__L1Staking` on the
+intended L1. Provide its deployment records through `LEGACY_L1_DEPLOYMENT_FILE`.
+The centralization design retains this L2 genesis dependency; the scripts no
+longer replace it with a placeholder. On an empty L1, full deployment stops until
+that dependency is resolved through an approved legacy source or a separate
+genesis change. L1-only commands remain available.
 
 ## Launch modes
 
@@ -126,8 +134,8 @@ key files are copied before the peer list is built. Overwriting a
 `node_key.json` changes the node's identity, so a hardcoded ID silently goes
 stale.
 
-The list contains only the nodes that actually run tendermint: `node-0` and the
-three `ha-node-*`. `node-1` runs with
+In cluster mode, the list contains `node-0` and the three `ha-node-*`. The ordinary
+devnet excludes HA hostnames because those services are not started. `node-1` runs with
 `MORPH_NODE_DERIVATION_VERIFY_MODE=layer1` and never starts tendermint, and
 `node-2` has no compose service at all; listing either just produces endless
 reconnect and DNS failures.
@@ -165,7 +173,7 @@ make devnet-logs          # follow logs
 ```
 
 To restart the same chain, rerun the original `make devnet-up` command with the
-same client, topology and signing identities. The launcher verifies saved files
+same client, topology, signing identities and explicit batch parameters. The launcher verifies saved files
 and resumes incomplete stages. It reuses completed contracts and verifies genesis
 files without regenerating them. It writes `ops/l2-genesis/.devnet/done` only after
 L2 reports chain ID `53077` and a block number of at least `1`. An existing `done`
@@ -175,10 +183,38 @@ Deployment state, generated contract overrides and public Compose parameters are
 kept in `ops/l2-genesis/.devnet/`; node identities and databases are in
 `ops/docker/.devnet/`. Private keys are excluded from the state and `runtime.env`.
 The launcher passes keys to Hardhat and Compose through the child environment.
-`nodes.done` records the generated node configuration. Missing state, changed
+The gas oracle uses `L2_GAS_ORACLE_PRIVATE_KEY` or `--gas-oracle-private-key`; when
+neither is set, it uses the deployer key only if that address matches
+`gasPriceOracleOwner` in the L2 configuration. A mismatch stops deployment before
+transactions. No oracle signing key is written to Compose files or `runtime.env`.
+
+Submitter sealing uses `--batch-block-interval` and `--batch-timeout`, or
+`TX_SUBMITTER_BATCH_BLOCK_INTERVAL` and `TX_SUBMITTER_BATCH_TIMEOUT`. The devnet
+launcher has test defaults of `200` blocks and `600` seconds. It records those
+values in `deployment-state.json`; service-management commands reuse the saved
+values. It does not read `govBatchBlockInterval` or `govBatchTimeout` for runtime
+configuration. These two JSON fields remain inputs to the retained Gov predeploy.
+
+Both the devnet launcher and the QA shell require the independently confirmed
+legacy `Proxy__L1Staking` record. Supply `--legacy-l1-deployment-file` or
+`LEGACY_L1_DEPLOYMENT_FILE`; later runs can reuse the saved record. The record
+must identify an existing contract on the intended L1, not `Submitter` or a
+placeholder. Only the selected legacy record is imported; its administration and
+operations are not transferred to this deployment. A new empty L1 cannot satisfy
+this requirement under the current centralization specification. L1-only startup
+remains available through `--only-l1`.
+
+`nodes.done` records the generated node configuration. New node homes are prepared
+in `ops/docker/.devnet-setup-*` and published as `.devnet` only after all files pass
+validation. Failed attempt directories remain available for inspection; correct the
+cause and rerun the same command. Missing state in an existing `.devnet`, changed
 identities or changed genesis files stop the operation while preserving existing
 data. Restore the original configuration and missing files before retrying.
 Cleaning destroys chain data and must not be used to recover an interrupted stage.
+Removing ignored fields from a tracked source also changes its saved digest.
+For deployments created before configuration cleanup, follow
+[input recovery](l2-genesis/README.md#existing-deployments-after-input-cleanup)
+before rerunning deployment or submitter service commands.
 
 `make stop-all-tx-submitter`, `make start-all-tx-submitter` and
 `make rebuild-all-tx-submitter` use the existing launcher to operate only
@@ -194,7 +230,10 @@ A few things worth knowing before you debug a failed clean:
 - **A full clean must include L1.** `layer1/genesis/` is generated, and a stale
   copy leaves the beacon chain stuck at `head_slot=0`. `devnet-clean-build`
   already depends on `devnet-l1-clean`; if you clean by hand, do both.
-- **Start Docker first.** Cleaning with the daemon down silently does nothing.
+- **Start Docker first.** A Docker stop or removal failure stops cleanup before
+  deleting genesis files or node data. Correct the Docker failure and rerun the
+  same cleanup command. Only declared devnet volumes and explicitly named local
+  service images are removed; unrelated volumes and images remain untouched.
 - **`make devnet-up` does not rebuild images.** After changing `go-ethereum` or
   `tendermint` sources, rebuild explicitly or you will keep running the old
   binary.
@@ -216,8 +255,12 @@ L1 settings come from `contracts/src/deploy-config/l1.ts` or `qanetl1.ts`; L2
 settings come from `ops/l2-genesis/deploy-config/devnet-deploy-config.json` or
 `qanet-deploy-config.json`. Both must agree on L1 and L2 chain IDs, currently `900`
 and `53077`. The scripts use generated JSON overrides instead of editing tracked
-TypeScript configuration. Solidity contracts and other networks are outside this
-script change.
+TypeScript configuration. This deployment flow supports devnet and qanet;
+Solidity contracts are unchanged.
+The active L2 JSON inputs omit obsolete fields. Existing deployments still require
+their original input hashes; pass the original source through `--deploy-config`
+when resuming the shell flow. See
+[configuration consumers and recovery](l2-genesis/README.md#configuration-consumers-and-field-status).
 
 Before QA deployment, provide these inputs in the process environment or through
 the corresponding shell option:
@@ -228,6 +271,9 @@ the corresponding shell option:
 | `DEPLOYER_PRIVATE_KEY` | Funded signer for deployment and initialization. |
 | `firstSequencerAddress` or `--sequencer-address` | Nonzero address matching the actual block signer. |
 | `QA_ROLLUP_DELAY_PERIOD` or `--rollup-delay-period` | Explicit positive integer number of seconds. |
+| `TX_SUBMITTER_BATCH_BLOCK_INTERVAL` or `--batch-block-interval` | Explicit `uint64` L2 block count; zero disables this trigger. |
+| `TX_SUBMITTER_BATCH_TIMEOUT` or `--batch-timeout` | Explicit `uint64` difference in seconds between the first and last L2 block timestamps in a batch; zero disables this trigger. |
+| `LEGACY_L1_DEPLOYMENT_FILE` or `--legacy-l1-deployment-file` | Existing confirmed `Proxy__L1Staking` deployment record on this L1; required unless the output already contains it. |
 | `SUBMITTER_OWNER_PRIVATE_KEY` | Required when `submitterOwner` differs from the deployer; must match `Submitter.owner()`. |
 | `--config-override FILE` | Optional JSON containing existing L1 configuration fields, including role or submitter addresses. |
 
@@ -235,6 +281,26 @@ Private keys must remain outside JSON overrides, deployment records and
 `runtime.env`. The complete shell flow sets `DOTENV_CONFIG_PATH=/dev/null` and does
 not obtain deployment inputs from `contracts/.env`. When calling individual
 Hardhat tasks, the operator must supply the same endpoint and configuration.
+
+The shell requires both batch values explicitly and rejects them when both are
+zero. It never derives them from Gov's genesis values. For an already deployed
+network, the release operator must obtain both values from the same L2 block
+accepted by the existing release process, and retain its number and hash. The
+existing Hardhat task file provides a read-only snapshot command; from `contracts/`,
+with `L2_RPC_URL` set to the intended L2 and `L2_SNAPSHOT_BLOCK` set to that decimal
+block number. This example uses the devnet/QA L2 chain ID `53077`; another network
+requires a Hardhat network configuration with its matching chain ID:
+
+```sh
+yarn hardhat read-batch-parameters --network l2 --block-number "$L2_SNAPSHOT_BLOCK"
+```
+
+The command returns both values, L2 chain ID, block number and block hash. It
+rejects a changed block or values the submitter cannot accept. Record the result
+with the deployment inputs; before stopping the old Gov refresh path, repeat the
+read at the block selected by the release process and update both working and
+backup submitter settings if either value changed. After the transition, running
+submitters use only the recorded explicit settings.
 
 From the repository root, run:
 
@@ -245,7 +311,8 @@ sh contracts/scripts/localDeploy.sh --network qanet
 The equivalent command in `contracts/` is `yarn deploy:qanet`. The existing
 `localDeploy.sh` also accepts `--network devnet` (the default), `--output-dir`,
 `--deploy-config`, `--config-override`, `--l1-rpc`, `--sequencer-address` and
-`--rollup-delay-period`. Its devnet mode uses `L1_RPC_URL` and requires an already
+`--rollup-delay-period`, plus the batch and legacy-record options above.
+Its devnet mode uses `L1_RPC_URL` and requires an already
 running L1; use `make devnet-up` to start the local container network. Default shell
 outputs are `ops/l2-genesis/.devnet/` or `.qanet/`.
 
@@ -320,19 +387,125 @@ The deployed runtime verifier supports batch version `1`.
 header is a separate format. Install and validate the corresponding verifier
 before enabling runtime V2 batches.
 
-### Deployment validation
+## Other operational commands
 
-From the repository root, run the isolated script tests:
+| Scope | Command | Preconditions and result |
+| --- | --- | --- |
+| Devnet images | `make docker-build` | Docker must be available. Builds the local Go base image and the Compose services selected by `EXECUTION_CLIENT` and `DEVNET_CLUSTER`. `GO_BUILDER_IMAGE` selects the Go builder used by node and submitter builds. |
+| Standalone L1 | `make -f ops/docker/Makefile.layer1 start` | Generates missing L1 genesis only when no previous L1 data exists, then starts L1 and waits for a produced block. |
+| L1 logs and stop | `make -f ops/docker/Makefile.layer1 logs` or `stop` | Operates on `layer1-el`, `layer1-cl` and `layer1-vc`; does not stop L2 services. |
+| L1 replacement | `make -f ops/docker/Makefile.layer1 clean` | Deletes the selected Compose project's L1 containers, declared L1 volumes and generated genesis. Validator key inputs and L2 data remain. A running L2 cannot continue against a replacement L1; preserve its original L1 or deliberately create a separate deployment. |
+| Genesis | `sh ops/l2-genesis/<network>-l2genesis.sh` | Requires explicit RPC and confirmed matching L1 deployment records. See the [genesis guide](l2-genesis/README.md) for exact network inputs and verification rules. |
+| Diagnostic binaries | `make -C ops/tools build` | Builds `batchparse`, `gasinspect`, `keygen` and `multisend` under `ops/tools/build/bin/`. |
+
+L1 generation requires the checked-in validator definitions and keys. Before
+startup, the scripts require nonempty `genesis.json`, `genesis.ssz`, `config.yaml`,
+`deposit_contract_block.txt` and the JWT secret. Incomplete existing files stop the
+operation; restore the original files instead of regenerating an existing chain.
+The unused Clique stack formerly under `ops/l2-genesis/docker-compose/l1` was
+removed. Use the standalone L1 commands above for the current execution and
+consensus clients.
+
+The `testnet` and `holesky` genesis configurations are historical references.
+Their shell entrypoints reject new genesis generation, including `--overwrite`
+and attempts to supply another network through the wrapper. `--verify-existing`
+only checks existing artifacts that satisfy the current manifest format; it does
+not migrate older configurations or create a deployment. Historical configuration
+values remain unchanged.
+
+## Running an existing public node
+
+`ops/publicnode` restores an existing snapshot; it does not deploy a new Holesky
+network. The checked-in Holesky genesis and peer identities remain historical data.
+The operator must establish that the snapshot, current binaries and supplied L1
+configuration belong to the same compatible chain before starting a node.
+
+1. Select an environment file with `ENV_FILE`, or use `ops/publicnode/.env`. Set
+   `GETH_NETWORK_ID`, `MORPH_NODE_L1_ETH_RPC`, `MORPH_NODE_L1_ETH_BEACON_RPC`,
+   `MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS`, `MORPH_NODE_L1_SEQUENCER_CONTRACT`,
+   `MORPH_NODE_ROLLUP_ADDRESS` and `MORPH_NODE_SEQUENCER_UPGRADE_TIME` using that
+   chain's actual parameters. No removed network preset supplies these values.
+2. Run `make -C ops/publicnode download-and-decompress-snapshot`. `SNAPSHOT_URL`,
+   `SNAPSHOT_NAME` and `SNAPSHOT_DIR` select the archive and destination. Existing
+   destinations are preserved; failed download or extraction directories remain
+   for inspection. Verify the archive's origin and chain identity before use.
+3. Run `make -C ops/publicnode check-config`, then
+   `make -C ops/publicnode run-holesky-node`. The latter validates the restored
+   data, preserves or creates the JWT secret, builds the services and starts the
+   node with its execution client.
+4. Inspect service logs, L1/L2 chain IDs, synchronization height and peer
+   connectivity. If the chain identity or binary compatibility is wrong, stop the
+   services and preserve the snapshot and node data before correcting the inputs.
+
+Use `make -C ops/publicnode stop-holesky-node` to stop both services.
+`rm-holesky-node` removes their stopped containers; bind-mounted chain data remains.
+Supply the same `ENV_FILE` and path overrides on every command. Offline checks do
+not establish that the historical public snapshot endpoint is available or that
+the snapshot is compatible with the current binaries.
+
+## Diagnostic and transaction tools
+
+All RPC endpoints are explicit command arguments or documented environment
+variables. `gasinspect` and `batchparse` read chain data:
+
+```sh
+ops/tools/build/bin/gasinspect -rpc "$L1_RPC_URL" -tx "$TRANSACTION_HASH"
+ops/tools/build/bin/batchparse -rpc "$L2_RPC_URL" -batch "$BATCH_INDEX"
+```
+
+`gasinspect` decodes the current Rollup method and reports EIP-2028 calldata cost;
+that value is not a measurement of contract execution gas. `batchparse` reports a
+missing batch as an error. `keygen` creates local key material and prints it to
+standard output; keep that output in private storage rather than shared logs.
+
+`multisend` sends transactions. The operator must select the intended test chain,
+provide `FUNDING_PRIVATE_KEY` through the environment and choose a private
+`-accounts` file before running it. For example, with those inputs already set:
+
+```sh
+ops/tools/build/bin/multisend -rpc "$L2_RPC_URL" -chain-id "$L2_CHAIN_ID" \
+  -accounts "$SENDER_ACCOUNTS_FILE"
+```
+
+Defaults are ten sender accounts, a minimum balance of 10 ETH per sender and one
+minute of transfers; inspect `-help` to set `-senders`, `-fund-value` in wei and
+`-duration` explicitly. The tool verifies chain ID and genesis across endpoints,
+saves new sender keys with private file permissions before funding and waits for
+each sender's transaction receipt before reusing its nonce. Keep the account file
+and printed transaction hashes. On timeout or interruption, stop creating new
+transactions, inspect those transactions and resolve outstanding nonces before
+retrying with the same accounts. Do not delete funded sender keys to restart.
+
+## Validation
+
+From the repository root, run the combined operational checks:
+
+```sh
+make ops-check
+```
+
+This runs tracked Shell syntax and JSON parsing, devnet/L1 command regressions,
+all four Compose combinations, publicnode command tests, genesis script tests and
+the two operations Go modules with race detection. Compose checks require the
+Docker Compose plugin and are reported as skipped if Docker is not installed. Tests
+use temporary files and simulated subprocesses or RPC servers; they do not invoke
+cleanup on existing deployments or broadcast transactions to public networks.
+The individual script suites remain available:
 
 ```sh
 python3 -m unittest discover -s ops/l2-genesis/tests -v
 python3 -m unittest discover -s ops/devnet-morph/tests -v
+python3 -m unittest discover -s ops/publicnode/tests -v
 ```
 
 In `contracts/`, run `yarn typecheck:deployment` and `yarn test:deployment`.
 With contracts compiled and Anvil installed, run
-`python3 ops/l2-genesis/tests/validate_local_deployment.py` from the root for both
-networks' contract deployment, real Go genesis generation and repeated-run checks
-on a temporary local chain. The harness stops its Anvil process and prints the
-retained log directory. These checks do not validate a complete Docker cluster or
+`python3 ops/l2-genesis/tests/validate_local_deployment.py` from the root to verify
+both networks reject missing or invalid legacy contract records with zero
+transactions. Add `--legacy-staking-fixture` to exercise contract deployment,
+real Go genesis generation and repeated execution using a synthetic reverting
+contract installed only on the temporary Anvil chain. The fixture does not verify
+a real legacy L1Staking implementation or establish that a new network meets the
+design prerequisites. The harness stops its Anvil process and prints the retained
+log directory. These checks do not validate a complete Docker cluster or
 external QA services, sustained block production or proof submission.

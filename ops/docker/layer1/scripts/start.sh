@@ -1,58 +1,33 @@
 #!/bin/bash
-
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+compose=(docker compose --env-file "${DEVNET_RUNTIME_ENV:-/dev/null}" -f "$PROJECT_DIR/../docker-compose-devnet.yml")
 
-# Check if genesis files exist
-if [ ! -f "$PROJECT_DIR/genesis/genesis.json" ]; then
-    echo "Error: genesis.json does not exist, please run ./scripts/generate-genesis.sh first"
-    exit 1
-fi
-
-if [ ! -f "$PROJECT_DIR/genesis/genesis.ssz" ]; then
-    echo "Error: genesis.ssz does not exist, please run ./scripts/generate-genesis.sh first"
-    exit 1
-fi
-
-if [ ! -f "$PROJECT_DIR/jwt/jwtsecret" ]; then
-    echo "Error: jwtsecret does not exist, please run ./scripts/generate-genesis.sh first"
-    exit 1
-fi
-
-echo "=== Starting Ethereum Network ==="
-
-cd "$PROJECT_DIR/.."
-
-# Start all services
-docker compose -f docker-compose-devnet.yml up -d layer1-el layer1-cl layer1-vc
-
-echo ""
-echo "Waiting for containers to start..."
-sleep 15
-
-# Wait for EL node initialization to complete
-echo "Waiting for EL node initialization..."
-for i in {1..30}; do
-    if docker exec layer1-el geth --exec "eth.blockNumber" attach http://localhost:8545 > /dev/null 2>&1; then
-        echo "Layer1 EL is ready"
-        break
+for file in genesis/genesis.json genesis/genesis.ssz genesis/config.yaml \
+    genesis/deposit_contract_block.txt jwt/jwtsecret keystores/layer1/keys/validator_definitions.yml; do
+    if [ ! -s "$PROJECT_DIR/$file" ]; then
+        echo "Required L1 input is missing or empty: $PROJECT_DIR/$file. Restore the original file, or generate genesis if no previous chain exists." >&2
+        exit 1
     fi
-    sleep 2
 done
 
-echo ""
-echo "=== Network Started Successfully ==="
-echo ""
-echo "Access ports:"
-echo "  Layer1 EL RPC: http://localhost:9545"
-echo "  Layer1 EL WebSocket: ws://localhost:9546"
-echo "  Layer1 CL HTTP API: http://localhost:4000"
-echo "  Layer1 CL Metrics: http://localhost:5054"
-echo ""
-echo "View logs:"
-echo "  docker compose -f docker-compose-devnet.yml logs -f layer1-el layer1-cl layer1-vc"
-echo ""
-echo "Stop network:"
-echo "  docker compose -f docker-compose-devnet.yml down"
+attempts=${L1_START_ATTEMPTS:-60}
+interval=${L1_START_INTERVAL:-2}
+if [[ ! "$attempts" =~ ^[1-9][0-9]*$ ]] || [[ ! "$interval" =~ ^[0-9]+$ ]]; then
+    echo "L1_START_ATTEMPTS must be positive and L1_START_INTERVAL must be a nonnegative integer." >&2
+    exit 1
+fi
+"${compose[@]}" up -d layer1-el layer1-cl layer1-vc
+for ((i = 0; i < attempts; i++)); do
+    block=$("${compose[@]}" exec -T layer1-el geth --exec 'eth.blockNumber' attach http://localhost:8545 2>/dev/null || true)
+    if [[ "$block" =~ ^[0-9]+$ ]] && [ "$block" -ge 1 ]; then
+        echo "L1 produced block $block. RPC: http://localhost:9545; beacon API: http://localhost:4000."
+        exit 0
+    fi
+    sleep "$interval"
+done
+
+echo "L1 did not produce a block before the startup timeout; containers and data were preserved. Inspect the L1 service logs before retrying." >&2
+exit 1

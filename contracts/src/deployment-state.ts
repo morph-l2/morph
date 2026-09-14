@@ -3,7 +3,7 @@ import fs from "fs";
 import nodePath from "path";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { getContractAddressByName, readDeploymentRecords, storage } from "./deploy-utils";
-import { ContractFactoryName, ImplStorageName } from "./types";
+import { ContractFactoryName, ImplStorageName, ProxyStorageName } from "./types";
 
 export const ensureDeploymentStorageWritable = (path: string) => {
     fs.accessSync(nodePath.dirname(nodePath.resolve(path)), fs.constants.W_OK);
@@ -28,7 +28,8 @@ export const validateDeploymentSigner = async (hre: HardhatRuntimeEnvironment, p
     if ((await contract.owner()).toLowerCase() !== address.toLowerCase()) {
         throw new Error("Deployment signer is not the owner of the recorded ProxyAdmin");
     }
-    for (const record of readDeploymentRecords(path).filter(entry => entry.name.startsWith("Proxy__"))) {
+    const managedProxies = new Set(Object.values(ProxyStorageName));
+    for (const record of readDeploymentRecords(path).filter(entry => managedProxies.has(entry.name))) {
         const admin = (await readProxyAddress(hre, record.address, "admin")).toLowerCase();
         if (admin !== address.toLowerCase() && admin !== manager.toLowerCase()) {
             throw new Error(`${record.name} proxy admin is neither the deployer nor the recorded ProxyAdmin`);

@@ -3,8 +3,8 @@ import hre, { ethers, network, run } from "hardhat";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { getContractAddressByName, readDeploymentRecords } from "../src/deploy-utils";
-import { deployRecordedContract, readProxyAddress } from "../src/deployment-state";
+import { getContractAddressByName, readDeploymentRecords, storage } from "../src/deploy-utils";
+import { deployRecordedContract, readProxyAddress, validateDeploymentRecords, validateDeploymentSigner } from "../src/deployment-state";
 import { validateDeploymentConfig } from "../src/deployment-validation";
 import { ImplStorageName as I, ProxyStorageName as P } from "../src/types";
 
@@ -139,6 +139,35 @@ describe("L1 deployment validation and recovery", function () {
         await rejects(() => run("deploy", { storagepath }), "version 2 proof verifier");
         const [owner] = await ethers.getSigners();
         expect(await owner.getTransactionCount()).to.equal(0);
+    });
+
+    it("checks managed proxy administrators while preserving independently administered legacy records", async () => {
+        const [owner, legacyAdmin] = await ethers.getSigners();
+        await deployRecordedContract(hre, storagepath, owner, I.ProxyAdmin, "ProxyAdmin");
+        const empty = await deployRecordedContract(hre, storagepath, owner, I.EmptyContract, "EmptyContract");
+        const factory = await ethers.getContractFactory("TransparentUpgradeableProxy", owner);
+        const legacy = await factory.deploy(empty.address, legacyAdmin.address, "0x");
+        const receipt = await legacy.deployTransaction.wait();
+        await storage(storagepath, "Proxy__L1Staking", legacy.address, receipt.blockNumber);
+        const managed = await deployRecordedContract(hre, storagepath, owner, P.SubmitterProxyStorageName,
+            "TransparentUpgradeableProxy", [empty.address, owner.address, "0x"]);
+        const before = await owner.getTransactionCount();
+        await validateDeploymentRecords(hre, storagepath);
+        await validateDeploymentSigner(hre, storagepath, owner);
+        expect(await owner.getTransactionCount()).to.equal(before);
+        expect(await readProxyAddress(hre, legacy.address, "admin")).to.equal(legacyAdmin.address);
+
+        const managedProxy = await ethers.getContractAt("ITransparentUpgradeableProxy", managed.address, owner);
+        await (await managedProxy.changeAdmin(legacyAdmin.address)).wait();
+        const afterTransfer = await owner.getTransactionCount();
+        await rejects(() => validateDeploymentSigner(hre, storagepath, owner),
+            "Proxy__Submitter proxy admin is neither the deployer nor the recorded ProxyAdmin");
+        expect(await owner.getTransactionCount()).to.equal(afterTransfer);
+        const records = readDeploymentRecords(storagepath);
+        records.find(record => record.name === "Proxy__L1Staking").address = legacyAdmin.address;
+        fs.writeFileSync(storagepath, JSON.stringify(records));
+        await rejects(() => validateDeploymentRecords(hre, storagepath), "Proxy__L1Staking: recorded address");
+        expect(await owner.getTransactionCount()).to.equal(afterTransfer);
     });
 
     it("resumes after admin transfer and genesis import and repeats without new transactions", async () => {

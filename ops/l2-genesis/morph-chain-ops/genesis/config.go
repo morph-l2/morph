@@ -45,7 +45,6 @@ type DeployConfig struct {
 	L2GenesisBlockGasUsed       hexutil.Uint64 `json:"l2GenesisBlockGasUsed"`
 	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
-	// Seconds after genesis block that Regolith hard fork activates. 0 to activate at genesis. Nil to disable regolith
 
 	MaxTxPayloadBytesPerBlock int `json:"maxTxPayloadBytesPerBlock"`
 
@@ -99,13 +98,14 @@ type DeployConfig struct {
 	// L2 recipient of fees accumulated in the Bridge
 	L2BridgeFeeVaultRecipient common.Address `json:"l2BridgeFeeVaultRecipient"`
 
-	// Gov configs
+	// Initial Gov predeploy storage. Submitter batching uses independent runtime settings.
 	GovVotingDuration     uint64 `json:"govVotingDuration"`
 	GovBatchBlockInterval uint64 `json:"govBatchBlockInterval"`
 	GovRollupEpoch        uint64 `json:"govRollupEpoch"`
 	GovBatchTimeout       uint64 `json:"govBatchTimeout"`
 
-	// L2Staking configs
+	// Initial L2Staking and Sequencer state retained for node consensus reads.
+	// These validators are independent of L1 Submitter registration.
 	L2StakingSequencerMaxSize      uint64           `json:"l2StakingSequencerMaxSize"`
 	L2StakingUnDelegatedLockEpochs uint64           `json:"l2StakingUnDelegatedLockEpochs"`
 	L2StakingRewardStartTime       uint64           `json:"l2StakingRewardStartTime"`
@@ -113,16 +113,9 @@ type DeployConfig struct {
 	L2StakingTmKeys                []common.Hash    `json:"l2StakingTmKeys"`
 	L2StakingBlsKeys               []hexutil.Bytes  `json:"l2StakingBlsKeys"`
 
-	// Record configs
+	// Initial Record predeploy storage; these fields do not configure a running oracle service.
 	RecordOracleAddress            common.Address `json:"recordOracleAddress"`
 	RecordNextBatchSubmissionIndex uint64         `json:"recordNextBatchSubmissionIndex"`
-
-	// MorphToken configs
-	//MorphTokenOwner              common.Address `json:"morphTokenOwner"`
-	//MorphTokenName               string         `json:"morphTokenName"`
-	//MorphTokenSymbol             string         `json:"morphTokenSymbol"`
-	//MorphTokenInitialSupply      uint64         `json:"morphTokenInitialSupply"`
-	//MorphTokenDailyInflationRate uint64         `json:"morphTokenDailyInflationRate"`
 
 	FundDevAccounts bool `json:"fundDevAccounts"`
 
@@ -132,10 +125,7 @@ type DeployConfig struct {
 	EmeraldTime  *uint64 `json:"emeraldTime,omitempty"`
 }
 
-// GetDeployedAddresses will get the deployed addresses of deployed L1 contracts
-// required for the L2 genesis creation. Legacy systems use the `Proxy__` prefix
-// while modern systems use the `Proxy` suffix. First check for the legacy
-// deployments so that this works with upgrading a system.
+// GetDeployedAddresses fills missing L1 addresses from the recorded deployment names.
 func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	if d.L1StakingProxy == (common.Address{}) {
 		l1StakingProxyDeployment, err := hh.GetDeployment("Proxy__L1Staking")
@@ -243,9 +233,11 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	return nil
 }
 
-// RollupConfig converts a DeployConfig to a rollup.Config
-func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64, l2GenesisStateRoot common.Hash, withdrawRoot common.Hash, genesisBatchHeader []byte) (*rollup.Config, error) {
-	//return nil, nil
+// RollupConfig records the actual generated L2 block, including resolved defaults.
+func (d *DeployConfig) RollupConfig(l1StartBlock, l2GenesisBlock *types.Block, withdrawRoot common.Hash, genesisBatchHeader []byte) (*rollup.Config, error) {
+	if l1StartBlock == nil || l2GenesisBlock == nil {
+		return nil, fmt.Errorf("L1 starting block and L2 genesis block are required")
+	}
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
@@ -253,21 +245,21 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 				Number: l1StartBlock.NumberU64(),
 			},
 			L2: eth.BlockID{
-				Hash:   l2GenesisBlockHash,
-				Number: l2GenesisBlockNumber,
+				Hash:   l2GenesisBlock.Hash(),
+				Number: l2GenesisBlock.NumberU64(),
 			},
-			L2Time: l1StartBlock.Time(),
+			L2Time: l2GenesisBlock.Time(),
 			SystemConfig: eth.SystemConfig{
 				BatcherAddr: d.BatchSenderAddress,
 				Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
 				Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleScalar))),
-				GasLimit:    uint64(d.L2GenesisBlockGasLimit),
+				GasLimit:    l2GenesisBlock.GasLimit(),
 			},
 		},
 		L1ChainID:          new(big.Int).SetUint64(d.L1ChainID),
 		L2ChainID:          new(big.Int).SetUint64(d.L2ChainID),
 		BatchInboxAddress:  d.BatchInboxAddress,
-		L2GenesisStateRoot: l2GenesisStateRoot,
+		L2GenesisStateRoot: l2GenesisBlock.Root(),
 		WithdrawRoot:       withdrawRoot,
 		GenesisBatchHeader: genesisBatchHeader,
 	}, nil
@@ -295,6 +287,9 @@ func NewL2ImmutableConfig(config *DeployConfig) (immutables.ImmutableConfig, *im
 
 	if config.L1StakingProxy == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1StakingProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.L1StakingProxy == common.HexToAddress("0x000000000000000000000000000000000000dEaD") {
+		return immutable, nil, fmt.Errorf("L1StakingProxy cannot be the dEaD placeholder: %w", ErrInvalidImmutablesConfig)
 	}
 	if config.L1CrossDomainMessengerProxy == (common.Address{}) {
 		return immutable, nil, fmt.Errorf("L1CrossDomainMessengerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
@@ -369,11 +364,8 @@ func (d *DeployConfig) Check() error {
 	if d.GovVotingDuration <= 0 {
 		return fmt.Errorf("GovVotingDuration must be greater than 0: %w", ErrInvalidDeployConfig)
 	}
-	if d.GovBatchBlockInterval <= 0 {
-		return fmt.Errorf("GovBatchBlockInterval must be greater than 0: %w", ErrInvalidDeployConfig)
-	}
-	if d.GovBatchTimeout <= 0 {
-		return fmt.Errorf("GovBatchTimeout must be greater than 0: %w", ErrInvalidDeployConfig)
+	if d.GovBatchBlockInterval == 0 && d.GovBatchTimeout == 0 {
+		return fmt.Errorf("GovBatchBlockInterval and GovBatchTimeout cannot both be 0: %w", ErrInvalidDeployConfig)
 	}
 	if d.GovRollupEpoch <= 0 {
 		return fmt.Errorf("GovRollupEpoch must be greater than 0: %w", ErrInvalidDeployConfig)
@@ -391,32 +383,25 @@ func (d *DeployConfig) Check() error {
 		return fmt.Errorf("RecordOracleAddress cannot be address(0): %w", ErrInvalidDeployConfig)
 	}
 	if d.RecordNextBatchSubmissionIndex <= 0 {
-		return fmt.Errorf("RecordNextBatchSubmissionIndex cannot be address(0): %w", ErrInvalidDeployConfig)
+		return fmt.Errorf("RecordNextBatchSubmissionIndex must be greater than 0: %w", ErrInvalidDeployConfig)
 	}
 	if d.L2StakingSequencerMaxSize <= 0 {
 		return fmt.Errorf("L2StakingSequencerMaxSize must be greater than 0: %w", ErrInvalidDeployConfig)
 	}
-	if d.L2StakingRewardStartTime <= 0 {
-		return fmt.Errorf("L2StakingRewardStartTime must be greater than 0: %w", ErrInvalidDeployConfig)
+	// L2Staking.initialize requires an integral reward epoch (REWARD_EPOCH = 86400).
+	if d.L2StakingRewardStartTime == 0 || d.L2StakingRewardStartTime%86400 != 0 {
+		return fmt.Errorf("L2StakingRewardStartTime must be a positive multiple of 86400: %w", ErrInvalidDeployConfig)
 	}
 	if d.L2StakingUnDelegatedLockEpochs <= 0 {
 		return fmt.Errorf("L2StakingUnDelegatedLockEpochs must be greater than 0: %w", ErrInvalidDeployConfig)
 	}
-	//if d.MorphTokenOwner == (common.Address{}) {
-	//	return fmt.Errorf("MorphTokenOwner canot be nil: %w", ErrInvalidDeployConfig)
-	//}
-	//if d.MorphTokenName == "" {
-	//	return fmt.Errorf("MorphTokenName canot be nil: %w", ErrInvalidDeployConfig)
-	//}
-	//if d.MorphTokenSymbol == "" {
-	//	return fmt.Errorf("MorphTokenSymbol canot be nil: %w", ErrInvalidDeployConfig)
-	//}
-	//if d.MorphTokenDailyInflationRate <= 0 {
-	//	return fmt.Errorf("MorphTokenDailyInflationRate must be greater than 0: %w", ErrInvalidDeployConfig)
-	//}
-	//if d.MorphTokenInitialSupply <= 0 {
-	//	return fmt.Errorf("MorphTokenInitialSupply must be greater than 0: %w", ErrInvalidDeployConfig)
-	//}
+	if len(d.L2StakingAddresses) == 0 {
+		return fmt.Errorf("L2StakingAddresses must contain initial L2 validators: %w", ErrInvalidDeployConfig)
+	}
+	if len(d.L2StakingAddresses) != len(d.L2StakingTmKeys) || len(d.L2StakingAddresses) != len(d.L2StakingBlsKeys) {
+		return fmt.Errorf("L2StakingAddresses, L2StakingTmKeys and L2StakingBlsKeys must have equal lengths: %w", ErrInvalidDeployConfig)
+	}
+
 	return nil
 }
 
@@ -452,10 +437,6 @@ func NewL2StorageConfig(config *DeployConfig, baseFee *big.Int) (state.StorageCo
 		"counterpart":          config.L1CrossDomainMessengerProxy,
 		"feeVault":             l2BridgeFeeVaultRecipient,
 	}
-	//storage["MorphToken"] = state.StorageValues{
-	//	"_initialized":  1,
-	//	"_initializing": false,
-	//}
 	storage["L2TokenRegistry"] = state.StorageValues{
 		"_initialized":     1,
 		"_initializing":    false,

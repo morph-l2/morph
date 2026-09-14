@@ -103,30 +103,30 @@ fmt-go:
 
 ################## docker build ####################
 
-docker-build:
-	cd ops/docker && docker compose build
+docker-build: go-ubuntu-builder
+	cd ops/docker && docker compose --project-name docker $(DEVNET_COMPOSE_ENV) $(DEVNET_COMPOSE_FILES) build
 .PHONY: docker-build
 
 go-rust-builder:
-	@if [ -z "$(shell docker images -q morph/go-rust-builder 2> /dev/null)" ]; then \
+	@if ! docker image inspect morph/go-rust-builder:go-1.24-rust-nightly-2023-12-03 >/dev/null 2>&1; then \
 		echo "Docker image morph/go-rust-builder does not exist. Building..."; \
-		cd ops/docker/intermediate && docker build -t morph/go-rust-builder:go-1.22-rust-nightly-2023-12-03 . -f go-rust-builder.Dockerfile; \
+		cd ops/docker/intermediate && docker build -t morph/go-rust-builder:go-1.24-rust-nightly-2023-12-03 . -f go-rust-builder.Dockerfile; \
 	else \
 		echo "Docker image morph/go-rust-builder already exists."; \
 	fi
 .PHONY: go-rust-builder
 
 go-rust-alpine-builder:
-	@if [ -z "$(shell docker images -q morph/go-rust-alpine-builder 2> /dev/null)" ]; then \
+	@if ! docker image inspect morph/go-rust-alpine-builder:go-1.24-rust-nightly-2023-12-03 >/dev/null 2>&1; then \
 		echo "Docker image morph/go-rust-alpine-builder does not exist. Building..."; \
-		cd ops/docker/intermediate && docker build -t morph/go-rust-alpine-builder:go-1.22-rust-nightly-2023-12-03 . -f go-rust-alpine-builder.Dockerfile; \
+		cd ops/docker/intermediate && docker build -t morph/go-rust-alpine-builder:go-1.24-rust-nightly-2023-12-03 . -f go-rust-alpine-builder.Dockerfile; \
 	else \
 		echo "Docker image morph/go-rust-alpine-builder already exists."; \
 	fi
 .PHONY: go-rust-alpine-builder
 
 go-ubuntu-builder:
-	@if [ -z "$(shell docker images -q morph/go-ubuntu-builder 2> /dev/null)" ]; then \
+	@if ! docker image inspect morph/go-ubuntu-builder:go-1.24-ubuntu >/dev/null 2>&1; then \
 		echo "Docker image morph/go-ubuntu-builder does not exist. Building..."; \
 		cd ops/docker/intermediate && docker build -t morph/go-ubuntu-builder:go-1.24-ubuntu . -f go-ubuntu-builder.Dockerfile; \
 	else \
@@ -136,7 +136,16 @@ go-ubuntu-builder:
 
 ################## devnet 2 nodes ####################
 
+ops-check:
+	python3 -m unittest discover -s ops/devnet-morph/tests -v
+	python3 -m unittest discover -s ops/publicnode/tests -v
+	$(MAKE) -C ops/l2-genesis test
+	$(MAKE) -C ops/tools test
+.PHONY: ops-check
+
 EXECUTION_CLIENT ?= geth
+GO_BUILDER_IMAGE ?= morph/go-ubuntu-builder:go-1.24-ubuntu
+export GO_BUILDER_IMAGE
 DEVNET_CLUSTER ?= false
 DEVNET_CLUSTER_ENABLED := $(filter true 1 yes,$(DEVNET_CLUSTER))
 DEVNET_SEQUENCER_PRIVATE_KEY ?= 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
@@ -220,7 +229,7 @@ devnet-up-debugccc: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder
 .PHONY: devnet-up-debugccc
 
 devnet-down:
-	cd ops/docker && NODE_DATA_DIR=/data JWT_SECRET_PATH=/jwt-secret.txt docker compose $(DEVNET_COMPOSE_ENV) $(DEVNET_COMPOSE_FILES) down
+	cd ops/docker && docker compose --project-name docker $(DEVNET_COMPOSE_ENV) $(DEVNET_COMPOSE_FILES) down
 .PHONY: devnet-down
 
 devnet-down-reth:
@@ -228,27 +237,28 @@ devnet-down-reth:
 .PHONY: devnet-down-reth
 
 devnet-clean-build: devnet-l1-clean
-	cd ops/docker && NODE_DATA_DIR=/data JWT_SECRET_PATH=/jwt-secret.txt docker compose $(DEVNET_COMPOSE_ENV) $(DEVNET_CLEAN_COMPOSE_FILES) down --volumes --remove-orphans
-	docker volume ls --filter label=com.docker.compose.project=docker --format='{{.Name}}' | xargs docker volume rm 2>/dev/null || true
+	cd ops/docker && docker compose --project-name docker $(DEVNET_COMPOSE_ENV) $(DEVNET_CLEAN_COMPOSE_FILES) down --volumes --remove-orphans
 	rm -rf ops/l2-genesis/.devnet
 	rm -rf ops/docker/.devnet
 	rm -rf ops/docker/consensus ops/docker/execution
 .PHONY: devnet-clean-build
 
 devnet-clean: devnet-clean-build
-	docker image ls '*morph*' --format='{{.Repository}}' | xargs -r docker rmi
-	docker image ls '*sentry-*' --format='{{.Repository}}' | xargs -r docker rmi
+	@for image in morph-geth:latest morph-node:latest morph-tx-submitter:latest morph-oracle:latest; do \
+		if docker image inspect "$$image" >/dev/null 2>&1; then docker image rm "$$image" || exit $$?; fi; \
+	done
 .PHONY: devnet-clean
 
 devnet-l1:
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --only-l1
+.PHONY: devnet-l1
 
 devnet-l1-clean:
-	@cd ops/docker && DEVNET_RUNTIME_ENV="$(DEVNET_RUNTIME_ENV)" NODE_DATA_DIR=/data JWT_SECRET_PATH=/jwt-secret.txt ./layer1/scripts/clean.sh
+	@cd ops/docker && COMPOSE_PROJECT_NAME=docker DEVNET_RUNTIME_ENV="$(DEVNET_RUNTIME_ENV)" ./layer1/scripts/clean.sh
 .PHONY: devnet-l1-clean
 
 devnet-logs:
-	@(cd ops/docker && NODE_DATA_DIR=/data JWT_SECRET_PATH=/jwt-secret.txt docker compose $(DEVNET_COMPOSE_ENV) $(DEVNET_COMPOSE_FILES) logs -f)
+	@(cd ops/docker && docker compose --project-name docker $(DEVNET_COMPOSE_ENV) $(DEVNET_COMPOSE_FILES) logs -f)
 .PHONY: devnet-logs
 
 reth-image:

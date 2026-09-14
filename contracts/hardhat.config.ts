@@ -74,7 +74,7 @@ module.exports = {
             accounts: [DEPLOYER_PK]
         },
         l2: {
-            url: "http://localhost:8545",
+            url: process.env.L2_RPC_URL || "http://localhost:8545",
             chainId: 53077,
             gas: 'auto',
             gasPrice: 'auto',

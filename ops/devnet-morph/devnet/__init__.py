@@ -12,13 +12,13 @@ import http.client
 import devnet.log_setup
 from devnet.setup_nodes import setup_devnet_nodes
 
-# from devnet.genesis import GENESIS_TMPL
-
 pjoin = os.path.join
 
 parser = argparse.ArgumentParser(description='devnet launcher')
 parser.add_argument('--polyrepo-dir', help='Directory of the polyrepo', default=os.getcwd())
 parser.add_argument('--only-l1', help='Only bootstrap l1 geth', action="store_true")
+parser.add_argument('--legacy-l1-deployment-file', default=os.environ.get('LEGACY_L1_DEPLOYMENT_FILE'),
+                    help='Existing L1 deployment records containing the approved Proxy__L1Staking address')
 parser.add_argument('--service-action', choices=('start', 'stop', 'rebuild'),
                     help='Manage only the tx-submitter service of a completed devnet')
 parser.add_argument('--execution-client', choices=('geth', 'reth'), default='geth',
@@ -36,7 +36,7 @@ parser.add_argument('--sequencer-address',
                     ),
                     help='L1Sequencer address expected to match --sequencer-private-key')
 parser.add_argument('--sequencer-upgrade-offset-seconds', type=int,
-                    default=int(os.environ.get('SEQUENCER_UPGRADE_OFFSET_SECONDS', '0')),
+                    default=os.environ.get('SEQUENCER_UPGRADE_OFFSET_SECONDS', '0'),
                     help='Seconds from now before single-sequencer mode activates')
 parser.add_argument('--deployer-private-key',
                     default=os.environ.get(
@@ -50,17 +50,20 @@ parser.add_argument('--batch-submitter-private-key',
                         '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d',
                     ),
                     help='Private key for the devnet batch submitter; kept separate from the block sequencer')
+parser.add_argument('--batch-block-interval', type=int,
+                    default=os.environ.get('TX_SUBMITTER_BATCH_BLOCK_INTERVAL', '200'),
+                    help='Explicit batch block-count threshold; service actions reuse the saved value')
+parser.add_argument('--batch-timeout', type=int,
+                    default=os.environ.get('TX_SUBMITTER_BATCH_TIMEOUT', '600'),
+                    help='Explicit batch timestamp-difference threshold in seconds; service actions reuse the saved value')
+parser.add_argument('--gas-oracle-private-key', default=os.environ.get('L2_GAS_ORACLE_PRIVATE_KEY', ''),
+                    help='L2 gas oracle owner key; defaults to the deployer key when the address matches')
 parser.add_argument('--cluster', action="store_true",
                     default=os.environ.get('DEVNET_CLUSTER', '').lower() in ('1', 'true', 'yes'),
                     help='Start an HA sequencer cluster instead of making node-0 the sequencer')
-# parser.add_argument('--deploy', help='Whether the contracts should be predeployed or deployed', action="store_true")
 parser.add_argument('--debugccc', help='Whether set the debug log level for ccc', action="store_true")
 
 log = logging.getLogger()
-
-GWEI = 1e9
-ETH = GWEI * GWEI
-LEGACY_GENESIS_L1_STAKING_PROXY = '0x000000000000000000000000000000000000dEaD'
 
 
 def compose_file_args(execution_client, cluster=False):
@@ -108,13 +111,11 @@ def main():
         deploy_config_dir=pjoin(L2_dir, 'deploy-config'),
         ops_dir=ops_dir,
         env_file=pjoin(devnet_dir, 'runtime.env'),
-        genesis_l1_path=pjoin(devnet_dir, 'genesis-l1.json'),
         genesis_l2_path=pjoin(devnet_dir, 'genesis-l2.json'),
         rollup_config_path=pjoin(devnet_dir, 'rollup.json'),
         deployment_dir=pjoin(devnet_dir, 'devnetL1.json'),
         contracts_dir=pjoin(polyrepo_dir, 'contracts'),
         contracts_config=pjoin(contracts_dir, 'src', 'deploy-config', 'l1.ts'),
-        bindings_dir=pjoin(polyrepo_dir, 'morphism-bindings')
     )
 
     if args.service_action:
@@ -127,13 +128,11 @@ def main():
         devnet_l1(paths)
         return True
 
-    # log.info(f'Building docker images')
-    # devnet_build(paths)
     log.info('Devnet with upcoming smart contract deployments')
     devnet_deploy(paths, args)
 
 
-def devnet_l1(paths, result=None):
+def devnet_l1(paths):
     """Start L1 without replacing missing genesis files for an existing chain."""
     log.info('Starting L1.')
     
@@ -145,11 +144,18 @@ def devnet_l1(paths, result=None):
     genesis_json = pjoin(genesis_dir, 'genesis.json')
     genesis_ssz = pjoin(genesis_dir, 'genesis.ssz')
     jwt_secret = pjoin(jwt_dir, 'jwtsecret')
-    
-    required_files = (genesis_json, genesis_ssz, jwt_secret)
-    if not all(os.path.isfile(path) for path in required_files):
-        if any(os.path.exists(path) for path in (genesis_json, genesis_ssz)):
+    validator_definitions = pjoin(layer1_dir, 'keystores', 'layer1', 'keys', 'validator_definitions.yml')
+
+    required_genesis = (genesis_json, genesis_ssz, pjoin(genesis_dir, 'config.yaml'),
+                        pjoin(genesis_dir, 'deposit_contract_block.txt'))
+    required_files = (*required_genesis, jwt_secret, validator_definitions)
+    def complete():
+        return all(os.path.isfile(path) and os.path.getsize(path) > 0 for path in required_files)
+    if not complete():
+        if any(os.path.exists(path) for path in required_genesis):
             raise RuntimeError('L1 genesis/JWT files are incomplete; preserve the existing files and restore the missing files before retrying')
+        if not os.path.isfile(validator_definitions) or os.path.getsize(validator_definitions) == 0:
+            raise RuntimeError('L1 validator definitions are missing or empty; restore the checked-in validator inputs')
         volumes = run_command_capture_output([
             'docker', 'volume', 'ls', '-q', '--filter', 'label=com.docker.compose.project=docker',
         ]).stdout.splitlines()
@@ -158,24 +164,25 @@ def devnet_l1(paths, result=None):
         log.info('Genesis files not found, generating...')
         generate_script = pjoin(layer1_dir, 'scripts', 'generate-genesis.sh')
         if os.path.exists(generate_script):
-            run_command(['bash', generate_script], check=True, cwd=layer1_dir)
+            run_command(['bash', generate_script], check=True, cwd=layer1_dir,
+                        env={'COMPOSE_PROJECT_NAME': 'docker'})
         else:
             log.error(f'Genesis generation script not found at {generate_script}')
             raise FileNotFoundError(f'Genesis generation script not found')
     
-    if not all(os.path.isfile(path) for path in required_files):
+    if not complete():
         raise RuntimeError('L1 generation did not produce all required genesis/JWT files')
 
     # Start layer1 services
     log.info('Starting layer1 services (layer1-el, layer1-cl, layer1-vc)...')
     compose_env = {
-        'PWD': paths.ops_dir, 'NODE_DATA_DIR': '/data', 'JWT_SECRET_PATH': '/jwt-secret.txt',
-        'RUST_LOG': 'info', 'BATCH_UPGRADE_TIME': '0', 'BATCH_BLOCK_INTERVAL': '0',
+        'NODE_DATA_DIR': '/data', 'JWT_SECRET_PATH': '/jwt-secret.txt',
+        'RUST_LOG': 'info', 'BATCH_BLOCK_INTERVAL': '0',
         'BATCH_TIMEOUT': '0', 'L1_SEQUENCER_CONTRACT': '', 'MORPH_SUBMITTER': '',
         'L1_ETH_RPC': 'http://layer1-el:8545', 'L1_BEACON_CHAIN_RPC': 'http://layer1-cl:4000',
         'ACTIVE_SEQUENCER_PRIVATE_KEY': '', 'BATCH_SUBMITTER_PRIVATE_KEY': '',
     }
-    run_command(['docker', 'compose', '--env-file', os.devnull, '-f', 'docker-compose-devnet.yml',
+    run_command(['docker', 'compose', '--project-name', 'docker', '--env-file', os.devnull, '-f', 'docker-compose-devnet.yml',
                  'up', '-d', 'layer1-el', 'layer1-cl', 'layer1-vc'],
                 cwd=paths.ops_dir, env=compose_env)
     
@@ -200,18 +207,10 @@ def devnet_l1(paths, result=None):
         raise RuntimeError('Timeout waiting for the first L1 block')
 
 
-def devnet_build(paths):
-    """Build the docker images declared in docker-compose-devnet.yml."""
-    run_command(['docker', 'compose', '-f', 'docker-compose-devnet.yml', 'build'], cwd=paths.ops_dir, env={
-        'PWD': paths.ops_dir,
-        'DOCKER_BUILDKIT': '1',  # (should be available by default in later versions, but explicitly enable it anyway)
-        'COMPOSE_DOCKER_CLI_BUILD': '1'  # use the docker cache
-    })
-
-
 ADDRESS_RE = re.compile(r"0x[0-9a-fA-F]{40}\Z")
 DEPLOYMENT_PHASES = ('prepared', 'deployed', 'genesis', 'initialized', 'registered', 'complete')
 REQUIRED_DEPLOYMENTS = (
+    'Proxy__L1Staking',
     'Proxy__L1CrossDomainMessenger', 'Proxy__L1MessageQueueWithGasPriceOracle',
     'Proxy__Rollup', 'Proxy__Submitter', 'Proxy__L1Sequencer',
 )
@@ -238,23 +237,67 @@ def require_address(value, label):
     return value.lower()
 
 
+def legacy_l1_staking_record(path):
+    if not path or not os.path.isfile(path):
+        raise RuntimeError('A confirmed existing Proxy__L1Staking record is required by centralization-cleanup-spec section 9.2; provide --legacy-l1-deployment-file or restore the original deployment records. New L1 deployment does not create this contract')
+    records = read_json(path)
+    if not isinstance(records, list):
+        raise RuntimeError('Legacy L1 deployment records must be an array')
+    selected = [row for row in records if isinstance(row, dict) and row.get('name') == 'Proxy__L1Staking']
+    if len(selected) != 1:
+        raise RuntimeError('Exactly one confirmed Proxy__L1Staking record is required; preserve the existing deployment records')
+    record = selected[0]
+    address = require_address(record.get('address'), 'Proxy__L1Staking')
+    number = record.get('number')
+    if ('pending' in record and record['pending'] is not False) or isinstance(number, bool) or not isinstance(number, int) or not 0 <= number <= 2**53 - 1:
+        raise RuntimeError('Proxy__L1Staking requires a deployment block number between 0 and 9007199254740991, with pending absent or exactly false')
+    if int(address, 16) == 0xdead or any(isinstance(row, dict) and row.get('name') == 'Proxy__Submitter'
+                                       and str(row.get('address', '')).lower() == address for row in records):
+        raise RuntimeError('Proxy__L1Staking cannot use a placeholder or the Submitter address; restore the approved legacy contract record')
+    return {'address': address, 'number': number}
+
+
+def requested_legacy_l1_staking(paths, args, source_config):
+    source = args.legacy_l1_deployment_file or paths.deployment_dir
+    record = legacy_l1_staking_record(source)
+    if os.path.isfile(paths.deployment_dir) and record != legacy_l1_staking_record(paths.deployment_dir):
+        raise RuntimeError('Legacy L1Staking source differs from the existing deployment records; preserve both files and use the original source')
+    configured = source_config.get('l1StakingProxy')
+    if configured is not None and require_address(configured, 'l1StakingProxy') != record['address']:
+        raise RuntimeError('l1StakingProxy must match the confirmed Proxy__L1Staking deployment record')
+    return record
+
+
+def validate_batch_parameters(block_interval, timeout):
+    parameters = {'batchBlockInterval': block_interval, 'batchTimeout': timeout}
+    for name, value in parameters.items():
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 2**64 - 1:
+            raise RuntimeError(f'{name} must be an integer between 0 and 18446744073709551615')
+    if block_interval == 0 and timeout == 0:
+        raise RuntimeError('at least one explicit batch sealing trigger must be greater than zero')
+    return parameters
+
+
+def saved_batch_parameters(request):
+    parameters = request.get('batch_parameters') if isinstance(request, dict) else None
+    if not isinstance(parameters, dict) or set(parameters) != {'batchBlockInterval', 'batchTimeout'}:
+        raise RuntimeError('Existing devnet has no recorded explicit batch parameters; preserve its deployment files and inspect the original runtime settings and source configuration. Automatic identity migration is not supported')
+    return validate_batch_parameters(parameters['batchBlockInterval'], parameters['batchTimeout'])
+
+
 def validate_parameters(paths, args, deploy_config):
     """Validate chain IDs and signer identities before creating files or sending transactions."""
     if deploy_config.get('l1ChainID') != 900 or deploy_config.get('l2ChainID') != 53077:
         raise RuntimeError('devnet requires l1ChainID=900 and l2ChainID=53077')
     if args.sequencer_upgrade_offset_seconds != 0:
         raise RuntimeError('devnet requires sequencer-upgrade-offset-seconds=0 to switch before the validator set changes')
-    for field in ('govBatchBlockInterval', 'govBatchTimeout'):
-        value = deploy_config.get(field)
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            raise RuntimeError(f'{field} must be a nonnegative integer')
-    if deploy_config['govBatchBlockInterval'] == 0 and deploy_config['govBatchTimeout'] == 0:
-        raise RuntimeError('at least one batch sealing trigger must be greater than zero')
+    validate_batch_parameters(args.batch_block_interval, args.batch_timeout)
     roles = {}
     for role, key in (
         ('sequencer', args.sequencer_private_key),
         ('deployer', args.deployer_private_key),
         ('batch_submitter', args.batch_submitter_private_key),
+        ('gas_oracle', args.gas_oracle_private_key or args.deployer_private_key),
     ):
         if not isinstance(key, str) or not re.fullmatch(r'(0x)?[0-9a-fA-F]{64}', key):
             raise RuntimeError(f'{role} private key must contain 32 hexadecimal bytes')
@@ -264,6 +307,8 @@ def validate_parameters(paths, args, deploy_config):
         roles[role] = require_address(derived.stdout.strip(), role)
     if roles['sequencer'] != require_address(args.sequencer_address, 'sequencer-address'):
         raise RuntimeError('sequencer private key does not match sequencer-address')
+    if roles.pop('gas_oracle') != require_address(deploy_config.get('gasPriceOracleOwner'), 'gasPriceOracleOwner'):
+        raise RuntimeError('gas oracle private key does not match gasPriceOracleOwner; set L2_GAS_ORACLE_PRIVATE_KEY')
     return roles
 
 
@@ -273,10 +318,14 @@ def deployment_addresses(path):
         raise RuntimeError('deployment output must be an array')
     addresses = {}
     for row in rows:
-        name = row.get('name')
+        if not isinstance(row, dict) or not isinstance(row.get('name'), str) or not row['name']:
+            raise RuntimeError('deployment records must contain a nonempty name')
+        name = row['name']
         address = require_address(row.get('address'), f'deployment {name}')
-        if name in addresses and addresses[name] != address:
-            raise RuntimeError(f'deployment output contains conflicting addresses for {name}')
+        if name in addresses:
+            raise RuntimeError(f'deployment output contains duplicate records for {name}')
+        if row.get('pending'):
+            raise RuntimeError(f'deployment {name} has not been confirmed')
         addresses[name] = address
     for name in REQUIRED_DEPLOYMENTS:
         if name not in addresses:
@@ -327,23 +376,21 @@ def generated_artifacts(paths):
 
 
 def runtime_environment(paths, args, deploy_config, addresses, upgrade_time):
+    batch = validate_batch_parameters(args.batch_block_interval, args.batch_timeout)
     return {
         'L1_CROSS_DOMAIN_MESSENGER': addresses['Proxy__L1CrossDomainMessenger'],
         'MORPH_PORTAL': addresses['Proxy__L1MessageQueueWithGasPriceOracle'],
         'MORPH_ROLLUP': addresses['Proxy__Rollup'],
         'MORPH_SUBMITTER': addresses['Proxy__Submitter'],
-        'BATCH_BLOCK_INTERVAL': str(deploy_config['govBatchBlockInterval']),
-        'BATCH_TIMEOUT': str(deploy_config['govBatchTimeout']),
+        'BATCH_BLOCK_INTERVAL': str(batch['batchBlockInterval']),
+        'BATCH_TIMEOUT': str(batch['batchTimeout']),
         'RUST_LOG': 'debug' if args.debugccc else 'info',
         'L1_SEQUENCER_CONTRACT': addresses['Proxy__L1Sequencer'],
         'HA_SEQUENCER_ADDR': args.sequencer_address,
         'SEQUENCER_UPGRADE_TIME': str(upgrade_time),
-        'PWD': paths.ops_dir,
         'NODE_DATA_DIR': '/data',
-        'GETH_DATA_DIR': '/db',
-        'GENESIS_FILE_PATH': '/genesis.json',
         'JWT_SECRET_PATH': '/jwt-secret.txt',
-        'BATCH_UPGRADE_TIME': '0',
+        'TX_SUBMITTER_BATCH_V2_UPGRADE_TIME': '0',
         'MORPH_NODE_SYNC_START_HEIGHT': '1',
         'L1_ETH_RPC': 'http://layer1-el:8545',
         'L1_BEACON_CHAIN_RPC': 'http://layer1-cl:4000',
@@ -352,17 +399,20 @@ def runtime_environment(paths, args, deploy_config, addresses, upgrade_time):
 
 def compose_runtime(paths, args, deploy_config, addresses, upgrade_time, signing_env):
     runtime = runtime_environment(paths, args, deploy_config, addresses, upgrade_time)
-    with open(paths.env_file, 'w') as target:
+    for key, value in runtime.items():
+        if '\n' in value or '\r' in value:
+            raise RuntimeError(f'invalid newline in runtime setting {key}')
+    temporary = f'{paths.env_file}.tmp'
+    with open(temporary, 'w') as target:
         for key, value in runtime.items():
-            if '\n' in value or '\r' in value:
-                raise RuntimeError(f'invalid newline in runtime setting {key}')
             target.write(f'{key}={value}\n')
+    os.replace(temporary, paths.env_file)
     env = {
         **runtime,
         'SEQUENCER_PRIVATE_KEY': '', 'ACTIVE_SEQUENCER_PRIVATE_KEY': '',
-        'BATCH_SUBMITTER_PRIVATE_KEY': '', **signing_env,
+        'BATCH_SUBMITTER_PRIVATE_KEY': '', 'L2_GAS_ORACLE_PRIVATE_KEY': '', **signing_env,
     }
-    command = ['docker', 'compose', '--env-file', paths.env_file,
+    command = ['docker', 'compose', '--project-name', 'docker', '--env-file', paths.env_file,
                *compose_file_args(args.execution_client, args.cluster)]
     return command, env
 
@@ -372,6 +422,7 @@ def start_l2(paths, args, deploy_config, addresses, upgrade_time):
         'SEQUENCER_PRIVATE_KEY': args.sequencer_private_key,
         'ACTIVE_SEQUENCER_PRIVATE_KEY': '' if args.cluster else args.sequencer_private_key,
         'BATCH_SUBMITTER_PRIVATE_KEY': args.batch_submitter_private_key,
+        'L2_GAS_ORACLE_PRIVATE_KEY': args.gas_oracle_private_key or args.deployer_private_key,
     })
     run_command([*command, 'config', '--quiet'], cwd=paths.ops_dir, env=env)
     run_command([*command, 'up', '-d'], cwd=paths.ops_dir, env=env)
@@ -403,6 +454,9 @@ def devnet_service_action(paths, args):
             raise RuntimeError('The devnet completion marker is invalid')
         source_config = public_config(read_json(pjoin(paths.deploy_config_dir, 'devnet-deploy-config.json')))
         request = state['request']
+        batch = saved_batch_parameters(request)
+        if request.get('legacy_l1_staking') != legacy_l1_staking_record(paths.deployment_dir):
+            raise RuntimeError('The saved legacy L1Staking identity does not match the deployment records; preserve all files and restore the original deployment state')
         if request['source_config_sha256'] != config_digest(source_config) or request['l1_config_sha256'] != file_digest(paths.contracts_config):
             raise RuntimeError('Devnet source configuration changed; restore the original configuration before managing services')
         for path in generated_artifacts(paths):
@@ -415,6 +469,8 @@ def devnet_service_action(paths, args):
         service_args.execution_client = request['execution_client']
         service_args.cluster = request['cluster']
         service_args.sequencer_address = roles['sequencer']
+        service_args.batch_block_interval = batch['batchBlockInterval']
+        service_args.batch_timeout = batch['batchTimeout']
         signing_env = {}
         if args.service_action != 'stop':
             key = args.batch_submitter_private_key
@@ -454,11 +510,14 @@ def devnet_deploy(paths, args):
 def _devnet_deploy(paths, args):
     """Resume deployment stages while preserving recorded addresses and genesis files."""
     source_config = read_json(pjoin(paths.deploy_config_dir, 'devnet-deploy-config.json'))
+    legacy_staking = requested_legacy_l1_staking(paths, args, source_config)
     roles = validate_parameters(paths, args, source_config)
     request = {
         'roles': roles,
+        'legacy_l1_staking': legacy_staking,
         'execution_client': args.execution_client,
         'cluster': args.cluster,
+        'batch_parameters': validate_batch_parameters(args.batch_block_interval, args.batch_timeout),
         'source_config_sha256': config_digest(public_config(source_config)),
         'l1_config_sha256': file_digest(paths.contracts_config),
     }
@@ -469,30 +528,41 @@ def _devnet_deploy(paths, args):
             raise RuntimeError('Existing devnet files have no deployment-state.json; preserve them and establish their deployment state before retrying')
         state = {'version': 1, 'request': request, 'phase': 'preparing'}
         write_json(state_path, state)
-    elif state.get('version') != 1 or state.get('request') != request:
-        raise RuntimeError('Existing devnet was created with different configuration; keep the existing chain and use its original parameters')
+    else:
+        saved_batch_parameters(state.get('request'))
+        if state.get('version') != 1 or state.get('request') != request:
+            raise RuntimeError('Existing devnet was created with different configuration; keep the existing chain and use its original parameters')
     if state.get('phase') not in ('preparing', *DEPLOYMENT_PHASES):
         raise RuntimeError('Unknown devnet deployment phase; preserve deployment-state.json for inspection')
 
+    if not os.path.isfile(paths.deployment_dir):
+        write_json(paths.deployment_dir, [{'name': 'Proxy__L1Staking', **legacy_staking}])
     phase = state['phase']
     if phase == 'preparing':
-        setup_devnet_nodes(paths.polyrepo_dir)
+        setup_devnet_nodes(paths.polyrepo_dir, cluster=args.cluster)
         deploy_config = public_config(source_config)
-        deploy_config['l1GenesisBlockTimestamp'] = "0x{:x}".format(int(time.time()))
         deploy_config['l1StartingBlockTag'] = 'earliest'
-        deploy_config['l1StakingProxy'] = LEGACY_GENESIS_L1_STAKING_PROXY
+        deploy_config['l1StakingProxy'] = legacy_staking['address']
         write_json(pjoin(paths.devnet_dir, 'genesis-input.json'), deploy_config)
         state['deploy_config_sha256'] = config_digest(deploy_config)
         state['phase'] = phase = 'prepared'
         write_json(state_path, state)
     else:
-        setup_devnet_nodes(paths.polyrepo_dir)
+        setup_devnet_nodes(paths.polyrepo_dir, cluster=args.cluster)
     deploy_config = read_json(pjoin(paths.devnet_dir, 'genesis-input.json'))
     if state.get('deploy_config_sha256') != config_digest(deploy_config):
         raise RuntimeError('Generated genesis-input.json changed; restore the original configuration before retrying')
     if not test_port(9545):
         devnet_l1(paths)
     identity = l1_identity()
+    l1_head = rpc_result('127.0.0.1:9545', 'eth_blockNumber', [])
+    if not isinstance(l1_head, str) or not re.fullmatch(r'0x(?:0|[1-9a-fA-F][0-9a-fA-F]*)', l1_head):
+        raise RuntimeError('L1 RPC did not return a canonical hexadecimal block number; no deployment transaction was sent')
+    if legacy_staking['number'] > int(l1_head, 16):
+        raise RuntimeError('Proxy__L1Staking deployment block is newer than the connected L1 head; restore the original L1 or deployment records before retrying')
+    legacy_code = rpc_result('127.0.0.1:9545', 'eth_getCode', [legacy_staking['address'], l1_head])
+    if not isinstance(legacy_code, str) or not re.fullmatch(r'0x(?:[0-9a-fA-F]{2})+', legacy_code) or int(legacy_code, 16) == 0:
+        raise RuntimeError('The approved Proxy__L1Staking address has no valid nonzero bytecode on the connected L1; restore the original L1 before deploying contracts')
     if 'l1_genesis_hash' in state and state['l1_genesis_hash'] != identity:
         raise RuntimeError('Connected L1 has a different genesis block; restore the original L1 before retrying')
     state['l1_genesis_hash'] = identity
@@ -643,30 +713,22 @@ def run_command_capture_output(args, check=True, shell=False, cwd=None, env=None
 
 def wait_up(port, retries=10, wait_secs=1):
     """Poll a TCP port on 127.0.0.1 until it accepts a connection or retries are exhausted."""
-    for i in range(0, retries):
-        log.info(f'Trying 127.0.0.1:{port}')
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            s.connect(('127.0.0.1', int(port)))
-            s.shutdown(2)
-            log.info(f'Connected 127.0.0.1:{port}')
+    for _ in range(retries):
+        if test_port(port):
             return True
-        except Exception:
-            time.sleep(wait_secs)
+        time.sleep(wait_secs)
 
-    raise Exception(f'Timed out waiting for port {port}.')
+    raise RuntimeError(f'Timed out waiting for port {port}.')
 
 
 def test_port(port):
     """Return True if a TCP connection to 127.0.0.1:port succeeds, False otherwise."""
     log.info(f'Testing 127.0.0.1:{port}')
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        s.connect(('127.0.0.1', int(port)))
-        s.shutdown(2)
-        log.info(f'Connected 127.0.0.1:{port}')
-        return True
-    except Exception:
+        with socket.create_connection(('127.0.0.1', int(port)), timeout=1):
+            log.info(f'Connected 127.0.0.1:{port}')
+            return True
+    except OSError:
         return False
 
 
@@ -685,39 +747,14 @@ def read_json(path):
         return json.load(f)
 
 
-def eth_accounts(url):
-    """Call eth_accounts on url and return the raw JSON-RPC response body."""
-    log.info(f'Fetch eth_accounts {url}')
-    conn = http.client.HTTPConnection(url, timeout=5)
-    headers = {'Content-type': 'application/json'}
-    body = '{"id":2, "jsonrpc":"2.0", "method": "eth_accounts", "params":[]}'
-    conn.request('POST', '/', body, headers)
-    response = conn.getresponse()
-    data = response.read().decode()
-    conn.close()
-    return data
-
-
 def eth_blockNumber(url):
     """
     Call eth_blockNumber JSON-RPC method to get the current block number.
     Returns the block number as an integer, or None on error.
     """
     try:
-        conn = http.client.HTTPConnection(url, timeout=5)
-        headers = {'Content-type': 'application/json'}
-        body = '{"id":1, "jsonrpc":"2.0", "method": "eth_blockNumber", "params":[]}'
-        conn.request('POST', '/', body, headers)
-        response = conn.getresponse()
-        data = response.read().decode()
-        conn.close()
-        result = json.loads(data)
-        if 'result' in result:
-            # Convert hex string (e.g., "0x1") to integer
-            block_number_hex = result['result']
-            return int(block_number_hex, 16)
-        return None
-    except Exception as e:
+        return int(rpc_result(url, 'eth_blockNumber', []), 16)
+    except (OSError, http.client.HTTPException, ValueError, TypeError, RuntimeError) as e:
         log.debug(f'Error calling eth_blockNumber: {e}')
         return None
 
@@ -728,23 +765,10 @@ def eth_block_by_number(url, tag):
     Returns the block number as an integer, or None when the tag is unavailable.
     """
     try:
-        conn = http.client.HTTPConnection(url, timeout=5)
-        headers = {'Content-type': 'application/json'}
-        body = json.dumps({
-            'id': 1,
-            'jsonrpc': '2.0',
-            'method': 'eth_getBlockByNumber',
-            'params': [tag, False],
-        })
-        conn.request('POST', '/', body, headers)
-        response = conn.getresponse()
-        data = response.read().decode()
-        conn.close()
-        result = json.loads(data)
-        block = result.get('result')
-        if block and block.get('number'):
+        block = rpc_result(url, 'eth_getBlockByNumber', [tag, False])
+        if isinstance(block, dict) and block.get('number'):
             return int(block['number'], 16)
         return None
-    except Exception as e:
+    except (OSError, http.client.HTTPException, ValueError, TypeError, RuntimeError) as e:
         log.debug(f'Error calling eth_getBlockByNumber({tag}): {e}')
         return None

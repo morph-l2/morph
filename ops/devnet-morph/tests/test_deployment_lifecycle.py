@@ -40,8 +40,12 @@ class DeploymentLifecycleTest(unittest.TestCase):
         )
         Path(self.paths.contracts_config).write_text('export default {batchHeader: "unchanged"};\n')
         self.config = {'l1ChainID': 900, 'l2ChainID': 53077,
-                       'govBatchBlockInterval': 200, 'govBatchTimeout': 600}
+                       'govBatchBlockInterval': 200, 'govBatchTimeout': 600,
+                       'gasPriceOracleOwner': '0x' + '22' * 20}
         (configs / 'devnet-deploy-config.json').write_text(json.dumps(self.config))
+        self.legacy_record = {'name': 'Proxy__L1Staking', 'address': '0x' + '88' * 20, 'number': 1}
+        legacy_file = root / 'legacy-l1.json'
+        legacy_file.write_text(json.dumps([self.legacy_record]))
         self.roles = {'sequencer': '0x' + '11' * 20, 'deployer': '0x' + '22' * 20,
                       'batch_submitter': '0x' + '33' * 20}
         # Use invalid placeholders created by this test, without reading local identity files.
@@ -50,6 +54,8 @@ class DeploymentLifecycleTest(unittest.TestCase):
             sequencer_address=self.roles['sequencer'], sequencer_upgrade_offset_seconds=0,
             sequencer_private_key='test-sequencer', deployer_private_key='test-deployer',
             batch_submitter_private_key='test-submitter',
+            gas_oracle_private_key='', batch_block_interval=200, batch_timeout=600,
+            legacy_l1_deployment_file=str(legacy_file),
         )
         self.commands = []
         self.fail = None
@@ -62,6 +68,8 @@ class DeploymentLifecycleTest(unittest.TestCase):
             patch.object(devnet, 'verify_l1_contracts'),
             patch.object(devnet, 'start_l2'),
             patch.object(devnet, 'run_command', side_effect=self.command),
+            patch.object(devnet, 'rpc_result', side_effect=lambda url, method, params:
+                         '0x10' if method == 'eth_blockNumber' else '0x6000'),
         ]
         self.mocks = [item.start() for item in self.patches]
         for item in self.patches:
@@ -72,7 +80,8 @@ class DeploymentLifecycleTest(unittest.TestCase):
         action = command[2] if command[:2] == ['npx', 'hardhat'] else None
         output = Path(self.paths.devnet_dir)
         if action == 'deploy':
-            rows = [{'name': name, 'address': '0x' + f'{index + 1:040x}'}
+            rows = [dict(self.legacy_record) if name == 'Proxy__L1Staking'
+                    else {'name': name, 'address': '0x' + f'{index + 1:040x}'}
                     for index, name in enumerate(devnet.REQUIRED_DEPLOYMENTS)]
             Path(self.paths.deployment_dir).write_text(json.dumps(rows))
         if len(command) > 1 and command[1].endswith('devnet-l2genesis.sh') and '--verify-existing' not in command:
@@ -120,6 +129,117 @@ class DeploymentLifecycleTest(unittest.TestCase):
         self.assertTrue(any('--runtime' in command for command, _ in self.commands))
         self.assertEqual(self.state()['sequencer_upgrade_time'], saved_time)
 
+    def test_missing_legacy_contract_stops_before_node_setup_or_deployment(self):
+        self.args.legacy_l1_deployment_file = None
+        with self.assertRaisesRegex(RuntimeError, 'existing Proxy__L1Staking record is required'):
+            devnet.devnet_deploy(self.paths, self.args)
+        self.mocks[1].assert_not_called()
+        self.mocks[7].assert_not_called()
+        self.assertFalse(self.commands)
+        self.assertFalse((Path(self.paths.devnet_dir) / 'deployment-state.json').exists())
+        self.assertFalse(Path(self.paths.deployment_dir).exists())
+
+    def test_legacy_contract_is_imported_and_reused_without_substitution(self):
+        devnet.devnet_deploy(self.paths, self.args)
+        self.assertEqual(self.state()['request']['legacy_l1_staking'],
+                         {'address': self.legacy_record['address'], 'number': 1})
+        genesis_input = json.loads((Path(self.paths.devnet_dir) / 'genesis-input.json').read_text())
+        self.assertEqual(genesis_input['l1StakingProxy'], self.legacy_record['address'])
+        self.mocks[7].assert_any_call('127.0.0.1:9545', 'eth_getCode',
+                                     [self.legacy_record['address'], '0x10'])
+        self.args.legacy_l1_deployment_file = None
+        self.commands.clear()
+        devnet.devnet_deploy(self.paths, self.args)
+        self.assertEqual([command[2] for command, _ in self.commands
+                          if command[:2] == ['npx', 'hardhat']], ['verify-deployment'])
+
+    def test_legacy_contract_code_is_required_before_hardhat_transactions(self):
+        self.mocks[7].side_effect = lambda url, method, params: '0x10' if method == 'eth_blockNumber' else '0x'
+        with self.assertRaisesRegex(RuntimeError, 'has no valid nonzero bytecode'):
+            devnet.devnet_deploy(self.paths, self.args)
+        self.assertFalse(self.commands)
+        self.assertEqual(self.state()['phase'], 'prepared')
+        self.assertEqual(json.loads(Path(self.paths.deployment_dir).read_text()), [self.legacy_record])
+
+    def test_legacy_contract_future_block_is_rejected_before_reading_code(self):
+        self.legacy_record['number'] = 17
+        Path(self.args.legacy_l1_deployment_file).write_text(json.dumps([self.legacy_record]))
+        with self.assertRaisesRegex(RuntimeError, 'newer than the connected L1 head'):
+            devnet.devnet_deploy(self.paths, self.args)
+        self.assertEqual(self.mocks[7].call_args_list, [unittest.mock.call(
+            '127.0.0.1:9545', 'eth_blockNumber', [])])
+        self.assertFalse(self.commands)
+
+    def test_legacy_contract_head_and_bytecode_must_use_valid_hex_encoding(self):
+        for head in ('0x', '0x01', '-0x1', '16', 16, None):
+            with self.subTest(head=head):
+                self.mocks[7].side_effect = lambda url, method, params: head
+                with self.assertRaisesRegex(RuntimeError, 'canonical hexadecimal block number'):
+                    devnet.devnet_deploy(self.paths, self.args)
+                self.assertFalse(self.commands)
+        for code in ('0x0', '0x1', '0x00', '0x0000', '0xgg', None):
+            with self.subTest(code=code):
+                self.mocks[7].side_effect = lambda url, method, params: '0x10' if method == 'eth_blockNumber' else code
+                with self.assertRaisesRegex(RuntimeError, 'valid nonzero bytecode'):
+                    devnet.devnet_deploy(self.paths, self.args)
+                self.assertFalse(self.commands)
+
+    def test_configured_legacy_address_must_match_the_imported_record(self):
+        source = Path(self.paths.deploy_config_dir) / 'devnet-deploy-config.json'
+        source.write_text(json.dumps({**self.config, 'l1StakingProxy': '0x' + '99' * 20}))
+        with self.assertRaisesRegex(RuntimeError, 'must match the confirmed'):
+            devnet.devnet_deploy(self.paths, self.args)
+        self.mocks[1].assert_not_called()
+        self.assertFalse(self.commands)
+        self.assertFalse((Path(self.paths.devnet_dir) / 'deployment-state.json').exists())
+
+    def test_explicit_batch_parameters_are_independent_of_genesis_gov_values(self):
+        self.args.batch_block_interval = 7
+        self.args.batch_timeout = 11
+        devnet.devnet_deploy(self.paths, self.args)
+        self.assertEqual(self.state()['request']['batch_parameters'],
+                         {'batchBlockInterval': 7, 'batchTimeout': 11})
+        addresses = {name: '0x' + '12' * 20 for name in devnet.REQUIRED_DEPLOYMENTS}
+        for config in (self.config, {}):
+            environment = devnet.runtime_environment(self.paths, self.args, config, addresses, 1234)
+            self.assertEqual(environment['BATCH_BLOCK_INTERVAL'], '7')
+            self.assertEqual(environment['BATCH_TIMEOUT'], '11')
+        genesis_input = json.loads((Path(self.paths.devnet_dir) / 'genesis-input.json').read_text())
+        self.assertEqual(genesis_input['govBatchBlockInterval'], 200)
+        self.assertEqual(genesis_input['govBatchTimeout'], 600)
+
+    def test_changed_explicit_batch_parameters_reject_resume_before_commands(self):
+        devnet.devnet_deploy(self.paths, self.args)
+        self.commands.clear()
+        self.mocks[5].reset_mock()
+        self.args.batch_timeout += 1
+        with self.assertRaisesRegex(RuntimeError, 'different configuration'):
+            devnet.devnet_deploy(self.paths, self.args)
+        self.assertFalse(self.commands)
+        self.mocks[5].assert_not_called()
+
+    def test_old_deployment_without_explicit_batch_parameters_preserves_all_files(self):
+        devnet.devnet_deploy(self.paths, self.args)
+        output = Path(self.paths.devnet_dir)
+        state = self.state()
+        del state['request']['batch_parameters']
+        (output / 'deployment-state.json').write_text(json.dumps(state))
+        Path(self.paths.env_file).write_text('EXISTING_RUNTIME=preserved\n')
+        before = {str(path.relative_to(output)): path.read_bytes()
+                  for path in output.rglob('*') if path.is_file()}
+        self.commands.clear()
+        self.mocks[5].reset_mock()
+        with self.assertRaisesRegex(RuntimeError, 'no recorded explicit batch parameters'):
+            devnet.devnet_deploy(self.paths, self.args)
+        for action in ('start', 'stop', 'rebuild'):
+            self.args.service_action = action
+            with self.assertRaisesRegex(RuntimeError, 'no recorded explicit batch parameters'):
+                devnet.devnet_service_action(self.paths, self.args)
+        self.assertFalse(self.commands)
+        self.mocks[5].assert_not_called()
+        self.assertEqual(before, {str(path.relative_to(output)): path.read_bytes()
+                                 for path in output.rglob('*') if path.is_file()})
+
     def test_interrupted_initialize_preserves_genesis_and_resumes(self):
         self.fail = 'initialize'
         with self.assertRaisesRegex(RuntimeError, 'interruption'):
@@ -150,10 +270,11 @@ class DeploymentLifecycleTest(unittest.TestCase):
 
     def test_untracked_existing_output_is_preserved_and_rejected(self):
         sentinel = Path(self.paths.devnet_dir) / 'devnetL1.json'
-        sentinel.write_text('old deployment')
+        original = json.dumps([self.legacy_record])
+        sentinel.write_text(original)
         with self.assertRaisesRegex(RuntimeError, 'no deployment-state.json'):
             devnet.devnet_deploy(self.paths, self.args)
-        self.assertEqual(sentinel.read_text(), 'old deployment')
+        self.assertEqual(sentinel.read_text(), original)
         self.mocks[1].assert_not_called()
         self.assertFalse(self.commands)
 
@@ -166,6 +287,54 @@ class DeploymentLifecycleTest(unittest.TestCase):
         Path(self.paths.genesis_l2_path).write_text('changed')
         with self.assertRaisesRegex(RuntimeError, 'artifact changed'):
             devnet.devnet_deploy(self.paths, self.args)
+
+    def test_removed_ignored_source_fields_require_original_source_to_resume(self):
+        source = Path(self.paths.deploy_config_dir) / 'devnet-deploy-config.json'
+        original = {
+            **self.config,
+            'BLOCK_SIGNER_ADDRESS': '0x' + '66' * 20,
+            'maxTxPerBlock': 1000,
+            'morphTokenName': 'Morph Token',
+            'morphTokenSymbol': 'Morph',
+            'morphTokenOwner': self.roles['deployer'],
+            'morphTokenInitialSupply': 1000000000,
+            'morphTokenDailyInflationRate': 1,
+            'BLOCK_SIGNER_PRIVATE_KEY': 'unused-test-key',
+            'l2StakingPks': ['unused-test-staking-key'],
+        }
+        original_bytes = json.dumps(original).encode()
+        source.write_bytes(original_bytes)
+        devnet.devnet_deploy(self.paths, self.args)
+        Path(self.paths.env_file).write_text('EXISTING_RUNTIME=preserved\n')
+        output = Path(self.paths.devnet_dir)
+        before = {str(path.relative_to(output)): path.read_bytes()
+                  for path in output.rglob('*') if path.is_file()}
+        self.commands.clear()
+        for mock in self.mocks[1:]:
+            mock.reset_mock()
+
+        # Go ignores these removed fields, but the existing deployment records
+        # still identify the original source configuration by its exact hash.
+        source.write_text(json.dumps(self.config))
+        with self.assertRaisesRegex(RuntimeError, 'different configuration'):
+            devnet.devnet_deploy(self.paths, self.args)
+        self.assertFalse(self.commands)
+        self.mocks[1].assert_not_called()  # Node setup.
+        self.mocks[3].assert_not_called()  # L1 identity query.
+        self.mocks[5].assert_not_called()  # Runtime generation and service startup.
+        self.assertEqual(before, {str(path.relative_to(output)): path.read_bytes()
+                                 for path in output.rglob('*') if path.is_file()})
+
+        source.write_bytes(original_bytes)
+        devnet.devnet_deploy(self.paths, self.args)
+        actions = [command[2] for command, _ in self.commands
+                   if command[:2] == ['npx', 'hardhat']]
+        self.assertEqual(actions, ['verify-deployment'])
+        self.assertTrue(any('--verify-existing' in command for command, _ in self.commands))
+        self.assertTrue(any('--runtime' in command for command, _ in self.commands))
+        self.mocks[5].assert_called_once()
+        for name in ('genesis-l2.json', 'genesis-input.json', 'genesis.done', 'devnetL1.json'):
+            self.assertEqual((output / name).read_bytes(), before[name])
 
     def test_runtime_file_has_only_public_parameters(self):
         environment = devnet.runtime_environment(self.paths, self.args, self.config,
@@ -212,12 +381,16 @@ class DeploymentLifecycleTest(unittest.TestCase):
         self.assertEqual(self.state()['phase'], 'complete')
 
     def test_service_start_and_rebuild_use_saved_topology_and_matching_key(self):
+        self.args.batch_block_interval = 7
+        self.args.batch_timeout = 11
         self.args.cluster = True
         self.args.execution_client = 'reth'
         devnet.devnet_deploy(self.paths, self.args)
         self.args.cluster = False
         self.args.execution_client = 'geth'
         self.args.batch_submitter_private_key = '04' * 32
+        self.args.batch_block_interval = 77
+        self.args.batch_timeout = 88
         for action in ('start', 'rebuild'):
             self.commands.clear()
             self.args.service_action = action
@@ -232,6 +405,8 @@ class DeploymentLifecycleTest(unittest.TestCase):
             self.assertEqual('--build' in command, action == 'rebuild')
             self.assertEqual(options['env']['BATCH_SUBMITTER_PRIVATE_KEY'], self.args.batch_submitter_private_key)
             self.assertEqual(options['env']['SEQUENCER_PRIVATE_KEY'], '')
+            self.assertEqual(options['env']['BATCH_BLOCK_INTERVAL'], '7')
+            self.assertEqual(options['env']['BATCH_TIMEOUT'], '11')
             self.assertNotIn('PRIVATE_KEY', Path(self.paths.env_file).read_text())
             self.assertEqual(self.state()['phase'], 'complete')
 
@@ -299,10 +474,70 @@ class ExistingNodeDataTest(unittest.TestCase):
 
 
 class SubprocessAndReadinessTest(unittest.TestCase):
+    def test_legacy_contract_records_reject_placeholders_pending_and_submitter_aliases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'legacy.json'
+            good = {'name': 'Proxy__L1Staking', 'address': '0x' + '88' * 20, 'number': 1}
+            invalid = [[], [good, good], [{**good, 'pending': True}],
+                       [{**good, 'pending': None}], [{**good, 'pending': 0}],
+                       [{**good, 'pending': ''}], [{**good, 'pending': 'false'}],
+                       [{**good, 'number': -1}], [{**good, 'number': True}], [{**good, 'number': 2**53}],
+                       [{**good, 'address': '0x' + '00' * 20}],
+                       [{**good, 'address': '0x000000000000000000000000000000000000dEaD'}],
+                       [good, {'name': 'Proxy__Submitter', 'address': good['address']}]]
+            for records in invalid:
+                with self.subTest(records=records):
+                    path.write_text(json.dumps(records))
+                    with self.assertRaises(RuntimeError):
+                        devnet.legacy_l1_staking_record(str(path))
+            path.write_text(json.dumps([good]))
+            self.assertEqual(devnet.legacy_l1_staking_record(str(path)),
+                             {'address': good['address'], 'number': 1})
+
+    def test_explicit_batch_parameters_validate_uint64_and_independent_zero_values(self):
+        for interval, timeout in ((0, 1), (1, 0), (2**64 - 1, 2**64 - 1)):
+            self.assertEqual(devnet.validate_batch_parameters(interval, timeout),
+                             {'batchBlockInterval': interval, 'batchTimeout': timeout})
+        for interval, timeout in ((0, 0), (-1, 1), (2**64, 1), (1, 2**64),
+                                  (True, 1), (1, False), ('1', 1), (1, 1.5)):
+            with self.subTest(interval=interval, timeout=timeout):
+                with self.assertRaises(RuntimeError):
+                    devnet.validate_batch_parameters(interval, timeout)
+        args = devnet.parser.parse_args(['--batch-block-interval', '0', '--batch-timeout', '19'])
+        self.assertEqual(args.batch_block_interval, 0)
+        self.assertEqual(args.batch_timeout, 19)
+
+    def test_only_l1_does_not_require_legacy_contract_records(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args = SimpleNamespace(polyrepo_dir=directory, only_l1=True, service_action=None)
+            with patch.object(devnet.parser, 'parse_args', return_value=args), \
+                    patch.object(devnet, 'devnet_l1') as start_l1, \
+                    patch.object(devnet, 'requested_legacy_l1_staking') as legacy:
+                self.assertTrue(devnet.main())
+            start_l1.assert_called_once()
+            legacy.assert_not_called()
+
+    def test_incomplete_l1_inputs_stop_before_container_start(self):
+        with tempfile.TemporaryDirectory() as directory:
+            layer1 = Path(directory) / 'layer1'
+            genesis = layer1 / 'genesis'
+            genesis.mkdir(parents=True)
+            for name in ('genesis.json', 'genesis.ssz'):
+                (genesis / name).write_text('existing')
+            (layer1 / 'jwt').mkdir()
+            (layer1 / 'jwt' / 'jwtsecret').write_text('existing')
+            with patch.object(devnet, 'run_command') as command:
+                with self.assertRaisesRegex(RuntimeError, 'incomplete'):
+                    devnet.devnet_l1(SimpleNamespace(ops_dir=directory))
+                command.assert_not_called()
+            self.assertEqual((genesis / 'genesis.json').read_text(), 'existing')
+
     def test_parameter_validation_rejects_wrong_chain_and_signer_before_deployment(self):
         args = SimpleNamespace(sequencer_upgrade_offset_seconds=0,
             sequencer_private_key='01' * 32, deployer_private_key='02' * 32,
-            batch_submitter_private_key='03' * 32, sequencer_address='0x' + '11' * 20)
+            batch_submitter_private_key='03' * 32, gas_oracle_private_key='',
+            batch_block_interval=200, batch_timeout=600,
+            sequencer_address='0x' + '11' * 20)
         paths = SimpleNamespace(contracts_dir='unused')
         config = {'l1ChainID': 900, 'l2ChainID': 53077,
                   'govBatchBlockInterval': 200, 'govBatchTimeout': 600}
@@ -330,6 +565,118 @@ class SubprocessAndReadinessTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'Timeout'):
                 devnet.wait_for_rpc_server('test', retries=2, wait_secs=0)
             self.assertEqual(rpc.call_count, 2)
+
+    def test_oracle_signer_must_match_l2_owner(self):
+        args = SimpleNamespace(sequencer_upgrade_offset_seconds=0,
+            sequencer_private_key='01' * 32, deployer_private_key='02' * 32,
+            batch_submitter_private_key='03' * 32, gas_oracle_private_key='',
+            batch_block_interval=200, batch_timeout=600,
+            sequencer_address='0x' + '11' * 20)
+        config = {'l1ChainID': 900, 'l2ChainID': 53077,
+                  'govBatchBlockInterval': 200, 'govBatchTimeout': 600,
+                  'gasPriceOracleOwner': '0x' + '44' * 20}
+        derived = [SimpleNamespace(stdout='0x' + byte * 20) for byte in ('11', '22', '33', '22')]
+        with patch.object(devnet, 'run_command_capture_output', side_effect=derived):
+            with self.assertRaisesRegex(RuntimeError, 'gasPriceOracleOwner'):
+                devnet.validate_parameters(SimpleNamespace(contracts_dir='unused'), args, config)
+        args.gas_oracle_private_key = '04' * 32
+        derived[-1] = SimpleNamespace(stdout=config['gasPriceOracleOwner'])
+        with patch.object(devnet, 'run_command_capture_output', side_effect=derived) as cast:
+            roles = devnet.validate_parameters(SimpleNamespace(contracts_dir='unused'), args, config)
+        self.assertEqual(set(roles), {'sequencer', 'deployer', 'batch_submitter'})
+        self.assertEqual(cast.call_args.args[0][-1], args.gas_oracle_private_key)
+
+    def test_tcp_readiness_closes_connections_and_limits_attempts(self):
+        with patch.object(devnet.socket, 'create_connection') as connect:
+            self.assertTrue(devnet.test_port(1234))
+            connect.assert_called_once_with(('127.0.0.1', 1234), timeout=1)
+            connect.return_value.__exit__.assert_called_once()
+        with patch.object(devnet.socket, 'create_connection', side_effect=OSError('offline')) as connect:
+            with self.assertRaisesRegex(RuntimeError, 'Timed out'):
+                devnet.wait_up(1234, retries=2, wait_secs=0)
+            self.assertEqual(connect.call_count, 2)
+
+    def test_rpc_readiness_closes_failed_http_connections(self):
+        with patch.object(devnet.http.client, 'HTTPConnection') as connection:
+            connection.return_value.getresponse.side_effect = OSError('disconnected')
+            self.assertIsNone(devnet.eth_blockNumber('unused'))
+            connection.return_value.close.assert_called_once()
+
+    def test_duplicate_or_pending_deployment_records_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            filename = Path(directory) / 'contracts.json'
+            records = [{'name': name, 'address': '0x' + '11' * 20}
+                       for name in devnet.REQUIRED_DEPLOYMENTS]
+            filename.write_text(json.dumps(records + [records[0]]))
+            with self.assertRaisesRegex(RuntimeError, 'duplicate'):
+                devnet.deployment_addresses(filename)
+            records[0]['pending'] = True
+            filename.write_text(json.dumps(records))
+            with self.assertRaisesRegex(RuntimeError, 'not been confirmed'):
+                devnet.deployment_addresses(filename)
+
+
+class NodeGenerationTest(unittest.TestCase):
+    def test_missing_path_binary_uses_build_output_and_publishes_only_complete_nodes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            docker = root / 'ops' / 'docker'
+            docker.mkdir(parents=True)
+            (root / 'node').mkdir()
+            binary = root / 'node' / 'build' / 'bin' / 'tendermint'
+            calls = []
+
+            def run(command, **kwargs):
+                calls.append(command)
+                self.assertEqual(command, ['make', 'tendermint'])
+                binary.parent.mkdir(parents=True)
+                binary.write_text('#!/bin/sh\nexit 0\n')
+                binary.chmod(0o700)
+
+            def generate(source, output, executable, cluster):
+                self.assertEqual(Path(executable), binary)
+                self.assertTrue(cluster)
+                self.assertFalse((docker / '.devnet').exists())
+                (Path(output) / 'nodes.done').write_text('complete')
+
+            with patch.object(setup_nodes.shutil, 'which', return_value=None), \
+                    patch.object(setup_nodes.subprocess, 'run', side_effect=run), \
+                    patch.object(setup_nodes, 'generate_node_files', side_effect=generate):
+                setup_nodes.setup_devnet_nodes(directory, cluster=True)
+            self.assertEqual((docker / '.devnet' / 'nodes.done').read_text(), 'complete')
+            self.assertEqual(len(calls), 1)
+
+    def test_failed_generation_preserves_attempt_and_allows_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            docker = Path(directory) / 'ops' / 'docker'
+            docker.mkdir(parents=True)
+
+            def fail(source, output, executable, cluster):
+                (Path(output) / 'partial-key').write_text('retain')
+                raise RuntimeError('generation failed')
+
+            with patch.object(setup_nodes.shutil, 'which', return_value='/test/tendermint'), \
+                    patch.object(setup_nodes, 'generate_node_files', side_effect=fail):
+                with self.assertRaisesRegex(RuntimeError, 'generation failed'):
+                    setup_nodes.setup_devnet_nodes(directory)
+            self.assertFalse((docker / '.devnet').exists())
+            attempt = next(docker.glob('.devnet-setup-*'))
+            self.assertEqual((attempt / 'partial-key').read_text(), 'retain')
+            with patch.object(setup_nodes.shutil, 'which', return_value='/test/tendermint'), \
+                    patch.object(setup_nodes, 'generate_node_files') as generate:
+                setup_nodes.setup_devnet_nodes(directory)
+                generate.assert_called_once()
+            self.assertTrue(attempt.exists())
+            self.assertTrue((docker / '.devnet').exists())
+
+    def test_noncluster_peers_exclude_unstarted_ha_services(self):
+        with patch.object(setup_nodes, 'tendermint_node_id', return_value='test-node'):
+            peers = setup_nodes.build_persistent_peers('unused', cluster=False)
+            self.assertEqual(peers['node0'], '')
+            self.assertEqual(peers['node1'], 'test-node@node-0:26656')
+            self.assertFalse(any('ha-node' in value for value in peers.values()))
+            peers = setup_nodes.build_persistent_peers('unused', cluster=True)
+            self.assertIn('ha-node-0:26656', peers['node0'])
 
 
 if __name__ == '__main__':
