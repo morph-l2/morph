@@ -104,11 +104,49 @@ def build_persistent_peers(devnet_dir):
     return peers
 
 
-def setup_devnet_nodes():
+def validate_node_files(devnet_dir):
+    """Check existing node configuration without replacing identity files or consensus state."""
+    for node in NODE_DIRS:
+        for name in ('config.toml', 'genesis.json', 'node_key.json'):
+            path = os.path.join(devnet_dir, node, 'config', name)
+            if not os.path.isfile(path):
+                raise RuntimeError(f'Missing existing node configuration: {path}; restore the original file before retrying')
+        with open(os.path.join(devnet_dir, node, 'config', 'config.toml')) as source:
+            if not re.search(r'^block_sync\s*=\s*true\s*$', source.read(), re.MULTILINE):
+                raise RuntimeError(f'{node} requires block_sync = true; existing configuration was preserved')
+
+
+def node_file_hashes(devnet_dir):
+    result = {}
+    for node in NODE_DIRS:
+        names = ['config.toml', 'genesis.json', 'node_key.json']
+        if node == 'node0':
+            names.append('priv_validator_key.json')
+        for name in names:
+            relative = os.path.join(node, 'config', name)
+            with open(os.path.join(devnet_dir, relative), 'rb') as source:
+                result[relative] = hashlib.sha256(source.read()).hexdigest()
+    return result
+
+
+def setup_devnet_nodes(root_dir=None):
     """
     Set up the devnet nodes, modify configuration files using toml library, and copy key files.
     """
-    root_dir = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
+    root_dir = root_dir or subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
+    docker_dir = os.path.join(root_dir, 'ops', 'docker')
+    devnet_dir = os.path.join(docker_dir, '.devnet')
+    marker = os.path.join(devnet_dir, 'nodes.done')
+    if os.path.exists(devnet_dir):
+        if not os.path.isfile(marker):
+            raise RuntimeError(f'Existing node directory has no nodes.done: {devnet_dir}; preserve its keys and data and inspect the interrupted setup')
+        validate_node_files(devnet_dir)
+        with open(marker) as source:
+            saved = json.load(source)
+        if saved != {'version': 1, 'files': node_file_hashes(devnet_dir)}:
+            raise RuntimeError('Existing node configuration differs from nodes.done; preserve node data and restore the original configuration before retrying')
+        print('Existing devnet nodes verified; preserving their keys and data.')
+        return
     # Check if Tendermint is installed
     if shutil.which("tendermint") is None:
         print("Tendermint is not installed. Starting the build process...")
@@ -119,28 +157,12 @@ def setup_devnet_nodes():
             print(f"Error: Node directory not found at {node_dir}. Exiting.")
             sys.exit(1)
 
-        os.chdir(node_dir)
         print(f"Building Tendermint in {node_dir}...")
-        if subprocess.call(["make", "install-tendermint"]) != 0:
+        if subprocess.call(["make", "install-tendermint"], cwd=node_dir) != 0:
             print("Error: Failed to build Tendermint. Exiting.")
             sys.exit(1)
 
-        os.chdir(root_dir)
         print("Tendermint build process completed.")
-
-    # Check if .devnet directory already exists
-    docker_dir = os.path.join(root_dir, "ops", "docker")
-    devnet_dir = os.path.join(docker_dir, ".devnet")
-    if os.path.exists(devnet_dir):
-        old_topology_paths = [os.path.join(devnet_dir, f"node{i}") for i in range(3, 6)]
-        expected_paths = [os.path.join(devnet_dir, node) for node in NODE_DIRS]
-        if any(os.path.exists(path) for path in old_topology_paths) or any(
-                not os.path.exists(path) for path in expected_paths):
-            print("Existing stale devnet detected. Regenerating single-sequencer config.")
-            shutil.rmtree(devnet_dir)
-        else:
-            print(".devnet directory already exists. Devnet nodes setup has already been completed. Exiting.")
-            return
 
     # Run the Tendermint testnet command
     print("Setting up the devnet...")
@@ -209,4 +231,8 @@ def setup_devnet_nodes():
             f.write(content)
 
     print("All config.toml files have been updated successfully.")
+    validate_node_files(devnet_dir)
+    with open(marker, 'x') as target:
+        json.dump({'version': 1, 'files': node_file_hashes(devnet_dir)}, target, indent=2)
+        target.write('\n')
     print("Devnet nodes setup completed successfully.")

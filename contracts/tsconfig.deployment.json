@@ -1,0 +1,22 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "composite": false,
+        "incremental": false,
+        "noEmit": true,
+        "skipLibCheck": true
+    },
+    "include": [
+        "tasks/deploy.ts",
+        "deploy/**/*.ts",
+        "src/deploy-utils.ts",
+        "src/deployment-*.ts",
+        "src/plugin.ts",
+        "src/type-extensions.ts",
+        "src/types.ts",
+        "src/deploy-config/l1.ts",
+        "src/deploy-config/qanetl1.ts",
+        "integration-test/deployment*.spec.ts",
+        "integration-test/deploy-config.spec.ts"
+    ]
+}

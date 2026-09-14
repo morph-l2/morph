@@ -1,3 +1,4 @@
+import { getDeploymentProxy } from "../src/deployment-state";
 import "@nomiclabs/hardhat-ethers";
 
 import { HardhatRuntimeEnvironment } from "hardhat/types";
@@ -33,11 +34,7 @@ export const SubmitterInit = async (
         return "invalid Submitter configuration";
     }
 
-    const proxy = await hre.ethers.getContractAt(
-        ContractFactoryName.DefaultProxyInterface,
-        proxyAddress,
-        deployer
-    );
+    const proxy = await getDeploymentProxy(hre, path, proxyAddress, deployer);
     const factory = await hre.ethers.getContractFactory(ContractFactoryName.Submitter);
     if ((await proxy.implementation()).toLowerCase() !== implementationAddress.toLowerCase()) {
         const initializer = factory.interface.encodeFunctionData("initialize", [

@@ -162,6 +162,8 @@ export MORPH_RETH_DOCKER_TARGET
 export MORPH_RETH_ENTRYPOINT
 DEVNET_COMPOSE_FILES := -f docker-compose-devnet.yml
 DEVNET_CLEAN_COMPOSE_FILES := -f docker-compose-devnet.yml -f docker-compose-cluster.yml -f docker-compose-reth.yml -f docker-compose-cluster-reth.yml
+DEVNET_RUNTIME_ENV := $(if $(wildcard ops/l2-genesis/.devnet/runtime.env),$(abspath ops/l2-genesis/.devnet/runtime.env),/dev/null)
+DEVNET_COMPOSE_ENV := --env-file "$(DEVNET_RUNTIME_ENV)"
 
 # The cluster topology is layered before the execution-client override, so that
 # the reth files have the last word on the ha-el-* image, entrypoint and
@@ -190,7 +192,7 @@ $(error unsupported EXECUTION_CLIENT "$(EXECUTION_CLIENT)", expected "geth" or "
 endif
 
 devnet-up: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder
-	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT) \
+	@python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT) \
 		$(if $(DEVNET_CLUSTER_ENABLED),--cluster,) \
 		--sequencer-private-key=$(DEVNET_SEQUENCER_PRIVATE_KEY) \
 		--sequencer-address=$(DEVNET_SEQUENCER_ADDRESS) \
@@ -210,7 +212,7 @@ devnet-up-cluster-reth:
 .PHONY: devnet-up-cluster-reth
 
 devnet-up-debugccc: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder
-	python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT) --debugccc \
+	@python3 ops/devnet-morph/main.py --polyrepo-dir=. --execution-client=$(EXECUTION_CLIENT) --debugccc \
 		$(if $(DEVNET_CLUSTER_ENABLED),--cluster,) \
 		--sequencer-private-key=$(DEVNET_SEQUENCER_PRIVATE_KEY) \
 		--sequencer-address=$(DEVNET_SEQUENCER_ADDRESS) \
@@ -218,7 +220,7 @@ devnet-up-debugccc: $(DEVNET_EXECUTION_DEPS) go-ubuntu-builder
 .PHONY: devnet-up-debugccc
 
 devnet-down:
-	cd ops/docker && docker compose $(DEVNET_COMPOSE_FILES) down
+	cd ops/docker && NODE_DATA_DIR=/data JWT_SECRET_PATH=/jwt-secret.txt docker compose $(DEVNET_COMPOSE_ENV) $(DEVNET_COMPOSE_FILES) down
 .PHONY: devnet-down
 
 devnet-down-reth:
@@ -226,7 +228,7 @@ devnet-down-reth:
 .PHONY: devnet-down-reth
 
 devnet-clean-build: devnet-l1-clean
-	cd ops/docker && docker compose $(DEVNET_CLEAN_COMPOSE_FILES) down --volumes --remove-orphans
+	cd ops/docker && NODE_DATA_DIR=/data JWT_SECRET_PATH=/jwt-secret.txt docker compose $(DEVNET_COMPOSE_ENV) $(DEVNET_CLEAN_COMPOSE_FILES) down --volumes --remove-orphans
 	docker volume ls --filter label=com.docker.compose.project=docker --format='{{.Name}}' | xargs docker volume rm 2>/dev/null || true
 	rm -rf ops/l2-genesis/.devnet
 	rm -rf ops/docker/.devnet
@@ -242,11 +244,11 @@ devnet-l1:
 	python3 ops/devnet-morph/main.py --polyrepo-dir=. --only-l1
 
 devnet-l1-clean:
-	@cd ops/docker && ./layer1/scripts/clean.sh
+	@cd ops/docker && DEVNET_RUNTIME_ENV="$(DEVNET_RUNTIME_ENV)" NODE_DATA_DIR=/data JWT_SECRET_PATH=/jwt-secret.txt ./layer1/scripts/clean.sh
 .PHONY: devnet-l1-clean
 
 devnet-logs:
-	@(cd ops/docker && docker compose $(DEVNET_COMPOSE_FILES) logs -f)
+	@(cd ops/docker && NODE_DATA_DIR=/data JWT_SECRET_PATH=/jwt-secret.txt docker compose $(DEVNET_COMPOSE_ENV) $(DEVNET_COMPOSE_FILES) logs -f)
 .PHONY: devnet-logs
 
 reth-image:
@@ -259,19 +261,13 @@ reth:
 .PHONY: reth
 
 # tx-submitter
-SUBMITTERS := $(shell grep -o 'tx-submitter-[0-9]*[^:]' ops/docker/docker-compose-devnet.yml | sort | uniq)
 rebuild-all-tx-submitter:
-	@for submitter in $(SUBMITTERS); do \
-		docker compose -f ./ops/docker/docker-compose-devnet.yml up -d --build $$submitter --no-deps; \
-	done
+	@python3 ops/devnet-morph/main.py --polyrepo-dir=. --service-action=rebuild
 stop-all-tx-submitter:
-	@for submitter in $(SUBMITTERS); do \
-		docker compose -f ./ops/docker/docker-compose-devnet.yml stop $$submitter; \
-	done
+	@python3 ops/devnet-morph/main.py --polyrepo-dir=. --service-action=stop
 start-all-tx-submitter:
-	@for submitter in $(SUBMITTERS); do \
-		docker compose -f ./ops/docker/docker-compose-devnet.yml start $$submitter; \
-	done
+	@python3 ops/devnet-morph/main.py --polyrepo-dir=. --service-action=start
+.PHONY: rebuild-all-tx-submitter stop-all-tx-submitter start-all-tx-submitter
 
 # build geth
 geth: submodules

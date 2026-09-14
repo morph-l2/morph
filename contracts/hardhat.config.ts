@@ -67,7 +67,7 @@ module.exports = {
             chainId: 900,
         },
         l1: {
-            url: "http://localhost:9545",
+            url: process.env.L1_RPC_URL || "http://localhost:9545",
             chainId: 900,
             gas: 'auto',
             gasPrice: 'auto',

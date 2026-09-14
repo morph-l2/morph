@@ -14,8 +14,8 @@ cd "$PROJECT_DIR/.."
 
 # Stop and remove only layer1 containers
 echo "Stopping and removing layer1 containers..."
-docker compose -f docker-compose-devnet.yml stop layer1-el layer1-cl layer1-vc 2>/dev/null || true
-docker compose -f docker-compose-devnet.yml rm -f layer1-el layer1-cl layer1-vc 2>/dev/null || true
+docker compose --env-file "${DEVNET_RUNTIME_ENV:-/dev/null}" -f docker-compose-devnet.yml stop layer1-el layer1-cl layer1-vc 2>/dev/null || true
+docker compose --env-file "${DEVNET_RUNTIME_ENV:-/dev/null}" -f docker-compose-devnet.yml rm -f layer1-el layer1-cl layer1-vc 2>/dev/null || true
 
 # Remove layer1 volumes
 echo "Removing layer1 volumes..."

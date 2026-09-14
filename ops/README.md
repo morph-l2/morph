@@ -1,5 +1,9 @@
 # Running a devnet
 
+This guide covers new devnet and qanet deployments using the existing launch scripts.
+For QA contracts and services, see [QA deployment](#qa-deployment). For standalone
+genesis generation, see the [L2 genesis guide](l2-genesis/README.md).
+
 All commands run from the repo root. Everything is driven by the `Makefile`; the
 compose files live in `ops/docker/`.
 
@@ -18,17 +22,10 @@ contracts, generate the L2 genesis, and start `tx-submitter-0` plus
 `gas-price-oracle`. First run builds images and takes a while; later runs reuse
 them.
 
-Both also start the same way: PBFT runs for a block or two, then the chain
-upgrades to single-sequencer mode. The switch is driven by a timestamp —
-`DEVNET_SEQUENCER_UPGRADE_OFFSET_SECONDS` (default `0`) sets it to "now" at setup
-time, and setup takes minutes, so by the time block 1 is produced the boundary is
-already in the past and the upgrade happens immediately.
-
-> Do not raise `DEVNET_SEQUENCER_UPGRADE_OFFSET_SECONDS`. If the upgrade has not
-> happened by block 3, `updateSequencerSet` replaces the single-validator set with
-> the L1-designated sequencer address, `node-0` loses its vote, and the chain
-> deadlocks at `RoundStepPropose` permanently. `0` is the only value that is
-> reliably safe.
+Both devnet modes start with PBFT before switching to a single sequencer.
+`DEVNET_SEQUENCER_UPGRADE_OFFSET_SECONDS` must be `0`; the launcher rejects any
+other value before deployment. It saves the upgrade time before starting L2 and
+reuses that value on subsequent attempts.
 
 After the upgrade:
 
@@ -167,9 +164,30 @@ make devnet-l1-clean      # wipe L1 only
 make devnet-logs          # follow logs
 ```
 
-To restart while keeping the chain, use `docker compose restart` or
-`down` + `up -d` in `ops/docker/` — **not** `make devnet-up`, which re-runs the
-whole bootstrap.
+To restart the same chain, rerun the original `make devnet-up` command with the
+same client, topology and signing identities. The launcher verifies saved files
+and resumes incomplete stages. It reuses completed contracts and verifies genesis
+files without regenerating them. It writes `ops/l2-genesis/.devnet/done` only after
+L2 reports chain ID `53077` and a block number of at least `1`. An existing `done`
+records a previous successful start; it does not establish current service health.
+
+Deployment state, generated contract overrides and public Compose parameters are
+kept in `ops/l2-genesis/.devnet/`; node identities and databases are in
+`ops/docker/.devnet/`. Private keys are excluded from the state and `runtime.env`.
+The launcher passes keys to Hardhat and Compose through the child environment.
+`nodes.done` records the generated node configuration. Missing state, changed
+identities or changed genesis files stop the operation while preserving existing
+data. Restore the original configuration and missing files before retrying.
+Cleaning destroys chain data and must not be used to recover an interrupted stage.
+
+`make stop-all-tx-submitter`, `make start-all-tx-submitter` and
+`make rebuild-all-tx-submitter` use the existing launcher to operate only
+`tx-submitter-0`, with the saved client and topology. Stop needs no signing key or
+L1 connection. Start and rebuild require `BATCH_SUBMITTER_PRIVATE_KEY` to match the
+saved submitter identity and verify its active L1 registration. They use
+`docker compose up -d --no-deps`; rebuild also adds `--build`. These actions do not
+update `done` or verify new batches. The operator must check service logs and
+confirmed batch submissions afterward.
 
 A few things worth knowing before you debug a failed clean:
 
@@ -184,3 +202,137 @@ A few things worth knowing before you debug a failed clean:
   `IPC opening failed ... operation not supported` and then serves no RPC, delete
   `ops/docker/.devnet/el<N>/geth.ipc` and restart it. The socket cannot be
   re-bound over on a bind-mounted volume.
+
+
+## QA deployment
+
+The operator must prepare an L1 RPC endpoint reporting chain ID `900`, funded
+deployment accounts and the repository's Node.js, Yarn and Go tools, plus `jq`,
+`curl` and `shasum`. Install contract dependencies with `yarn install --frozen-lockfile`
+and compile with `yarn hardhat compile` in `contracts/` before running the shell
+flow. The devnet container flow additionally needs Docker and Foundry's `cast`.
+
+L1 settings come from `contracts/src/deploy-config/l1.ts` or `qanetl1.ts`; L2
+settings come from `ops/l2-genesis/deploy-config/devnet-deploy-config.json` or
+`qanet-deploy-config.json`. Both must agree on L1 and L2 chain IDs, currently `900`
+and `53077`. The scripts use generated JSON overrides instead of editing tracked
+TypeScript configuration. Solidity contracts and other networks are outside this
+script change.
+
+Before QA deployment, provide these inputs in the process environment or through
+the corresponding shell option:
+
+| Input | Requirement |
+| --- | --- |
+| `QA_RPC_URL` or `--l1-rpc` | Explicit endpoint for the intended L1 chain. |
+| `DEPLOYER_PRIVATE_KEY` | Funded signer for deployment and initialization. |
+| `firstSequencerAddress` or `--sequencer-address` | Nonzero address matching the actual block signer. |
+| `QA_ROLLUP_DELAY_PERIOD` or `--rollup-delay-period` | Explicit positive integer number of seconds. |
+| `SUBMITTER_OWNER_PRIVATE_KEY` | Required when `submitterOwner` differs from the deployer; must match `Submitter.owner()`. |
+| `--config-override FILE` | Optional JSON containing existing L1 configuration fields, including role or submitter addresses. |
+
+Private keys must remain outside JSON overrides, deployment records and
+`runtime.env`. The complete shell flow sets `DOTENV_CONFIG_PATH=/dev/null` and does
+not obtain deployment inputs from `contracts/.env`. When calling individual
+Hardhat tasks, the operator must supply the same endpoint and configuration.
+
+From the repository root, run:
+
+```sh
+sh contracts/scripts/localDeploy.sh --network qanet
+```
+
+The equivalent command in `contracts/` is `yarn deploy:qanet`. The existing
+`localDeploy.sh` also accepts `--network devnet` (the default), `--output-dir`,
+`--deploy-config`, `--config-override`, `--l1-rpc`, `--sequencer-address` and
+`--rollup-delay-period`. Its devnet mode uses `L1_RPC_URL` and requires an already
+running L1; use `make devnet-up` to start the local container network. Default shell
+outputs are `ops/l2-genesis/.devnet/` or `.qanet/`.
+
+The deployment operator runs these stages through that command:
+
+1. Check the configuration, signer identities and L1 chain identity before sending
+   transactions. Save the public deployment parameters in the output directory.
+2. Deploy L1 contracts and record each deployment transaction. Generate and verify
+   L2 genesis files using the existing network shell script.
+3. Initialize proxies, install the first sequencer, import the genesis batch and
+   transfer proxy administration to `ProxyAdmin`. This does not transfer every
+   contract's ownership to a different QA account.
+4. Use the configured `submitterOwner` signer to add submitters and supply their
+   minimum stake. Submitter accounts need separate funds for later batch transactions.
+5. Verify contracts, then write public `runtime.env` settings and `done`.
+
+On failure, stop subsequent stages and preserve the output directory and chain
+state. Resume with the same command, parameters and directory after correcting the
+cause. Do not delete deployment records or replace genesis to force progress. For
+an unconfirmed deployment, inspect the recorded sender, nonce, expected address and
+transaction receipt first. If a broadcast response was lost and no hash was saved,
+identify the original transaction and restore its hash before retrying; do not
+send another deployment blindly. Remove a stale shell lock only after confirming
+that no process is operating on that directory.
+
+A completed rerun verifies the saved genesis and runtime contract state without
+sending new deployment transactions. `verify-deployment --runtime` allows
+`l2BaseFee` to differ from its initialization value because the oracle updates it;
+other configuration and active submitter checks still apply. `done` records the
+last successful contract and genesis checks; an existing marker remains after a
+failed verification and does not establish current service health. Require a
+successful verification command before starting services. QA service startup,
+block production and proofs require the separate checks below.
+
+### Starting existing QA services
+
+Before starting services, rerun the completed deployment command with its original
+parameters so genesis and contract verification both pass. The operator must use
+`genesis-l2.json` for the L2 execution clients and prepare node databases, engine
+connections, peer configuration and signing keys. Load the generated public
+settings from the repository root:
+
+```sh
+set -a
+. ops/l2-genesis/.qanet/runtime.env
+set +a
+export MORPH_NODE_L1_ETH_RPC="$QA_RPC_URL"
+export TX_SUBMITTER_L1_ETH_RPC="$QA_RPC_URL"
+```
+
+Use the corresponding output path if `--output-dir` was supplied. `QA_RPC_URL` must
+be the verified L1 endpoint, including when deployment used `--l1-rpc`. The file
+sets the node's sequencer, message-queue and rollup addresses, the submitter's
+Submitter and Rollup addresses, batch interval, timeout and V2 activation time.
+The operator must additionally provide `MORPH_NODE_L2_ETH_RPC`,
+`TX_SUBMITTER_L2_ETH_RPCS` and the existing service-specific connection settings.
+The block signer must match `firstSequencerAddress`; `TX_SUBMITTER_L1_PRIVATE_KEY`
+must belong to an active configured submitter. Start the existing node and
+submitter commands with this environment and do not override the verified
+addresses or batch settings.
+
+If using `MORPH_NODE_START_IN_SEQUENCER_MODE`, satisfy the
+[QA consensus requirements](#skipping-pbft--qa-environments-only) above. After
+startup, check that L2 block height continues increasing, submitter transactions
+are confirmed and `Rollup.lastCommittedBatchIndex()` increases. If these checks
+fail, stop the affected service, preserve its database and genesis files, correct
+connections or signing configuration and restart the same service. Deployment does
+not start or validate external `Challenger` or `finalizer` services.
+
+The deployed runtime verifier supports batch version `1`.
+`TX_SUBMITTER_BATCH_V2_UPGRADE_TIME=0` leaves runtime V2 disabled; the V2 genesis
+header is a separate format. Install and validate the corresponding verifier
+before enabling runtime V2 batches.
+
+### Deployment validation
+
+From the repository root, run the isolated script tests:
+
+```sh
+python3 -m unittest discover -s ops/l2-genesis/tests -v
+python3 -m unittest discover -s ops/devnet-morph/tests -v
+```
+
+In `contracts/`, run `yarn typecheck:deployment` and `yarn test:deployment`.
+With contracts compiled and Anvil installed, run
+`python3 ops/l2-genesis/tests/validate_local_deployment.py` from the root for both
+networks' contract deployment, real Go genesis generation and repeated-run checks
+on a temporary local chain. The harness stops its Anvil process and prints the
+retained log directory. These checks do not validate a complete Docker cluster or
+external QA services, sustained block production or proof submission.

@@ -88,18 +88,27 @@ yarn echidna:aliasing
 
 ### Deployment
 
-#### Configuration
+Devnet and qanet use separate deployment records and generated configuration.
+See [QA deployment and recovery](../ops/README.md#qa-deployment) for required RPC,
+role, sequencer and delay settings. Use `make devnet-up` from the repository root
+for the local container network.
 
-1. Create or modify a file `<network-name>.ts` inside of the [`deploy-config`](./deploy-config/) folder.
-2. Fill out this file according to the `deployConfigSpec` located inside of the [`hardhat.config.ts](./hardhat.config.ts)
-3. Optionally: Run `npx hardhat generate-deploy-config --network <network-name>` to generate the associated JSON file. This is required if using `op-chain-ops`.
+In this directory, `yarn deploy:qanet` runs the existing
+`scripts/localDeploy.sh --network qanet`: deploy L1 contracts, generate L2 genesis,
+initialize contracts, register submitters and verify the result. The shell flow
+sets `DOTENV_CONFIG_PATH=/dev/null`; supply inputs through the documented environment
+variables or options. It does not start QA services.
 
-#### Execution
-
-1. Copy `.env.example` into `.env`
-2. Fill out the `L1_RPC` and `PRIVATE_KEY_DEPLOYER` environment variables in `.env`
-3. Run `npx hardhat deploy --network <network-name>` to deploy the L1 contracts
-4. Run `npx hardhat etherscan-verify --network <network-name> --sleep` to verify contracts on Etherscan
+`deploy:devnetL1`, `deploy:qanetL1`, `initialize:devnetL1`, `initialize:qanetL1`,
+`register:devnetL1`, `register:qanetL1`, `verify:devnetL1` and `verify:qanetL1` each
+run one stage. Their records are `../ops/l2-genesis/.devnet/devnetL1.json` and
+`../ops/l2-genesis/.qanet/qanetL1.json`. Standalone initialization must receive the
+generated `batchHeader` through `DEPLOY_CONFIG_OVERRIDE`, together with the same
+role overrides used for deployment. Overrides may contain only existing fields of
+the selected L1 configuration. Preserve records and generated files when retrying.
+Older `contracts/devnetL1.json` or `contracts/qanetL1.json` files are not migrated or
+deleted automatically; inspect their chain and addresses before choosing an output
+directory.
 
 ## Tools
 

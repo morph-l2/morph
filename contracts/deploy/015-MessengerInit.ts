@@ -1,3 +1,4 @@
+import { getDeploymentProxy } from "../src/deployment-state";
 import "@nomiclabs/hardhat-web3";
 import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-waffle";
@@ -35,7 +36,7 @@ export const MessengerInit = async (
     const L1CrossDomainMessengerImplAddress = getContractAddressByName(path, ImplStorageName.L1CrossDomainMessengerStorageName)
     const L1CrossDomainMessengerFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1CrossDomainMessenger)
 
-    const IL1CrossDomainMessengerProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1CrossDomainMessengerProxyAddress, deployer)
+    const IL1CrossDomainMessengerProxy = await getDeploymentProxy(hre, path, L1CrossDomainMessengerProxyAddress, deployer)
     // upgrade and initialize L1CrossDomainMessengerProxy
     if (
         ((await IL1CrossDomainMessengerProxy.implementation()).toLocaleLowerCase() !== L1CrossDomainMessengerImplAddress.toLocaleLowerCase()
@@ -47,8 +48,7 @@ export const MessengerInit = async (
             || !ethers.utils.isAddress(RollupProxyAddress)
             || !ethers.utils.isAddress(L1MessageQueueWithGasPriceOracleProxyAddress)
         ) {
-            console.error('upgrade l1CrossDomainMessenger failed !!! please check your params')
-            return ''
+            throw new Error('upgrade l1CrossDomainMessenger failed !!! please check your params')
         }
         // Upgrade and initialize the proxy.
         await IL1CrossDomainMessengerProxy.upgradeToAndCall(
@@ -107,7 +107,7 @@ export const MessengerInit = async (
         console.log('L1CrossDomainMessengerProxy upgrade success')
     }
 
-    const IL1MessageQueueWithGasPriceOracleProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1MessageQueueWithGasPriceOracleProxyAddress, deployer)
+    const IL1MessageQueueWithGasPriceOracleProxy = await getDeploymentProxy(hre, path, L1MessageQueueWithGasPriceOracleProxyAddress, deployer)
 
     if (
         (await IL1MessageQueueWithGasPriceOracleProxy.implementation()).toLocaleLowerCase() !== L1MessageQueueWithGasPriceOracleImplAddress.toLocaleLowerCase()
@@ -118,8 +118,7 @@ export const MessengerInit = async (
         if (
             maxGasLimit == 0 || !ethers.utils.isAddress(whitelistAddress)
         ) {
-            console.error('upgrade L1MessageQueueWithGasPriceOracle failed !!! please check your params')
-            return ''
+            throw new Error('upgrade L1MessageQueueWithGasPriceOracle failed !!! please check your params')
         }
         // Upgrade and initialize the proxy.
         await IL1MessageQueueWithGasPriceOracleProxy.upgradeToAndCall(

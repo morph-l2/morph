@@ -18,6 +18,8 @@ out
 ops/docker/.devnet
 ops/l2-genesis/.devnet
 ops/l2-genesis/.qanet
+__pycache__/
+*.py[cod]
 ops/l2-genesis/.testnet
 ops/l2-genesis/.holesky
 ops/l2-genesis/.hoodi

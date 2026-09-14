@@ -6,14 +6,22 @@ on:
             - main
         paths:
             - "ops/l2-genesis/**"
-            - ".github/workflows/deployer.yaml"
+            - "ops/devnet-morph/**"
+            - "ops/docker/**"
+            - "contracts/**"
+            - "Makefile"
+            - ".github/workflows/deployer.yml"
     pull_request:
         paths:
             - "build/**"
             - "bindings/**"
             - "node/**"
             - "ops/l2-genesis/**"
-            - ".github/workflows/deployer.yaml"
+            - "ops/devnet-morph/**"
+            - "ops/docker/**"
+            - "contracts/**"
+            - "Makefile"
+            - ".github/workflows/deployer.yml"
 
 permissions:
     contents: read
@@ -46,3 +54,7 @@ jobs:
                   go-version: 1.24.x
             - name: Run tests
               run: make test
+            - name: Verify deployment scripts
+              run: |
+                  python3 -m unittest discover -s tests -v
+                  python3 -m unittest discover -s ../devnet-morph/tests -v

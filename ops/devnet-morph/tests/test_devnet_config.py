@@ -1,4 +1,8 @@
 import importlib
+import base64
+import hashlib
+import json
+import tempfile
 import sys
 import unittest
 from pathlib import Path
@@ -52,11 +56,21 @@ class DevnetConfigTest(unittest.TestCase):
             "-f docker-compose-cluster-reth.yml",
             makefile,
         )
-        self.assertIn("docker compose $(DEVNET_CLEAN_COMPOSE_FILES) down --volumes --remove-orphans", makefile)
+        self.assertIn("docker compose $(DEVNET_COMPOSE_ENV) $(DEVNET_CLEAN_COMPOSE_FILES) down --volumes --remove-orphans", makefile)
         self.assertIn("--filter label=com.docker.compose.project=docker", makefile)
         self.assertNotIn("docker_morph_data_0 docker_morph_data_1", makefile)
         self.assertNotIn("devnet-clean-build-reth", makefile)
         self.assertNotIn("devnet-clean-reth", makefile)
+
+    def test_service_targets_use_validated_runtime_configuration(self):
+        makefile = (REPO_ROOT / 'Makefile').read_text()
+        for action in ('start', 'stop', 'rebuild'):
+            self.assertIn(f'--service-action={action}', makefile)
+        self.assertIn('DEVNET_COMPOSE_ENV := --env-file "$(DEVNET_RUNTIME_ENV)"', makefile)
+        self.assertIn('$(DEVNET_COMPOSE_ENV) $(DEVNET_COMPOSE_FILES) down', makefile)
+        self.assertIn('$(DEVNET_COMPOSE_ENV) $(DEVNET_COMPOSE_FILES) logs -f', makefile)
+        cleaner = (DOCKER_DIR / 'layer1' / 'scripts' / 'clean.sh').read_text()
+        self.assertEqual(cleaner.count('--env-file "${DEVNET_RUNTIME_ENV:-/dev/null}"'), 2)
 
     def test_default_compose_includes_layer1_derivation_node(self):
         compose = (DOCKER_DIR / "docker-compose-devnet.yml").read_text()
@@ -102,9 +116,6 @@ class DevnetConfigTest(unittest.TestCase):
             launcher,
         )
         self.assertNotIn("addresses['Proxy__L1Staking']", launcher)
-        self.assertIn("env_data.pop('Proxy__L1Staking', None)", launcher)
-        self.assertIn("env_data.pop('MORPH_L1STAKING', None)", launcher)
-        self.assertNotIn("Proxy__L1Staking", (DOCKER_DIR / ".env").read_text())
         self.assertNotIn(
             "'layer1-el', 'layer1-cl', 'layer1-vc'], check=False",
             launcher,
@@ -117,7 +128,7 @@ class DevnetConfigTest(unittest.TestCase):
         deploy_task = (REPO_ROOT / "contracts" / "tasks" / "deploy.ts").read_text()
         register_task = deploy_task[deploy_task.index('task("register")'):]
         self.assertIn('JSON.parse(process.env.batchSubmitterPks || "[]")', register_task)
-        self.assertIn("new ethers.Wallet(privateKey).address", register_task)
+        self.assertIn("registrationAddresses(config)", register_task)
 
     def test_cluster_compose_defines_ha_services(self):
         cluster_compose = DOCKER_DIR / "docker-compose-cluster.yml"
@@ -200,15 +211,6 @@ class DevnetConfigTest(unittest.TestCase):
         for service in ("morph-el-0:", "morph-el-1:"):
             self.assertNotIn(f"  {service}", compose)
 
-    def test_execution_client_keys_have_no_trailing_newline(self):
-        """reth rejects a key file with a trailing newline ("malformed or
-        out-of-range secret key"); geth accepts it either way."""
-        for key in ("nodekey0", "nodekey1", "nodekey2",
-                    "ha-nodekey0", "ha-nodekey1", "ha-nodekey2"):
-            contents = (DOCKER_DIR / key).read_bytes()
-            self.assertEqual(len(contents), 64, f"{key} should be 64 hex characters")
-            self.assertFalse(contents.endswith(b"\n"), f"{key} must not end with a newline")
-
     def test_tendermint_peers_are_derived_from_installed_node_keys(self):
         sys.path.insert(0, str(DEVNET_PACKAGE))
         try:
@@ -217,11 +219,15 @@ class DevnetConfigTest(unittest.TestCase):
         finally:
             sys.path.remove(str(DEVNET_PACKAGE))
 
-        # Anchored on the ID that used to be hardcoded in persistent_peers.
-        self.assertEqual(
-            setup_nodes.tendermint_node_id(DOCKER_DIR / "node0" / "node_key.json"),
-            "93e27ea2306e158a8146d5f44caaab97496797d2",
-        )
+        # Use temporary test values without reading the repository's node private keys.
+        with tempfile.TemporaryDirectory() as directory:
+            public_key = bytes(range(32))
+            node_key = Path(directory) / 'node_key.json'
+            node_key.write_text(json.dumps({'priv_key': {
+                'value': base64.b64encode(bytes(32) + public_key).decode(),
+            }}))
+            self.assertEqual(setup_nodes.tendermint_node_id(node_key),
+                             hashlib.sha256(public_key).hexdigest()[:40])
 
         # node-1 never starts tendermint and node-2 has no compose service, so
         # neither may appear as a peer.

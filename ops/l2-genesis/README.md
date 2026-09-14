@@ -1,52 +1,38 @@
-# morph-deployer
+# L2 genesis generation
 
-## Compile Smart Contract
+The existing `devnet-l2genesis.sh` implements generation and verification;
+`qanet-l2genesis.sh` selects the QA configuration. These scripts do not initialize
+contracts, register submitters or start services. For the complete flow, see
+[deployment and recovery](../README.md#qa-deployment).
 
-### step 1 build solidity files
+Install the repository's Go toolchain, `jq`, `curl` and `shasum`. L1 deployment
+records must exist, with confirmed contracts on the selected L1. Provide its RPC
+endpoint explicitly through `L1_RPC_URL` for devnet, `QA_RPC_URL` for qanet or
+`--l1-rpc`. For example, from the repository root with `QA_RPC_URL` configured:
 
-checkout the contract repo: ``git clone https://github.com/morph-l2/morph``
-
-```cd contracts```
-
-Install Foundry with a specific version.
-
-```foundryup -C da2392e58bb8a7fefeba46b40c4df1afad8ccd22```
-
-Install node modules with yarn (v1) and Node.js (16+):
-
-Build Contract
-
-```yarn install```
-
-Make sure artifacts are generated in ./artifacts directory
-
-### step 2 generate go-bindings
-
-To be developed standalone project bindings  
-checkout this repo ```git clone https://github.com/morph-l2/morph.git```.  
-
-```shell
-cd morph/bindings
-make all
+```sh
+sh ops/l2-genesis/qanet-l2genesis.sh
+sh ops/l2-genesis/qanet-l2genesis.sh --verify-existing
 ```
 
-## Prepare Genesis File
+Default inputs are `deploy-config/devnet-deploy-config.json` or
+`deploy-config/qanet-deploy-config.json`; deployment records are
+`.devnet/devnetL1.json` or `.qanet/qanetL1.json`. Paths in this paragraph are relative
+to this directory. Use `--deploy-config`, `--deployment-file`, `--output-dir` and
+`--l1-rpc` to select explicit inputs and destinations.
 
-Run script `devnet-gensis.sh`
+The script checks configuration addresses against deployment records and verifies
+L1 chain identity and deployed code. It generates `deploy-config.json`,
+`genesis-l2.json`, `rollup.json`, `genesis-batch-header.json` and a
+`deployment-config.json` containing `batchHeader`. It checks chain IDs, the genesis
+header and roots, then writes `genesis.done` with input and artifact hashes. This
+marker confirms genesis generation only; it is separate from the complete
+flow's `done`.
 
-```shell
-DEVNET="$PWD/.devnet"
-echo "Regenerating genesis files"
-TIMESTAMP=$(date +%s | xargs printf '0x%x')
-cat "deploy-config/devnetL1.json" | jq -r ".l1GenesisBlockTimestamp = \"$TIMESTAMP\"" > /tmp/bedrock-devnet-deploy-config.json
-(
-go run cmd/main.go genesis devnet \
---deploy-config /tmp/bedrock-devnet-deploy-config.json \
---outfile.l1 $DEVNET/genesis-l1.json \
---outfile.l2 $DEVNET/genesis-l2.json \
---outfile.rollup $DEVNET/rollup.json
-touch "$DEVNET/done"
-)
-```
-
-Make sure `genesis-l1.json` and `genesis-l2.json` are generated correctly.
+On failure, stop initialization and service startup. Preserve existing files and
+the reported `genesis-attempt-*` directory containing inputs and diagnostic logs.
+Correct the cause and retry using the same inputs. `--verify-existing` checks saved
+files and L1 identity without running Go; use it before reusing generated genesis.
+`--overwrite` explicitly regenerates files and must never be used for a running
+chain or an existing node database. Remove a stale `.genesis.lock.d` only after
+confirming no generation or verification process is running for that directory.
