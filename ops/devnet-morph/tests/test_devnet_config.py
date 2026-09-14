@@ -2,6 +2,8 @@ import importlib
 import base64
 import hashlib
 import json
+import re
+import subprocess
 import tempfile
 import sys
 import unittest
@@ -14,6 +16,32 @@ DOCKER_DIR = REPO_ROOT / "ops" / "docker"
 
 
 class DevnetConfigTest(unittest.TestCase):
+    def test_geth_submodule_and_go_dependencies_use_the_same_revision(self):
+        makefile = (REPO_ROOT / "Makefile").read_text()
+        expected_commit = re.search(
+            r"^ETHEREUM_SUBMODULE_COMMIT_OR_TAG := ([0-9a-f]{40})$", makefile, re.MULTILINE
+        ).group(1)
+        expected_version = re.search(
+            r"^ETHEREUM_TARGET_VERSION := (\S+)$", makefile, re.MULTILINE
+        ).group(1)
+        # Git reports the checkout revision when initialized and the recorded
+        # gitlink otherwise, including CI checkouts without submodule contents.
+        status = subprocess.check_output(
+            ["git", "submodule", "status", "--", "go-ethereum"], cwd=REPO_ROOT, text=True
+        )
+        self.assertEqual(status[1:].split()[0], expected_commit)
+        self.assertTrue(expected_version.endswith("-" + expected_commit[:12]))
+        modules = re.findall(r"^\s*(\./\S+)\s*$", (REPO_ROOT / "go.work").read_text(), re.MULTILINE)
+        self.assertTrue(modules)
+        for module in modules:
+            with self.subTest(module=module):
+                version = re.search(
+                    r"^\s*(?:require\s+)?github\.com/morph-l2/go-ethereum (\S+)",
+                    (REPO_ROOT / module / "go.mod").read_text(), re.MULTILINE,
+                )
+                self.assertIsNotNone(version)
+                self.assertEqual(version.group(1), expected_version)
+
     def test_root_dockerignore_excludes_generated_build_outputs(self):
         dockerignore = (REPO_ROOT / ".dockerignore").read_text().splitlines()
 

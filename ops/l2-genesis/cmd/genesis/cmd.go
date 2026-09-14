@@ -217,6 +217,9 @@ func validateDeploymentRecords(path string, configuredStaking common.Address) (*
 		if record.Pending != nil && !bytes.Equal(record.Pending, []byte("true")) && !bytes.Equal(record.Pending, []byte("false")) {
 			return nil, fmt.Errorf("deployment %s pending must be a boolean when provided", record.Name)
 		}
+		if bytes.Equal(record.Pending, []byte("true")) {
+			return nil, fmt.Errorf("deployment %s is pending; confirm the deployment before generating genesis", record.Name)
+		}
 		if byName[record.Name] != nil {
 			return nil, fmt.Errorf("duplicate deployment %s", record.Name)
 		}
@@ -225,9 +228,6 @@ func validateDeploymentRecords(path string, configuredStaking common.Address) (*
 	staking := byName["Proxy__L1Staking"]
 	if staking == nil {
 		return nil, fmt.Errorf("confirmed Proxy__L1Staking deployment is required, including when l1StakingProxy is configured")
-	}
-	if bytes.Equal(staking.Pending, []byte("true")) {
-		return nil, fmt.Errorf("Proxy__L1Staking deployment is pending; confirm the legacy deployment before generating genesis")
 	}
 	if staking.Address == common.HexToAddress("0x000000000000000000000000000000000000dEaD") {
 		return nil, fmt.Errorf("Proxy__L1Staking must be the actual legacy deployment, not the dEaD placeholder")

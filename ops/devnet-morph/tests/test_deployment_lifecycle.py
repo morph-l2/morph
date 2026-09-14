@@ -231,7 +231,7 @@ class DeploymentLifecycleTest(unittest.TestCase):
         self.mocks[5].reset_mock()
         with self.assertRaisesRegex(RuntimeError, 'no recorded explicit batch parameters'):
             devnet.devnet_deploy(self.paths, self.args)
-        for action in ('start', 'stop', 'rebuild'):
+        for action in ('start', 'rebuild'):
             self.args.service_action = action
             with self.assertRaisesRegex(RuntimeError, 'no recorded explicit batch parameters'):
                 devnet.devnet_service_action(self.paths, self.args)
@@ -410,30 +410,110 @@ class DeploymentLifecycleTest(unittest.TestCase):
             self.assertNotIn('PRIVATE_KEY', Path(self.paths.env_file).read_text())
             self.assertEqual(self.state()['phase'], 'complete')
 
+    def assert_service_stop_preserves_files(self):
+        output = Path(self.paths.devnet_dir)
+        def saved_files():
+            return {str(path.relative_to(output)): path.read_bytes()
+                    for path in output.rglob('*')
+                    if path.is_file() and path.name != '.deployment.lock'}
+        before = saved_files()
+        self.commands.clear()
+        for index in (3, 4, 7):
+            self.mocks[index].reset_mock()
+        with patch.object(devnet, 'run_command_capture_output') as cast, \
+                patch.object(devnet, 'read_json') as read_json, \
+                patch.object(devnet, 'compose_runtime') as compose_runtime:
+            devnet.devnet_service_action(self.paths, SimpleNamespace(service_action='stop'))
+            cast.assert_not_called()
+            read_json.assert_not_called()
+            compose_runtime.assert_not_called()
+        for index in (3, 4, 7):
+            self.mocks[index].assert_not_called()
+        self.assertEqual(self.commands, [([
+            'docker', 'compose', '--project-name', 'docker', '--env-file', devnet.os.devnull,
+            '-f', 'docker-compose-devnet.yml', 'stop', 'tx-submitter-0',
+        ], {'cwd': self.paths.ops_dir,
+            'env': {'NODE_DATA_DIR': '/data', 'JWT_SECRET_PATH': '/jwt-secret.txt'}})])
+        self.assertEqual(saved_files(), before)
+
     def test_service_stop_needs_no_signing_key_or_network(self):
         devnet.devnet_deploy(self.paths, self.args)
+        Path(self.paths.env_file).write_text('EXISTING_RUNTIME=preserved\n')
+        self.assert_service_stop_preserves_files()
+
+    def test_service_stop_after_containers_start_but_deployment_is_interrupted(self):
+        self.mocks[5].side_effect = self.real_start_l2
+        with patch.object(devnet, 'wait_up', side_effect=RuntimeError('simulated startup timeout')):
+            with self.assertRaisesRegex(RuntimeError, 'simulated startup timeout'):
+                devnet.devnet_deploy(self.paths, self.args)
+        self.assertTrue(any(command[-2:] == ['up', '-d'] for command, _ in self.commands))
+        self.assertEqual(self.state()['phase'], 'registered')
+        self.assertFalse((Path(self.paths.devnet_dir) / 'done').exists())
         self.commands.clear()
-        self.mocks[3].reset_mock()
-        self.mocks[4].reset_mock()
+        for action in ('start', 'rebuild'):
+            self.args.service_action = action
+            with self.assertRaisesRegex(RuntimeError, 'Finish the existing devnet deployment'):
+                devnet.devnet_service_action(self.paths, self.args)
+        self.assertFalse(self.commands)
+        self.assert_service_stop_preserves_files()
+
+    def test_service_stop_without_output_directory_or_source_files(self):
+        output = Path(self.paths.devnet_dir)
+        output.rmdir()
+        (Path(self.paths.deploy_config_dir) / 'devnet-deploy-config.json').unlink()
+        Path(self.paths.contracts_config).unlink()
+        self.assert_service_stop_preserves_files()
+        self.assertEqual([path.name for path in output.iterdir()], ['.deployment.lock'])
+
+    def test_service_stop_preserves_corrupt_metadata_and_runtime_file(self):
+        output = Path(self.paths.devnet_dir)
+        for name in ('deployment-state.json', 'done', 'runtime.env'):
+            (output / name).write_text('invalid and incomplete content\n')
+        self.assert_service_stop_preserves_files()
+
+    def test_service_stop_retains_deployment_lock(self):
         self.args.service_action = 'stop'
-        self.args.batch_submitter_private_key = None
-        with patch.object(devnet, 'run_command_capture_output') as cast:
-            devnet.devnet_service_action(self.paths, self.args)
-            cast.assert_not_called()
-        self.mocks[3].assert_not_called()
-        self.mocks[4].assert_not_called()
-        self.assertEqual(self.commands[-1][0][-2:], ['stop', 'tx-submitter-0'])
+        with open(Path(self.paths.devnet_dir) / '.deployment.lock', 'a') as lock:
+            devnet.fcntl.flock(lock, devnet.fcntl.LOCK_EX | devnet.fcntl.LOCK_NB)
+            with self.assertRaisesRegex(RuntimeError, 'Another devnet operation is running'):
+                devnet.devnet_service_action(self.paths, self.args)
+        self.assertFalse(self.commands)
+
+    def test_only_stop_allows_changed_config_and_missing_artifacts(self):
+        devnet.devnet_deploy(self.paths, self.args)
+        config = Path(self.paths.contracts_config)
+        original = config.read_bytes()
+        config.write_text('changed source configuration\n')
+        self.commands.clear()
+        for action in ('start', 'rebuild'):
+            self.args.service_action = action
+            with self.assertRaisesRegex(RuntimeError, 'source configuration changed'):
+                devnet.devnet_service_action(self.paths, self.args)
+        self.assertFalse(self.commands)
+        self.assert_service_stop_preserves_files()
+        config.write_bytes(original)
+        Path(self.paths.genesis_l2_path).unlink()
+        self.commands.clear()
+        for action in ('start', 'rebuild'):
+            self.args.service_action = action
+            with self.assertRaisesRegex(RuntimeError, 'artifact changed or is missing'):
+                devnet.devnet_service_action(self.paths, self.args)
+        self.assertFalse(self.commands)
+        self.assert_service_stop_preserves_files()
 
     def test_service_rejects_incomplete_state_and_wrong_signer(self):
-        self.args.service_action = 'start'
-        with self.assertRaisesRegex(RuntimeError, 'completed devnet'):
-            devnet.devnet_service_action(self.paths, self.args)
+        for action in ('start', 'rebuild'):
+            self.args.service_action = action
+            with self.assertRaisesRegex(RuntimeError, 'completed devnet'):
+                devnet.devnet_service_action(self.paths, self.args)
         devnet.devnet_deploy(self.paths, self.args)
         self.commands.clear()
         self.args.batch_submitter_private_key = '04' * 32
-        with patch.object(devnet, 'run_command_capture_output', return_value=SimpleNamespace(stdout='0x' + '77' * 20)):
-            with self.assertRaisesRegex(RuntimeError, 'does not match'):
-                devnet.devnet_service_action(self.paths, self.args)
+        for action in ('start', 'rebuild'):
+            self.args.service_action = action
+            with patch.object(devnet, 'run_command_capture_output', return_value=SimpleNamespace(stdout='0x' + '77' * 20)):
+                with self.assertRaisesRegex(RuntimeError, 'does not match'):
+                    devnet.devnet_service_action(self.paths, self.args)
         self.assertFalse(self.commands)
 
 

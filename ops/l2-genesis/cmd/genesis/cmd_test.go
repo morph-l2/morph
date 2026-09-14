@@ -221,17 +221,92 @@ func TestCLIRejectsInvalidLegacyDeploymentsBeforeRPC(t *testing.T) {
 	}
 }
 
-func TestLegacyDeploymentRecordAcceptsConfirmedAddress(t *testing.T) {
+func TestCLIRejectsPendingDeploymentsBeforeRPC(t *testing.T) {
+	var calls atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		http.Error(w, "RPC must not be called", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+	configData, err := os.ReadFile(filepath.Join("..", "..", "deploy-config", "devnet-deploy-config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := []struct{ name, field string }{
+		{"Proxy__L1Staking", "l1StakingProxy"},
+		{"Proxy__L1CrossDomainMessenger", "l1CrossDomainMessengerProxy"},
+		{"Proxy__Rollup", "RollupProxy"},
+		{"Proxy__L1GatewayRouter", "l1GatewayRouterProxy"},
+		{"Proxy__L1StandardERC20Gateway", "l1StandardERC20GatewayProxy"},
+		{"Proxy__L1CustomERC20Gateway", "l1CustomERC20GatewayProxy"},
+		{"Proxy__L1ReverseCustomGateway", "l1ReverseCustomGatewayProxy"},
+		{"Proxy__L1ETHGateway", "l1ETHGatewayProxy"},
+		{"Proxy__L1ERC721Gateway", "l1ERC721GatewayProxy"},
+		{"Proxy__L1ERC1155Gateway", "l1ERC1155GatewayProxy"},
+		{"Proxy__L1WETHGateway", "l1WETHGatewayProxy"},
+		{"Impl__WETH", "l1WETH"},
+		{"Proxy__L1WithdrawLockERC20Gateway", "l1WithdrawLockERC20Gateway"},
+		{"Impl__Submitter", ""},
+	}
+	for _, pendingName := range []string{"Proxy__Rollup", "Proxy__L1ERC1155Gateway", "Impl__Submitter"} {
+		for _, prefilled := range []bool{false, true} {
+			for _, broadcast := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/prefilled=%t/broadcast=%t", pendingName, prefilled, broadcast), func(t *testing.T) {
+					var config map[string]any
+					if err := json.Unmarshal(configData, &config); err != nil {
+						t.Fatal(err)
+					}
+					var records []map[string]any
+					for index, field := range fields {
+						address := common.BigToAddress(big.NewInt(int64(index + 1))).Hex()
+						record := map[string]any{"name": field.name, "address": address, "number": 1}
+						if prefilled && field.field != "" {
+							config[field.field] = address
+						}
+						if field.name == pendingName {
+							record["number"], record["pending"] = 0, true
+							record["deployer"], record["nonce"] = common.BigToAddress(big.NewInt(100)).Hex(), 12
+							if broadcast {
+								record["transactionHash"] = common.BigToHash(big.NewInt(1)).Hex()
+							}
+						}
+						records = append(records, record)
+					}
+					input, err := json.Marshal(config)
+					if err != nil {
+						t.Fatal(err)
+					}
+					deployments, err := json.Marshal(records)
+					if err != nil {
+						t.Fatal(err)
+					}
+					err = runCLIExpectingNoArtifacts(t, input, deployments, server.URL)
+					if expected := "deployment " + pendingName + " is pending"; err == nil || !strings.Contains(err.Error(), expected) {
+						t.Fatalf("expected %q, got %v", expected, err)
+					}
+					if calls.Load() != 0 {
+						t.Fatal("pending deployment reached RPC")
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestDeploymentRecordsAcceptConfirmedAddresses(t *testing.T) {
 	address := common.BigToAddress(big.NewInt(1))
 	for _, configured := range []common.Address{{}, address} {
-		path := filepath.Join(t.TempDir(), "deployments.json")
-		data := []byte(fmt.Sprintf(`[{"name":"Proxy__L1Staking","address":%q,"number":0,"pending":false}]`, address))
-		if err := os.WriteFile(path, data, 0o600); err != nil {
-			t.Fatal(err)
-		}
-		record, err := validateDeploymentRecords(path, configured)
-		if err != nil || record.Address != address || record.Number != 0 {
-			t.Fatalf("valid legacy deployment was rejected: %v", err)
+		for _, pending := range []string{"", `,"pending":false`} {
+			path := filepath.Join(t.TempDir(), "deployments.json")
+			data := []byte(fmt.Sprintf(`[{"name":"Proxy__L1Staking","address":%q,"number":0%s},{"name":"Proxy__Rollup","address":%q,"number":1%s}]`,
+				address, pending, common.BigToAddress(big.NewInt(2)), pending))
+			if err := os.WriteFile(path, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			record, err := validateDeploymentRecords(path, configured)
+			if err != nil || record.Address != address || record.Number != 0 {
+				t.Fatalf("confirmed deployments were rejected: %v", err)
+			}
 		}
 	}
 }

@@ -437,15 +437,25 @@ def start_l2(paths, args, deploy_config, addresses, upgrade_time):
 
 
 def devnet_service_action(paths, args):
-    """Manage the submitter of a completed deployment without restarting other services."""
+    """Stop the submitter, or start/rebuild it after verifying a completed deployment."""
     state_path = pjoin(paths.devnet_dir, 'deployment-state.json')
-    if not os.path.isfile(state_path):
+    if args.service_action == 'stop':
+        os.makedirs(paths.devnet_dir, exist_ok=True)
+    elif not os.path.isfile(state_path):
         raise RuntimeError('A completed devnet deployment is required before managing tx-submitter')
     with open(pjoin(paths.devnet_dir, '.deployment.lock'), 'a') as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise RuntimeError('Another devnet operation is running for this output directory') from None
+        if args.service_action == 'stop':
+            # The same project/service identifies the submitter in every topology.
+            # Stopping must remain available after an interrupted deployment.
+            run_command([
+                'docker', 'compose', '--project-name', 'docker', '--env-file', os.devnull,
+                '-f', 'docker-compose-devnet.yml', 'stop', 'tx-submitter-0',
+            ], cwd=paths.ops_dir, env={'NODE_DATA_DIR': '/data', 'JWT_SECRET_PATH': '/jwt-secret.txt'})
+            return
         state = read_json(state_path)
         done_path = pjoin(paths.devnet_dir, 'done')
         if state.get('version') != 1 or state.get('phase') != 'complete' or not os.path.isfile(done_path):
@@ -471,30 +481,24 @@ def devnet_service_action(paths, args):
         service_args.sequencer_address = roles['sequencer']
         service_args.batch_block_interval = batch['batchBlockInterval']
         service_args.batch_timeout = batch['batchTimeout']
-        signing_env = {}
-        if args.service_action != 'stop':
-            key = args.batch_submitter_private_key
-            if not isinstance(key, str) or not re.fullmatch(r'(0x)?[0-9a-fA-F]{64}', key):
-                raise RuntimeError('batch submitter private key must contain 32 hexadecimal bytes')
-            actual = run_command_capture_output([
-                'cast', 'wallet', 'address', '--private-key', key,
-            ], cwd=paths.contracts_dir).stdout.strip()
-            if require_address(actual, 'batch submitter') != roles['batch_submitter']:
-                raise RuntimeError('batch submitter private key does not match the completed deployment')
-            if l1_identity() != state['l1_genesis_hash']:
-                raise RuntimeError('Connected L1 does not match the completed devnet deployment')
-            verify_l1_contracts(paths, roles, addresses)
-            signing_env['BATCH_SUBMITTER_PRIVATE_KEY'] = key
+        key = args.batch_submitter_private_key
+        if not isinstance(key, str) or not re.fullmatch(r'(0x)?[0-9a-fA-F]{64}', key):
+            raise RuntimeError('batch submitter private key must contain 32 hexadecimal bytes')
+        actual = run_command_capture_output([
+            'cast', 'wallet', 'address', '--private-key', key,
+        ], cwd=paths.contracts_dir).stdout.strip()
+        if require_address(actual, 'batch submitter') != roles['batch_submitter']:
+            raise RuntimeError('batch submitter private key does not match the completed deployment')
+        if l1_identity() != state['l1_genesis_hash']:
+            raise RuntimeError('Connected L1 does not match the completed devnet deployment')
+        verify_l1_contracts(paths, roles, addresses)
         command, env = compose_runtime(paths, service_args, config, addresses,
-                                       state['sequencer_upgrade_time'], signing_env)
+                                       state['sequencer_upgrade_time'], {'BATCH_SUBMITTER_PRIVATE_KEY': key})
         run_command([*command, 'config', '--quiet'], cwd=paths.ops_dir, env=env)
-        if args.service_action == 'stop':
-            operation = ['stop', 'tx-submitter-0']
-        else:
-            operation = ['up', '-d', '--no-deps']
-            if args.service_action == 'rebuild':
-                operation.append('--build')
-            operation.append('tx-submitter-0')
+        operation = ['up', '-d', '--no-deps']
+        if args.service_action == 'rebuild':
+            operation.append('--build')
+        operation.append('tx-submitter-0')
         run_command([*command, *operation], cwd=paths.ops_dir, env=env)
 
 

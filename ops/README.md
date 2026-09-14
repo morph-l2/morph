@@ -214,12 +214,15 @@ Cleaning destroys chain data and must not be used to recover an interrupted stag
 Removing ignored fields from a tracked source also changes its saved digest.
 For deployments created before configuration cleanup, follow
 [input recovery](l2-genesis/README.md#existing-deployments-after-input-cleanup)
-before rerunning deployment or submitter service commands.
+before rerunning deployment or starting or rebuilding the submitter service.
 
 `make stop-all-tx-submitter`, `make start-all-tx-submitter` and
 `make rebuild-all-tx-submitter` use the existing launcher to operate only
-`tx-submitter-0`, with the saved client and topology. Stop needs no signing key or
-L1 connection. Start and rebuild require `BATCH_SUBMITTER_PRIVATE_KEY` to match the
+`tx-submitter-0` in the `docker` Compose project. Stop requires no deployment metadata,
+generated artifacts, signing key or L1 connection, and does not rewrite `runtime.env`.
+It remains available after an interrupted deployment, once the other launcher
+operation has released the deployment lock. Start and rebuild use the saved client
+and topology and require `BATCH_SUBMITTER_PRIVATE_KEY` to match the
 saved submitter identity and verify its active L1 registration. They use
 `docker compose up -d --no-deps`; rebuild also adds `--build`. These actions do not
 update `done` or verify new batches. The operator must check service logs and
