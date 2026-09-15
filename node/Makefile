@@ -1,6 +1,6 @@
 GITCOMMIT := $(shell git rev-parse --short=8 HEAD)
 GITDATE := $(shell git show -s --format='%ct')
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+VERSION ?= $(shell git describe --tags --always --dirty --abbrev=8 2>/dev/null || echo "dev")
 BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # Set by the morphnode-repro target below. Strips everything that varies between
