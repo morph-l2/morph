@@ -8,11 +8,13 @@ BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 #   - the build timestamp, which has no meaning for a reproducible artifact
 #   - the Go build ID, which depends on the state of the build cache
 #   - absolute checkout paths, via -trimpath
+#   - the VCS stamps, which depend on whether .git is present and whether the
+#     tree is dirty; Version and GitCommit already carry that information
 #   - the random LC_UUID that Apple's linker stamps into every Mach-O binary
 #     (on Linux the equivalent GNU build-id is derived from content already)
 ifdef REPRO
 BUILD_TIME := reproducible
-BUILDFLAGS += -trimpath
+BUILDFLAGS += -trimpath -buildvcs=false
 LDFLAGSSTRING +=-buildid=
 ifeq ($(shell uname -s),Darwin)
 LDFLAGSSTRING +=-extldflags=-Wl,-no_uuid
