@@ -1,4 +1,4 @@
-GITCOMMIT := $(shell git rev-parse --short HEAD)
+GITCOMMIT := $(shell git rev-parse --short=8 HEAD)
 GITDATE := $(shell git show -s --format='%ct')
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
