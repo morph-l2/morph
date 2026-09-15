@@ -1,28 +1,55 @@
-GITCOMMIT := $(shell git rev-parse --short HEAD)
+GITCOMMIT := $(shell git rev-parse --short=8 HEAD)
 GITDATE := $(shell git show -s --format='%ct')
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+VERSION ?= $(shell git describe --tags --always --dirty --abbrev=8 2>/dev/null || echo "dev")
 BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+
+# Set by the morphnode-repro target below. Strips everything that varies between
+# two builds of the same source tree, so the binary is byte-identical:
+#   - the build timestamp, which has no meaning for a reproducible artifact
+#   - the Go build ID, which depends on the state of the build cache
+#   - absolute checkout paths, via -trimpath
+#   - the VCS stamps, which depend on whether .git is present and whether the
+#     tree is dirty; Version and GitCommit already carry that information
+#   - the random LC_UUID that Apple's linker stamps into every Mach-O binary
+#     (on Linux the equivalent GNU build-id is derived from content already)
+ifdef REPRO
+BUILD_TIME := reproducible
+BUILDFLAGS += -trimpath -buildvcs=false
+LDFLAGSSTRING +=-buildid=
+ifeq ($(shell uname -s),Darwin)
+LDFLAGSSTRING +=-extldflags=-Wl,-no_uuid
+endif
+endif
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
 LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
 LDFLAGSSTRING +=-X main.Version=$(VERSION)
 LDFLAGSSTRING +=-X main.BuildTime=$(BUILD_TIME)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
+BUILDFLAGS += $(LDFLAGS)
 
 morphnode:
 	if [ ! -d build/bin ]; then mkdir -p build/bin; fi
 	go mod download
-	env GO111MODULE=on CGO_ENABLED=1 CGO_LDFLAGS="-ldl" go build -o build/bin/morphnode -v $(LDFLAGS) ./cmd/node
+	env GO111MODULE=on CGO_ENABLED=1 CGO_LDFLAGS="-ldl" go build -o build/bin/morphnode -v $(BUILDFLAGS) ./cmd/node
 .PHONY: morphnode
 
 tendermint:
 	if [ ! -d build/bin ]; then mkdir -p build/bin; fi
 	go mod download
-	env GO111MODULE=on CGO_ENABLED=1 go build -o build/bin/tendermint -v $(LDFLAGS) ./cmd/tendermint
+	env GO111MODULE=on CGO_ENABLED=1 go build -o build/bin/tendermint -v $(BUILDFLAGS) ./cmd/tendermint
 .PHONY: tendermint
 
 build: morphnode tendermint
 .PHONY: build
+
+# Same binary as `make morphnode`, but byte-identical across builds of an
+# identical source tree. This still requires a fixed toolchain: morphnode is
+# built with cgo, so the Go version and the C toolchain must match too. Build
+# inside ops/docker/Dockerfile.l2-node to guarantee that across machines.
+morphnode-repro:
+	$(MAKE) morphnode REPRO=1
+.PHONY: morphnode-repro
 
 init:
 	if [ -d build/config ]; then exit 0; fi
@@ -94,7 +121,7 @@ testnet-clean: testnet-down
 install-tendermint:
 	if [ ! -d build/bin ]; then mkdir -p build/bin; fi
 	go mod download
-	env GO111MODULE=on CGO_ENABLED=1 go install -v $(LDFLAGS) ./cmd/tendermint
+	env GO111MODULE=on CGO_ENABLED=1 go install -v $(BUILDFLAGS) ./cmd/tendermint
 .PHONY: tendermint
 
 
