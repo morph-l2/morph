@@ -188,6 +188,7 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let block_inputs =
             rt.block_on(execute_range_with_witness(start_block, end_block, &provider)).unwrap();
+        log::info!("Executing blocks from {} to {} using client execution", start_block, end_block);
         let _batch_info = EVMVerifier::verify(block_inputs).unwrap();
     }
 

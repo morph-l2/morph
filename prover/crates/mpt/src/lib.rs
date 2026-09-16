@@ -75,8 +75,7 @@ impl EthereumState {
         Ok(state)
     }
 
-    /// Inserts (or overwrites) the storage trie for a single account, built from an
-    /// EIP-1186 proof response.
+    /// Merges the account and storage trie nodes from an EIP-1186 proof response.
     ///
     /// This is used to force-include accounts (e.g. Morph predeploy contracts) whose storage
     /// was *not* touched during block execution and is therefore missing from an execution
@@ -86,6 +85,15 @@ impl EthereumState {
         &mut self,
         proof: &EIP1186AccountProofResponse,
     ) -> Result<(), FromProofError> {
+        // The execution witness may not contain the account path when the account was only
+        // force-included for a read outside block execution. Resolve that path before adding its
+        // storage trie so consumers can validate the storage root against the account leaf.
+        let account_proof_nodes = parse_proof(&proof.account_proof)?;
+        mpt_from_proof(&account_proof_nodes)?;
+        let account_nodes =
+            account_proof_nodes.into_iter().map(|node| (node.reference(), node)).collect();
+        self.state_trie = resolve_nodes(&self.state_trie, &account_nodes);
+
         let mut storage_nodes = HashMap::with_hasher(Default::default());
         let mut storage_root_node = MptNode::default();
 
@@ -103,8 +111,22 @@ impl EthereumState {
             });
         }
 
-        self.storage_tries
-            .insert(keccak256(proof.address), resolve_nodes(&storage_root_node, &storage_nodes));
+        let hashed_address = keccak256(proof.address);
+        let storage_trie = match self.storage_tries.get(&hashed_address) {
+            // Preserve storage paths already supplied by the execution witness and only resolve
+            // the additional path from the force-included proof.
+            Some(existing) => resolve_nodes(existing, &storage_nodes),
+            None => resolve_nodes(&storage_root_node, &storage_nodes),
+        };
+        let storage_root = storage_trie.hash();
+        if storage_root != proof.storage_hash {
+            return Err(FromProofError::MismatchedStorageRoot(
+                proof.address,
+                storage_root,
+                proof.storage_hash,
+            ));
+        }
+        self.storage_tries.insert(hashed_address, storage_trie);
         Ok(())
     }
 

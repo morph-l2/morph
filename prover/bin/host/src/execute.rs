@@ -128,7 +128,7 @@ pub async fn execute_continuous(start_block: u64, max_blocks: u64, provider: &Dy
             Some(n) => n,
             None => break,
         };
-        execute_with_basic_rpc(block_number, provider).await.unwrap();
+        execute_with_witness(block_number, provider).await.unwrap();
     }
 }
 
