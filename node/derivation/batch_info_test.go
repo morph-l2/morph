@@ -103,7 +103,7 @@ func TestParseBatchPreservesMorphTxV2(t *testing.T) {
 	var decoded eth.Transaction
 	require.NoError(t, decoded.UnmarshalBinary(bi.blockContexts[0].SafeL2Data.Transactions[0]))
 	require.Equal(t, uint8(eth.MorphTxType), decoded.Type())
-	require.Equal(t, uint8(eth.MorphTxVersion2), decoded.Version())
+	require.Equal(t, eth.MorphTxVersion2, decoded.Version())
 	require.Len(t, decoded.SetCodeAuthorizations(), 1)
 }
 
