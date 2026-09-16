@@ -5,7 +5,7 @@ go 1.24.0
 replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.10-0.20260916055518-560fb469b16d
 
 require (
-	github.com/morph-l2/go-ethereum v1.10.14-0.20260908092055-4012f174b967
+	github.com/morph-l2/go-ethereum v1.10.14-0.20260916065048-2548caac16b2
 	github.com/tendermint/tendermint v0.35.9
 )
 
