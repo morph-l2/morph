@@ -15,6 +15,7 @@
   "l1StartingBlockTag": "earliest",
   "fundDevAccounts": false,
   "maxTxPerBlock": 100,
+  "maxTxPayloadBytesPerBlock": 737280,
 
   "stakingSequencerSize": 7,
   "stakingLockNumber": 3,
