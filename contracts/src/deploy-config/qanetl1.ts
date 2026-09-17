@@ -1,7 +1,9 @@
 const config = {
     // Global configuration
-    l1FeeVaultRecipient: '0x7161DB99e6ffA72053f0817aBfaF2fDb4ab6ccC8',
-    contractAdmin: '0x7161DB99e6ffA72053f0817aBfaF2fDb4ab6ccC8',
+    l1FeeVaultRecipient: "0x7161DB99e6ffA72053f0817aBfaF2fDb4ab6ccC8",
+    contractAdmin: "0x7161DB99e6ffA72053f0817aBfaF2fDb4ab6ccC8",
+
+    l1WETHAddress: "",
 
     // chainID config
     l1ChainID: 900,
@@ -11,50 +13,34 @@ const config = {
     l1MessageQueueMaxGasLimit: 30000000,
 
     // gasPriceOracle config
-    l2BaseFee: 0.1,  // Gwei
+    l2BaseFee: 0.1, // Gwei
 
     // verify contract config
-    programVkey: '0x00b450ec2a1b8dfba81ade90afbcc96842055548b814c991bb13bdca34980c63',
+    programVkey: "0x00b450ec2a1b8dfba81ade90afbcc96842055548b814c991bb13bdca34980c63",
     // rollup contract config
     // initialize config
     finalizationPeriodSeconds: 600,
     rollupProofWindow: 86400,
     proofRewardPercent: 70,
+    // QA requires an explicit delay in seconds; zero is rejected before broadcasting deployment transactions.
+    rollupDelayPeriod: Number(process.env.QA_ROLLUP_DELAY_PERIOD || 0),
     // challenge config
-    batchSubmitterAddresses: ['0x7161aE5B767Df97BAc34e5776311Ded4Cb01691d'],
-    rollupChallenger: '0x71616250f7CAaa8a5DC295dc5851D6b1E49188a7',
+    batchSubmitterAddresses: [
+        "0x675Cfc328F9F2E79A51e499B2be44462270572Fe",
+        "0x096005F49c4B80be38Faac8bfF9f998CC93DFeD7",
+    ],
+    rollupChallenger: "0x71616250f7CAaa8a5DC295dc5851D6b1E49188a7",
     // genesis config
-    batchHeader: '',
+    batchHeader: "",
 
     // submitter initialize config
-    submitterOwner: '0x7161DB99e6ffA72053f0817aBfaF2fDb4ab6ccC8',
-    submitterChallengeDeposit: 1, // 1 ether
-    submitterMinimumStake: 1, // 1 ether
+    submitterOwner: "0x7161DB99e6ffA72053f0817aBfaF2fDb4ab6ccC8",
+    submitterChallengeDeposit: 0.1, // 0.1 ether
+    submitterMinimumStake: 0.1, // 0.1 ether
     submitterRewardPercentage: 50,
     // L1Sequencer initialize config
-    // First single-mode sequencer, active from L2 block 0. Leave empty to skip
-    // setFirstSequencer; can also be overridden by the firstSequencerAddress env var.
-    firstSequencerAddress: '',
-
-    // register sequencers
-    l2SequencerAddresses: [
-        "0x25d36d94b64165f72a817ae0ff9bad2ce6914c70",
-        "0x4a1f64dec538835c125874e275edca367bf6022a",
-        "0xbb8605961105bb3dcd0e86ef94a1bf9fb2270a29",
-        "0x7d7201ad7da2b9b9ab9a36c454a3c2d55c4fbdd8"
-    ],
-    l2SequencerTmKeys: [
-        "0x5280d0eee2a64d3ad29480d15ffd1b048ce5908f180b5ccd65cc3dcf00941abb",
-        "0xb798eb74c06721d54c659e9ea2bc232a7f95e96d234cc87186b2ab8f43db6935",
-        "0xecffad01129786ba9c6293aa664f952894dc4019762804799dfa1ffb6e4ed040",
-        "0x8d29695bb4157c6960adb486be1d9a0c9f728524d09bffcc4f8932ed15221c4a"
-    ],
-    l2SequencerBlsKeys: [
-        "0x00000000000000000000000000000000095ad465c2895ee825c7d4f1b60a18734db57d4108369e47c6e3a94ee15846f825c06dad5d98f503bd31ece1d9f94b11000000000000000000000000000000000c5d6ba04bc9b9674dd2acbfc5caed3976c1b8be2ec90a03d78dffe924648b4fba82225aff43c744310c6a60185b75ac000000000000000000000000000000000fce6be001c871a11b9db1c6c15f0a6999de5646941a74486206dc784f0b3ffe11799212f3f44ef754b4a0f1ecf85639000000000000000000000000000000000b2f06634e5ea719682c30911c94dfb560f0b7656b5c34a871ea035e3fe7b041885420f8fe1e251f1cce5cdb7514869e",
-        "0x0000000000000000000000000000000010173aeac4ff317e8e60493f962b91dbd27614e1f6594e17d18a02968bd1fd698b6703092ab8622cd22d6948d9421156000000000000000000000000000000000801aea15697ab4d7a808be45377e4f0d2f54857fdc04031e476402ff16c66a6cbcc5f09a84bf85400c8afbabed006600000000000000000000000000000000015fc71b2c4e81148274e6169c9c9aace8c34fa6030547650242b6c32527dd23a996416e32640bce4f495a0afabc7dbb900000000000000000000000000000000088c4a0dffccc96bce47aef0e176b129457a5f3ae1651b132ddb418e9f7b5850a38c6fec1be6d169eb88dc1619648bf4",
-        "0x0000000000000000000000000000000003fd9468a8ceffc1b696874517777ef8bfdc9a1bade95c480ee2624903e648c1caf01c65de5b4fda8876a3a0e8d9f0890000000000000000000000000000000004c02f3609a0f61d12fe737dcbb047d5253bd3ff905b55c0e0f932b476fd77d172a58b72ef0f506407870988dd6038220000000000000000000000000000000017fa5765899f60f7a58f8ccdaaa295cde55992231710672692ba6a71a4faa9572f728f438ded65576a570d57e19fd304000000000000000000000000000000001226138813bde98af3464ed03649d8c731bc4e5cb3d26b53bf7483f4105d18bbb3f19e23905119e156e7d003d2fd125c",
-        "0x00000000000000000000000000000000109bf02a2636c0dc1968b0a50db77251eb090c3e9f51e2a2bc60c4ac72213f41f01f0a34e92c2e0625bd62e28e27edb500000000000000000000000000000000139969bd92522113c0615659874d1fae311ad8152d0584c7b57ffc14927067486dcf86413c5684fccc1163ee2d45c1c1000000000000000000000000000000000f172603f70a0730d100ad6d28bde477195987062e8ade83b82d093935d956ff20ca768c26263577b094f1cb756adc400000000000000000000000000000000010dde3acca00b4ff1b4976500a8f97e92246f43f78cadc95c4993dfc4f4c501c33d42a4bf52587f4931287b59623149c"
-    ]
+    // Set the first sequencer through the deployment override file or firstSequencerAddress environment variable.
+    firstSequencerAddress: "",
 }
 
-export default config 
+export default config

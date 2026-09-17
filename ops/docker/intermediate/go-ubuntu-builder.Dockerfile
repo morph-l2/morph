@@ -1,4 +1,4 @@
-ARG GO_VERSION=1.24
+ARG GO_VERSION=1.24.1
 
 FROM ubuntu:22.04
 
@@ -21,7 +21,7 @@ RUN if [ "$(uname -m)" = "x86_64" ]; then \
     else \
     echo "Unsupported architecture"; exit 1; \
     fi
-RUN wget https://go.dev/dl/go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz
-RUN tar -C /usr/local -xzf go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz
-RUN rm go${GO_VERSION}.1.linux-$(cat /tmp/arch).tar.gz && rm /tmp/arch
+RUN wget https://go.dev/dl/go${GO_VERSION}.linux-$(cat /tmp/arch).tar.gz
+RUN tar -C /usr/local -xzf go${GO_VERSION}.linux-$(cat /tmp/arch).tar.gz
+RUN rm go${GO_VERSION}.linux-$(cat /tmp/arch).tar.gz && rm /tmp/arch
 ENV PATH="/usr/local/go/bin:${PATH}"

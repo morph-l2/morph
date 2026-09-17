@@ -5,15 +5,19 @@ on:
         branches:
             - main
         paths:
-            - "ops/l2-genesis/**"
-            - ".github/workflows/deployer.yaml"
+            - "ops/**"
+            - "contracts/**"
+            - "Makefile"
+            - ".github/workflows/deployer.yml"
     pull_request:
         paths:
             - "build/**"
             - "bindings/**"
             - "node/**"
-            - "ops/l2-genesis/**"
-            - ".github/workflows/deployer.yaml"
+            - "ops/**"
+            - "contracts/**"
+            - "Makefile"
+            - ".github/workflows/deployer.yml"
 
 permissions:
     contents: read
@@ -44,5 +48,6 @@ jobs:
               uses: actions/setup-go@v5
               with:
                   go-version: 1.24.x
-            - name: Run tests
-              run: make test
+            - name: Verify operational commands, scripts and Go packages
+              working-directory: .
+              run: make ops-check

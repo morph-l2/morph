@@ -1,41 +1,15 @@
-import "@nomiclabs/hardhat-web3";
-import "@nomiclabs/hardhat-ethers";
-import "@nomiclabs/hardhat-waffle";
-import fs from "fs";
-
-import {
-    HardhatRuntimeEnvironment
-} from 'hardhat/types';
-import { assertContractVariable, storage } from "../src/deploy-utils";
-import {
-    ImplStorageName,
-    ProxyStorageName,
-    ContractFactoryName,
-} from "../src/types"
-import { hexlify } from "ethers/lib/utils";
+import { HardhatRuntimeEnvironment } from "hardhat/types";
+import { assertContractVariable } from "../src/deploy-utils";
+import { deployRecordedContract } from "../src/deployment-state";
+import { ContractFactoryName, ImplStorageName } from "../src/types";
 
 export const deployZkEvmVerifierV1 = async (
-    hre: HardhatRuntimeEnvironment,
-    path: string,
-    deployer: any,
-    config: any,
+    hre: HardhatRuntimeEnvironment, path: string, deployer: any, config: any
 ): Promise<string> => {
-    const ZkEvmVerifierV1ContractFactoryName = ContractFactoryName.ZkEvmVerifierV1
-    const implStorageName = ImplStorageName.ZkEvmVerifierV1StorageName
+    const contract = await deployRecordedContract(hre, path, deployer,
+        ImplStorageName.ZkEvmVerifierV1StorageName, ContractFactoryName.ZkEvmVerifierV1, [config.programVkey]);
+    await assertContractVariable(contract, "programVkey", config.programVkey);
+    return "";
+};
 
-    const Factory = await hre.ethers.getContractFactory(ZkEvmVerifierV1ContractFactoryName)
-    const contract = await Factory.deploy(config.programVkey)
-    await contract.deployed()
-    console.log("%s=%s ; TX_HASH: %s", implStorageName, contract.address.toLocaleLowerCase(), contract.deployTransaction.hash);
-    const blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    let err = await storage(path, implStorageName, contract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
-    }
-
-    return ''
-}
-
-export default deployZkEvmVerifierV1
-
+export default deployZkEvmVerifierV1;

@@ -5,6 +5,7 @@ contracts/node_modules/
 gas-oracle/app/target/
 node/build/
 ops/docker/.devnet/
+ops/docker/.devnet-setup-*/
 ops/reth-cross-test/
 ops/publicnode/
 docs/

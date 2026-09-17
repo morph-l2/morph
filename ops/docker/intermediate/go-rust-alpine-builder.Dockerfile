@@ -6,9 +6,6 @@ FROM golang:${GO_VERSION}-alpine
 
 RUN apk add --no-cache gcc musl-dev linux-headers git ca-certificates openssl-dev
 
-# RUN apk add --no-cache libc6-compat
-# RUN apk add --no-cache gcompat
-
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH \
@@ -27,7 +24,8 @@ RUN set -eux; \
     chmod +x rustup-init;
 
 ARG RUST_VERSION
-RUN ./rustup-init -y --no-modify-path --default-toolchain ${RUST_VERSION}; \
+RUN set -eux; \
+    ./rustup-init -y --no-modify-path --default-toolchain ${RUST_VERSION}; \
     rm rustup-init; \
     chmod -R a+w $RUSTUP_HOME $CARGO_HOME; \
     rustup --version; \

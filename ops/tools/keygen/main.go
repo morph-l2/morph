@@ -18,7 +18,10 @@ func main() {
 	}
 	fmt.Printf("-----------------------generating content for priv_validator_key.json-----------------------\n")
 	fmt.Printf("%v \n", string(pvJsbz))
-	pubKey, _ := pv.GetPubKey()
+	pubKey, err := pv.GetPubKey()
+	if err != nil {
+		panic(err)
+	}
 	fmt.Printf("hex format public key: 0x%x \n", pubKey.Bytes())
 
 	fmt.Println()
@@ -42,5 +45,5 @@ func main() {
 	}
 	ethAddress := crypto.PubkeyToAddress(ethPrivKey.PublicKey)
 	fmt.Printf("eth account private key: 0x%x \n", crypto.FromECDSA(ethPrivKey))
-	fmt.Printf("eth account address: %s", ethAddress.Hex())
+	fmt.Printf("eth account address: %s\n", ethAddress.Hex())
 }
