@@ -28,7 +28,7 @@ This command performs the following steps:
 3. Compiles all necessary components (L1 execution layer, consensus layer, L2 node, and services)
 4. Generates genesis configurations for both L1 and L2 networks
 5. Deploys smart contracts to the L1 network
-6. Starts a 4-node Morph network with associated services
+6. Starts a 2-node L2 devnet (node-0 and node-1) with associated services
 
 **Note:** The initial startup may take considerable time due to extensive building operations.
 
