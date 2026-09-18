@@ -416,6 +416,8 @@ github.com/modern-go/reflect2 v0.0.0-20180701023420-4b7aa43c6742/go.mod h1:bx2lN
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
 github.com/morph-l2/go-ethereum v1.10.14-0.20260916065048-2548caac16b2 h1:0+xVWkiRkZc5CX/gxKUuyAjBumopmzVdzv56krs6eoE=
 github.com/morph-l2/go-ethereum v1.10.14-0.20260916065048-2548caac16b2/go.mod h1:nkVzHjQWCOjvukQW8ittlwX+Xz9gmVHrP7mUi7zoHTs=
+github.com/morph-l2/go-ethereum v1.10.14-0.20260918082206-5a0d0d7718aa h1:u/iArDoGkMmMdWX+++JhadbYt05A4iQFZdXYvIRqX94=
+github.com/morph-l2/go-ethereum v1.10.14-0.20260918082206-5a0d0d7718aa/go.mod h1:nkVzHjQWCOjvukQW8ittlwX+Xz9gmVHrP7mUi7zoHTs=
 github.com/morph-l2/tendermint v0.3.10-0.20260916055518-560fb469b16d h1:7vfVAK5eeHgdLxXG/1hMJLvgvE5QiYIfRA2nNYj6jPU=
 github.com/morph-l2/tendermint v0.3.10-0.20260916055518-560fb469b16d/go.mod h1:qpiwqfcCB89dBYfqVJOc/HjGxDp3OdDlthgttJJYyRs=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
