@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/holiman/uint256"
 	"github.com/morph-l2/go-ethereum/common"
 	eth "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
@@ -46,6 +47,64 @@ func buildV1ParentHeader(parentIndex, nextStartBlock uint64) []byte {
 		},
 		LastBlockNumber: nextStartBlock - 1,
 	}.Bytes()
+}
+
+func TestParseBatchPreservesMorphTxV2(t *testing.T) {
+	const startBlock = uint64(1000)
+	to := common.HexToAddress("0x1234")
+	tx := eth.NewTx(&eth.MorphTx{
+		ChainID:    big.NewInt(53077),
+		Nonce:      1,
+		GasTipCap:  big.NewInt(1),
+		GasFeeCap:  big.NewInt(2),
+		Gas:        100000,
+		To:         &to,
+		Value:      new(big.Int),
+		FeeTokenID: 1,
+		FeeLimit:   big.NewInt(1000),
+		Version:    eth.MorphTxVersion2,
+		AuthList: []eth.SetCodeAuthorization{{
+			ChainID: *uint256.NewInt(53077),
+			Address: common.HexToAddress("0x5678"),
+			Nonce:   7,
+			V:       1,
+			R:       *uint256.NewInt(2),
+			S:       *uint256.NewInt(3),
+		}},
+		V: new(big.Int),
+		R: new(big.Int).Lsh(big.NewInt(1), 255),
+		S: new(big.Int).Lsh(big.NewInt(1), 254),
+	})
+	txBytes, err := tx.MarshalBinary()
+	require.NoError(t, err)
+	blockContext := (&types.WrappedBlock{
+		Number:    startBlock,
+		Timestamp: 1_700_000_000,
+		BaseFee:   big.NewInt(1_000_000_000),
+		GasLimit:  30_000_000,
+	}).BlockContextBytes(1, 0)
+	payload := append(blockContext, txBytes...)
+	compressed, err := zstd.CompressBatchBytes(payload)
+	require.NoError(t, err)
+	blobs := splitCompressedIntoBlobs(t, compressed)
+
+	batch := geth.RPCRollupBatch{
+		Version:           2,
+		ParentBatchHeader: buildV1ParentHeader(99, startBlock),
+		LastBlockNumber:   startBlock,
+		Sidecar:           eth.BlobTxSidecar{Blobs: blobs},
+	}
+	var bi BatchInfo
+	require.NoError(t, bi.ParseBatch(batch))
+	require.Len(t, bi.blockContexts, 1)
+	require.Len(t, bi.blockContexts[0].SafeL2Data.Transactions, 1)
+	require.Equal(t, txBytes, bi.blockContexts[0].SafeL2Data.Transactions[0])
+
+	var decoded eth.Transaction
+	require.NoError(t, decoded.UnmarshalBinary(bi.blockContexts[0].SafeL2Data.Transactions[0]))
+	require.Equal(t, uint8(eth.MorphTxType), decoded.Type())
+	require.Equal(t, eth.MorphTxVersion2, decoded.Version())
+	require.Len(t, decoded.SetCodeAuthorizations(), 1)
 }
 
 // splitCompressedIntoBlobs mirrors the tx-submitter strategy of compressing
