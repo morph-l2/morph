@@ -14,7 +14,7 @@ require (
 	github.com/hashicorp/raft-boltdb/v2 v2.3.1
 	github.com/holiman/uint256 v1.2.4
 	github.com/mdlayher/vsock v1.2.1
-	github.com/morph-l2/go-ethereum v1.10.14-0.20260918082206-5a0d0d7718aa
+	github.com/morph-l2/go-ethereum v1.10.14-0.20260920083014-5bcad5445daf
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.17.0
 	github.com/spf13/viper v1.13.0
