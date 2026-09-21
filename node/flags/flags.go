@@ -60,7 +60,7 @@ var (
 
 	L1NodeAddr = cli.StringFlag{
 		Name:   "l1.rpc",
-		Usage:  "Address of L1 User JSON-RPC endpoint to use (eth namespace required)",
+		Usage:  "Address of L1 User JSON-RPC endpoint to use (eth namespace required). Accepts a comma-separated list, primary first, to fail over when an endpoint stops answering; multiple endpoints must all be http(s)",
 		EnvVar: prefixEnvVar("L1_ETH_RPC"),
 	}
 
