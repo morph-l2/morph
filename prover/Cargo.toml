@@ -12,6 +12,21 @@ members = [
     "crates/utils",
     "crates/storage/rpc-db",
     "crates/storage/witness-db",
+    "tests/*/*",
+]
+default-members = [
+    "bin/host",
+    "bin/client",
+    "bin/server",
+    "bin/shadow-prove",
+    "crates/executor/host",
+    "crates/executor/client",
+    "crates/executor/core",
+    "crates/primitives",
+    "crates/mpt",
+    "crates/utils",
+    "crates/storage/rpc-db",
+    "crates/storage/witness-db",
 ]
 exclude = ["bin/challenge"]
 resolver = "2"

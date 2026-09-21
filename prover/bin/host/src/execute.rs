@@ -55,7 +55,6 @@ pub async fn execute_batch(
     end_block: u64,
     provider: &DynProvider,
     source: InputSource,
-    batch_version: u8,
 ) -> Result<ExecutorInput, anyhow::Error> {
     assert!(
         end_block >= start_block,
@@ -83,7 +82,6 @@ pub async fn execute_batch(
                         .map(|input| input.current_block.clone())
                         .collect::<Vec<_>>(),
                 )?,
-                batch_version,
             }
         }
         InputSource::ExecutionWitness => {
@@ -100,7 +98,6 @@ pub async fn execute_batch(
                         .map(|input| input.current_block.clone())
                         .collect::<Vec<_>>(),
                 )?,
-                batch_version,
             }
         }
     };

@@ -1,25 +1,32 @@
-FROM ubuntu:22.04
+ARG GO_VERSION=1.24.0
+FROM golang:${GO_VERSION}-bookworm AS go-toolchain
 
-RUN apt-get update --fix-missing
-# Install basic packages
-RUN apt-get install build-essential curl wget git pkg-config -y
-# Install dev-packages
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends libclang-dev libssl-dev llvm && \
-    rm -rf /var/lib/apt/lists/*
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update --fix-missing \
+    && apt-get install --yes --no-install-recommends \
+        ca-certificates \
+        build-essential \
+        curl \
+        docker.io \
+        git \
+        libclang-dev \
+        libssl-dev \
+        llvm \
+        pkg-config \
+        wget \
+        protobuf-compiler \
+        libprotobuf-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 ENV CARGO_HOME=/root/.cargo
-RUN rustup install nightly-2024-07-07
-RUN rustup default nightly-2024-07-07
-RUN rustup component add llvm-tools rustc-dev --toolchain nightly-2024-07-07
+RUN rustup install 1.95.0
+RUN rustup default 1.95.0
+RUN rustup component add llvm-tools --toolchain 1.95.0
 
 # Install Golang
-ARG GO_VERSION=1.22
-RUN wget https://raw.githubusercontent.com/anylots/golangTemp/main/go1.22.1.linux-amd64.tar.gz
-RUN tar -C /usr/local -xzf go1.22.1.linux-amd64.tar.gz
-RUN rm go1.22.1.linux-amd64.tar.gz
+COPY --from=go-toolchain /usr/local/go /usr/local/go
 ENV PATH="/usr/local/go/bin:${PATH}"
-

@@ -57,7 +57,7 @@ pub async fn execute_with_witness(
 pub async fn try_execute_batch(
     batch: &BatchInfo,
     provider: &DynProvider,
-    batch_version: u8,
+    _batch_version: u8,
 ) -> Result<B256, anyhow::Error> {
     let start_block = batch.start_block;
     let end_block = batch.end_block;
@@ -81,7 +81,7 @@ pub async fn try_execute_batch(
                 let blob_infos = get_blob_infos_from_blocks(
                     &block_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
                 )?;
-                verify(ExecutorInput { block_inputs, blob_infos, batch_version })
+                verify(ExecutorInput { block_inputs, blob_infos })
                     .with_context(|| format!("native execution failed ({mode:?})"))
             };
 

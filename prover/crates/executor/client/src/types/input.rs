@@ -89,6 +89,4 @@ impl BlockInput {
 pub struct ExecutorInput {
     pub block_inputs: Vec<BlockInput>,
     pub blob_infos: Vec<BlobInfo>,
-    #[serde(default)]
-    pub batch_version: u8,
 }

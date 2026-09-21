@@ -6,8 +6,6 @@ use revm::primitives::B256;
 
 use crate::types::input::BlockInput;
 
-pub const BATCH_VERSION: u8 = 2u8;
-
 /// BatchInfo is metadata of chunk, with following fields:
 /// - state root before this chunk
 /// - state root after this chunk

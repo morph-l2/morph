@@ -1,4 +1,5 @@
 use std::{
+    collections::VecDeque,
     fs,
     io::{BufReader, Read},
     sync::Arc,
@@ -38,8 +39,8 @@ mod task_status {
 
 pub static MAX_PROVE_BLOCKS: Lazy<usize> = Lazy::new(|| read_env_var("MAX_PROVE_BLOCKS", 4096));
 
-pub static PROVE_QUEUE: Lazy<Arc<Mutex<Vec<ProveRequest>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(vec![])));
+pub static PROVE_QUEUE: Lazy<Arc<Mutex<VecDeque<ProveRequest>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(VecDeque::new())));
 
 // Main async function to start prover service.
 // 1. Spawns prover mng.
@@ -167,7 +168,7 @@ async fn add_pending_req(param: String) -> String {
     }
     // Add request to queue
     log::info!("add pending req of batch: {:#?}", prove_request.batch_index);
-    queue_lock.push(prove_request);
+    queue_lock.push_back(prove_request);
     String::from(task_status::STARTED)
 }
 

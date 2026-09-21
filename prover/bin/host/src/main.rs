@@ -62,9 +62,7 @@ async fn main() {
         let source =
             if args.use_witness { InputSource::ExecutionWitness } else { InputSource::Basic };
         let provider = ProviderBuilder::new().connect_http(args.rpc.parse().unwrap()).erased();
-        execute_batch(1, args.start_block, args.end_block, &provider, source, args.batch_version)
-            .await
-            .unwrap()
+        execute_batch(1, args.start_block, args.end_block, &provider, source).await.unwrap()
     } else {
         // Use local witness file.
         let blocks_inputs: Vec<ClientBlockInput> = load_inputs(&args.block_path);
@@ -73,7 +71,6 @@ async fn main() {
         ExecutorInput {
             block_inputs: blocks_inputs,
             blob_infos: get_blob_infos_from_blocks(&blocks).unwrap(),
-            batch_version: args.batch_version,
         }
     };
     if args.save_input {
