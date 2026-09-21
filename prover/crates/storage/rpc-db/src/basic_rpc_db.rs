@@ -70,7 +70,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
     pub async fn fetch_account_info(&self, address: Address) -> Result<AccountInfo, RpcDbError> {
         log::debug!("fetching account info for address: {}", address);
         if self.throttle_requests {
-            sleep(Duration::from_millis(20)).await;
+            sleep(Duration::from_millis(5)).await;
         }
 
         // Fetch the proof for the account.
@@ -118,7 +118,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
         block_number: u64,
     ) -> Result<alloy_rpc_types::EIP1186AccountProofResponse, RpcDbError> {
         if self.throttle_requests {
-            sleep(Duration::from_millis(20)).await;
+            sleep(Duration::from_millis(5)).await;
         }
         let compact_proof: EIP1186AccountProofResponseCompat = self
             .provider
@@ -140,7 +140,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
     ) -> Result<U256, RpcDbError> {
         log::debug!("fetching storage value at address: {}, index: {}", address, index);
         if self.throttle_requests {
-            sleep(Duration::from_millis(20)).await;
+            sleep(Duration::from_millis(5)).await;
         }
 
         // Fetch the storage value.
