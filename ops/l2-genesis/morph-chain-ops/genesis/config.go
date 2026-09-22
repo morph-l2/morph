@@ -127,10 +127,10 @@ type DeployConfig struct {
 	FundDevAccounts bool `json:"fundDevAccounts"`
 
 	// Upgrade configs
-	Morph203Time  *uint64 `json:"morph203Time,omitempty"`
-	ViridianTime  *uint64 `json:"viridianTime,omitempty"`
-	EmeraldTime   *uint64 `json:"emeraldTime,omitempty"`
-	CeladonTime   *uint64 `json:"celadonTime,omitempty"`
+	Morph203Time *uint64 `json:"morph203Time,omitempty"`
+	ViridianTime *uint64 `json:"viridianTime,omitempty"`
+	EmeraldTime  *uint64 `json:"emeraldTime,omitempty"`
+	CeladonTime  *uint64 `json:"celadonTime,omitempty"`
 }
 
 // GetDeployedAddresses will get the deployed addresses of deployed L1 contracts
