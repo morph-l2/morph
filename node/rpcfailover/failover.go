@@ -68,6 +68,7 @@ package rpcfailover
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -83,21 +84,69 @@ import (
 	tmlog "github.com/tendermint/tendermint/libs/log"
 )
 
-const (
-	// dialTimeout bounds TCP+TLS setup per attempt, so an endpoint whose host is
-	// blackholed cannot consume the caller's entire deadline.
-	dialTimeout = 5 * time.Second
+// defaultFailbackAfter is how long to keep using a fallback endpoint before
+// spending one call to see whether the primary is back. "Primary first" is a
+// priority, so a recovered primary should be re-adopted rather than waiting for
+// the fallback to fail in turn.
+//
+// Deliberately not a background health check: no goroutine to manage, no probe
+// traffic, and the cost of a still-dead primary is one failed attempt per window
+// rather than per call.
+//
+// Separate from attemptTimeouts because it is failover policy, not a bound on a
+// single attempt.
+const defaultFailbackAfter = 5 * time.Minute
 
-	// responseHeaderTimeout bounds the wait for response headers per attempt.
-	// This is what makes failover work against an endpoint that accepts the
-	// connection and then never answers — the common shape of a hung RPC
-	// provider. Because the base transport enforces it per RoundTrip, each
-	// attempt gets its own budget without wrapping the caller's context.
+// attemptTimeouts bounds one attempt against one endpoint, phase by phase. They
+// travel together because they are only meaningful as a set — what is not
+// covered by one has to be covered by the next — and because a test that needs
+// to shrink one should not have to restate the others.
+type attemptTimeouts struct {
+	// dial bounds DNS resolution and TCP setup, so an endpoint whose host is
+	// blackholed cannot consume the caller's entire deadline. TLS setup is bounded
+	// separately by the inherited TLSHandshakeTimeout of 10s.
+	dial time.Duration
+
+	// responseHeader bounds the wait for response headers. This is what makes
+	// failover work against an endpoint that accepts the connection and then never
+	// answers — the common shape of a hung RPC provider. The base transport
+	// enforces it per RoundTrip, so each attempt gets its own budget without
+	// wrapping the caller's context.
 	//
-	// It does not cover a server that sends headers and then stalls the body;
-	// that case remains bounded only by the caller's context.
-	responseHeaderTimeout = 10 * time.Second
-)
+	// It does not cover a server that sends headers and then stalls the body —
+	// net/http documents that it "does not include the time to read the response
+	// body". idleRead is what bounds that.
+	responseHeader time.Duration
+
+	// idleRead bounds how long a read may make no progress at all, and is the only
+	// bound on the response body: responseHeader stops at the headers, the rpc
+	// layer sets no deadline, and the node's callers pass contexts derived from
+	// context.Background(). Without it a server that sends headers and then goes
+	// quiet blocks its caller forever, which matters more than it looks: L1Tracker
+	// calls the RPC inline from its tick loop and evaluates the halt gate inside
+	// that same loop, so a call that never returns leaves the gate stuck open —
+	// the node keeps producing against an arbitrarily stale L1 view with nothing
+	// to report it.
+	//
+	// An inactivity bound, not a total one: a legitimately large reply (a wide
+	// eth_getLogs can be megabytes) is never cut off while bytes keep arriving.
+	//
+	// It also applies to a pooled connection waiting for its next response, so it
+	// doubles as the idle-connection lifetime. Kept below the inherited
+	// IdleConnTimeout of 90s so that relationship stays one-way.
+	//
+	// The bound is per connection, so it only holds while one request occupies a
+	// connection at a time. That is why newBaseTransport disables HTTP/2.
+	idleRead time.Duration
+}
+
+func defaultAttemptTimeouts() attemptTimeouts {
+	return attemptTimeouts{
+		dial:           5 * time.Second,
+		responseHeader: 10 * time.Second,
+		idleRead:       60 * time.Second,
+	}
+}
 
 // Dial builds a client from a comma-separated list of endpoints, in priority
 // order with the primary first.
@@ -125,11 +174,19 @@ func Dial(ctx context.Context, name, raw string, log tmlog.Logger) (*ethclient.C
 	for _, part := range parts {
 		u, err := url.Parse(part)
 		if err != nil {
-			return nil, fmt.Errorf("%s: invalid rpc endpoint %s: %w", name, redactEndpoint(part), err)
+			// url.Error.Error() formats as `parse "<raw url>": ...`, so wrapping it
+			// would put the very credentials redactEndpoint exists to hide into the
+			// log. Report that parsing failed and nothing more.
+			return nil, fmt.Errorf("%s: rpc endpoint %s is not a valid URL", name, redactEndpoint(part))
 		}
 		if u.Scheme != "http" && u.Scheme != "https" {
 			return nil, fmt.Errorf("%s: rpc endpoint %s: failover across multiple endpoints requires http(s), got scheme %q",
 				name, redactEndpoint(part), u.Scheme)
+		}
+		// Hostname(), not Host: "http://:8545" parses with a non-empty Host of
+		// ":8545" and no host at all.
+		if u.Hostname() == "" {
+			return nil, fmt.Errorf("%s: rpc endpoint %s has no host", name, redactEndpoint(part))
 		}
 		if u.User != nil {
 			manageAuth = true
@@ -139,14 +196,25 @@ func Dial(ctx context.Context, name, raw string, log tmlog.Logger) (*ethclient.C
 	}
 
 	transport := &failoverTransport{
-		name:       name,
-		base:       newBaseTransport(),
-		endpoints:  endpoints,
-		redacted:   redacted,
-		manageAuth: manageAuth,
-		log:        log,
+		name:          name,
+		base:          newBaseTransport(defaultAttemptTimeouts()),
+		endpoints:     endpoints,
+		redacted:      redacted,
+		manageAuth:    manageAuth,
+		failbackAfter: defaultFailbackAfter,
+		log:           log,
 	}
-	rpcClient, err := rpc.DialOptions(ctx, parts[0], rpc.WithHTTPClient(&http.Client{Transport: transport}))
+	transport.lastProbe.Store(time.Now().UnixNano())
+	// The URL handed to DialOptions is only a bootstrap: it selects the transport
+	// by scheme and becomes the default target, which attempt() always replaces.
+	// Give it a redacted one, because it is also the URL http.Client reports when
+	// wrapping a transport error — and stripPassword only masks userinfo, leaving
+	// an API key in the path or query (Infura /v3/, Alchemy /v2/) to travel into
+	// every "failed to get L1 header" log line.
+	//
+	// This also means http.Client.send no longer stamps basic auth from the
+	// bootstrap userinfo, which is fine: applyBasicAuth derives it per endpoint.
+	rpcClient, err := rpc.DialOptions(ctx, redacted[0], rpc.WithHTTPClient(&http.Client{Transport: transport}))
 	if err != nil {
 		return nil, err
 	}
@@ -185,15 +253,57 @@ func redactEndpoint(raw string) string {
 	return parsed.Scheme + "://" + parsed.Host
 }
 
-func newBaseTransport() *http.Transport {
+// newBaseTransport builds the transport each attempt runs on.
+//
+// HTTP/2 is switched off deliberately, and idleRead depends on it. The idle bound
+// lives on the TCP connection, and under HTTP/2 one connection carries many
+// concurrent streams: traffic on any of them would push the deadline forward, so
+// a single stalled response stream would go unbounded again. The node polls L1
+// from several goroutines at once, so that is not hypothetical. Multiplexing buys
+// nothing here — these are small, infrequent requests — whereas HTTP/1.1 runs one
+// request per connection at a time, which is what makes a per-connection deadline
+// mean what it says. A non-nil TLSNextProto is the documented way to disable it.
+func newBaseTransport(to attemptTimeouts) *http.Transport {
 	tr := http.DefaultTransport.(*http.Transport).Clone()
-	tr.DialContext = (&net.Dialer{Timeout: dialTimeout, KeepAlive: 30 * time.Second}).DialContext
-	tr.ResponseHeaderTimeout = responseHeaderTimeout
+	tr.ForceAttemptHTTP2 = false
+	tr.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+	// TLSNextProto only stops net/http from handing the connection to its HTTP/2
+	// implementation; it does not stop ALPN from negotiating h2 in the first place.
+	// If the TLS config still advertises h2 the server may select it, and then the
+	// HTTP/1.x code reads frames as a response and reports the connection broken.
+	// Pinning NextProtos means h2 can never be selected, whatever else is set here.
+	tr.TLSClientConfig = &tls.Config{NextProtos: []string{"http/1.1"}}
+	dialer := &net.Dialer{Timeout: to.dial, KeepAlive: 30 * time.Second}
+	tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		conn, err := dialer.DialContext(ctx, network, addr)
+		if err != nil {
+			return nil, err
+		}
+		return &idleReadConn{Conn: conn, idle: to.idleRead}, nil
+	}
+	tr.ResponseHeaderTimeout = to.responseHeader
 	return tr
 }
 
-// failoverTransport sends each JSON-RPC request to the endpoint it is currently
-// stuck to, and walks the remaining endpoints in ring order when that one fails.
+// idleReadConn fails a read that makes no progress for idle. The deadline is
+// pushed forward before every read, so it measures inactivity rather than total
+// time.
+type idleReadConn struct {
+	net.Conn
+	idle time.Duration
+}
+
+func (c *idleReadConn) Read(b []byte) (int, error) {
+	if err := c.Conn.SetReadDeadline(time.Now().Add(c.idle)); err != nil {
+		return 0, err
+	}
+	return c.Conn.Read(b)
+}
+
+// failoverTransport sends each JSON-RPC request to the endpoint currently in
+// use, walks the remaining endpoints in ring order when that one fails, and
+// every failbackAfter lets one call re-try the primary so that a recovered
+// primary is re-adopted rather than waiting for the fallback to fail too.
 type failoverTransport struct {
 	// name labels logs and errors with which set of endpoints these are.
 	name string
@@ -210,11 +320,38 @@ type failoverTransport struct {
 
 	// cur is the index of the endpoint that last answered. Sticking to it
 	// matters: without it every call would pay the dead primary's timeout again.
-	// Nothing ever moves it back on its own — a recovered primary is picked up
-	// when the current endpoint fails, or on the next process restart.
 	cur atomic.Int32
 
+	// failbackAfter is how long to stay on a fallback before letting one call try
+	// the primary again. A field rather than a constant so tests can shrink it.
+	failbackAfter time.Duration
+
+	// lastProbe is the unix-nano time the primary was last tried, seeded at
+	// construction because the process starts out using it. Compared against
+	// failbackAfter to decide when one more probe is due, and advanced only by
+	// dueForPrimaryProbe, with CompareAndSwap so exactly one concurrent call pays
+	// for it.
+	//
+	// Switching endpoints deliberately does not touch it. Stamping it on a switch
+	// would mean fallbacks flapping faster than failbackAfter keep pushing the
+	// next probe out and the primary is never retried; the cost of not stamping is
+	// that a switch occurring after the window has already elapsed is followed by
+	// one immediate re-probe, which also means a primary that only blipped is
+	// picked back up at once instead of after a full window.
+	lastProbe atomic.Int64
+
 	log tmlog.Logger
+}
+
+// dueForPrimaryProbe reports whether enough time has passed to spend one call
+// re-trying the primary. Only the caller that wins the CompareAndSwap probes, so
+// a fleet of concurrent requests still costs a single extra attempt per window.
+func (t *failoverTransport) dueForPrimaryProbe(now int64) bool {
+	last := t.lastProbe.Load()
+	if now-last < int64(t.failbackAfter) {
+		return false
+	}
+	return t.lastProbe.CompareAndSwap(last, now)
 }
 
 func (t *failoverTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -232,17 +369,41 @@ func (t *failoverTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		}
 	}
 
-	start := int(t.cur.Load())
+	// prev is the endpoint in use when this call started; start is where this call
+	// begins walking the ring. They differ only when a failback probe is due, in
+	// which case this one call starts from the primary instead. If the primary is
+	// still down the probe costs one failed attempt and the ring carries on.
+	prev := int(t.cur.Load())
+	start := prev
+	if prev != 0 && t.dueForPrimaryProbe(time.Now().UnixNano()) {
+		start = 0
+	}
+
 	var lastErr error
 	for i := range t.endpoints {
 		idx := (start + i) % len(t.endpoints)
 
 		resp, err := t.attempt(req, body, idx)
 		if err == nil {
-			if idx != start {
+			// Compared against prev, not start, so a successful failback probe moves
+			// back to the primary.
+			//
+			// cur is an approximation on purpose — calls do not coordinate, and no
+			// scheme for agreeing on one endpoint is worth its cost here, because a
+			// wrong cur only makes the next call spend one failed attempt before
+			// moving on. Two consequences worth knowing rather than fixing: a call
+			// that began before someone else switched can write its older index over
+			// the newer one, and a call whose endpoint equals the one it started from
+			// records nothing, so a working primary is not re-adopted here — the
+			// failback probe is what does that.
+			//
+			// cause is nil when this was a failback probe, since nothing failed on the
+			// way here. Recovery is therefore logged at Error with a nil cause; the
+			// from/to pair is what distinguishes it from a degradation.
+			if idx != prev {
 				t.cur.Store(int32(idx))
 				t.log.Error("switched rpc endpoint", "target", t.name,
-					"from", t.redacted[start], "to", t.redacted[idx], "cause", lastErr)
+					"from", t.redacted[prev], "to", t.redacted[idx], "cause", lastErr)
 			}
 			return resp, nil
 		}
@@ -308,10 +469,10 @@ const peekLimit = 8
 // decodes the whole response — full bodies are never buffered, since a single
 // eth_getLogs reply can be megabytes.
 func requireJSONBody(resp *http.Response) error {
-	// Only a success is expected to carry a JSON-RPC reply. The statuses that
-	// reach here otherwise are the 3xx that http.Client will follow and the 4xx
-	// that shouldFailover deliberately passes through; neither promises a JSON
-	// body, and judging them here would undo that decision.
+	// Only a success is expected to carry a JSON-RPC reply. The only statuses that
+	// reach here otherwise are the 4xx shouldFailover deliberately passes through,
+	// which describe the request rather than the endpoint and promise nothing about
+	// the body; judging them here would undo that decision.
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return nil
 	}
@@ -364,13 +525,32 @@ func replayBody(peeked []byte, rest io.ReadCloser) io.ReadCloser {
 
 // shouldFailover reports whether an HTTP status justifies trying the next
 // endpoint. 5xx and 429 are the endpoint's problem, and 408 means it gave up on
-// us. The remaining 4xx are deliberately excluded: a 400/401/403/404 describes
-// the request or the credentials, the next endpoint would almost certainly
-// reproduce it, and moving on silently would turn a misconfiguration into a
-// mystery. A JSON-RPC error arrives as 200 and is not examined here.
+// us.
+//
+// 401 and 403 count too, because endpoints can carry their own credentials (see
+// applyBasicAuth): an expired key or an exhausted quota on one provider says
+// nothing about the next one, and hosted providers use exactly these statuses
+// for it. Refusing to move would blind the node while a correctly configured
+// fallback sat idle. A genuine misconfiguration is still visible — every switch
+// is logged with its cause, and if all endpoints reject us the aggregate error
+// surfaces.
+//
+// 3xx counts as well. A JSON-RPC endpoint has no business redirecting, and
+// following one is not possible here: attempt() rewrites every request's URL to
+// its endpoint, so the redirect target would be discarded and the same endpoint
+// asked again until http.Client gives up after ten hops — ten wasted round trips
+// and no failover. An endpoint configured as http:// behind a server that
+// redirects to https:// is the realistic way to hit this.
+//
+// 400 and 404 are excluded: those describe the request itself, so the next
+// endpoint would reproduce them and moving on would only multiply the load. A
+// JSON-RPC error arrives as 200 and is not examined here.
 func shouldFailover(status int) bool {
 	return status == http.StatusRequestTimeout ||
 		status == http.StatusTooManyRequests ||
+		status == http.StatusUnauthorized ||
+		status == http.StatusForbidden ||
+		(status >= 300 && status < 400) ||
 		status >= 500
 }
 

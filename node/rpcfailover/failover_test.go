@@ -23,10 +23,11 @@ const probeBody = `{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[
 
 // recorder is a test endpoint that counts requests and remembers what it saw.
 type recorder struct {
-	server *httptest.Server
-	hits   atomic.Int32
-	bodies chan string
-	auths  chan string
+	server  *httptest.Server
+	hits    atomic.Int32
+	healthy atomic.Bool // used by newRecoverableEndpoint to bring an endpoint back
+	bodies  chan string
+	auths   chan string
 }
 
 // newEndpoint starts a test endpoint that replies with the given status. A 200
@@ -84,14 +85,17 @@ func newTestTransport(t *testing.T, rawURLs ...string) *failoverTransport {
 		endpoints = append(endpoints, u)
 		redacted = append(redacted, redactEndpoint(raw))
 	}
-	return &failoverTransport{
-		name:       "L1",
-		base:       newBaseTransport(),
-		endpoints:  endpoints,
-		redacted:   redacted,
-		manageAuth: manageAuth,
-		log:        tmlog.NewNopLogger(),
+	tr := &failoverTransport{
+		name:          "L1",
+		base:          newBaseTransport(defaultAttemptTimeouts()),
+		endpoints:     endpoints,
+		redacted:      redacted,
+		manageAuth:    manageAuth,
+		failbackAfter: defaultFailbackAfter,
+		log:           tmlog.NewNopLogger(),
 	}
+	tr.lastProbe.Store(time.Now().UnixNano()) // as Dial does
+	return tr
 }
 
 // post issues a request shaped like the one rpc/http.go builds: a POST whose body
@@ -344,14 +348,16 @@ func TestFailoverOnHTMLBlockPageWithoutContentType(t *testing.T) {
 // to 2xx only, so a 4xx with an empty or HTML body is still returned verbatim
 // rather than being turned into a failover.
 func TestClientErrorBodyNotJudged(t *testing.T) {
-	primary := newRawEndpoint(t, http.StatusForbidden, "text/html", "<html>forbidden</html>")
+	// 404 rather than 403: 403 now fails over on its own, which would hide what
+	// this test is about.
+	primary := newRawEndpoint(t, http.StatusNotFound, "text/html", "<html>not found</html>")
 	secondary := newEndpoint(t, http.StatusOK)
 	tr := newTestTransport(t, primary.url(""), secondary.url(""))
 
 	resp, err := post(t, tr)
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	assert.Equal(t, int32(0), secondary.hits.Load())
 }
 
@@ -463,6 +469,375 @@ func TestAttemptSuppliesGetBody(t *testing.T) {
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
+
+// --- #4: credentials are per endpoint, so 401/403 must move on ---
+
+// TestFailoverOnUnauthorized covers an expired or revoked key on the primary.
+// Endpoints can carry their own credentials, so 401 on one says nothing about
+// the next; refusing to move would blind the caller while a working fallback
+// sat idle.
+func TestFailoverOnUnauthorized(t *testing.T) {
+	primary := newEndpoint(t, http.StatusUnauthorized)
+	secondary := newEndpoint(t, http.StatusOK)
+	tr := newTestTransport(t, primary.url("alice:expired"), secondary.url("bob:valid"))
+
+	resp, err := post(t, tr)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, int32(1), secondary.hits.Load())
+}
+
+// TestFailoverOnForbidden covers an exhausted quota, which hosted providers
+// report as 403.
+func TestFailoverOnForbidden(t *testing.T) {
+	primary := newEndpoint(t, http.StatusForbidden)
+	secondary := newEndpoint(t, http.StatusOK)
+	tr := newTestTransport(t, primary.url(""), secondary.url(""))
+
+	resp, err := post(t, tr)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, int32(1), secondary.hits.Load())
+}
+
+// TestNoFailoverOnBadRequestOrNotFound keeps the other half of the rule: these
+// describe the request, so another endpoint would only reproduce them.
+func TestNoFailoverOnBadRequestOrNotFound(t *testing.T) {
+	for _, status := range []int{http.StatusBadRequest, http.StatusNotFound} {
+		primary := newEndpoint(t, status)
+		secondary := newEndpoint(t, http.StatusOK)
+		tr := newTestTransport(t, primary.url(""), secondary.url(""))
+
+		resp, err := post(t, tr)
+		require.NoError(t, err)
+		resp.Body.Close()
+		assert.Equal(t, status, resp.StatusCode)
+		assert.Equal(t, int32(0), secondary.hits.Load(), "status %d must not fail over", status)
+	}
+}
+
+// --- #5: a malformed endpoint must not leak its credentials into the error ---
+
+func TestDialErrorDoesNotLeakCredentials(t *testing.T) {
+	const secret = "s3cr3t-api-key"
+	// A control character makes url.Parse fail; its own error text embeds the raw
+	// URL, which is exactly what must not reach the caller.
+	bad := "http://user:" + secret + "@rpc.example.com/v3/" + secret + "/\x7f"
+
+	_, err := Dial(context.Background(), "L1", bad+",http://ok.invalid", tmlog.NewNopLogger())
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), secret, "error must not echo credentials from the raw URL")
+	assert.Contains(t, err.Error(), "is not a valid URL")
+}
+
+func TestDialRejectsEndpointWithoutHost(t *testing.T) {
+	// "http://:8545" parses with a non-empty Host of ":8545" and no host at all,
+	// so checking Host alone would let it through.
+	for _, bad := range []string{"http://", "http://:8545"} {
+		_, err := Dial(context.Background(), "L1", bad+",http://ok.invalid", tmlog.NewNopLogger())
+		require.Error(t, err, "endpoint %q must be rejected", bad)
+		assert.Contains(t, err.Error(), "has no host")
+	}
+}
+
+// TestRuntimeErrorDoesNotLeakCredentials covers the error path that outlives
+// startup: when every endpoint fails, http.Client wraps the transport error in a
+// url.Error carrying the request URL, and its stripPassword only masks userinfo —
+// an API key in the path would ride along into every caller's error log.
+func TestRuntimeErrorDoesNotLeakCredentials(t *testing.T) {
+	const secret = "s3cr3t-api-key"
+	a := newEndpoint(t, http.StatusOK)
+	b := newEndpoint(t, http.StatusOK)
+	// The key in the path is how hosted providers embed it (Infura /v3/, Alchemy /v2/).
+	urlA := a.url("") + "/v3/" + secret
+	urlB := b.url("") + "/v3/" + secret
+	a.server.Close() // both refuse connections, so the call fails at runtime
+	b.server.Close()
+
+	client, err := Dial(context.Background(), "L1", urlA+","+urlB, tmlog.NewNopLogger())
+	require.NoError(t, err)
+	defer client.Close()
+
+	_, err = client.BlockNumber(context.Background())
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), secret,
+		"the URL http.Client reports on a transport error must not carry the API key")
+}
+
+// TestFailoverOnRedirect: attempt() rewrites every request's URL to its endpoint,
+// so a redirect target would be discarded and the same endpoint asked again until
+// http.Client gives up after ten hops. Treating 3xx as an endpoint failure is
+// what keeps that from happening.
+func TestFailoverOnRedirect(t *testing.T) {
+	redirecting := &recorder{bodies: make(chan string, 8), auths: make(chan string, 8)}
+	redirecting.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		redirecting.hits.Add(1)
+		w.Header().Set("Location", "https://elsewhere.invalid/rpc")
+		w.WriteHeader(http.StatusFound)
+	}))
+	t.Cleanup(redirecting.server.Close)
+
+	secondary := newEndpoint(t, http.StatusOK)
+	tr := newTestTransport(t, redirecting.url(""), secondary.url(""))
+
+	resp, err := post(t, tr)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, int32(1), redirecting.hits.Load(), "the redirect must be asked once, not looped over")
+	assert.Equal(t, int32(1), secondary.hits.Load())
+}
+
+// --- #6: a recovered primary is re-adopted ---
+
+func TestFailsBackToPrimaryAfterWindow(t *testing.T) {
+	primary := newRecoverableEndpoint(t)
+	secondary := newEndpoint(t, http.StatusOK)
+	tr := newTestTransport(t, primary.url(""), secondary.url(""))
+	tr.failbackAfter = time.Millisecond
+
+	primary.healthy.Store(false)
+	resp, err := post(t, tr)
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, int32(1), tr.cur.Load(), "should have moved to the secondary")
+
+	primary.healthy.Store(true)
+	time.Sleep(2 * time.Millisecond) // let the failback window elapse
+
+	resp, err = post(t, tr)
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	assert.Equal(t, int32(0), tr.cur.Load(), "a healthy primary must be re-adopted")
+	assert.Equal(t, int32(1), secondary.hits.Load(), "the secondary should not have been needed again")
+}
+
+// TestNormalCallDoesNotTouchProbeWindow pins that the failback clock is only
+// advanced when the primary is actually tried: if every successful call restamped
+// it, a busy node would never reach the window and the primary would never be
+// retried.
+func TestNormalCallDoesNotTouchProbeWindow(t *testing.T) {
+	only := newEndpoint(t, http.StatusOK)
+	tr := newTestTransport(t, only.url(""), only.url(""))
+	tr.lastProbe.Store(12345)
+
+	for i := 0; i < 3; i++ {
+		resp, err := post(t, tr)
+		require.NoError(t, err)
+		resp.Body.Close()
+	}
+
+	assert.Equal(t, int64(12345), tr.lastProbe.Load(),
+		"a call served by the endpoint already in use must not move the failback clock")
+}
+
+// TestSwitchDoesNotPostponeProbe: only dueForPrimaryProbe advances the failback
+// clock. If switching endpoints stamped it too, fallbacks flapping faster than
+// failbackAfter would keep pushing the next probe out and the primary would never
+// be retried.
+func TestSwitchDoesNotPostponeProbe(t *testing.T) {
+	primary := newEndpoint(t, http.StatusServiceUnavailable)
+	secondary := newEndpoint(t, http.StatusOK)
+	tr := newTestTransport(t, primary.url(""), secondary.url(""))
+
+	// Long window, so no probe is due during this call and the clock can only
+	// change if the switch itself stamps it.
+	tr.failbackAfter = time.Hour
+	stamp := time.Now().Add(-time.Minute).UnixNano()
+	tr.lastProbe.Store(stamp)
+
+	resp, err := post(t, tr)
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	require.Equal(t, int32(1), tr.cur.Load(), "should have switched to the secondary")
+	assert.Equal(t, stamp, tr.lastProbe.Load(), "a switch must leave the failback clock alone")
+}
+
+// TestSwitchAfterWindowElapsedReprobesOnce is the accepted cost of the above: a
+// switch that happens once the window has already passed is followed by one
+// immediate re-probe. That also means a primary which only blipped is picked back
+// up at once rather than after a full window.
+func TestSwitchAfterWindowElapsedReprobesOnce(t *testing.T) {
+	primary := newRecoverableEndpoint(t)
+	secondary := newEndpoint(t, http.StatusOK)
+	tr := newTestTransport(t, primary.url(""), secondary.url(""))
+	tr.failbackAfter = time.Millisecond
+
+	primary.healthy.Store(false)
+	resp, err := post(t, tr)
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, int32(1), tr.cur.Load())
+	require.Equal(t, int32(1), primary.hits.Load())
+
+	time.Sleep(2 * time.Millisecond) // window elapses while still on the fallback
+
+	// Primary came back between the two calls, so the re-probe adopts it again.
+	primary.healthy.Store(true)
+	resp, err = post(t, tr)
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	assert.Equal(t, int32(2), primary.hits.Load(), "the primary is re-probed once the window has passed")
+	assert.Equal(t, int32(0), tr.cur.Load(), "and re-adopted now that it answers")
+}
+
+func TestDoesNotProbePrimaryEveryCallWhileItIsDown(t *testing.T) {
+	primary := newEndpoint(t, http.StatusServiceUnavailable)
+	secondary := newEndpoint(t, http.StatusOK)
+	tr := newTestTransport(t, primary.url(""), secondary.url(""))
+	// Long window: the first call switches away, later calls must not re-probe.
+	tr.failbackAfter = time.Hour
+
+	for i := 0; i < 4; i++ {
+		resp, err := post(t, tr)
+		require.NoError(t, err)
+		resp.Body.Close()
+	}
+
+	assert.Equal(t, int32(1), primary.hits.Load(),
+		"the dead primary is probed once, not on every call")
+	assert.Equal(t, int32(4), secondary.hits.Load())
+}
+
+// newRecoverableEndpoint serves 503 or a valid reply depending on a flag, so a
+// test can bring an endpoint back up.
+func newRecoverableEndpoint(t *testing.T) *recorder {
+	t.Helper()
+	r := &recorder{bodies: make(chan string, 8), auths: make(chan string, 8)}
+	r.healthy.Store(true)
+	r.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		r.hits.Add(1)
+		if !r.healthy.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":"0x10"}`))
+	}))
+	t.Cleanup(r.server.Close)
+	return r
+}
+
+// --- a body that stops arriving must be bounded, not block forever ---
+
+// newStallingEndpoint starts an endpoint that writes its headers and prefix,
+// flushes them onto the wire, and then stops writing without closing the
+// connection — the shape neither ResponseHeaderTimeout nor a TCP error catches.
+// The returned channel must be closed by the test before its server is torn
+// down, since httptest.Server.Close waits for outstanding handlers.
+func newStallingEndpoint(t *testing.T, prefix string) (*recorder, chan struct{}) {
+	t.Helper()
+	release := make(chan struct{})
+	r := &recorder{bodies: make(chan string, 8), auths: make(chan string, 8)}
+	r.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		r.hits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if prefix != "" {
+			_, _ = io.WriteString(w, prefix)
+		}
+		w.(http.Flusher).Flush()
+		<-release
+	}))
+	t.Cleanup(r.server.Close)
+	return r, release
+}
+
+// TestFailoverWhenBodyNeverArrives: the stall lands inside requireJSONBody's
+// peek, which is still inside the attempt, so it is a normal endpoint failure and
+// the next endpoint serves the call.
+func TestFailoverWhenBodyNeverArrives(t *testing.T) {
+	primary, release := newStallingEndpoint(t, "")
+	defer close(release)
+	secondary := newEndpoint(t, http.StatusOK)
+
+	tr := newTestTransport(t, primary.url(""), secondary.url(""))
+	to := defaultAttemptTimeouts()
+	to.idleRead = 100 * time.Millisecond
+	tr.base = newBaseTransport(to)
+
+	started := time.Now()
+	resp, err := post(t, tr)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, int32(1), primary.hits.Load())
+	assert.Equal(t, int32(1), secondary.hits.Load(), "a body that never arrives is an endpoint failure")
+	assert.Less(t, time.Since(started), 5*time.Second, "must not have waited indefinitely on the stalled endpoint")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), `"result":"0x10"`)
+}
+
+// TestStalledBodyMidStreamFailsBounded is the residual case: enough bytes arrive
+// to satisfy the peek, so the response is handed up and the stall happens past
+// the failover decision point. No switch is possible there — but the read must
+// fail rather than hang, which is what lets L1Tracker's loop iterate again and
+// its halt gate keep working.
+func TestStalledBodyMidStreamFailsBounded(t *testing.T) {
+	primary, release := newStallingEndpoint(t, `{"jsonrpc":"2.0",`)
+	defer close(release)
+	secondary := newEndpoint(t, http.StatusOK)
+
+	tr := newTestTransport(t, primary.url(""), secondary.url(""))
+	to := defaultAttemptTimeouts()
+	to.idleRead = 100 * time.Millisecond
+	tr.base = newBaseTransport(to)
+
+	resp, err := post(t, tr)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, int32(0), secondary.hits.Load(), "the peek succeeded, so this call does not fail over")
+
+	started := time.Now()
+	_, err = io.ReadAll(resp.Body)
+	require.Error(t, err, "a stalled body must fail rather than block forever")
+	assert.Less(t, time.Since(started), 5*time.Second)
+}
+
+// TestHTTP2IsDisabled pins the assumption idleRead rests on. Under HTTP/2 one
+// connection carries many concurrent streams, so traffic on any of them would
+// push a per-connection read deadline forward and a single stalled stream would
+// be unbounded again. The server here offers h2 over ALPN; the transport must
+// still come back on HTTP/1.1.
+func TestHTTP2IsDisabled(t *testing.T) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":"0x10"}`))
+	}))
+	srv.EnableHTTP2 = true
+	srv.StartTLS()
+	t.Cleanup(srv.Close)
+
+	// Control: without this the assertion below would also pass against a server
+	// that never offered h2 in the first place.
+	ctrl, err := srv.Client().Post(srv.URL, "application/json", strings.NewReader(probeBody))
+	require.NoError(t, err)
+	require.NoError(t, ctrl.Body.Close())
+	require.Equal(t, "HTTP/2.0", ctrl.Proto, "precondition: the test server must offer HTTP/2")
+
+	tr := newTestTransport(t, srv.URL, srv.URL)
+	base := newBaseTransport(defaultAttemptTimeouts())
+	// Trust the test server's certificate, but only that: replacing the whole TLS
+	// config would re-advertise h2 over ALPN, and the server would then select a
+	// protocol the HTTP/1.x code cannot read.
+	base.TLSClientConfig.RootCAs = srv.Client().Transport.(*http.Transport).TLSClientConfig.RootCAs
+	tr.base = base
+
+	resp, err := post(t, tr)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, "HTTP/1.1", resp.Proto,
+		"HTTP/2 must stay disabled: idleRead is a per-connection bound and needs one request per connection")
+}
 
 func TestFailoverOnTooManyRequests(t *testing.T) {
 	primary := newEndpoint(t, http.StatusTooManyRequests)
@@ -619,10 +994,15 @@ func TestRedactedEndpointsAreDistinct(t *testing.T) {
 }
 
 func TestShouldFailover(t *testing.T) {
-	for _, status := range []int{408, 429, 500, 502, 503, 504} {
+	// 401 and 403 are in this list because endpoints can carry their own
+	// credentials: an expired key or exhausted quota on one provider says nothing
+	// about the next. 3xx is here because attempt() rewrites the URL, so a redirect
+	// could never be followed — only looped over.
+	for _, status := range []int{408, 429, 401, 403, 301, 302, 307, 308, 500, 502, 503, 504} {
 		assert.True(t, shouldFailover(status), "status %d should trigger failover", status)
 	}
-	for _, status := range []int{200, 201, 301, 400, 401, 403, 404} {
+	// These describe the request, so another endpoint would only reproduce them.
+	for _, status := range []int{200, 201, 400, 404} {
 		assert.False(t, shouldFailover(status), "status %d should not trigger failover", status)
 	}
 }
