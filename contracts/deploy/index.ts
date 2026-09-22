@@ -10,7 +10,7 @@ import GatewayInit from './017-GatewayInit'
 import {AdminTransfer,AdminTransferByProxyStorageName, AdminTransferConcurrently} from './019-AdminTransfer'
 import ContractInit from './020-ContractInit'
 import SubmitterRegister from './021-SubmitterRegister'
-import SequencerInit from './022-SequencerInit'
+import SequencerInit, { SetFirstSequencer } from './022-SequencerInit'
 
 
 export {
@@ -30,5 +30,6 @@ export {
     AdminTransferConcurrently,
     ContractInit,
     SubmitterRegister,
-    SequencerInit
+    SequencerInit,
+    SetFirstSequencer
 }
