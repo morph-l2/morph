@@ -80,3 +80,43 @@ func TestMorphTxV2BatchRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+func TestParsingTxsSupportsMorphTxV2(t *testing.T) {
+	to := common.HexToAddress("0x1234")
+	tx := eth.NewTx(&eth.MorphTx{
+		ChainID:    big.NewInt(53077),
+		Nonce:      1,
+		GasTipCap:  big.NewInt(1),
+		GasFeeCap:  big.NewInt(2),
+		Gas:        100000,
+		To:         &to,
+		Value:      new(big.Int),
+		FeeTokenID: 1,
+		FeeLimit:   big.NewInt(1000),
+		Version:    eth.MorphTxVersion2,
+		AuthList: []eth.SetCodeAuthorization{{
+			ChainID: *uint256.NewInt(53077),
+			Address: common.HexToAddress("0x5678"),
+			Nonce:   7,
+			V:       1,
+			R:       *uint256.NewInt(2),
+			S:       *uint256.NewInt(3),
+		}},
+		V: new(big.Int),
+		R: new(big.Int).Lsh(big.NewInt(1), 255),
+		S: new(big.Int).Lsh(big.NewInt(1), 254),
+	})
+
+	want, err := tx.MarshalBinary()
+	require.NoError(t, err)
+
+	payload, l1TxHashes, totalL1MessagePopped, l2TxNum, err := ParsingTxs(
+		[]*eth.Transaction{tx},
+		0,
+	)
+	require.NoError(t, err)
+	require.Equal(t, want, payload)
+	require.Empty(t, l1TxHashes)
+	require.Zero(t, totalL1MessagePopped)
+	require.Equal(t, 1, l2TxNum)
+}
