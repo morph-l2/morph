@@ -28,22 +28,15 @@ pub enum ShadowExecuteMode {
     Both = 2,
 }
 
-impl std::str::FromStr for ShadowExecuteMode {
-    type Err = &'static str;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value {
-            "0" => Ok(Self::Rpc),
-            "1" => Ok(Self::Witness),
-            "2" => Ok(Self::Both),
-            _ => Err("expected 0 (RPC), 1 (witness), or 2 (both)"),
-        }
-    }
-}
-
 /// `SHADOW_PROVING_EXECUTE_MODE`: 0 = RPC (default), 1 = witness, 2 = both.
-pub static SHADOW_EXECUTE_MODE: Lazy<ShadowExecuteMode> =
-    Lazy::new(|| read_env_var("SHADOW_PROVING_EXECUTE_MODE", ShadowExecuteMode::Rpc));
+pub static SHADOW_EXECUTE_MODE: Lazy<ShadowExecuteMode> = Lazy::new(|| {
+    match read_env_var("SHADOW_PROVING_EXECUTE_MODE", 0_u64) {
+        0 => ShadowExecuteMode::Rpc,
+        1 => ShadowExecuteMode::Witness,
+        2 => ShadowExecuteMode::Both,
+        mode => panic!("Invalid SHADOW_PROVING_EXECUTE_MODE={mode}: expected 0, 1, or 2"),
+    }
+});
 
 pub static SHADOW_PROVING_MAX_BLOCK: Lazy<u64> =
     Lazy::new(|| read_env_var("SHADOW_PROVING_MAX_BLOCK", 600));

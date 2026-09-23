@@ -156,6 +156,7 @@ async fn gen_client_input(
     } else {
         (InputSource::ExecutionWitness, InputSource::Basic)
     };
+    log::info!("Prover input source: {:?}", input_source);
     let executor_input =
         match execute_batch(batch_index, start_block, end_block, provider, input_source).await {
             Ok(input) => input,

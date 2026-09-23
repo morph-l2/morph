@@ -85,6 +85,7 @@ pub async fn try_execute_batch(
                     .with_context(|| format!("native execution failed ({mode:?})"))
             };
 
+            log::info!("Shadow execute mode: {:?}", *SHADOW_EXECUTE_MODE);
             match *SHADOW_EXECUTE_MODE {
                 ShadowExecuteMode::Both => {
                     // Run both paths even if the first returns an error.

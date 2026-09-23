@@ -90,6 +90,7 @@ fn devnet_chain_spec(chain_id: u64) -> Arc<MorphChainSpec> {
     spec_mut.set_hardfork(MorphHardfork::Morph203, 0);
     spec_mut.set_hardfork(MorphHardfork::Viridian, 0);
     spec_mut.set_hardfork(MorphHardfork::Emerald, 0);
+    spec_mut.set_hardfork(MorphHardfork::Celadon, 0);
     spec
 }
 
