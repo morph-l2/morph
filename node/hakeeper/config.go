@@ -67,8 +67,8 @@ func DefaultConfig() *Config {
 			ListenPort: 9400,
 		},
 		Snapshot: SnapshotConfig{
-			Interval:     120 * time.Second,
-			Threshold:    8192,
+			Interval:     30 * time.Second,
+			Threshold:    200,
 			TrailingLogs: 1200,
 		},
 		Timeout: TimeoutConfig{

@@ -1,6 +1,6 @@
 services:
-  ha-geth-0:
-    container_name: ha-geth-0
+  ha-el-0:
+    container_name: ha-el-0
     depends_on:
       morph-el-0:
         condition: service_started
@@ -17,15 +17,15 @@ services:
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
       - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/ha-nodekey0:/db/geth/nodekey"
-      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
+      - "${PWD}/static-nodes-cluster.json:/db/geth/static-nodes.json"
     environment:
       - RUST_LOG=${RUST_LOG}
     entrypoint:
       - "/bin/bash"
       - "/entrypoint.sh"
 
-  ha-geth-1:
-    container_name: ha-geth-1
+  ha-el-1:
+    container_name: ha-el-1
     depends_on:
       morph-el-0:
         condition: service_started
@@ -42,15 +42,15 @@ services:
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
       - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/ha-nodekey1:/db/geth/nodekey"
-      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
+      - "${PWD}/static-nodes-cluster.json:/db/geth/static-nodes.json"
     environment:
       - RUST_LOG=${RUST_LOG}
     entrypoint:
       - "/bin/bash"
       - "/entrypoint.sh"
 
-  ha-geth-2:
-    container_name: ha-geth-2
+  ha-el-2:
+    container_name: ha-el-2
     depends_on:
       morph-el-0:
         condition: service_started
@@ -67,7 +67,7 @@ services:
       - "${PWD}/jwt-secret.txt:/jwt-secret.txt"
       - "${PWD}/../l2-genesis/.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/ha-nodekey2:/db/geth/nodekey"
-      - "${PWD}/static-nodes.json:/db/geth/static-nodes.json"
+      - "${PWD}/static-nodes-cluster.json:/db/geth/static-nodes.json"
     environment:
       - RUST_LOG=${RUST_LOG}
     entrypoint:
@@ -77,7 +77,7 @@ services:
   ha-node-0:
     container_name: ha-node-0
     depends_on:
-      ha-geth-0:
+      ha-el-0:
         condition: service_started
       node-0:
         condition: service_started
@@ -92,8 +92,8 @@ services:
     environment:
       - MORPH_NODE_SEQUENCER_PRIVATE_KEY=${SEQUENCER_PRIVATE_KEY}
       - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
-      - MORPH_NODE_L2_ETH_RPC=http://ha-geth-0:8545
-      - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-0:8551
+      - MORPH_NODE_L2_ETH_RPC=http://ha-el-0:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://ha-el-0:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
       - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
@@ -119,7 +119,7 @@ services:
     depends_on:
       ha-node-0:
         condition: service_started
-      ha-geth-1:
+      ha-el-1:
         condition: service_started
     image: morph-node:latest
     restart: unless-stopped
@@ -132,8 +132,8 @@ services:
     environment:
       - MORPH_NODE_SEQUENCER_PRIVATE_KEY=${SEQUENCER_PRIVATE_KEY}
       - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
-      - MORPH_NODE_L2_ETH_RPC=http://ha-geth-1:8545
-      - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-1:8551
+      - MORPH_NODE_L2_ETH_RPC=http://ha-el-1:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://ha-el-1:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
       - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}
@@ -159,7 +159,7 @@ services:
     depends_on:
       ha-node-0:
         condition: service_started
-      ha-geth-2:
+      ha-el-2:
         condition: service_started
     image: morph-node:latest
     restart: unless-stopped
@@ -172,8 +172,8 @@ services:
     environment:
       - MORPH_NODE_SEQUENCER_PRIVATE_KEY=${SEQUENCER_PRIVATE_KEY}
       - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${SEQUENCER_UPGRADE_TIME:-0}
-      - MORPH_NODE_L2_ETH_RPC=http://ha-geth-2:8545
-      - MORPH_NODE_L2_ENGINE_RPC=http://ha-geth-2:8551
+      - MORPH_NODE_L2_ETH_RPC=http://ha-el-2:8545
+      - MORPH_NODE_L2_ENGINE_RPC=http://ha-el-2:8551
       - MORPH_NODE_L2_ENGINE_AUTH=${JWT_SECRET_PATH}
       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
       - MORPH_NODE_L1_ETH_BEACON_RPC=${L1_BEACON_CHAIN_RPC}

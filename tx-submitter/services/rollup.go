@@ -764,13 +764,26 @@ func (r *Rollup) finalize() error {
 		return fmt.Errorf("get last committed error:%v", err)
 	}
 
-	target := big.NewInt(int64(r.pendingTxs.GetPFinalize() + 1))
-	if target.Cmp(lastFinalized) <= 0 {
-		target = new(big.Int).Add(lastFinalized, big.NewInt(1))
-	}
+	// Contract requires consecutive finalize (lastFinalized+1). Do not advance
+	// from pfinalize: a dropped/failed finalize tx leaves pfinalize ahead and
+	// would skip the next required batch (incorrect previous state root).
+	target := new(big.Int).Add(lastFinalized, big.NewInt(1))
 
 	if target.Cmp(lastCommitted) > 0 {
 		log.Info("no need to finalize", "last_finalized", lastFinalized.Uint64(), "last_committed", lastCommitted.Uint64())
+		return nil
+	}
+
+	if pf := r.pendingTxs.GetPFinalize(); pf > lastFinalized.Uint64() {
+		log.Warn("pfinalize ahead of lastFinalized, targeting lastFinalized+1",
+			"pfinalize", pf,
+			"last_finalized", lastFinalized,
+			"finalize_index", target,
+		)
+	}
+
+	if r.pendingTxs.ExistedFinalizeIndex(target.Uint64()) {
+		log.Info("finalize tx already pending", "batch_index", target)
 		return nil
 	}
 

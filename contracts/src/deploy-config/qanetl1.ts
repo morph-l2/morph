@@ -31,6 +31,11 @@ const config = {
     submitterChallengeDeposit: 1, // 1 ether
     submitterMinimumStake: 1, // 1 ether
     submitterRewardPercentage: 50,
+    // L1Sequencer initialize config
+    // First single-mode sequencer, active from L2 block 0. Leave empty to skip
+    // setFirstSequencer; can also be overridden by the firstSequencerAddress env var.
+    firstSequencerAddress: '',
+
     // register sequencers
     l2SequencerAddresses: [
         "0x25d36d94b64165f72a817ae0ff9bad2ce6914c70",

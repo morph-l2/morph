@@ -1,5 +1,6 @@
 prover/
 .git/
+.claude/
 contracts/node_modules/
 gas-oracle/app/target/
 node/build/

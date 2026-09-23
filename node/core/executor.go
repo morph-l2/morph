@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	syncos "sync"
 
 	"github.com/morph-l2/go-ethereum/accounts/abi/bind"
@@ -475,7 +476,8 @@ func (e *Executor) ApplyBlockV2(block *l2node.BlockV2) (applied bool, err error)
 		}
 	}
 
-	if _, err := e.l2Client.NewL2BlockV2(context.Background(), execBlock); err != nil {
+	if _, err := e.l2Client.NewL2BlockV2(context.Background(), execBlock); err != nil &&
+		!strings.Contains(err.Error(), types.BlockAlreadyKnownError) {
 		e.logger.Error("failed to apply block v2",
 			"number", execBlock.Number,
 			"hash", execBlock.Hash.Hex(),

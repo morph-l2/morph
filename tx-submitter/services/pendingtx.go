@@ -210,7 +210,7 @@ func (pt *PendingTxs) GetPFinalize() uint64 {
 	return atomic.LoadUint64(&pt.pfinalize)
 }
 
-// ExistedIndex checks if a batch index exists
+// ExistedIndex checks if a commit-like tx for the batch index is already pending.
 func (pt *PendingTxs) ExistedIndex(index uint64) bool {
 	txs := pt.GetAll() // snapshot taken under RLock inside GetAll; caller does not hold the mutex
 	abi, err := bindings.RollupMetaData.GetAbi()
@@ -224,6 +224,26 @@ func (pt *PendingTxs) ExistedIndex(index uint64) bool {
 		if constants.IsCommitLikeMethod(utils.ParseMethod(tx, abi)) {
 			pindex := utils.ParseParentBatchIndex(tx.Data()) + 1
 			if index == pindex {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// ExistedFinalizeIndex reports whether a finalizeBatch tx for index is already pending.
+func (pt *PendingTxs) ExistedFinalizeIndex(index uint64) bool {
+	txs := pt.GetAll()
+	abi, err := bindings.RollupMetaData.GetAbi()
+	if err != nil {
+		log.Error("Failed to get ABI", "err", err)
+		return false
+	}
+
+	for i := len(txs) - 1; i >= 0; i-- {
+		tx := txs[i].Tx
+		if utils.ParseMethod(tx, abi) == constants.MethodFinalizeBatch {
+			if utils.ParseFBatchIndex(tx.Data()) == index {
 				return true
 			}
 		}
