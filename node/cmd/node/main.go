@@ -33,6 +33,7 @@ import (
 	"morph-l2/node/flags"
 	"morph-l2/node/hakeeper"
 	"morph-l2/node/l1sequencer"
+	"morph-l2/node/rpcfailover"
 	"morph-l2/node/sequencer"
 	"morph-l2/node/sequencer/mock"
 	"morph-l2/node/sync"
@@ -113,15 +114,21 @@ func L2NodeMain(ctx *cli.Context) error {
 	}
 
 	// ========== Shared L1 client ==========
-	// One ethclient.Dial per process — all L1-touching components (syncer,
-	// derivation, l1sequencer Tracker/Verifier/Signer, rollup binding) share
-	// the same connection pool, retry policy, and metrics surface. Adding a
-	// new consumer means injecting this client, not opening a new one.
+	// One dial per process — all L1-touching components (syncer, derivation,
+	// l1sequencer Tracker/Verifier/Signer, rollup binding) share the same
+	// connection pool, retry policy, and metrics surface. Adding a new consumer
+	// means injecting this client, not opening a new one.
+	//
+	// --l1.rpc accepts a comma-separated list of endpoints, primary first. When
+	// more than one is given, failover happens inside the HTTP transport, so
+	// every consumer below keeps receiving a plain *ethclient.Client. See
+	// node/rpcfailover for what does and does not count as endpoint failure —
+	// notably, it assumes the caller only reads, which holds here.
 	l1RPC := ctx.GlobalString(flags.L1NodeAddr.Name)
 	if l1RPC == "" {
 		return fmt.Errorf("%s is required", flags.L1NodeAddr.Name)
 	}
-	l1Client, err := ethclient.Dial(l1RPC)
+	l1Client, err := rpcfailover.Dial(context.Background(), "L1", l1RPC, nodeConfig.Logger)
 	if err != nil {
 		return fmt.Errorf("dial l1 node error: %v", err)
 	}
