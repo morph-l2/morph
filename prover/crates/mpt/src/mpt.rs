@@ -75,12 +75,8 @@ pub const KECCAK_EMPTY: B256 =
 /// This function is a thin wrapper around the Keccak256 hashing algorithm
 /// and is optimized for performance.
 ///
-/// # TODO
-/// - Consider switching the return type to `B256` for consistency with other parts of the codebase.
 #[inline]
 pub fn keccak(data: impl AsRef<[u8]>) -> [u8; 32] {
-    // TODO: Remove this benchmarking code once performance testing is complete.
-    // std::hint::black_box(sha2::Sha256::digest(&data));
     *alloy_primitives::utils::keccak256(data)
 }
 
