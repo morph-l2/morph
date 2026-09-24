@@ -5,21 +5,24 @@ use std::{
     time::Duration,
 };
 
-use crate::account_proof::{eip1186_proof_to_account_proof, EIP1186AccountProofResponseCompat};
 use alloy_consensus::{BlockHeader, Header};
-use alloy_primitives::{map::HashMap, StorageKey, U256};
-use alloy_provider::{network::BlockResponse, Network, Provider};
+use alloy_primitives::{StorageKey, U256, map::HashMap};
+use alloy_provider::{Network, Provider, network::BlockResponse};
 use alloy_rpc_types::BlockId;
 use async_trait::async_trait;
 use prover_mpt::EthereumState;
 use reth_storage_errors::{db::DatabaseError, provider::ProviderError};
-use revm::database::BundleState;
-use revm::database::DatabaseRef;
-use revm::primitives::{Address, B256, KECCAK_EMPTY};
-use revm::state::{AccountInfo, Bytecode};
+use revm::{
+    database::{BundleState, DatabaseRef},
+    primitives::{Address, B256, KECCAK_EMPTY},
+    state::{AccountInfo, Bytecode},
+};
 use tokio::time::sleep;
 
-use crate::error::RpcDbError;
+use crate::{
+    account_proof::{EIP1186AccountProofResponseCompat, eip1186_proof_to_account_proof},
+    error::RpcDbError,
+};
 
 /// A database that fetches data from a [Provider] over a [Transport].
 #[derive(Debug, Clone)]
@@ -67,7 +70,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
     pub async fn fetch_account_info(&self, address: Address) -> Result<AccountInfo, RpcDbError> {
         log::debug!("fetching account info for address: {}", address);
         if self.throttle_requests {
-            sleep(Duration::from_millis(50)).await;
+            sleep(Duration::from_millis(5)).await;
         }
 
         // Fetch the proof for the account.
@@ -92,6 +95,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
         let code_hash = if proof.code_hash == B256::ZERO { KECCAK_EMPTY } else { proof.code_hash };
 
         let account_info = AccountInfo {
+            account_id: None,
             nonce: proof.nonce,
             balance: proof.balance,
             code_hash,
@@ -114,7 +118,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
         block_number: u64,
     ) -> Result<alloy_rpc_types::EIP1186AccountProofResponse, RpcDbError> {
         if self.throttle_requests {
-            sleep(Duration::from_millis(50)).await;
+            sleep(Duration::from_millis(5)).await;
         }
         let compact_proof: EIP1186AccountProofResponseCompat = self
             .provider
@@ -136,7 +140,7 @@ impl<P: Provider<N> + Clone, N: Network> BasicRpcDb<P, N> {
     ) -> Result<U256, RpcDbError> {
         log::debug!("fetching storage value at address: {}, index: {}", address, index);
         if self.throttle_requests {
-            sleep(Duration::from_millis(50)).await;
+            sleep(Duration::from_millis(5)).await;
         }
 
         // Fetch the storage value.
@@ -188,11 +192,7 @@ impl<P: Provider<N> + Clone, N: Network> DatabaseRef for BasicRpcDb<P, N> {
 
         let account_info =
             result.map_err(|e| ProviderError::Database(DatabaseError::Other(e.to_string())))?;
-        if !account_info.exists() {
-            Ok(None)
-        } else {
-            Ok(Some(account_info))
-        }
+        if !account_info.exists() { Ok(None) } else { Ok(Some(account_info)) }
     }
 
     /// Get account code by its hash.
@@ -276,7 +276,7 @@ where
             let keys = used_keys
                 .iter()
                 .map(|key| B256::from(*key))
-                .chain(modified_keys.clone().into_iter())
+                .chain(modified_keys.clone())
                 .collect::<BTreeSet<_>>()
                 .into_iter()
                 .collect::<Vec<_>>();
@@ -343,6 +343,8 @@ where
                 excess_blob_gas: block.header().excess_blob_gas(),
                 parent_beacon_block_root: block.header().parent_beacon_block_root(),
                 requests_hash: block.header().requests_hash(),
+                block_access_list_hash: block.header().block_access_list_hash(),
+                slot_number: block.header().slot_number(),
             });
         }
 

@@ -3,9 +3,16 @@ version = "0.1.0"
 name = "bls12381-host"
 edition = "2021"
 
+[features]
+default = []
+sp1 = ["dep:sp1-sdk"]
 
 [dependencies]
-sp1-sdk = { workspace = true }
-hex = { workspace = true }
+sp1-sdk = { workspace = true, optional = true }
+alloy-primitives = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
+[[bin]]
+name = "bls12381-host"
+path = "src/main.rs"
+required-features = ["sp1"]

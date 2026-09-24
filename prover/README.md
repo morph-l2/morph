@@ -12,7 +12,7 @@ Generate zk proof for the l2 batch.
 SP1 v6 requires the 64-bit succinct toolchain. Install with:
 
 ```sh
-sp1up --version v6.2.0
+sp1up --version v6.8.0
 ```
 
 To build the program to risc-v bin:
@@ -24,7 +24,7 @@ cargo prove build
 or use docker(reproducible compilation):
 ```sh
 cd bin/client
-cargo prove build  --docker --tag v6.2.0
+cargo prove build  --docker --tag v6.8.0
 ```
 
 This will output the compiled ELF to the file client/elf/verifier-client.
@@ -51,9 +51,9 @@ To generate a PLONK proof that is small enough to be verified on-chain and verif
 
 ```sh
 // use network prover
-cargo run --release --package morph-prove --bin prove  -- --block-path ./testdata/mpt/mainnet_25215.json --prove
+cargo run --release --package morph-prove --bin prove  -- --block-path ./testdata/block_inputs/mainnet_25215.json --prove
 // use local cpu prover
-cargo run --release --features local --package morph-prove --bin prove  -- --block-path ./testdata/mpt/mainnet_25215.json --prove
+cargo run --release --features local --package morph-prove --bin prove  -- --block-path ./testdata/block_inputs/mainnet_25215.json --prove
 // prove specified block range
 cargo run --release --package morph-prove --bin prove  -- --start-block 0x35 --end-block 0x37 --rpc http://127.0.0.1:8545 --use-rpc-db --prove
 ```

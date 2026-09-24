@@ -1,15 +1,21 @@
-use alloy_primitives::{Address, FixedBytes, B256};
+use alloy_primitives::{Address, B256, FixedBytes};
 use prover_mpt::Error as MptError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
+    #[error("Failed to verify raw blob: {0}")]
+    VerifyRawError(#[source] anyhow::Error),
     #[error("Failed to recover senders from signatures")]
     SignatureRecoveryFailed,
     #[error("Block header state root error")]
     InvalidHeaderStateRoot,
+    #[error("ChainId not match")]
+    ChainIdNotMatch,
     #[error("Block state root error")]
     DiscontinuousStateRoot,
-    #[error("root_after in trace doesn't match with root_after in revm: block number = {block_num} root_trace = {root_trace}, root_revm = {root_revm}")]
+    #[error(
+        "root_after in trace doesn't match with root_after in revm: block number = {block_num} root_trace = {root_trace}, root_revm = {root_revm}"
+    )]
     MismatchedStateRoot {
         block_num: u64,
         /// Root after in trace
@@ -27,6 +33,8 @@ pub enum ClientError {
     MissingTrie(Address),
     #[error("Invalid block number found in headers \n expected: {} found: {}", .0, .1)]
     InvalidHeaderBlockNumber(u64, u64),
+    #[error("Invalid block timestamp for block: {}", .0)]
+    InvalidBlockTimestamp(u64),
     #[error("Invalid base fee found in header \n expected: {} found: {}", .0, .1)]
     InvalidHeaderBaseFee(u64, u64),
     #[error("Invalid parent header found for block \n expected: {}, found: {}", .0, .1)]
