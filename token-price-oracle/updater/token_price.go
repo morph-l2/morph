@@ -356,10 +356,15 @@ func (u *PriceUpdater) calculatePriceRatioWithInfo(tokenID uint16, tokenPrice *c
 	priceRatio.Mul(priceRatio, tokenScaleFloat)
 
 	// Step 3: Multiply by 10^(18 - tokenDecimals)
-	// ETH has 18 decimals, so we need to adjust for token decimals
-	decimalAdjustment := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(18-tokenDecimals)), nil)
-	decimalAdjustmentFloat := new(big.Float).SetInt(decimalAdjustment)
-	priceRatio.Mul(priceRatio, decimalAdjustmentFloat)
+	// ETH has 18 decimals, so we need to adjust for token decimals. tokenDecimals
+	// is uint8, so subtract as int64; big.Int.Exp yields 1 for a negative exponent,
+	// so tokens with more than 18 decimals divide by 10^(tokenDecimals-18) instead.
+	decimalExponent := int64(18) - int64(tokenDecimals)
+	if decimalExponent < 0 {
+		priceRatio.Quo(priceRatio, new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(-decimalExponent), nil)))
+	} else {
+		priceRatio.Mul(priceRatio, new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(decimalExponent), nil)))
+	}
 
 	// Step 4: Finally divide by ethPriceUSD
 	priceRatio.Quo(priceRatio, tokenPrice.EthPriceUSD)
