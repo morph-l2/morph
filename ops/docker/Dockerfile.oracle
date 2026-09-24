@@ -1,4 +1,4 @@
-FROM rust:1.88-slim as builder
+FROM rust:1.88-slim-bookworm AS builder
 
 RUN apt-get -qq update && apt-get -qq install -y --no-install-recommends \
     pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
@@ -8,7 +8,10 @@ COPY ./gas-oracle /gas-oracle
 WORKDIR /gas-oracle
 RUN cd app && cargo build --release
 
-FROM ubuntu:22.04 as app
+FROM debian:bookworm-slim AS app
+RUN apt-get -qq update \
+    && apt-get -qq install -y --no-install-recommends bash ca-certificates libssl3 \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /gas-oracle/app/target/release/app /
 
 CMD ["./app"]

@@ -6,6 +6,45 @@ import { task } from "hardhat/config";
 import { ethers } from "ethers";
 import { predeploys } from "../src/constants";
 
+// Capture both former Gov-controlled settings at one explicitly selected L2 block.
+// The submitter consumes the resulting values through its own runtime settings.
+export async function readBatchParameters(provider: ethers.providers.Provider, blockNumber: string) {
+    if (!/^(0|[1-9][0-9]*)$/.test(blockNumber)) {
+        throw new Error('block-number must be a nonnegative decimal integer');
+    }
+    const blockTag = ethers.utils.hexValue(ethers.BigNumber.from(blockNumber));
+    const block = await provider.getBlock(blockTag);
+    if (!block || !block.hash) throw new Error('Selected L2 block is unavailable');
+    const abi = new ethers.utils.Interface([
+        'function batchBlockInterval() view returns (uint256)',
+        'function batchTimeout() view returns (uint256)',
+    ]);
+    const names = ['batchBlockInterval', 'batchTimeout'];
+    const values = await Promise.all(names.map(async name => {
+        const result = await provider.call({ to: predeploys.Gov, data: abi.encodeFunctionData(name) }, blockTag);
+        const value = abi.decodeFunctionResult(name, result)[0] as ethers.BigNumber;
+        if (value.gt('18446744073709551615')) throw new Error(`${name} exceeds uint64`);
+        return value.toString();
+    }));
+    if (values.every(value => value === '0')) throw new Error('Both batch triggers are disabled');
+    const current = await provider.getBlock(blockTag);
+    if (!current || current.hash !== block.hash) throw new Error('Selected L2 block changed during reads; repeat the snapshot');
+    const network = await provider.getNetwork();
+    return {
+        l2ChainId: network.chainId,
+        l2BlockNumber: block.number,
+        l2BlockHash: block.hash,
+        batchBlockInterval: values[0],
+        batchTimeout: values[1],
+    };
+}
+
+task('read-batch-parameters', 'Read both batch parameters from a selected L2 block without sending transactions')
+    .addParam('blockNumber', 'L2 block number selected by the release operator')
+    .setAction(async (args, hre) => {
+        console.log(JSON.stringify(await readBatchParameters(hre.ethers.provider, args.blockNumber), null, 2));
+    });
+
 task("check-l2")
     .setAction(async (taskArgs, hre) => {
         let ContractAddresses = []
@@ -115,11 +154,9 @@ task("check-l2-status")
         owner = await govContract.owner()
         const votingDuration = await govContract.votingDuration()
         const batchBlockInterval = await govContract.batchBlockInterval()
-        const batchMaxBytes = await govContract.batchMaxBytes()
         const batchTimeout = await govContract.batchTimeout()
         const rollupEpoch = await govContract.rollupEpoch()
-        const maxChunks = await govContract.maxChunks()
-        console.log(`Gov params check \n owner ${owner} \n votingDuration ${votingDuration} \n batchMaxBytes ${batchMaxBytes} \n batchBlockInterval ${batchBlockInterval} \n batchTimeout ${batchTimeout} \n rollupEpoch ${rollupEpoch} \n maxChunks ${maxChunks}`)
+        console.log(`Gov predeploy state (not submitter runtime settings) \n owner ${owner} \n votingDuration ${votingDuration} \n batchBlockInterval ${batchBlockInterval} \n batchTimeout ${batchTimeout} \n rollupEpoch ${rollupEpoch}`)
         console.log('-----------------------------------\n')
 
         const ethgwFactory = await hre.ethers.getContractFactory('L2ETHGateway')

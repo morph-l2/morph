@@ -1,3 +1,4 @@
+import { getDeploymentProxy } from "../src/deployment-state";
 import "@nomiclabs/hardhat-web3";
 import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-waffle";
@@ -25,7 +26,7 @@ export const SequencerInit = async (
     const L1SequencerImplAddress = getContractAddressByName(path, ImplStorageName.L1SequencerStorageName)
     const L1SequencerFactory = await hre.ethers.getContractFactory(ContractFactoryName.L1Sequencer)
 
-    const IL1SequencerProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1SequencerProxyAddress, deployer)
+    const IL1SequencerProxy = await getDeploymentProxy(hre, path, L1SequencerProxyAddress, deployer)
     
     if (
         (await IL1SequencerProxy.implementation()).toLocaleLowerCase() !== L1SequencerImplAddress.toLocaleLowerCase()
@@ -104,7 +105,11 @@ export const SetFirstSequencer = async (
     }
 
     if ((await L1Sequencer.getSequencerHistoryLength()).gt(0)) {
-        console.log('First sequencer already set:', await L1Sequencer.getSequencer())
+        const existing = await L1Sequencer.getSequencerAt(0);
+        if (existing.toLowerCase() !== firstSequencer.toLowerCase()) {
+            throw new Error(`L1Sequencer sequencer ${existing} at block 0 does not match firstSequencerAddress`);
+        }
+        console.log('First sequencer already set:', existing)
         return ''
     }
 
