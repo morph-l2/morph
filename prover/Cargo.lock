@@ -4184,7 +4184,7 @@ checksum = "0ce92ff622d6dadf7349484f42c93271a0d49b7cc4d466a936405bacbe10aa78"
 dependencies = [
  "cfg-if 1.0.4",
  "rustix 1.1.4",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4498,8 +4498,8 @@ dependencies = [
  "libc",
  "log",
  "rustversion",
- "windows-link 0.2.1",
- "windows-result 0.4.1",
+ "windows-link 0.1.3",
+ "windows-result 0.3.4",
 ]
 
 [[package]]
@@ -5119,7 +5119,7 @@ dependencies = [
  "tokio",
  "tower-service",
  "tracing",
- "windows-registry 0.6.1",
+ "windows-registry 0.4.0",
 ]
 
 [[package]]
@@ -6423,7 +6423,7 @@ checksum = "1fafa6961cabd9c63bcd77a45d7e3b7f3b552b70417831fb0f56db717e72407e"
 [[package]]
 name = "morph-chainspec"
 version = "1.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix%2Fzkvm-reth-deps#d8faf017a66f4a45847776fef3b0c301f97bdcae"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix%2Fzkvm-reth-deps#2184da129e8dd0963c5a56e1d542e7fe049920f2"
 dependencies = [
  "alloy-chains",
  "alloy-consensus 2.4.1",
@@ -6461,7 +6461,7 @@ dependencies = [
 [[package]]
 name = "morph-evm"
 version = "1.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix%2Fzkvm-reth-deps#d8faf017a66f4a45847776fef3b0c301f97bdcae"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix%2Fzkvm-reth-deps#2184da129e8dd0963c5a56e1d542e7fe049920f2"
 dependencies = [
  "alloy-consensus 2.4.1",
  "alloy-evm",
@@ -6485,7 +6485,7 @@ dependencies = [
 [[package]]
 name = "morph-primitives"
 version = "1.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix%2Fzkvm-reth-deps#d8faf017a66f4a45847776fef3b0c301f97bdcae"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix%2Fzkvm-reth-deps#2184da129e8dd0963c5a56e1d542e7fe049920f2"
 dependencies = [
  "alloy-consensus 2.4.1",
  "alloy-eips 2.4.1",
@@ -6505,7 +6505,7 @@ dependencies = [
 [[package]]
 name = "morph-proofs"
 version = "1.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix%2Fzkvm-reth-deps#d8faf017a66f4a45847776fef3b0c301f97bdcae"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix%2Fzkvm-reth-deps#2184da129e8dd0963c5a56e1d542e7fe049920f2"
 dependencies = [
  "alloy-eips 2.4.1",
  "alloy-primitives",
@@ -6559,7 +6559,7 @@ dependencies = [
 [[package]]
 name = "morph-reference-index"
 version = "1.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix%2Fzkvm-reth-deps#d8faf017a66f4a45847776fef3b0c301f97bdcae"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix%2Fzkvm-reth-deps#2184da129e8dd0963c5a56e1d542e7fe049920f2"
 dependencies = [
  "alloy-consensus 2.4.1",
  "alloy-primitives",
@@ -6587,7 +6587,7 @@ dependencies = [
 [[package]]
 name = "morph-revm"
 version = "1.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix%2Fzkvm-reth-deps#d8faf017a66f4a45847776fef3b0c301f97bdcae"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix%2Fzkvm-reth-deps#2184da129e8dd0963c5a56e1d542e7fe049920f2"
 dependencies = [
  "alloy-consensus 2.4.1",
  "alloy-eips 2.4.1",
@@ -6609,7 +6609,7 @@ dependencies = [
 [[package]]
 name = "morph-rpc"
 version = "1.3.0"
-source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix%2Fzkvm-reth-deps#d8faf017a66f4a45847776fef3b0c301f97bdcae"
+source = "git+https://github.com/morph-l2/morph-reth.git?branch=fix%2Fzkvm-reth-deps#2184da129e8dd0963c5a56e1d542e7fe049920f2"
 dependencies = [
  "alloy-consensus 2.4.1",
  "alloy-eips 2.4.1",
@@ -8490,7 +8490,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.1",
  "rustls",
- "socket2 0.6.4",
+ "socket2 0.5.7",
  "thiserror 2.0.17",
  "tokio",
  "tracing",
@@ -8528,7 +8528,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.6.4",
+ "socket2 0.5.7",
  "tracing",
  "windows-sys 0.60.2",
 ]
@@ -15198,7 +15198,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
