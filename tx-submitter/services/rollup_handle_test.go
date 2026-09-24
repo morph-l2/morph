@@ -15,6 +15,7 @@ import (
 
 	"morph-l2/bindings/bindings"
 	"morph-l2/common/batch"
+	"morph-l2/tx-submitter/constants"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/mock"
@@ -175,6 +176,43 @@ func TestHandleDiscardedTx(t *testing.T) {
 	err = r.handleDiscardedTx(txRecord, tx, "commitBatch")
 	require.NoError(t, err)
 	require.Equal(t, 1, len(r.pendingTxs.GetAll()), "New transaction should be added to pending pool")
+}
+
+func TestHandleDiscardedTxRollupDoesNotReplaceWithTransfer(t *testing.T) {
+	r, l1Mock, _, _ := setupTestRollup(t)
+
+	batchInput := bindings.IRollupBatchDataInput{
+		Version:           1,
+		ParentBatchHeader: make([]byte, 9),
+		LastBlockNumber:   10,
+	}
+	calldata, err := r.abi.Pack("commitBatch", batchInput)
+	require.NoError(t, err)
+
+	tx := ethtypes.NewTx(&ethtypes.DynamicFeeTx{
+		ChainID:   r.chainId,
+		Nonce:     3,
+		GasTipCap: big.NewInt(1e9),
+		GasFeeCap: big.NewInt(2e9),
+		Gas:       100_000,
+		To:        &r.rollupAddr,
+		Data:      calldata,
+	})
+	txRecord := &types.TxRecord{
+		Tx:         tx,
+		SendTime:   uint64(time.Now().Unix()),
+		QueryTimes: 5,
+	}
+	require.NoError(t, r.pendingTxs.Add(tx))
+
+	l1Mock.SendTxErr = errors.New("send failed")
+	err = r.handleDiscardedTx(txRecord, tx, constants.MethodCommitBatch)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to recover discarded rollup tx")
+
+	pending := r.pendingTxs.GetAll()
+	require.Len(t, pending, 1, "original rollup tx must remain tracked when recovery fails")
+	require.NotEmpty(t, pending[0].Tx.Data(), "rollup calldata must not be replaced by an empty transfer")
 }
 
 // TestHandleReorg tests the handling of chain reorganizations
