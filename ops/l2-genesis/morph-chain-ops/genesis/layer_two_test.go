@@ -14,6 +14,7 @@ import (
 func Test_BuildL2DeveloperGenesis(t *testing.T) {
 	address1 := common.BigToAddress(common.Big1)
 	startTime := uint64((time.Now().Unix()/86400 + 1) * 86400)
+	celadonTime := uint64(0)
 	config := &DeployConfig{
 		L1ChainID: 900,
 		L2ChainID: 53077,
@@ -69,11 +70,14 @@ func Test_BuildL2DeveloperGenesis(t *testing.T) {
 		//MorphTokenDailyInflationRate: 1,
 
 		FundDevAccounts: true,
+		CeladonTime:     &celadonTime,
 	}
 	curHeader := &types.Header{}
 	curHeader.BaseFee = new(big.Int).SetUint64(1)
 	l2Genesis, _, err := BuildL2DeveloperGenesis(config, nil, curHeader)
 	require.NoError(t, err)
+	require.Equal(t, &celadonTime, l2Genesis.Config.CeladonTime)
+	require.True(t, l2Genesis.Config.IsCeladon(l2Genesis.Timestamp))
 
 	l2GenesisBlock := l2Genesis.ToBlock(nil)
 	genesisBatchHeaderBytes, err := GenesisBatchHeader(l2GenesisBlock.Header())
