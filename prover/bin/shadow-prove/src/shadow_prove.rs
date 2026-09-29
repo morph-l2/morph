@@ -245,14 +245,15 @@ where
                     continue;
                 }
             };
-            let receipt = match pending_tx.get_receipt().await {
-                Ok(r) => r,
-                Err(e) => {
-                    log::error!("get_receipt error: {:#?}", e);
-                    METRICS.shadow_verify_result.set(2);
-                    continue;
-                }
-            };
+            let receipt =
+                match pending_tx.with_timeout(Some(Duration::from_secs(120))).get_receipt().await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        log::error!("get_receipt error: {:#?}", e);
+                        METRICS.shadow_verify_result.set(2);
+                        continue;
+                    }
+                };
             if receipt.status() {
                 log::info!("tx of prove_state success, tx hash: {:?}", receipt.transaction_hash());
                 METRICS.shadow_verify_result.set(1);

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use alloy_consensus::Transaction;
 use alloy_network::{Network, ReceiptResponse};
 use alloy_primitives::{Address, B256, Bytes, Keccak256, TxHash, U64, U256, hex};
@@ -371,8 +373,11 @@ where
                 return Ok(None);
             }
         };
-        let receipt =
-            pending_tx.get_receipt().await.map_err(|e| anyhow!("get receipt error: {e}"))?;
+        let receipt = pending_tx
+            .with_timeout(Some(Duration::from_secs(120)))
+            .get_receipt()
+            .await
+            .map_err(|e| anyhow!("get receipt error: {e}"))?;
         if !receipt.status() {
             log::error!("shadow_rollup.commit_batch check_receipt fail");
             return Ok(None);
