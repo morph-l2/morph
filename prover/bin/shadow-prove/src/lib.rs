@@ -21,8 +21,22 @@ pub struct BatchInfo {
 }
 pub static SHADOW_EXECUTE: Lazy<bool> = Lazy::new(|| read_env_var("SHADOW_PROVING_EXECUTE", true));
 
-pub static SHADOW_EXECUTE_USE_RPC_DB: Lazy<bool> =
-    Lazy::new(|| read_env_var("SHADOW_PROVING_EXECUTE_USE_RPC_DB", true));
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShadowExecuteMode {
+    Rpc = 0,
+    Witness = 1,
+    Both = 2,
+}
+
+/// `SHADOW_PROVING_EXECUTE_MODE`: 0 = RPC (default), 1 = witness, 2 = both.
+pub static SHADOW_EXECUTE_MODE: Lazy<ShadowExecuteMode> = Lazy::new(|| {
+    match read_env_var("SHADOW_PROVING_EXECUTE_MODE", 0_u64) {
+        0 => ShadowExecuteMode::Rpc,
+        1 => ShadowExecuteMode::Witness,
+        2 => ShadowExecuteMode::Both,
+        mode => panic!("Invalid SHADOW_PROVING_EXECUTE_MODE={mode}: expected 0, 1, or 2"),
+    }
+});
 
 pub static SHADOW_PROVING_MAX_BLOCK: Lazy<u64> =
     Lazy::new(|| read_env_var("SHADOW_PROVING_MAX_BLOCK", 600));

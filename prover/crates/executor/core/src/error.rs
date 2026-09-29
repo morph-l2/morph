@@ -1,8 +1,9 @@
+use std::convert::Infallible;
+
 use revm::{
     context::result::EVMError,
-    primitives::{alloy_primitives::SignatureError, B256},
+    primitives::{B256, alloy_primitives::SignatureError},
 };
-use std::convert::Infallible;
 
 /// Error variants encountered during manipulation of a zkTrie.
 #[derive(Debug, thiserror::Error)]
@@ -44,7 +45,9 @@ pub enum VerificationError {
         source: EVMError<Infallible>,
     },
     /// Root mismatch error
-    #[error("root_after in trace doesn't match with root_after in revm: root_trace={root_trace}, root_revm={root_revm}")]
+    #[error(
+        "root_after in trace doesn't match with root_after in revm: root_trace={root_trace}, root_revm={root_revm}"
+    )]
     RootMismatch {
         /// Root after in trace
         root_trace: B256,

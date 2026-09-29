@@ -1,7 +1,9 @@
 [package]
-version = "0.1.0"
 name = "morph-prove"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
 default-run = "prove"
 
 [[bin]]
@@ -26,6 +28,7 @@ once_cell = { workspace = true }
 alloy = { workspace = true }
 dotenv = { workspace = true }
 alloy-provider = { workspace = true }
+alloy-primitives = { workspace = true }
 
 # workspace
 prover-executor-host = { workspace = true }

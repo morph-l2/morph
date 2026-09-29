@@ -1,8 +1,7 @@
-use alloy_primitives::{Address, Bytes, B256, U256, U64};
-use alloy_rpc_types::EIP1186AccountProofResponse;
-use alloy_rpc_types::EIP1186StorageProof;
+use alloy_primitives::{Address, B256, Bytes, U64, U256};
+use alloy_rpc_types::{EIP1186AccountProofResponse, EIP1186StorageProof};
 use reth_primitives_traits::Account;
-use reth_trie::{AccountProof, StorageProof, EMPTY_ROOT_HASH};
+use reth_trie::{AccountProof, EMPTY_ROOT_HASH, StorageProof};
 
 /// Converts an [EIP1186AccountProofResponse] to an [AccountProof].
 pub fn eip1186_proof_to_account_proof(proof: EIP1186AccountProofResponse) -> AccountProof {

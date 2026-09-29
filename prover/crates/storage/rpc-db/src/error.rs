@@ -23,4 +23,8 @@ pub enum RpcDbError {
     PreimageNotFound,
     #[error("poisoned lock")]
     Poisoned,
+    #[error("trie witness error: {0}")]
+    TrieWitnessError(String),
+    #[error("failed to decode RLP header in witness: {0}")]
+    HeaderDecodeError(alloy_rlp::Error),
 }

@@ -82,7 +82,11 @@ impl ChallengeHandler {
         let ext_signer = if use_ext_sign {
             log::info!("Challenge handler will use remote signer");
             let handler_appid: String = read_parse_env("HANDLER_EXTERNAL_SIGN_APPID");
-            let privkey_pem: String = read_parse_env("HANDLER_EXTERNAL_SIGN_RSA_PRIV");
+            // remote-signer-client expects an unwrapped Base64 PKCS#8 key and rejects CR/LF in the input.
+            let privkey_pem = read_parse_env::<String>("SEQUENCER_EXTERNAL_SIGN_RSA_PRIV")
+                .chars()
+                .filter(|c| !c.is_ascii_whitespace())
+                .collect::<String>();            
             let sign_address: String = read_parse_env("HANDLER_EXTERNAL_SIGN_ADDRESS");
             let sign_chain: String = read_parse_env("HANDLER_EXTERNAL_SIGN_CHAIN");
             let sign_url: String = read_parse_env("HANDLER_EXTERNAL_SIGN_URL");

@@ -16,7 +16,7 @@ forge build
 
 EvmVerifier:
 ```
-forge create --broadcast --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --rpc-url http://localhost:8545 src/libs/EvmVerifier.sol:EvmVerifier --constructor-args 0x00b450ec2a1b8dfba81ade90afbcc96842055548b814c991bb13bdca34980c63
+forge create --broadcast --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --rpc-url http://localhost:8545 src/libs/EvmVerifier.sol:EvmVerifier --constructor-args 0x00b46e183e57fa25a27cccc32954b684c867d79871586598d3fd66ed8196b354
 ```
 
 ShadowRollup

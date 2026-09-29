@@ -1,4 +1,3 @@
-use crate::{BatchInfo, SHADOW_EXECUTE_USE_RPC_DB};
 use alloy_primitives::B256;
 use alloy_provider::DynProvider;
 use anyhow::Context;
@@ -7,13 +6,13 @@ use prover_executor_client::{
     verify,
 };
 use prover_executor_host::{
-    blob::{get_blob_infos_from_blocks, get_blob_infos_from_traces},
+    blob::get_blob_infos_from_blocks,
     execute::HostExecutor,
-    trace::trace_to_input,
-    utils::{assemble_block_input, query_block, HostExecutorOutput},
+    utils::{HostExecutorOutput, assemble_block_input},
 };
-use prover_utils::provider::get_block_traces;
 use serde::{Deserialize, Serialize};
+
+use crate::{BatchInfo, SHADOW_EXECUTE_MODE, ShadowExecuteMode};
 
 #[derive(Serialize)]
 pub struct ExecuteRequest {
@@ -29,62 +28,87 @@ pub struct ExecuteResult {
     pub error_code: String,
 }
 
-/// Execute a single block.
-pub async fn execute(
+/// Execute a single block using per-account `eth_getProof` RPC calls.
+pub async fn execute_with_basic_rpc(
     block_number: u64,
     provider: &DynProvider,
 ) -> Result<BlockInput, anyhow::Error> {
-    let output: HostExecutorOutput = HostExecutor::execute_block(block_number, provider).await?;
+    let output: HostExecutorOutput =
+        HostExecutor::execute_block_with_basic_rpc(block_number, provider).await?;
 
-    let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
-    let block_input = assemble_block_input(output, prev_block);
+    // let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
+    let block_input = assemble_block_input(output);
+    Ok(block_input)
+}
+
+/// Execute a single block using a single `debug_executionWitness` RPC call.
+pub async fn execute_with_witness(
+    block_number: u64,
+    provider: &DynProvider,
+) -> Result<BlockInput, anyhow::Error> {
+    let output: HostExecutorOutput =
+        HostExecutor::execute_block_with_witness(block_number, provider).await?;
+
+    // let prev_block = query_block(block_number.saturating_sub(1), provider).await?;
+    let block_input = assemble_block_input(output);
     Ok(block_input)
 }
 
 pub async fn try_execute_batch(
     batch: &BatchInfo,
     provider: &DynProvider,
-    batch_version: u8,
+    _batch_version: u8,
 ) -> Result<B256, anyhow::Error> {
-    let client_input = if *SHADOW_EXECUTE_USE_RPC_DB {
-        let start_block = batch.start_block;
-        let end_block = batch.end_block;
-        let provider = provider.clone();
-        let blocks_inputs = tokio::task::spawn_blocking(move || {
-            let runtime = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .context("Failed to build tokio runtime for shadow exec host")?;
-            runtime.block_on(async { execute_host_range(start_block, end_block, &provider).await })
+    let start_block = batch.start_block;
+    let end_block = batch.end_block;
+    let provider = provider.clone();
+    tokio::task::spawn_blocking(move || {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .context("Failed to build tokio runtime for shadow exec host")?;
+        runtime.block_on(async {
+            let execute = async |mode| {
+                let block_inputs = match mode {
+                    ShadowExecuteMode::Rpc => {
+                        execute_range_basic_rpc(start_block, end_block, &provider).await?
+                    }
+                    ShadowExecuteMode::Witness => {
+                        execute_range_with_witness(start_block, end_block, &provider).await?
+                    }
+                    ShadowExecuteMode::Both => unreachable!("execute one mode at a time"),
+                };
+                let blob_infos = get_blob_infos_from_blocks(
+                    &block_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
+                )?;
+                verify(ExecutorInput { block_inputs, blob_infos })
+                    .with_context(|| format!("native execution failed ({mode:?})"))
+            };
+
+            log::info!("Shadow execute mode: {:?}", *SHADOW_EXECUTE_MODE);
+            match *SHADOW_EXECUTE_MODE {
+                ShadowExecuteMode::Both => {
+                    // Run both paths even if the first returns an error.
+                    let rpc_result = execute(ShadowExecuteMode::Rpc).await;
+                    let witness_result = execute(ShadowExecuteMode::Witness).await;
+                    let rpc_hash = rpc_result.context("basic RPC execution failed")?;
+                    let witness_hash = witness_result.context("witness execution failed")?;
+                    anyhow::ensure!(
+                        rpc_hash == witness_hash,
+                        "RPC and witness execution results differ: rpc={rpc_hash}, witness={witness_hash}"
+                    );
+                    Ok(rpc_hash)
+                }
+                mode => execute(mode).await,
+            }
         })
-        .await
-        .context("spawn_blocking failed")??;
-
-        ExecutorInput {
-            block_inputs: blocks_inputs.clone(),
-            blob_infos: get_blob_infos_from_blocks(
-                &blocks_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
-            )?,
-            batch_version,
-        }
-    } else {
-        // Use sequencer's trace rpc.
-        let traces =
-            &mut get_block_traces(batch.batch_index, batch.start_block, batch.end_block, provider)
-                .await?;
-        let blocks_inputs = traces.iter().map(trace_to_input).collect::<Vec<_>>();
-        ExecutorInput {
-            block_inputs: blocks_inputs,
-            blob_infos: get_blob_infos_from_traces(traces)?,
-            batch_version,
-        }
-    };
-
-    verify(client_input.clone()).context("native execution failed")
+    })
+    .await
+    .context("spawn_blocking failed")?
 }
 
-/// Execute a range of blocks (inclusive).
-pub async fn execute_host_range(
+/// Execute a range of blocks (inclusive) using per-account `eth_getProof` RPC calls.
+pub async fn execute_range_basic_rpc(
     start_block: u64,
     end_block: u64,
     provider: &DynProvider,
@@ -92,7 +116,22 @@ pub async fn execute_host_range(
     log::info!("Executing blocks from {} to {} using host execution", start_block, end_block);
     let mut block_inputs = Vec::new();
     for block_number in start_block..=end_block {
-        let block_input = execute(block_number, provider).await?;
+        let block_input = execute_with_basic_rpc(block_number, provider).await?;
+        block_inputs.push(block_input);
+    }
+    Ok(block_inputs)
+}
+
+/// Execute a range of blocks (inclusive) using `debug_executionWitness` RPC calls.
+pub async fn execute_range_with_witness(
+    start_block: u64,
+    end_block: u64,
+    provider: &DynProvider,
+) -> Result<Vec<BlockInput>, anyhow::Error> {
+    log::info!("Executing blocks from {} to {} using witness execution", start_block, end_block);
+    let mut block_inputs = Vec::new();
+    for block_number in start_block..=end_block {
+        let block_input = execute_with_witness(block_number, provider).await?;
         block_inputs.push(block_input);
     }
     Ok(block_inputs)
@@ -107,19 +146,22 @@ mod tests {
         vec,
     };
 
-    use alloy_primitives::{hex, Address, B256};
+    use alloy_consensus::BlockHeader;
+    use alloy_primitives::{Address, B256, hex};
     use alloy_provider::{Provider, ProviderBuilder};
-    use prover_executor_client::{types::input::BlockInput, EVMVerifier};
-    use prover_executor_host::{
-        trace::trace_to_input,
-        utils::{assemble_block_input, query_block, HostExecutorOutput, ProverBlock},
+    use morph_primitives::MorphHeader;
+    use prover_executor_client::{EVMVerifier, types::input::BlockInput};
+    use prover_executor_host::utils::{
+        HostExecutorOutput, assemble_block_input, query_morph_rpc_block,
     };
-    use prover_primitives::types::BlockTrace;
-    use prover_utils::provider::get_block_trace;
+    use prover_utils::witness::{load_inputs, resolve_block_input_files};
 
     use crate::{
-        execute::{execute, execute_host_range, test_args, try_execute_batch},
         BatchInfo,
+        execute::{
+            execute_range_basic_rpc, execute_range_with_witness, execute_with_basic_rpc, test_args,
+            try_execute_batch,
+        },
     };
 
     // cargo test -p shadow-proving --lib -- execute::tests::test_execute_range --exact --nocapture -- --start-block 0x35 --end-block 0x36 --rpc http://127.0.0.1:9545
@@ -132,22 +174,37 @@ mod tests {
 
         let rt = tokio::runtime::Runtime::new().unwrap();
         let block_inputs =
-            rt.block_on(execute_host_range(start_block, end_block, &provider)).unwrap();
+            rt.block_on(execute_range_basic_rpc(start_block, end_block, &provider)).unwrap();
         let _batch_info = EVMVerifier::verify(block_inputs).unwrap();
     }
 
-    // cargo test -p shadow-proving --lib -- execute::tests::test_execute_block --exact --nocapture -- --block-number 19997 --rpc http://127.0.0.1:9545
+    // cargo test -p shadow-proving --lib -- execute::tests::test_execute_range_with_witness --exact --nocapture -- --start-block 0x35 --end-block 0x36 --rpc http://127.0.0.1:9545
+    #[test]
+    fn test_execute_range_with_witness() {
+        env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
+
+        let (start_block, end_block, rpc) = test_args::read_execute_range_args_from_argv();
+        let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let block_inputs =
+            rt.block_on(execute_range_with_witness(start_block, end_block, &provider)).unwrap();
+        log::info!("Executing blocks from {} to {} using client execution", start_block, end_block);
+        let _batch_info = EVMVerifier::verify(block_inputs).unwrap();
+    }
+
+    // cargo test -p shadow-proving --lib -- execute::tests::test_execute_save_block --exact --nocapture -- --block-number 19997 --rpc http://127.0.0.1:9545
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_execute_block() {
+    async fn test_execute_save_block() {
         env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
 
         let (start_block, rpc) = test_args::read_block_number_args_from_argv();
         let provider = ProviderBuilder::new().connect_http(rpc.parse().unwrap()).erased();
-        let block_input = execute(start_block, &provider).await.unwrap();
+        let block_input = execute_with_basic_rpc(start_block, &provider).await.unwrap();
         let _ = EVMVerifier::verify(vec![block_input.clone()]).unwrap();
-        let input_path = format!("../../testdata/state/block_{}.data", start_block);
+        let input_path = format!("../../testdata/state/block_{}.json", start_block);
         let file = File::create(&input_path).unwrap();
-        serde_json::to_writer(file, &block_input).unwrap();
+        serde_json::to_writer(file, &vec![block_input]).unwrap();
         println!("Saved executor input to {input_path}");
     }
 
@@ -170,41 +227,18 @@ mod tests {
 
         handle.await.unwrap();
     }
-    #[tokio::test]
-    async fn test_execute_remote() {
-        env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
-        let provider =
-            ProviderBuilder::new().connect_http("http://127.0.0.1:9545".parse().unwrap()).erased();
-
-        let block_trace = get_block_trace::<BlockTrace>(53, &provider).await.unwrap();
-        println!("loaded block_{} traces", block_trace.header.number);
-        let block_input: BlockInput = trace_to_input(&block_trace);
-
-        let batch_info = EVMVerifier::verify(vec![block_input]).unwrap();
-        println!("batch_info.post_state_root: {:?}", batch_info.post_state_root);
-    }
 
     // cargo test --package shadow-proving --lib -- execute::tests::test_execute_local --exact --nocapture
     #[tokio::test]
     async fn test_execute_local() {
         env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
-        let dir = "../../testdata/state";
-        let mut entries: Vec<_> = std::fs::read_dir(dir)
-            .unwrap_or_else(|e| panic!("Failed to read dir {dir}: {e}"))
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("data"))
-            .collect();
-        entries.sort_by_key(|e| e.path());
-        for entry in entries {
-            let path = entry.path();
-            println!("Processing {:?}", path);
-            let file = std::fs::File::open(&path)
-                .unwrap_or_else(|e| panic!("Failed to open {:?}: {e}", path));
-            let reader = std::io::BufReader::new(file);
-            let block_input: BlockInput = serde_json::from_reader(reader)
-                .unwrap_or_else(|e| panic!("Failed to deserialize {:?}: {e}", path));
-            let _ = EVMVerifier::verify(vec![block_input.clone()]).unwrap();
-            println!("block_{:?} verify success", block_input.current_block.header.number);
+        let paths = resolve_block_input_files(&[]);
+        assert!(!paths.is_empty(), "No block input files found");
+        for path in paths {
+            let block_inputs: Vec<BlockInput> = load_inputs(path.to_str().unwrap());
+            let block_num = block_inputs[0].current_block.number();
+            let _ = EVMVerifier::verify(block_inputs).unwrap();
+            println!("block_{:?} verify success", block_num);
         }
     }
 
@@ -215,29 +249,31 @@ mod tests {
             .connect_http("https://rpc-quicknode.morphl2.io".parse().unwrap())
             .erased();
         let mut inputs = vec![];
-        let mut prev_block: Option<ProverBlock> = None;
         for block_number in 20430946u64..20431546u64 {
-            if prev_block.is_none() {
-                prev_block =
-                    Some(query_block(block_number.saturating_sub(1), &provider).await.unwrap());
-            }
-            let current_block = query_block(block_number, &provider).await.unwrap();
+            let current_block = query_morph_rpc_block(block_number, &provider).await.unwrap();
             println!(
                 "fetched block {}, next_l1_msg_index: {}",
                 block_number, current_block.header.next_l1_msg_index
             );
+            let morph_block: alloy_consensus::Block<
+                morph_primitives::MorphTxEnvelope,
+                MorphHeader,
+            > = current_block
+                .into_consensus_block()
+                .map_header(|header| header.into_consensus())
+                .map_transactions(|tx| tx.into_inner());
+
             let output: HostExecutorOutput = HostExecutorOutput {
                 chain_id: 2818,
                 beneficiary: Address::default(),
-                block: current_block.clone(),
+                block: morph_block.clone(),
                 state: Default::default(),
                 codes: Default::default(),
                 prev_state_root: Default::default(),
                 post_state_root: Default::default(),
             };
-            let block_input = assemble_block_input(output, prev_block.unwrap());
+            let block_input = assemble_block_input(output);
             inputs.push(block_input);
-            prev_block = Some(current_block);
         }
 
         let path = Path::new("proof/shadow_input.json");
@@ -249,10 +285,10 @@ mod tests {
         println!("Saved executor input to proof/shadow_input.json");
 
         let batch_info = prover_executor_client::types::batch::BatchInfo::from_block_inputs(
+            B256::default(),
             &inputs,
-            B256::default(),
-            B256::default(),
-        );
+        )
+        .unwrap();
         println!("batch_info: {batch_info:?}");
         println!("batch_info.data_hash: {:?}", hex::encode_prefixed(batch_info.data_hash()));
     }
@@ -264,10 +300,10 @@ mod tests {
         let reader = BufReader::new(file);
         let inputs: Vec<BlockInput> = serde_json::from_reader(reader).unwrap();
         let batch_info = prover_executor_client::types::batch::BatchInfo::from_block_inputs(
+            B256::default(),
             &inputs,
-            B256::default(),
-            B256::default(),
-        );
+        )
+        .unwrap();
         println!("batch_info: {batch_info:?}");
         println!("batch_info.data_hash: {:?}", hex::encode_prefixed(batch_info.data_hash()));
     }
