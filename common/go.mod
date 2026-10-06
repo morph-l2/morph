@@ -2,7 +2,7 @@ module morph-l2/common
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.9
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.9-hotfix-bitarray-oob.1
 
 require (
 	github.com/holiman/uint256 v1.2.4

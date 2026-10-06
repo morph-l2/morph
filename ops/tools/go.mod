@@ -2,7 +2,7 @@ module morph-l2/tools
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.9
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.9-hotfix-bitarray-oob.1
 
 require (
 	github.com/morph-l2/go-ethereum v1.10.14-0.20260824023452-5744b8f66ec4
