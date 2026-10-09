@@ -7,7 +7,6 @@ import (
 	"github.com/urfave/cli"
 
 	"morph-l2/morph-deployer/cmd/genesis"
-	"morph-l2/morph-deployer/flags"
 	oplog "morph-l2/morph-deployer/log"
 	"morph-l2/morph-deployer/version"
 )
@@ -21,7 +20,11 @@ var (
 var VersionWithMeta = func() string {
 	v := version.Version
 	if GitCommit != "" {
-		v += "-" + GitCommit[:8]
+		commit := GitCommit
+		if len(commit) > 8 {
+			commit = commit[:8]
+		}
+		v += "-" + commit
 	}
 	if GitDate != "" {
 		v += "-" + GitDate
@@ -39,11 +42,10 @@ func main() {
 
 	app := cli.NewApp()
 	app.Version = VersionWithMeta
-	app.Flags = flags.Flags
-	app.Name = "op-node"
-	app.Usage = "Optimism Rollup Node"
-	app.Description = "The Optimism Rollup Node derives L2 block inputs from L1 data and drives an external L2 Execution Engine to build a L2 chain."
-	//app.Action = RollupNodeMain
+	app.Flags = oplog.CLIFlags("MORPH_GENESIS")
+	app.Name = "morph-genesis"
+	app.Usage = "Generate Morph L2 genesis artifacts"
+	app.Description = "Create L2 genesis and rollup configuration from confirmed L1 deployment records."
 	app.Commands = []cli.Command{
 		{
 			Name:        "genesis",

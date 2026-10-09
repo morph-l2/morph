@@ -1,10 +1,8 @@
-version: '3.8'
-
 services:
-  holesky-geth: 
+  holesky-geth:
     container_name: morph-geth-holesky
     image: morph/geth-nccc:latest
-    build: 
+    build:
       context: ../..
       dockerfile: ops/publicnode/Dockerfile.geth-nccc
     restart: unless-stopped
@@ -13,14 +11,17 @@ services:
       - "8546:8546"
       - "8551"
       - "6060"
-      - "30303"
+      - "30303:30303"
+      - "30303:30303/udp"
+    environment:
+      - GETH_NETWORK_ID=${GETH_NETWORK_ID:-}
     volumes:
       - "${GETH_DATA_DIR}:/db"
-      - "${JWT_SECRET_FILE}:/jwt-secret.txt"
-      - "${GETH_ENTRYPOINT_FILE}:/entrypoint.sh"
+      - "${JWT_SECRET_FILE}:/jwt-secret.txt:ro"
+      - "${GETH_ENTRYPOINT_FILE}:/entrypoint.sh:ro"
     entrypoint:
       - "/bin/sh"
-      - "/entrypoint.sh"  
+      - "/entrypoint.sh"
 
   holesky-node:
     container_name: morph-node-holesky
@@ -33,7 +34,7 @@ services:
       dockerfile: ops/publicnode/Dockerfile.node
     restart: unless-stopped
     ports:
-      - "26656"
+      - "26656:26656"
       - "26657"
       - "26658"
       - "26660"
@@ -41,13 +42,16 @@ services:
       - MORPH_NODE_L2_ETH_RPC=http://morph-geth-holesky:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://morph-geth-holesky:8551
       - MORPH_NODE_L2_ENGINE_AUTH=/jwt-secret.txt
+      - MORPH_NODE_L1_ETH_RPC=${MORPH_NODE_L1_ETH_RPC:-}
+      - MORPH_NODE_L1_ETH_BEACON_RPC=${MORPH_NODE_L1_ETH_BEACON_RPC:-}
+      - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=${MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS:-}
+      - MORPH_NODE_L1_SEQUENCER_CONTRACT=${MORPH_NODE_L1_SEQUENCER_CONTRACT:-}
+      - MORPH_NODE_ROLLUP_ADDRESS=${MORPH_NODE_ROLLUP_ADDRESS:-}
+      - MORPH_NODE_SEQUENCER_UPGRADE_TIME=${MORPH_NODE_SEQUENCER_UPGRADE_TIME:-}
     volumes:
       - "${NODE_DATA_DIR}:/db"
-      - "${JWT_SECRET_FILE}:/jwt-secret.txt"
+      - "${JWT_SECRET_FILE}:/jwt-secret.txt:ro"
     command: >
       morphnode
       --home /db
-      --log.filename /node.log
-
-
-
+      --log.filename /db/node.log

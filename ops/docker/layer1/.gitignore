@@ -3,3 +3,5 @@ keystores/
 configs/
 jwt/
 
+genesis-attempt.*/
+.genesis.lock/

@@ -1,27 +1,34 @@
+LAYER1_DOCKER_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+DEVNET_RUNTIME_ENV ?= /dev/null
+LAYER1_COMPOSE = docker compose --env-file "$(DEVNET_RUNTIME_ENV)" -f "$(LAYER1_DOCKER_DIR)/docker-compose-devnet.yml"
+LAYER1_SERVICES := layer1-el layer1-cl layer1-vc
+
 .PHONY: help generate start stop restart logs clean
 
 help:
-	@echo "Available commands:"
-	@echo "  make generate  - Generate genesis data and keystores"
-	@echo "  make start     - Start network"
-	@echo "  make stop      - Stop network"
-	@echo "  make restart   - Restart network"
-	@echo "  make logs      - View logs"
-	@echo "  make clean     - Clean all generated data and reset to initial state"
+	@echo "Use make -f ops/docker/Makefile.layer1 <command> from the repository root:"
+	@echo "  generate  - Generate L1 genesis using the checked-in validator keys"
+	@echo "  start     - Start L1 and wait for its first block"
+	@echo "  stop      - Stop only the L1 services"
+	@echo "  restart   - Stop and restart the L1 services"
+	@echo "  logs      - Follow L1 service logs"
+	@echo "  clean     - Remove this project's L1 data; preserve L2 data and key inputs"
 
 generate:
-	@./layer1/scripts/generate-genesis.sh
+	@"$(LAYER1_DOCKER_DIR)/layer1/scripts/generate-genesis.sh"
 
 start:
-	@./layer1/scripts/start.sh
+	@DEVNET_RUNTIME_ENV="$(DEVNET_RUNTIME_ENV)" "$(LAYER1_DOCKER_DIR)/layer1/scripts/start.sh"
 
 stop:
-	@docker compose -f docker-compose-devnet.yml down
+	@$(LAYER1_COMPOSE) stop $(LAYER1_SERVICES)
 
-restart: stop start
+restart:
+	@$(MAKE) -f "$(LAYER1_DOCKER_DIR)/Makefile.layer1" stop
+	@$(MAKE) -f "$(LAYER1_DOCKER_DIR)/Makefile.layer1" start
 
 logs:
-	@docker compose -f docker-compose-devnet.yml logs -f layer1-el layer1-cl layer1-vc
+	@$(LAYER1_COMPOSE) logs -f $(LAYER1_SERVICES)
 
 clean:
-	@./layer1/scripts/clean.sh
+	@DEVNET_RUNTIME_ENV="$(DEVNET_RUNTIME_ENV)" "$(LAYER1_DOCKER_DIR)/layer1/scripts/clean.sh"

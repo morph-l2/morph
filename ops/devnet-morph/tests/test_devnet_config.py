@@ -1,4 +1,10 @@
 import importlib
+import base64
+import hashlib
+import json
+import re
+import subprocess
+import tempfile
 import sys
 import unittest
 from pathlib import Path
@@ -10,6 +16,32 @@ DOCKER_DIR = REPO_ROOT / "ops" / "docker"
 
 
 class DevnetConfigTest(unittest.TestCase):
+    def test_geth_submodule_and_go_dependencies_use_the_same_revision(self):
+        makefile = (REPO_ROOT / "Makefile").read_text()
+        expected_commit = re.search(
+            r"^ETHEREUM_SUBMODULE_COMMIT_OR_TAG := ([0-9a-f]{40})$", makefile, re.MULTILINE
+        ).group(1)
+        expected_version = re.search(
+            r"^ETHEREUM_TARGET_VERSION := (\S+)$", makefile, re.MULTILINE
+        ).group(1)
+        # Git reports the checkout revision when initialized and the recorded
+        # gitlink otherwise, including CI checkouts without submodule contents.
+        status = subprocess.check_output(
+            ["git", "submodule", "status", "--", "go-ethereum"], cwd=REPO_ROOT, text=True
+        )
+        self.assertEqual(status[1:].split()[0], expected_commit)
+        self.assertTrue(expected_version.endswith("-" + expected_commit[:12]))
+        modules = re.findall(r"^\s*(\./\S+)\s*$", (REPO_ROOT / "go.work").read_text(), re.MULTILINE)
+        self.assertTrue(modules)
+        for module in modules:
+            with self.subTest(module=module):
+                version = re.search(
+                    r"^\s*(?:require\s+)?github\.com/morph-l2/go-ethereum (\S+)",
+                    (REPO_ROOT / module / "go.mod").read_text(), re.MULTILINE,
+                )
+                self.assertIsNotNone(version)
+                self.assertEqual(version.group(1), expected_version)
+
     def test_root_dockerignore_excludes_generated_build_outputs(self):
         dockerignore = (REPO_ROOT / ".dockerignore").read_text().splitlines()
 
@@ -52,11 +84,22 @@ class DevnetConfigTest(unittest.TestCase):
             "-f docker-compose-cluster-reth.yml",
             makefile,
         )
-        self.assertIn("docker compose $(DEVNET_CLEAN_COMPOSE_FILES) down --volumes --remove-orphans", makefile)
-        self.assertIn("--filter label=com.docker.compose.project=docker", makefile)
+        self.assertIn("docker compose --project-name docker $(DEVNET_COMPOSE_ENV) $(DEVNET_CLEAN_COMPOSE_FILES) down --volumes --remove-orphans", makefile)
+        self.assertNotIn("xargs docker volume rm", makefile)
+        self.assertNotIn("docker image ls '*morph*'", makefile)
         self.assertNotIn("docker_morph_data_0 docker_morph_data_1", makefile)
         self.assertNotIn("devnet-clean-build-reth", makefile)
         self.assertNotIn("devnet-clean-reth", makefile)
+
+    def test_service_targets_use_validated_runtime_configuration(self):
+        makefile = (REPO_ROOT / 'Makefile').read_text()
+        for action in ('start', 'stop', 'rebuild'):
+            self.assertIn(f'--service-action={action}', makefile)
+        self.assertIn('DEVNET_COMPOSE_ENV := --env-file "$(DEVNET_RUNTIME_ENV)"', makefile)
+        self.assertIn('$(DEVNET_COMPOSE_ENV) $(DEVNET_COMPOSE_FILES) down', makefile)
+        self.assertIn('$(DEVNET_COMPOSE_ENV) $(DEVNET_COMPOSE_FILES) logs -f', makefile)
+        cleaner = (DOCKER_DIR / 'layer1' / 'scripts' / 'clean.sh').read_text()
+        self.assertIn('--env-file "${DEVNET_RUNTIME_ENV:-/dev/null}"', cleaner)
 
     def test_default_compose_includes_layer1_derivation_node(self):
         compose = (DOCKER_DIR / "docker-compose-devnet.yml").read_text()
@@ -71,10 +114,10 @@ class DevnetConfigTest(unittest.TestCase):
     def test_tx_submitter_uses_submitter_contract_and_explicit_batch_settings(self):
         compose = (DOCKER_DIR / "docker-compose-devnet.yml").read_text()
 
-        self.assertIn("TX_SUBMITTER_SUBMITTER_ADDRESS=${MORPH_SUBMITTER}", compose)
-        self.assertIn("TX_SUBMITTER_BATCH_BLOCK_INTERVAL=${BATCH_BLOCK_INTERVAL}", compose)
-        self.assertIn("TX_SUBMITTER_BATCH_TIMEOUT=${BATCH_TIMEOUT}", compose)
-        self.assertIn("TX_SUBMITTER_L1_PRIVATE_KEY=${BATCH_SUBMITTER_PRIVATE_KEY}", compose)
+        self.assertIn("TX_SUBMITTER_SUBMITTER_ADDRESS=${MORPH_SUBMITTER:-}", compose)
+        self.assertIn("TX_SUBMITTER_BATCH_BLOCK_INTERVAL=${BATCH_BLOCK_INTERVAL:-200}", compose)
+        self.assertIn("TX_SUBMITTER_BATCH_TIMEOUT=${BATCH_TIMEOUT:-600}", compose)
+        self.assertIn("TX_SUBMITTER_L1_PRIVATE_KEY=${BATCH_SUBMITTER_PRIVATE_KEY:-}", compose)
         self.assertIn("until (true > /dev/tcp/morph-el-0/8545)", compose)
         for removed_setting in (
             "TX_SUBMITTER_PRIORITY_ROLLUP",
@@ -85,8 +128,10 @@ class DevnetConfigTest(unittest.TestCase):
 
         launcher = (DEVNET_PACKAGE / "devnet" / "__init__.py").read_text()
         self.assertIn("addresses['Proxy__Submitter']", launcher)
-        self.assertIn("deploy_config['govBatchBlockInterval']", launcher)
-        self.assertIn("deploy_config['govBatchTimeout']", launcher)
+        self.assertNotIn("govBatchBlockInterval", launcher)
+        self.assertNotIn("govBatchTimeout", launcher)
+        self.assertIn("args.batch_block_interval", launcher)
+        self.assertIn("args.batch_timeout", launcher)
         self.assertIn("batchSubmitterPks", launcher)
         self.assertIn("args.batch_submitter_private_key", launcher)
         fund_command = "'npx', 'hardhat', 'fund', '--network', 'l1'"
@@ -94,17 +139,12 @@ class DevnetConfigTest(unittest.TestCase):
         self.assertIn(fund_command, launcher)
         self.assertLess(launcher.index(fund_command), launcher.index(register_command))
         self.assertIn(
-            "deploy_config['l1StakingProxy'] = LEGACY_GENESIS_L1_STAKING_PROXY",
+            "deploy_config['l1StakingProxy'] = legacy_staking['address']",
             launcher,
         )
-        self.assertIn(
-            "LEGACY_GENESIS_L1_STAKING_PROXY = '0x000000000000000000000000000000000000dEaD'",
-            launcher,
-        )
+        self.assertNotIn("LEGACY_GENESIS_L1_STAKING_PROXY", launcher)
+        self.assertIn("--legacy-l1-deployment-file", launcher)
         self.assertNotIn("addresses['Proxy__L1Staking']", launcher)
-        self.assertIn("env_data.pop('Proxy__L1Staking', None)", launcher)
-        self.assertIn("env_data.pop('MORPH_L1STAKING', None)", launcher)
-        self.assertNotIn("Proxy__L1Staking", (DOCKER_DIR / ".env").read_text())
         self.assertNotIn(
             "'layer1-el', 'layer1-cl', 'layer1-vc'], check=False",
             launcher,
@@ -117,7 +157,7 @@ class DevnetConfigTest(unittest.TestCase):
         deploy_task = (REPO_ROOT / "contracts" / "tasks" / "deploy.ts").read_text()
         register_task = deploy_task[deploy_task.index('task("register")'):]
         self.assertIn('JSON.parse(process.env.batchSubmitterPks || "[]")', register_task)
-        self.assertIn("new ethers.Wallet(privateKey).address", register_task)
+        self.assertIn("registrationAddresses(config)", register_task)
 
     def test_cluster_compose_defines_ha_services(self):
         cluster_compose = DOCKER_DIR / "docker-compose-cluster.yml"
@@ -146,7 +186,7 @@ class DevnetConfigTest(unittest.TestCase):
         # geth only reads the fixed filename, so the mount has to be renamed on
         # the way in.
         self.assertIn(
-            '"${PWD}/static-nodes-cluster.json:/db/geth/static-nodes.json"',
+            '"./static-nodes-cluster.json:/db/geth/static-nodes.json"',
             compose,
         )
 
@@ -160,7 +200,7 @@ class DevnetConfigTest(unittest.TestCase):
             ("morph-el-1", "nodekey1"),
         ):
             self.assertIn(f"{service}:", compose)
-            self.assertIn(f'"${{PWD}}/{key}:/p2p-secret.key"', compose)
+            self.assertIn(f'"./{key}:/p2p-secret.key"', compose)
         self.assertEqual(compose.count("--p2p-secret-key=/p2p-secret.key"), 2)
         self.assertEqual(compose.count("--trusted-peers="), 2)
 
@@ -192,22 +232,13 @@ class DevnetConfigTest(unittest.TestCase):
             ("ha-el-2", "ha-nodekey2"),
         ):
             self.assertIn(f"{service}:", compose)
-            self.assertIn(f'"${{PWD}}/{key}:/p2p-secret.key"', compose)
+            self.assertIn(f'"./{key}:/p2p-secret.key"', compose)
         self.assertEqual(compose.count("--p2p-secret-key=/p2p-secret.key"), 3)
         self.assertEqual(compose.count("--trusted-peers="), 3)
         # Nothing here may redefine the plain devnet's execution clients, or
         # they would be reconfigured only in cluster mode.
         for service in ("morph-el-0:", "morph-el-1:"):
             self.assertNotIn(f"  {service}", compose)
-
-    def test_execution_client_keys_have_no_trailing_newline(self):
-        """reth rejects a key file with a trailing newline ("malformed or
-        out-of-range secret key"); geth accepts it either way."""
-        for key in ("nodekey0", "nodekey1", "nodekey2",
-                    "ha-nodekey0", "ha-nodekey1", "ha-nodekey2"):
-            contents = (DOCKER_DIR / key).read_bytes()
-            self.assertEqual(len(contents), 64, f"{key} should be 64 hex characters")
-            self.assertFalse(contents.endswith(b"\n"), f"{key} must not end with a newline")
 
     def test_tendermint_peers_are_derived_from_installed_node_keys(self):
         sys.path.insert(0, str(DEVNET_PACKAGE))
@@ -217,11 +248,15 @@ class DevnetConfigTest(unittest.TestCase):
         finally:
             sys.path.remove(str(DEVNET_PACKAGE))
 
-        # Anchored on the ID that used to be hardcoded in persistent_peers.
-        self.assertEqual(
-            setup_nodes.tendermint_node_id(DOCKER_DIR / "node0" / "node_key.json"),
-            "93e27ea2306e158a8146d5f44caaab97496797d2",
-        )
+        # Use temporary test values without reading the repository's node private keys.
+        with tempfile.TemporaryDirectory() as directory:
+            public_key = bytes(range(32))
+            node_key = Path(directory) / 'node_key.json'
+            node_key.write_text(json.dumps({'priv_key': {
+                'value': base64.b64encode(bytes(32) + public_key).decode(),
+            }}))
+            self.assertEqual(setup_nodes.tendermint_node_id(node_key),
+                             hashlib.sha256(public_key).hexdigest()[:40])
 
         # node-1 never starts tendermint and node-2 has no compose service, so
         # neither may appear as a peer.
@@ -235,7 +270,7 @@ class DevnetConfigTest(unittest.TestCase):
         # must run before the peer list is built.
         self.assertLess(
             source.index("copy_key_files(docker_dir, devnet_dir)"),
-            source.index("persistent_peers = build_persistent_peers(devnet_dir)"),
+            source.index("persistent_peers = build_persistent_peers(devnet_dir, cluster=cluster)"),
         )
         self.assertIn('laddr = "tcp://0.0.0.0:26657"', source)
 

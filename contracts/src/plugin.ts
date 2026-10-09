@@ -56,11 +56,13 @@ const getDeployConfig = (
 export const loadDeployConfig = (hre: HardhatRuntimeEnvironment): any => {
     const paths = hre.config.paths.deployConfig
     const conf = getDeployConfig(paths, hre.network.name)
-    const spec = parseDeployConfig(hre, conf)
+    const overridePath = process.env.DEPLOY_CONFIG_OVERRIDE
+    const merged = overridePath ? applyDeployConfigOverride(conf, overridePath) : conf
+    const spec = parseDeployConfig(hre, merged)
 
     return new Proxy(spec, {
         get: (target, prop) => {
-            if (target.hasOwnProperty(prop)) {
+            if (Object.prototype.hasOwnProperty.call(target, prop)) {
                 return target[prop]
             }
 
@@ -70,6 +72,22 @@ export const loadDeployConfig = (hre: HardhatRuntimeEnvironment): any => {
             )
         },
     })
+}
+
+// Load generated genesis headers and deployment parameters from JSON without changing network configuration source.
+export const applyDeployConfigOverride = (config: any, filename: string): any => {
+    const resolved = path.resolve(filename)
+    const overrides = JSON.parse(fs.readFileSync(resolved, 'utf8'))
+    if (!overrides || Array.isArray(overrides) || typeof overrides !== 'object') {
+        throw new Error(`Deployment override file must contain a JSON object: ${resolved}`)
+    }
+    for (const key of Object.keys(overrides)) {
+        if (['__proto__', 'constructor', 'prototype'].includes(key) ||
+            !Object.prototype.hasOwnProperty.call(config, key)) {
+            throw new Error(`Deployment override file contains an unknown field ${key}: ${resolved}`)
+        }
+    }
+    return { ...config, ...overrides }
 }
 
 export const parseDeployConfig = (

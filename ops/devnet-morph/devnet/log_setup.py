@@ -2,14 +2,14 @@ import os
 
 from logging.config import dictConfig
 
-log_level = os.getenv('LOG_LEVEL')
+log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
 
 log_config = {
     'version': 1,
     'loggers': {
         '': {
             'handlers': ['console'],
-            'level': log_level if log_level is not None else 'INFO'
+            'level': log_level
         },
     },
     'handlers': {

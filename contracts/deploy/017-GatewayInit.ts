@@ -1,3 +1,4 @@
+import { getDeploymentProxy } from "../src/deployment-state";
 import "@nomiclabs/hardhat-web3";
 import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-waffle";
@@ -78,7 +79,7 @@ export const GatewayInit = async (
     const L1MessageQueueWithGasPriceOracleProxyAddress = getContractAddressByName(path, ProxyStorageName.L1MessageQueueWithGasPriceOracleProxyStorageName)
 
     // L1GatewayRouter init
-    const IL1GatewayRouterProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1GatewayRouterProxyAddress, deployer)
+    const IL1GatewayRouterProxy = await getDeploymentProxy(hre, path, L1GatewayRouterProxyAddress, deployer)
     if (
         (await IL1GatewayRouterProxy.implementation()).toLocaleLowerCase() !== L1GatewayRouterImplAddress.toLocaleLowerCase()
     ) {
@@ -87,8 +88,7 @@ export const GatewayInit = async (
             || !ethers.utils.isAddress(L1StandardERC20GatewayProxyAddress)
             || !ethers.utils.isAddress(WETHAddress)
         ) {
-            console.error('please check your address')
-            return ''
+            throw new Error('please check your address')
         }
         // Upgrade and initialize the proxy.
         await IL1GatewayRouterProxy.connect(deployer).upgradeToAndCall(
@@ -126,7 +126,7 @@ export const GatewayInit = async (
     }
 
     // L1ETHGateway init
-    const IL1ETHGatewayProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1ETHGatewayProxyAddress, deployer)
+    const IL1ETHGatewayProxy = await getDeploymentProxy(hre, path, L1ETHGatewayProxyAddress, deployer)
     if (
         (await IL1ETHGatewayProxy.implementation()).toLocaleLowerCase() !== L1ETHGatewayImplAddress.toLocaleLowerCase()
     ) {
@@ -137,8 +137,7 @@ export const GatewayInit = async (
             || !ethers.utils.isAddress(L1GatewayRouterProxyAddress)
             || !ethers.utils.isAddress(L1CrossDomainMessengerProxyAddress)
         ) {
-            console.error('please check your address')
-            return ''
+            throw new Error('please check your address')
         }
         // Upgrade and initialize the proxy.
         await IL1ETHGatewayProxy.connect(deployer).upgradeToAndCall(
@@ -182,7 +181,7 @@ export const GatewayInit = async (
     }
 
     // L1StandardERC20Gateway init
-    const IL1StandardERC20GatewayProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1StandardERC20GatewayProxyAddress, deployer)
+    const IL1StandardERC20GatewayProxy = await getDeploymentProxy(hre, path, L1StandardERC20GatewayProxyAddress, deployer)
     if (
         (await IL1StandardERC20GatewayProxy.implementation()).toLocaleLowerCase() !== L1StandardERC20GatewayImplAddress.toLocaleLowerCase()
     ) {
@@ -196,8 +195,7 @@ export const GatewayInit = async (
             || !ethers.utils.isAddress(l2TokenImplementation)
             || !ethers.utils.isAddress(l2TokenFactory)
         ) {
-            console.error('please check your address')
-            return ''
+            throw new Error('please check your address')
         }
 
         // Upgrade and initialize the proxy.
@@ -254,7 +252,7 @@ export const GatewayInit = async (
     }
 
     // L1CustomERC20Gateway init
-    const IL1CustomERC20GatewayProxyAddressProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1CustomERC20GatewayProxyAddress, deployer)
+    const IL1CustomERC20GatewayProxyAddressProxy = await getDeploymentProxy(hre, path, L1CustomERC20GatewayProxyAddress, deployer)
     if (
         (await IL1CustomERC20GatewayProxyAddressProxy.implementation()).toLocaleLowerCase() !== L1CustomERC20GatewayImplAddress.toLocaleLowerCase()
     ) {
@@ -264,8 +262,7 @@ export const GatewayInit = async (
         if (!ethers.utils.isAddress(counterpart)
             || !ethers.utils.isAddress(L1GatewayRouterProxyAddress)
         ) {
-            console.error('please check your address')
-            return ''
+            throw new Error('please check your address')
         }
 
         // Upgrade and initialize the proxy.
@@ -310,7 +307,7 @@ export const GatewayInit = async (
     }
 
     // L1WithdrawLockERC20Gateway init
-    const IL1WithdrawLockERC20GatewayProxyAddressProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1WithdrawLockERC20GatewayProxyAddress, deployer)
+    const IL1WithdrawLockERC20GatewayProxyAddressProxy = await getDeploymentProxy(hre, path, L1WithdrawLockERC20GatewayProxyAddress, deployer)
     if (
         (await IL1WithdrawLockERC20GatewayProxyAddressProxy.implementation()).toLocaleLowerCase() !== L1WithdrawLockERC20GatewayImplAddress.toLocaleLowerCase()
     ) {
@@ -320,8 +317,7 @@ export const GatewayInit = async (
         if (!ethers.utils.isAddress(counterpart)
             || !ethers.utils.isAddress(L1GatewayRouterProxyAddress)
         ) {
-            console.error('please check your address')
-            return ''
+            throw new Error('please check your address')
         }
 
         // Upgrade and initialize the proxy.
@@ -367,7 +363,7 @@ export const GatewayInit = async (
 
 
     // L1ReverseCustomGateway init
-    const IL1ReverseCustomGatewayProxyAddressProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1ReverseCustomGatewayProxyAddress, deployer)
+    const IL1ReverseCustomGatewayProxyAddressProxy = await getDeploymentProxy(hre, path, L1ReverseCustomGatewayProxyAddress, deployer)
     if (
         (await IL1ReverseCustomGatewayProxyAddressProxy.implementation()).toLocaleLowerCase() !== L1ReverseCustomGatewayImplAddress.toLocaleLowerCase()
     ) {
@@ -377,8 +373,7 @@ export const GatewayInit = async (
         if (!ethers.utils.isAddress(counterpart)
             || !ethers.utils.isAddress(L1GatewayRouterProxyAddress)
         ) {
-            console.error('please check your address')
-            return ''
+            throw new Error('please check your address')
         }
 
         // Upgrade and initialize the proxy.
@@ -423,7 +418,7 @@ export const GatewayInit = async (
     }
 
     // L1ERC721Gateway init
-    const IL1ERC721GatewayProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1ERC721GatewayProxyAddress, deployer)
+    const IL1ERC721GatewayProxy = await getDeploymentProxy(hre, path, L1ERC721GatewayProxyAddress, deployer)
     if (
         (await IL1ERC721GatewayProxy.implementation()).toLocaleLowerCase() !== L1ERC721GatewayImplAddress.toLocaleLowerCase()
     ) {
@@ -433,8 +428,7 @@ export const GatewayInit = async (
         if (!ethers.utils.isAddress(counterpart)
             || !ethers.utils.isAddress(L1GatewayRouterProxyAddress)
         ) {
-            console.error('please check your address')
-            return ''
+            throw new Error('please check your address')
         }
 
         // Upgrade and initialize the proxy.
@@ -473,7 +467,7 @@ export const GatewayInit = async (
     }
 
     // L1ERC1155Gateway init
-    const IL1ERC1155GatewayProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1ERC1155GatewayProxyAddress, deployer)
+    const IL1ERC1155GatewayProxy = await getDeploymentProxy(hre, path, L1ERC1155GatewayProxyAddress, deployer)
     if (
         (await IL1ERC1155GatewayProxy.implementation()).toLocaleLowerCase() !== L1ERC1155GatewayImplAddress.toLocaleLowerCase()
     ) {
@@ -483,8 +477,7 @@ export const GatewayInit = async (
         if (!ethers.utils.isAddress(counterpart)
             || !ethers.utils.isAddress(L1GatewayRouterProxyAddress)
         ) {
-            console.error('please check your address')
-            return ''
+            throw new Error('please check your address')
         }
 
         // Upgrade and initialize the proxy.
@@ -523,7 +516,7 @@ export const GatewayInit = async (
     }
 
     // L1WETHGateway init
-    const IL1WETHGatewayProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, L1WETHGatewayProxyAddress, deployer)
+    const IL1WETHGatewayProxy = await getDeploymentProxy(hre, path, L1WETHGatewayProxyAddress, deployer)
     if (
         (await IL1WETHGatewayProxy.implementation()).toLocaleLowerCase() !== L1WETHGatewayImplAddress.toLocaleLowerCase()
     ) {
@@ -534,8 +527,7 @@ export const GatewayInit = async (
             || !ethers.utils.isAddress(L1GatewayRouterProxyAddress)
             || !ethers.utils.isAddress(L1CrossDomainMessengerProxyAddress)
         ) {
-            console.error('please check your address')
-            return ''
+            throw new Error('please check your address')
         }
         // Upgrade and initialize the proxy.
         await IL1WETHGatewayProxy.connect(deployer).upgradeToAndCall(
@@ -579,7 +571,7 @@ export const GatewayInit = async (
     }
 
     // IEnforcedTxGatewayProxy init
-    const IEnforcedTxGatewayProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, EnforcedTxGatewayProxyAddress, deployer)
+    const IEnforcedTxGatewayProxy = await getDeploymentProxy(hre, path, EnforcedTxGatewayProxyAddress, deployer)
     if (
         (await IEnforcedTxGatewayProxy.implementation()).toLocaleLowerCase() !== EnforcedTxGatewayImplAddress.toLocaleLowerCase()
     ) {
@@ -589,8 +581,7 @@ export const GatewayInit = async (
 
         if (!ethers.utils.isAddress(queue) ||
             !ethers.utils.isAddress(feeVault)) {
-            console.error('please check your address')
-            return ''
+            throw new Error('please check your address')
         }
         // Upgrade and initialize the proxy.
         await IEnforcedTxGatewayProxy.connect(deployer).upgradeToAndCall(

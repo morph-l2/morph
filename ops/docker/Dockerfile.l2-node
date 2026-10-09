@@ -1,5 +1,7 @@
+ARG GO_BUILDER_IMAGE=ghcr.io/morph-l2/go-ubuntu-builder:go-1.24-ubuntu
+
 # Build Stage
-FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.24-ubuntu as builder
+FROM ${GO_BUILDER_IMAGE} AS builder
 
 # Cache module downloads before copying frequently changing source files.
 COPY go.work go.work.sum /morph/
@@ -21,7 +23,7 @@ WORKDIR /morph/node
 RUN make build
 
 # Final Stage
-FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.24-ubuntu
+FROM ${GO_BUILDER_IMAGE}
 
 # Update and install dependencies, then clean up unnecessary files
 RUN apt-get -qq update \

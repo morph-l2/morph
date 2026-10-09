@@ -1,3 +1,4 @@
+import { deployRecordedContract, getDeploymentProxy } from "../src/deployment-state";
 import "@nomiclabs/hardhat-web3";
 import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-waffle";
@@ -34,21 +35,18 @@ export const RollupInit = async (
     const MultipleVersionRollupVerifierFactoryName = ContractFactoryName.MultipleVersionRollupVerifier
     const MultipleVersionRollupVerifierImplStorageName = ImplStorageName.MultipleVersionRollupVerifierStorageName
     console.log('Deploy the MultipleVersionRollupVerifier ...')
-    const MultipleVersionRollupVerifierFactory = await hre.ethers.getContractFactory(MultipleVersionRollupVerifierFactoryName)
-    const version = [1]
-    const verifiers = [ZkEvmVerifierV1Address]
-    const MultipleVersionRollupVerifierContract = await MultipleVersionRollupVerifierFactory.deploy(version, verifiers)
-    await MultipleVersionRollupVerifierContract.deployed()
-    await MultipleVersionRollupVerifierContract.initialize(RollupProxyAddress)
-    console.log("%s=%s ; TX_HASH: %s", MultipleVersionRollupVerifierImplStorageName, MultipleVersionRollupVerifierContract.address.toLocaleLowerCase(), MultipleVersionRollupVerifierContract.deployTransaction.hash);
-    const blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log("BLOCK_NUMBER: %s", blockNumber)
-    let err = await storage(path, MultipleVersionRollupVerifierImplStorageName, MultipleVersionRollupVerifierContract.address.toLocaleLowerCase(), blockNumber || 0)
-    if (err != '') {
-        return err
+    const MultipleVersionRollupVerifierContract = await deployRecordedContract(
+        hre, path, deployer, MultipleVersionRollupVerifierImplStorageName,
+        MultipleVersionRollupVerifierFactoryName, [[1], [ZkEvmVerifierV1Address]]
+    );
+    const configuredRollup = await MultipleVersionRollupVerifierContract.rollup();
+    if (configuredRollup === ethers.constants.AddressZero) {
+        await (await MultipleVersionRollupVerifierContract.initialize(RollupProxyAddress)).wait();
+    } else if (configuredRollup.toLowerCase() !== RollupProxyAddress.toLowerCase()) {
+        throw new Error("MultipleVersionRollupVerifier.rollup does not match deployment records");
     }
 
-    const IRollupProxy = await hre.ethers.getContractAt(ContractFactoryName.DefaultProxyInterface, RollupProxyAddress, deployer)
+    const IRollupProxy = await getDeploymentProxy(hre, path, RollupProxyAddress, deployer)
     // upgrade and initialize RollupProxy
     if (
         (await IRollupProxy.implementation()).toLocaleLowerCase() !== RollupImplAddress.toLocaleLowerCase()
@@ -63,8 +61,7 @@ export const RollupInit = async (
             || !ethers.utils.isAddress(SubmitterProxyAddress)
 
         ) {
-            console.error('please check your address')
-            return ''
+            throw new Error('please check your address')
         }
         // Upgrade and initialize the proxy.
         await IRollupProxy.upgradeToAndCall(

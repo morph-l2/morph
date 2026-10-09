@@ -1,9 +1,10 @@
 # Build Node
-FROM morph/go-ubuntu-builder:go-1.24-ubuntu as builder
+FROM morph/go-ubuntu-builder:go-1.24-ubuntu AS builder
 COPY . /morph
 WORKDIR /morph/node
-RUN make build
+RUN make morphnode
 
-FROM builder
+FROM ubuntu:22.04
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libstdc++6 && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /morph/node/build/bin/morphnode /usr/local/bin/
 CMD ["morphnode","--home", "/db"]

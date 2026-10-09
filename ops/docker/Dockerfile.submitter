@@ -1,5 +1,7 @@
-# Build Geth in a stock Go builder container
-FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.24-ubuntu as builder
+ARG GO_BUILDER_IMAGE=ghcr.io/morph-l2/go-ubuntu-builder:go-1.24-ubuntu
+
+# Build the transaction submitter.
+FROM ${GO_BUILDER_IMAGE} AS builder
 
 COPY . /morph
 
@@ -7,11 +9,12 @@ WORKDIR /morph/tx-submitter
 
 RUN make build
 
-# Pull Geth into a second stage deploy alpine container
-FROM ghcr.io/morph-l2/go-ubuntu-builder:go-1.24-ubuntu
+# Install the transaction submitter and its runtime certificates.
+FROM ${GO_BUILDER_IMAGE}
 
 RUN apt-get -qq update \
-    && apt-get -qq install -y --no-install-recommends ca-certificates
+    && apt-get -qq install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /morph/tx-submitter/tx-submitter /usr/local/bin/
 
 CMD ["tx-submitter"]
