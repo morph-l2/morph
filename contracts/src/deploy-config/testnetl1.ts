@@ -13,7 +13,7 @@ const config = {
     sequencerWindowSize: 200,
     channelTimeout: 120,
 
-    programVkey: '0x00b22378d3593946d3e0663c6361890940a4b537a0875e7c636331be893cb0f6',
+    programVkey: '0x0084f08a14f8199f87e7ae6011336724ec187b3656859184f04c7e8f382a2902',
     rollupMinDeposit: 1,
     rollupProofWindow: 100,
     rollupGenesisBlockNumber: 0,
