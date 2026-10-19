@@ -96,7 +96,6 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     let state = State::builder()
         .with_database_ref(&trie_db)
         .with_bundle_update()
-        .without_state_clear()
         .build();
 
     // Build EVM block environment.

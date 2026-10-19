@@ -66,7 +66,6 @@ impl HostExecutor {
         let state = State::builder()
             .with_database_ref(&rpc_db)
             .with_bundle_update()
-            .without_state_clear()
             .build();
 
         let basefee = block.header.base_fee_per_gas.unwrap_or_default().to::<u64>();

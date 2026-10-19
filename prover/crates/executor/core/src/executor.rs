@@ -54,6 +54,8 @@ impl<DB: Database> MorphExecutor<DB> {
                 Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Morph203, 1747029600u64);
                 Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Viridian, 1762149600u64);
                 Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Emerald, 1767765600u64);
+                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Jade, 1775628000u64);
+                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Celadon, 1793772000u64);
                 spec.morph_hardfork_at(
                     block_env.number.to::<u64>(),
                     block_env.timestamp.to::<u64>(),
@@ -65,6 +67,8 @@ impl<DB: Database> MorphExecutor<DB> {
                 Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Morph203, 0u64);
                 Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Viridian, 1761544800u64);
                 Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Emerald, 1766988000u64);
+                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Jade, 1774418400u64);
+                Arc::make_mut(&mut spec).set_hardfork(MorphHardfork::Celadon, 1793167200u64);
                 spec.morph_hardfork_at(
                     block_env.number.to::<u64>(),
                     block_env.timestamp.to::<u64>(),
@@ -74,7 +78,7 @@ impl<DB: Database> MorphExecutor<DB> {
             DEVNET_CHAIN_ID => MorphHardfork::Emerald,
             _ => MorphHardfork::Emerald,
         };
-        env.cfg_env = env.cfg_env.with_spec(hardfork);
+        env.cfg_env = env.cfg_env.with_spec_and_mainnet_gas_params(hardfork);
         env.cfg_env.chain_id = chain_id;
         env.cfg_env.tx_gas_limit_cap = Some(block_env.gas_limit);
         env.cfg_env.disable_eip7623 = true;
