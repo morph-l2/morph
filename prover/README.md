@@ -19,12 +19,12 @@ To build the program to risc-v bin:
 
 ```sh
 cd bin/client
-cargo prove build
+cargo prove build --ignore-rust-version
 ```
 or use docker(reproducible compilation):
 ```sh
 cd bin/client
-cargo prove build  --docker --tag v6.2.0
+cargo prove build  --docker --tag v6.2.0 --ignore-rust-version
 ```
 
 This will output the compiled ELF to the file client/elf/verifier-client.
