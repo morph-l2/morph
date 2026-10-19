@@ -37,6 +37,7 @@ import (
 	"morph-l2/node/sequencer/mock"
 	"morph-l2/node/sync"
 	"morph-l2/node/types"
+	"morph-l2/node/version"
 )
 
 func main() {
@@ -80,6 +81,12 @@ func L2NodeMain(ctx *cli.Context) error {
 	if err = nodeConfig.SetCliContext(ctx); err != nil {
 		return err
 	}
+
+	// Publish build/version metadata as morphnode_info{...} 1 (mirrors morph-reth's
+	// reth_info{} gauge). Registers on the default Prometheus registry, so it's
+	// exposed regardless of which branch below brings up /metrics (own listener in
+	// layer1-verify mode, or Tendermint's instrumentation in every other mode).
+	version.PrometheusMetrics("morphnode", Version, GitCommit, BuildTime).Register()
 
 	// Wire the centralized-sequencer upgrade time into the consensus upgrade package before any
 	// consensus / blocksync routine runs. A user-provided --sequencerUpgradeTime wins. If it is
