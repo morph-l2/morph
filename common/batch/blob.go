@@ -188,9 +188,12 @@ func decodeTypedTx(typeByte byte, reader io.Reader) (*eth.Transaction, error) {
 }
 
 // decodeMorphTx decodes a MorphTx from the reader. The type byte (0x7f) has already
-// been consumed. MorphTx has two wire formats:
-//   - V0: type(0x7f) || RLP(fields)              — next byte is RLP prefix (>= 0xC0)
-//   - V1: type(0x7f) || version(0x01) || RLP(fields) — next byte is version, then RLP prefix
+// been consumed. MorphTx has two envelope forms:
+//   - V0:  type(0x7f) || RLP(fields)                         — next byte is RLP prefix (>= 0xC0)
+//   - V1+: type(0x7f) || version(0x01, 0x02, ...) || RLP(fields)
+//
+// The batch layer preserves the version byte and delegates version-specific
+// field decoding to core/types.Transaction.
 func decodeMorphTx(reader io.Reader) (*eth.Transaction, error) {
 	var nextByte byte
 	if err := binary.Read(reader, binary.BigEndian, &nextByte); err != nil {
