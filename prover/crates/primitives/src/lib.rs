@@ -266,6 +266,7 @@ pub trait TxTrace {
                     fee_limit: self.fee_limit(),
                     version: self.morph_tx_version(),
                     reference: self.morph_tx_reference(),
+                    authorization_list: self.authorization_list(),
                     memo: self.morph_tx_memo(),
                 };
                 MorphTxEnvelope::Morph(tx.into_signed(self.signature()?))

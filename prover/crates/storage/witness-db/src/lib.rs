@@ -78,6 +78,7 @@ impl DatabaseRef for TrieDB<'_> {
             })?;
 
         let account = account_in_trie.map(|account_in_trie| AccountInfo {
+            account_id: None,
             balance: account_in_trie.balance,
             nonce: account_in_trie.nonce,
             code_hash: account_in_trie.code_hash,
