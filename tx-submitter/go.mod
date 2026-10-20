@@ -2,14 +2,14 @@ module morph-l2/tx-submitter
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.10-0.20260916055518-560fb469b16d
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.10
 
 require (
 	github.com/consensys/gnark-crypto v0.16.0
 	github.com/crate-crypto/go-eth-kzg v1.4.0
 	github.com/holiman/uint256 v1.2.4
 	github.com/morph-l2/externalsign v0.3.1
-	github.com/morph-l2/go-ethereum v1.10.14-0.20260920083014-5bcad5445daf
+	github.com/morph-l2/go-ethereum v1.10.14-0.20261019103624-0308bfdb1dcb
 	github.com/prometheus/client_golang v1.17.0
 	github.com/stretchr/testify v1.10.0
 	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a
