@@ -12,11 +12,11 @@ update_mod:
 	@echo "Updating go.mod in $(MODULE)..."
 	
 	@if grep -q '$(ETHEREUM_MODULE_NAME)' $(MODULE)/go.mod; then \
-		sed -i '' -e "s|$(ETHEREUM_MODULE_NAME) v[0-9][^[:space:]]*|$(ETHEREUM_MODULE_NAME) $(ETHEREUM_TARGET_VERSION)|" $(MODULE)/go.mod; \
+		sed -i.bak -e "s|$(ETHEREUM_MODULE_NAME) v[0-9][^[:space:]]*|$(ETHEREUM_MODULE_NAME) $(ETHEREUM_TARGET_VERSION)|" $(MODULE)/go.mod && rm -f $(MODULE)/go.mod.bak; \
 	fi
 
 	@if grep -q '$(TENDERMINT_MODULE_NAME)' $(MODULE)/go.mod; then \
-		sed -i '' -e "s|$(TENDERMINT_MODULE_NAME) v[0-9][^[:space:]]*|$(TENDERMINT_MODULE_NAME) $(TENDERMINT_TARGET_VERSION)|" $(MODULE)/go.mod; \
+		sed -i.bak -e "s|$(TENDERMINT_MODULE_NAME) v[0-9][^[:space:]]*|$(TENDERMINT_MODULE_NAME) $(TENDERMINT_TARGET_VERSION)|" $(MODULE)/go.mod && rm -f $(MODULE)/go.mod.bak; \
 	fi
 
 	@cd $(MODULE) && go mod tidy
