@@ -117,6 +117,17 @@ var (
 		Required: true,
 	}
 
+	// One-shot recovery override: force the next commit tx to use this nonce
+	// instead of whatever getNextNonce() computes, then clear itself. Needed
+	// when the wallet's nonce sequence has a gap at a nonce the service has
+	// lost track of locally (e.g. after journal loss) and getNextNonce() keeps
+	// skipping past it. 0 (default) means disabled/no override.
+	ForceNextCommitNonceFlag = cli.Uint64Flag{
+		Name:   "force_next_commit_nonce",
+		Usage:  "One-time override for the next commit tx's nonce, used to fill a stuck nonce gap. 0 disables it.",
+		EnvVar: prefixEnvVar("FORCE_NEXT_COMMIT_NONCE"),
+	}
+
 	// log to file
 	LogFilename = cli.StringFlag{
 		Name:   "log_filename",
@@ -319,6 +330,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	ForceNextCommitNonceFlag,
 	LogLevelFlag,
 	MetricsServerEnable,
 	MetricsHostname,
