@@ -1051,6 +1051,16 @@ func (r *Rollup) rollup() error {
 		return fmt.Errorf("failed to get next nonce: %w", err)
 	}
 
+	// One-shot recovery override: force this commit tx onto a specific nonce
+	// (e.g. to fill a gap getNextNonce() can't discover on its own), then
+	// clear it so every later tx goes back through the normal nonce logic.
+	if forced := r.cfg.ForceNextCommitNonce; forced > 0 {
+		log.Warn("forcing next commit nonce, bypassing getNextNonce",
+			"forced_nonce", forced, "computed_nonce", nonce)
+		nonce = forced
+		r.cfg.ForceNextCommitNonce = 0
+	}
+
 	// Create and sign transaction (commitState is always type-2, never blob)
 	var tx *ethtypes.Transaction
 	if useCommitState {
