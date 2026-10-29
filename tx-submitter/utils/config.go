@@ -59,6 +59,11 @@ type Config struct {
 	// tx fee limit
 	TxFeeLimit uint64
 
+	// one-shot override: force the next commit tx to use this nonce, filling
+	// a stuck nonce gap the service otherwise can't discover on its own.
+	// 0 means disabled.
+	ForceNextCommitNonce uint64
+
 	LogFilename    string
 	LogFileMaxSize int
 	LogFileMaxAge  int
@@ -131,7 +136,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostname.Name),
 		MetricsPort:         ctx.GlobalUint64(flags.MetricsPort.Name),
 		// tx config
-		TxFeeLimit: ctx.GlobalUint64(flags.TxFeeLimitFlag.Name),
+		TxFeeLimit:           ctx.GlobalUint64(flags.TxFeeLimitFlag.Name),
+		ForceNextCommitNonce: ctx.GlobalUint64(flags.ForceNextCommitNonceFlag.Name),
 
 		LogFilename:    ctx.GlobalString(flags.LogFilename.Name),
 		LogFileMaxSize: ctx.GlobalInt(flags.LogFileMaxSize.Name),
