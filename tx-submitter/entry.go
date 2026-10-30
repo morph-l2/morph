@@ -51,6 +51,7 @@ func Main() func(ctx *cli.Context) error {
 			"batch_block_interval", cfg.BatchBlockInterval,
 			"batch_timeout", cfg.BatchTimeout,
 			"fee_limit", cfg.TxFeeLimit,
+			"force_next_commit_nonce", cfg.ForceNextCommitNonce,
 			"finalize_enable", cfg.Finalize,
 			"rollup_interval", cfg.RollupInterval.String(),
 			"finalize_interval", cfg.FinalizeInterval.String(),
