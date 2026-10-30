@@ -254,6 +254,7 @@ func (pt *PendingTxs) ExistedFinalizeIndex(index uint64) bool {
 // Recover recovers transactions from the journal
 func (pt *PendingTxs) Recover(txs []*ethtypes.Transaction, abi *abi.ABI) error {
 	if len(txs) == 0 {
+		log.Info("No pending transactions to recover from journal; starting with an empty pending pool")
 		return nil
 	}
 

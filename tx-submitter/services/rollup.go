@@ -164,6 +164,9 @@ func (r *Rollup) Start() error {
 	if err := r.pendingTxs.Recover(txs, r.abi); err != nil {
 		log.Crit("failed to recover pending transactions", "error", err)
 	}
+	log.Info("pending pool state after recover",
+		"journal_tx_count", len(txs), "pending_pool_len", r.pendingTxs.Len(),
+		"local_pnonce", r.pendingTxs.GetNonce(), "force_next_commit_nonce", r.cfg.ForceNextCommitNonce)
 
 	// init fee metrics sum
 	err = r.InitFeeMetricsSum()
@@ -1054,7 +1057,10 @@ func (r *Rollup) rollup() error {
 	// One-shot recovery override: force this commit tx onto a specific nonce
 	// (e.g. to fill a gap getNextNonce() can't discover on its own), then
 	// clear it so every later tx goes back through the normal nonce logic.
-	if forced := r.cfg.ForceNextCommitNonce; forced > 0 {
+	forced := r.cfg.ForceNextCommitNonce
+	log.Info("commit nonce decision",
+		"computed_nonce", nonce, "force_next_commit_nonce", forced)
+	if forced > 0 {
 		log.Warn("forcing next commit nonce, bypassing getNextNonce",
 			"forced_nonce", forced, "computed_nonce", nonce)
 		nonce = forced
@@ -1098,10 +1104,15 @@ func (r *Rollup) getNextNonce() (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to get pending nonce: %w", err)
 	}
-	if r.pendingTxs.Len() == 0 {
+	pendingLen := r.pendingTxs.Len()
+	if pendingLen == 0 {
+		log.Info("getNextNonce: empty local pending pool, using L1 pending nonce",
+			"l1_pending_nonce", nonce)
 		return nonce, nil
 	}
 	pn := r.pendingTxs.GetNonce()
+	log.Info("getNextNonce: computed candidates",
+		"l1_pending_nonce", nonce, "local_pnonce", pn, "pending_pool_len", pendingLen)
 	if pn+1 > nonce {
 		return pn + 1, nil
 	}
