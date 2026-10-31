@@ -161,8 +161,18 @@ func resolveAdvertisedAddr(listenAddr string, listenPort int) (string, error) {
 	return net.JoinHostPort(ip, port), nil
 }
 
-func localNonLoopbackIP() (string, error) {
-	ifaces, err := net.Interfaces()
+// isLoopbackListenAddr reports whether the given listen address only accepts
+// connections from the local machine. An empty address or a wildcard cannot
+// be proven loopback, so it is treated as remotely reachable (fail closed).
+func isLoopbackListenAddr(listenAddr string) bool {
+	if listenAddr == "" {
+		return false
+	}
+	ip := net.ParseIP(listenAddr)
+	return ip != nil && ip.IsLoopback()
+}
+
+func localNonLoopbackIP() (string, error) {	ifaces, err := net.Interfaces()
 	if err != nil {
 		return "", err
 	}
@@ -205,6 +215,15 @@ func (c *Config) Validate() error {
 	}
 	if c.RPC.ListenPort < 0 || c.RPC.ListenPort > math.MaxUint16 {
 		return fmt.Errorf("invalid rpc.listen_port: %d", c.RPC.ListenPort)
+	}
+
+	// The RPC write APIs (ha_addServerAsVoter, ha_removeServer,
+	// ha_transferLeaderToServer) mutate Raft membership and leadership. They
+	// must not be reachable unauthenticated from other hosts: previously an
+	// empty token only produced a log line and the server kept serving write
+	// APIs on 0.0.0.0. Fail closed at startup instead.
+	if c.RPC.Token == "" && !isLoopbackListenAddr(c.RPC.ListenAddr) {
+		return fmt.Errorf("rpc.token is required when rpc.listen_addr (%q) is not loopback: write APIs would be unauthenticated", c.RPC.ListenAddr)
 	}
 
 	// Raft timing sanity. A non-positive heartbeat disables liveness; a leader
