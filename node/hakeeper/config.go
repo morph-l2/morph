@@ -172,7 +172,10 @@ func isLoopbackListenAddr(listenAddr string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-func localNonLoopbackIP() (string, error) {	ifaces, err := net.Interfaces()
+// localNonLoopbackIP scans active network interfaces to find and return
+// the first valid non-loopback IPv4 address.
+func localNonLoopbackIP() (string, error) {
+	ifaces, err := net.Interfaces()
 	if err != nil {
 		return "", err
 	}
@@ -202,7 +205,7 @@ func localNonLoopbackIP() (string, error) {	ifaces, err := net.Interfaces()
 
 // ── Step 4: Validate ─────────────────────────────────────────────────────────
 
-// Validate checks that all required fields are present. Call AFTER Resolve().
+// Validate checks that all required fields are present and valid. Call AFTER Resolve().
 func (c *Config) Validate() error {
 	if c.ServerID == "" {
 		return fmt.Errorf("server_id is required (set via config, --ha.server-id, or ensure hostname is available)")
