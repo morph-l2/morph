@@ -14,10 +14,11 @@ jobs:
         name: Cherry pick into release/0.1.x
         if: ${{ contains(github.event.pull_request.labels.*.name, 'release/0.1.x') && github.event.pull_request.merged == true }}
         steps:
-            - name: Checkout
-              uses: actions/checkout@v2
+            - name: Checkout code
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 pinned commit SHA
               with:
                   fetch-depth: 0
+                  persist-credentials: false
             - name: Cherry pick into release/0.1.x
               uses: carloscastrojumo/github-cherry-pick-action@09661c71f982ed876343b83dba9921b4b27a6679 # v1.0.1, pinned to commit SHA
               with:
@@ -30,10 +31,11 @@ jobs:
         name: Cherry pick into release/0.2.x
         if: ${{ contains(github.event.pull_request.labels.*.name, 'release/0.2.x') && github.event.pull_request.merged == true }}
         steps:
-            - name: Checkout
-              uses: actions/checkout@v2
+            - name: Checkout code
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 pinned commit SHA
               with:
                   fetch-depth: 0
+                  persist-credentials: false
             - name: Cherry pick into release/0.2.x
               uses: carloscastrojumo/github-cherry-pick-action@09661c71f982ed876343b83dba9921b4b27a6679 # v1.0.1, pinned to commit SHA
               with:
