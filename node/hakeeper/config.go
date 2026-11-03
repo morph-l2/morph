@@ -168,6 +168,12 @@ func isLoopbackListenAddr(listenAddr string) bool {
 	if listenAddr == "" {
 		return false
 	}
+	
+	// Normalize bracketed IPv6 addresses before loopback validation
+	if len(listenAddr) >= 2 && listenAddr[0] == '[' && listenAddr[len(listenAddr)-1] == ']' {
+		listenAddr = listenAddr[1 : len(listenAddr)-1]
+	}
+	
 	ip := net.ParseIP(listenAddr)
 	return ip != nil && ip.IsLoopback()
 }
