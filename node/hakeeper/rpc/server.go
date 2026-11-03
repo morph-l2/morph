@@ -2,7 +2,9 @@ package rpc
 
 import (
 	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -39,7 +41,8 @@ func New(log log.Logger, listenAddr string, listenPort int, cons ConsensusAdapte
 	mux := http.NewServeMux()
 	mux.Handle("/", authMiddleware(token, rpcSrv))
 
-	addr := fmt.Sprintf("%s:%d", listenAddr, listenPort)
+	// Build the RPC address safely for both IPv4 and IPv6 using net.JoinHostPort
+	addr := net.JoinHostPort(listenAddr, strconv.Itoa(listenPort))
 	httpSrv := &http.Server{
 		Addr:    addr,
 		Handler: mux,
