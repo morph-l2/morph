@@ -44,11 +44,9 @@ parser.add_argument('--deployer-private-key',
                         '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
                     ),
                     help='Private key for the L1 contract deployer/owner')
+# Removed the vulnerable Hardhat/Anvil fallback key. The key must be explicitly provided via environment.
 parser.add_argument('--batch-submitter-private-key',
-                    default=os.environ.get(
-                        'BATCH_SUBMITTER_PRIVATE_KEY',
-                        '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d',
-                    ),
+                    default=os.environ.get('BATCH_SUBMITTER_PRIVATE_KEY'),
                     help='Private key for the devnet batch submitter; kept separate from the block sequencer')
 parser.add_argument('--cluster', action="store_true",
                     default=os.environ.get('DEVNET_CLUSTER', '').lower() in ('1', 'true', 'yes'),
@@ -94,6 +92,11 @@ class Bunch:
 def main():
     """Entry point: parse CLI arguments and bring up the L1-only or full devnet."""
     args = parser.parse_args()
+
+    # Fail early if the batch submitter private key is completely missing
+    if not args.batch_submitter_private_key:
+        log.error("BATCH_SUBMITTER_PRIVATE_KEY must be set in the environment or passed via --batch-submitter-private-key.")
+        exit(1)
 
     polyrepo_dir = os.path.abspath(args.polyrepo_dir)
     L2_dir = pjoin(polyrepo_dir, 'ops', 'l2-genesis')
