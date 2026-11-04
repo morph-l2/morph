@@ -153,11 +153,6 @@ func (l *L2ClientWrapper) SubscribeFilterLogs(ctx context.Context, query ethereu
 	return nil, nil
 }
 
-// GetBlockTraceByNumber implements L2Client
-func (l *L2ClientWrapper) GetBlockTraceByNumber(ctx context.Context, number *big.Int) (*types.BlockTrace, error) {
-	return nil, nil
-}
-
 // GetRollupBatchByIndex implements L2Client
 func (l *L2ClientWrapper) GetRollupBatchByIndex(ctx context.Context, batchIndex uint64) (*eth.RPCRollupBatch, error) {
 	return l.RollupBatch, l.RollupBatchErr
