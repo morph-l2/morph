@@ -37,6 +37,7 @@ var (
 type Derivation struct {
 	ctx                   context.Context
 	node                  *tmnode.Node
+	nodeSyncStatus        nodeSyncStatus
 	syncer                *sync.Syncer
 	l1Client              *ethclient.Client
 	RollupContractAddress common.Address
@@ -71,10 +72,15 @@ type Derivation struct {
 	// (sequencer alive, P2P still catching up → wait for next poll).
 	// Updated once per pull at the top of derivationBlock.
 	lastObservedL2Latest uint64
+	waitingForBlockSync  bool
 
 	tagAdvancer *tagAdvancer
 
 	stop chan struct{}
+}
+
+type nodeSyncStatus interface {
+	WaitSync() bool
 }
 
 type DeployContractBackend interface {
@@ -161,19 +167,10 @@ func NewDerivationClient(ctx context.Context, cfg *Config, syncer *sync.Syncer, 
 		l1BeaconClient:        l1BeaconClient,
 		L2ToL1MessagePasser:   msgPasser,
 	}
-
-	// First-run startHeight default: when DB has no derivation cursor and no
-	// startHeight was configured (CLI/env or network preset), pin to the
-	// latest L1 confirmed block via the same path derivationBlock uses, so
-	// StartHeight can never exceed `latest` on the first poll.
-	if db.ReadLatestDerivationL1Height() == nil && d.startHeight == 0 {
-		blockNumber, err := d.getLatestConfirmedBlockNumber(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch L1 confirmed block number for default derivation startHeight: %w", err)
-		}
-		logger.Info("derivation startHeight defaulted to latest L1 confirmed block", "height", blockNumber, "confirmations", d.confirmations)
-		d.startHeight = blockNumber
+	if node != nil && node.ConsensusReactor() != nil {
+		d.nodeSyncStatus = node.ConsensusReactor()
 	}
+
 	// First-run baseHeight default: baseHeight is the L2 height below which
 	// stateRoot checks are skipped (snapshot-imported nodes set this to the
 	// snapshot height). When unset, pin to the current L2 head so derivation
@@ -203,9 +200,17 @@ func (d *Derivation) Start() {
 		defer t.Stop()
 
 		for {
-			// don't wait for ticker during startup
-			d.derivationBlock(d.ctx)
-			d.finalizerTick()
+			// Don't wait for the ticker during startup. Local-mode derivation is
+			// paused while Tendermint is catching up because its committed batches
+			// cannot be verified until the corresponding L2 blocks exist locally.
+			if d.blockSyncReady() {
+				if err := d.ensureStartHeight(d.ctx); err != nil {
+					d.logger.Error("failed to default derivation startHeight", "err", err)
+				} else {
+					d.derivationBlock(d.ctx)
+					d.finalizerTick()
+				}
+			}
 
 			select {
 			case <-d.ctx.Done():
@@ -217,6 +222,37 @@ func (d *Derivation) Start() {
 			}
 		}
 	}()
+}
+
+func (d *Derivation) blockSyncReady() bool {
+	if d.nodeSyncStatus != nil && d.nodeSyncStatus.WaitSync() {
+		if !d.waitingForBlockSync {
+			d.logger.Info("derivation paused while P2P block sync is catching up")
+			d.waitingForBlockSync = true
+		}
+		return false
+	}
+	if d.waitingForBlockSync {
+		d.logger.Info("P2P block sync caught up; resuming derivation")
+		d.waitingForBlockSync = false
+	}
+	return true
+}
+
+func (d *Derivation) ensureStartHeight(ctx context.Context) error {
+	// Resolve an unset first-run height only after block sync. Pinning it in
+	// NewDerivationClient can make the first eth_getLogs range archival by the
+	// time a from-zero node has the L2 state required to process the result.
+	if d.startHeight != 0 || d.db.ReadLatestDerivationL1Height() != nil {
+		return nil
+	}
+	blockNumber, err := d.getLatestConfirmedBlockNumber(ctx)
+	if err != nil {
+		return err
+	}
+	d.logger.Info("derivation startHeight defaulted to latest L1 confirmed block", "height", blockNumber, "confirmations", d.confirmations)
+	d.startHeight = blockNumber
+	return nil
 }
 
 func (d *Derivation) Stop() {
