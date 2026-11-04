@@ -9,6 +9,7 @@ import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {IL1MessageQueue} from "./rollup/IL1MessageQueue.sol";
 import {IRollup} from "./rollup/IRollup.sol";
 import {Verify} from "../libraries/common/Verify.sol";
+import {RateLimiter} from "../libraries/common/RateLimiter.sol";
 import {IL1CrossDomainMessenger} from "./IL1CrossDomainMessenger.sol";
 
 /**
@@ -19,6 +20,8 @@ import {IL1CrossDomainMessenger} from "./IL1CrossDomainMessenger.sol";
  *         interface instead of interacting with lower-level contracts directly.
  */
 contract L1CrossDomainMessenger is IL1CrossDomainMessenger, CrossDomainMessenger, Verify {
+    using RateLimiter for RateLimiter.TokenBucket;
+
     /***********
      * Structs *
      ***********/
@@ -69,6 +72,12 @@ contract L1CrossDomainMessenger is IL1CrossDomainMessenger, CrossDomainMessenger
     /// avoid such situation.
     mapping(uint256 => uint256) public prevReplayIndex;
 
+    /// @notice The token bucket limiting the ETH released by `proveAndRelayMessage`.
+    RateLimiter.TokenBucket internal ethRateLimiter;
+
+    /// @notice The address allowed to tighten the ETH rate limit.
+    address public rateLimitAdmin;
+
     /***************
      * Constructor *
      ***************/
@@ -92,6 +101,15 @@ contract L1CrossDomainMessenger is IL1CrossDomainMessenger, CrossDomainMessenger
 
         maxReplayTimes = 3;
         emit UpdateMaxReplayTimes(0, 3);
+    }
+
+    /*************************
+     * Public View Functions *
+     *************************/
+
+    /// @notice Return the state of the ETH rate limiter, refilled to the current block.
+    function currentETHRateLimiterState() external view returns (RateLimiter.TokenBucket memory) {
+        return RateLimiter.currentState(ethRateLimiter);
     }
 
     /*****************************
@@ -156,6 +174,9 @@ contract L1CrossDomainMessenger is IL1CrossDomainMessenger, CrossDomainMessenger
                 "Messenger: invalid withdrawal inclusion proof"
             );
         }
+        // rate limit the ETH released from the messenger
+        ethRateLimiter.consume(_value);
+
         // relay message
         xDomainMessageSender = _from;
         (bool success, ) = _to.call{value: _value}(_message);
@@ -165,8 +186,13 @@ contract L1CrossDomainMessenger is IL1CrossDomainMessenger, CrossDomainMessenger
         if (success) {
             // Mark the withdrawal as finalized so it can't be replayed.
             finalizedWithdrawals[_xDomainCalldataHash] = true;
+            if (_value != 0 && ethRateLimiter.isEnabled) {
+                emit ETHRateLimitConsumed(_xDomainCalldataHash, _value, ethRateLimiter.tokens);
+            }
             emit RelayedMessage(_xDomainCalldataHash);
         } else {
+            // The ETH stays in the messenger, so the consumed tokens are given back.
+            ethRateLimiter.refund(_value);
             emit FailedRelayedMessage(_xDomainCalldataHash);
         }
     }
@@ -266,6 +292,38 @@ contract L1CrossDomainMessenger is IL1CrossDomainMessenger, CrossDomainMessenger
         maxReplayTimes = _newMaxReplayTimes;
 
         emit UpdateMaxReplayTimes(_oldMaxReplayTimes, _newMaxReplayTimes);
+    }
+
+    /// @notice Update the config of the ETH rate limiter.
+    /// @dev The owner can set any valid config. The rate limit admin can only tighten the rate limit:
+    ///      enable it, or lower the capacity and the rate of an enabled one.
+    /// @param _config The new config.
+    function setETHRateLimiterConfig(RateLimiter.Config calldata _config) external {
+        address _sender = _msgSender();
+        if (_sender != owner()) {
+            if (_sender != rateLimitAdmin) revert ErrNotOwnerOrRateLimitAdmin();
+            RateLimiter.TokenBucket memory _current = ethRateLimiter;
+            if (
+                !_config.isEnabled ||
+                (_current.isEnabled && (_config.capacity > _current.capacity || _config.rate > _current.rate))
+            ) {
+                revert ErrRateLimitAdminCanOnlyTighten();
+            }
+        }
+
+        ethRateLimiter.setConfig(_config);
+
+        emit UpdateETHRateLimiterConfig(_config.isEnabled, _config.capacity, _config.rate);
+    }
+
+    /// @notice Update the rate limit admin.
+    /// @dev This function can only called by contract owner.
+    /// @param _newRateLimitAdmin The address of the new rate limit admin, zero address revokes the role.
+    function updateRateLimitAdmin(address _newRateLimitAdmin) external onlyOwner {
+        address _oldRateLimitAdmin = rateLimitAdmin;
+        rateLimitAdmin = _newRateLimitAdmin;
+
+        emit UpdateRateLimitAdmin(_oldRateLimitAdmin, _newRateLimitAdmin);
     }
 
     /**********************

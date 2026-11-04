@@ -7,6 +7,7 @@ import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 import {L2MessageBaseTest} from "./base/L2MessageBase.t.sol";
 import {L2CrossDomainMessenger} from "../l2/L2CrossDomainMessenger.sol";
+import {IL2CrossDomainMessenger} from "../l2/IL2CrossDomainMessenger.sol";
 
 contract L2CrossDomainMessengerTest is L2MessageBaseTest {
     function test_initialize_initializeAgain_revert() external {
@@ -110,5 +111,32 @@ contract L2CrossDomainMessengerTest is L2MessageBaseTest {
         // revert wit Message was already successfully executed
         hevm.expectRevert("Message was already successfully executed");
         l2CrossDomainMessenger.relayMessage(from, to, value, nonce, message);
+    }
+
+    function test_updateMaxWithdrawalValue_succeeds(uint256 _maxWithdrawalValue) external {
+        hevm.expectRevert("Ownable: caller is not the owner");
+        hevm.prank(bob);
+        l2CrossDomainMessenger.updateMaxWithdrawalValue(_maxWithdrawalValue);
+
+        hevm.expectEmit(false, false, false, true);
+        emit IL2CrossDomainMessenger.UpdateMaxWithdrawalValue(0, _maxWithdrawalValue);
+        hevm.prank(multisig);
+        l2CrossDomainMessenger.updateMaxWithdrawalValue(_maxWithdrawalValue);
+        assertEq(l2CrossDomainMessenger.maxWithdrawalValue(), _maxWithdrawalValue);
+    }
+
+    function test_sendMessage_exceedMaxWithdrawalValue_reverts() external {
+        hevm.deal(address(this), 1000);
+
+        // no limit by default
+        l2CrossDomainMessenger.sendMessage{value: 500}(bob, 500, "", 0);
+
+        hevm.prank(multisig);
+        l2CrossDomainMessenger.updateMaxWithdrawalValue(100);
+        hevm.expectRevert(
+            abi.encodeWithSelector(IL2CrossDomainMessenger.ErrExceedMaxWithdrawalValue.selector, 101, 100)
+        );
+        l2CrossDomainMessenger.sendMessage{value: 101}(bob, 101, "", 0);
+        l2CrossDomainMessenger.sendMessage{value: 100}(bob, 100, "", 0);
     }
 }

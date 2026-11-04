@@ -116,7 +116,7 @@ contract L1ETHGateway is GatewayBase, IL1ETHGateway, IMessageDropCallback {
             (_from, _data) = abi.decode(_data, (address, bytes));
         }
 
-        // @note no rate limit here, since ETH is limited in messenger
+        // @note no rate limit on deposits, ETH withdrawals are rate limited in L1CrossDomainMessenger
 
         // 2. Generate message passed to L1CrossDomainMessenger.
         bytes memory _message = abi.encodeCall(IL2ETHGateway.finalizeDepositETH, (_from, _to, _amount, _data));
