@@ -19,6 +19,15 @@ var (
 	L2CrossDomainMessengerABI, _ = bindings.L2CrossDomainMessengerMetaData.GetAbi()
 )
 
+// init fails fast at startup if the generated L2CrossDomainMessenger ABI cannot
+// be parsed, instead of letting the dropped error above surface later as an
+// obscure nil-dereference the first time L2CrossDomainMessengerABI is used.
+func init() {
+	if _, err := bindings.L2CrossDomainMessengerMetaData.GetAbi(); err != nil {
+		panic(fmt.Sprintf("parse L2CrossDomainMessenger ABI: %v", err))
+	}
+}
+
 func L1MessageTxFromEvent(event *bindings.L1MessageQueueWithGasPriceOracleQueueTransaction) eth.L1MessageTx {
 	return eth.L1MessageTx{
 		QueueIndex: event.QueueIndex,
