@@ -14,6 +14,7 @@ import {L2GatewayRouter} from "../l2/gateways/L2GatewayRouter.sol";
 import {IL1ERC20Gateway} from "../l1/gateways/IL1ERC20Gateway.sol";
 import {MockCrossDomainMessenger} from "../mock/MockCrossDomainMessenger.sol";
 import {L2CrossDomainMessenger} from "../l2/L2CrossDomainMessenger.sol";
+import {IL2CrossDomainMessenger} from "../l2/IL2CrossDomainMessenger.sol";
 
 contract L2WETHGatewayTest is L2GatewayBaseTest {
     WETH private l1weth;
@@ -187,6 +188,17 @@ contract L2WETHGatewayTest is L2GatewayBaseTest {
         uint256 feePerGas
     ) public {
         _withdrawERC20WithRecipientAndCalldata(true, amount, recipient, dataToCall, gasLimit, feePerGas);
+    }
+
+    function test_withdrawERC20_exceedMaxWithdrawalValue_reverts() public {
+        hevm.prank(multisig);
+        l2Messenger.updateMaxWithdrawalValue(100);
+
+        hevm.expectRevert(
+            abi.encodeWithSelector(IL2CrossDomainMessenger.ErrExceedMaxWithdrawalValue.selector, 101, 100)
+        );
+        gateway.withdrawERC20(address(l2weth), 101, 21000);
+        gateway.withdrawERC20(address(l2weth), 100, 21000);
     }
 
     function test_finalizeDepositERC20_mocking_fails(

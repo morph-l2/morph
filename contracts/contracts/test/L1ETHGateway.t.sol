@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.so
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
+import {RateLimiter} from "../libraries/common/RateLimiter.sol";
 import {IL1MessageQueue} from "../l1/rollup/IL1MessageQueue.sol";
 import {IL2ETHGateway} from "../l2/gateways/IL2ETHGateway.sol";
 import {IL1ETHGateway} from "../l1/gateways/IL1ETHGateway.sol";
@@ -274,6 +275,37 @@ contract L1ETHGatewayTest is L1GatewayBaseTest {
         assertEq(messengerBalance - amount, address(l1CrossDomainMessenger).balance);
         assertEq(recipientBalance + amount, address(recipient).balance);
         assertBoolEq(true, l1CrossDomainMessenger.finalizedWithdrawals(_xDomainCalldataHash));
+    }
+
+    function test_finalizeWithdrawETH_ethRateLimit_succeeds() public {
+        uint256 amount = 1 ether;
+        address recipient = address(2048);
+        address _from = counterpartGateway;
+        hevm.deal(address(l1CrossDomainMessenger), amount * 2);
+        hevm.prank(multisig);
+        l1CrossDomainMessenger.setETHRateLimiterConfig(RateLimiter.Config(true, 1 ether, 0.1 ether));
+
+        // the first withdrawal empties the bucket
+        bytes memory message = abi.encodeCall(IL1ETHGateway.finalizeWithdrawETH, (bob, alice, amount, ""));
+        (bytes32[32] memory wdProof, bytes32 wdRoot) = messageProveAndRelayPrepare(
+            _from,
+            address(l1ETHGateway),
+            amount,
+            0,
+            message
+        );
+        l1CrossDomainMessenger.proveAndRelayMessage(_from, address(l1ETHGateway), amount, 0, message, wdProof, wdRoot);
+
+        // the second one waits until the bucket is refilled
+        message = abi.encodeCall(IL1ETHGateway.finalizeWithdrawETH, (bob, recipient, amount, ""));
+        (wdProof, wdRoot) = messageProveAndRelayPrepare(_from, address(l1ETHGateway), amount, 0, message);
+        hevm.expectRevert(abi.encodeWithSelector(RateLimiter.ErrRateLimitReached.selector, 10, 0));
+        l1CrossDomainMessenger.proveAndRelayMessage(_from, address(l1ETHGateway), amount, 0, message, wdProof, wdRoot);
+
+        hevm.warp(block.timestamp + 10);
+        uint256 recipientBalance = recipient.balance;
+        l1CrossDomainMessenger.proveAndRelayMessage(_from, address(l1ETHGateway), amount, 0, message, wdProof, wdRoot);
+        assertEq(recipientBalance + amount, recipient.balance);
     }
 
     function testOnDropMessage() external {

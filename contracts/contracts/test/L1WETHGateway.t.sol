@@ -6,6 +6,7 @@ import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openze
 
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
+import {RateLimiter} from "../libraries/common/RateLimiter.sol";
 import {L1GatewayRouter} from "../l1/gateways/L1GatewayRouter.sol";
 import {IL1MessageQueue} from "../l1/rollup/IL1MessageQueue.sol";
 import {L1WETHGateway} from "../l1/gateways/L1WETHGateway.sol";
@@ -316,6 +317,66 @@ contract L1WETHGatewayTest is L1GatewayBaseTest {
         assertEq(messengerBalance - amount, address(l1CrossDomainMessenger).balance);
         assertEq(recipientBalance + amount, l1weth.balanceOf(address(recipient)));
         assertBoolEq(true, l1CrossDomainMessenger.finalizedWithdrawals(keccak256(xDomainCalldata)));
+    }
+
+    function test_finalizeWithdrawERC20_ethRateLimit_succeeds() public {
+        uint256 amount = 1 ether;
+        address recipient = address(2048);
+        hevm.deal(address(l1CrossDomainMessenger), amount * 2);
+        hevm.prank(multisig);
+        l1CrossDomainMessenger.setETHRateLimiterConfig(RateLimiter.Config(true, 1 ether, 0.1 ether));
+
+        // the first withdrawal empties the bucket
+        bytes memory message = abi.encodeCall(
+            IL1ERC20Gateway.finalizeWithdrawERC20,
+            (address(l1weth), address(l2weth), bob, alice, amount, "")
+        );
+        (bytes32[32] memory wdProof, bytes32 wdRoot) = messageProveAndRelayPrepare(
+            counterpartGateway,
+            address(gateway),
+            amount,
+            0,
+            message
+        );
+        l1CrossDomainMessenger.proveAndRelayMessage(
+            counterpartGateway,
+            address(gateway),
+            amount,
+            0,
+            message,
+            wdProof,
+            wdRoot
+        );
+
+        // the second one waits until the bucket is refilled
+        message = abi.encodeCall(
+            IL1ERC20Gateway.finalizeWithdrawERC20,
+            (address(l1weth), address(l2weth), bob, recipient, amount, "")
+        );
+        (wdProof, wdRoot) = messageProveAndRelayPrepare(counterpartGateway, address(gateway), amount, 0, message);
+        hevm.expectRevert(abi.encodeWithSelector(RateLimiter.ErrRateLimitReached.selector, 10, 0));
+        l1CrossDomainMessenger.proveAndRelayMessage(
+            counterpartGateway,
+            address(gateway),
+            amount,
+            0,
+            message,
+            wdProof,
+            wdRoot
+        );
+
+        hevm.warp(block.timestamp + 10);
+        uint256 recipientBalance = l1weth.balanceOf(recipient);
+        l1CrossDomainMessenger.proveAndRelayMessage(
+            counterpartGateway,
+            address(gateway),
+            amount,
+            0,
+            message,
+            wdProof,
+            wdRoot
+        );
+        assertEq(recipientBalance + amount, l1weth.balanceOf(recipient));
     }
 
     function test_finalizeWithdrawERC20_beforeFinalizeWithdrawERC20_reverts() public {
