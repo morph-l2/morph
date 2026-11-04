@@ -40,7 +40,6 @@ services:
       - MORPH_NODE_L2_ETH_RPC=http://morph-el-0:8545
       - MORPH_NODE_L2_ENGINE_RPC=http://morph-el-0:8551
       - MORPH_NODE_L2_ENGINE_AUTH=jwt-secret.txt
-      ## todo need to replace it to a public network
       - MORPH_NODE_L1_ETH_RPC=${L1_ETH_RPC}
       - MORPH_NODE_SYNC_DEPOSIT_CONTRACT_ADDRESS=0x6900000000000000000000000000000000000001
       ## - MORPH_NODE_SYNC_START_HEIGHT=88854536
