@@ -26,7 +26,6 @@ import (
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/log"
-	"github.com/morph-l2/go-ethereum/rpc"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -45,7 +44,7 @@ func Main() func(ctx *cli.Context) error {
 
 		// log start info
 		log.Info("starting tx submitter",
-			"l1_rpc", cfg.L1EthRpc,
+			"l1_rpcs", cfg.L1EthRpcs,
 			"l2_rpcs", cfg.L2EthRpcs,
 			"rollup_addr", cfg.RollupAddress,
 			"submitter_addr", cfg.SubmitterAddress,
@@ -111,13 +110,35 @@ func Main() func(ctx *cli.Context) error {
 		}
 		log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 
-		l1RpcClient, err := rpc.Dial(cfg.L1EthRpc)
-		if err != nil {
-			return fmt.Errorf("failed to connect to L1 provider: %w", err)
-		}
 		// Connect to L1 and L2 providers. Perform these last since they are the
 		// most expensive.
-		l1Client := ethclient.NewClient(l1RpcClient)
+		var l1List []iface.L1Client
+		var chainID *big.Int
+		for _, url := range cfg.L1EthRpcs {
+			c, err := ethclient.DialContext(ctx, url)
+			if err != nil {
+				log.Warn("failed to connect to L1 provider", "url", url, "err", err)
+				continue
+			}
+			id, err := c.ChainID(ctx)
+			if err != nil {
+				log.Warn("failed to get chain id from L1 provider", "url", url, "err", err)
+				continue
+			}
+			if chainID == nil {
+				chainID = id
+			} else if chainID.Cmp(id) != 0 {
+				return fmt.Errorf("l1 rpc %s chain id %s mismatches %s", url, id, chainID)
+			}
+			l1List = append(l1List, c)
+		}
+		if len(l1List) == 0 {
+			return fmt.Errorf("cannot connect to any l1 rpc")
+		}
+		l1Client, err := iface.NewL1Clients(l1List)
+		if err != nil {
+			return err
+		}
 
 		// l2 rpcs
 		var l2Clients []iface.L2Client
@@ -132,11 +153,6 @@ func Main() func(ctx *cli.Context) error {
 		}
 		if len(l2Clients) == 0 {
 			return fmt.Errorf("cannot connect to any l2 rpc")
-		}
-
-		chainID, err := l1Client.ChainID(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to get chain id: %w", err)
 		}
 
 		rollupAddr := common.HexToAddress(cfg.RollupAddress)
@@ -177,7 +193,7 @@ func Main() func(ctx *cli.Context) error {
 		sr := services.NewRollup(
 			ctx,
 			m,
-			l1RpcClient,
+			nil,
 			l1Client,
 			l2Clients,
 			l1Rollup,

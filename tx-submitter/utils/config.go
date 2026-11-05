@@ -19,8 +19,8 @@ type Config struct {
 	// EthNetworkName identifies the intended Ethereum network.
 	EthNetworkName string
 
-	// L1EthRpc is the HTTP provider URL for L1.
-	L1EthRpc string
+	// L1EthRpcs are the HTTP provider URLs for L1, in priority order.
+	L1EthRpcs []string
 	// l1 ws rpc provider url
 	L1WsRpc string
 
@@ -120,7 +120,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 	cfg := Config{
 		/* Required Flags */
 		BuildEnv:                ctx.GlobalString(flags.BuildEnvFlag.Name),
-		L1EthRpc:                ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L1EthRpcs:               ctx.GlobalStringSlice(flags.L1EthRpcFlag.Name),
 		L2EthRpcs:               ctx.GlobalStringSlice(flags.L2EthRpcsFlag.Name),
 		LogLevel:                ctx.GlobalString(flags.LogLevelFlag.Name),
 		PrivateKey:              ctx.GlobalString(flags.PrivateKeyFlag.Name),

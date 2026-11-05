@@ -22,9 +22,9 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("BUILD_ENV"),
 	}
-	L1EthRpcFlag = cli.StringFlag{
+	L1EthRpcFlag = cli.StringSliceFlag{
 		Name:     "l1_eth_rpc",
-		Usage:    "HTTP provider URL for L1",
+		Usage:    "HTTP provider URL(s) for L1; repeat the flag or comma-separate (env) for multiple, later ones are fallbacks",
 		Required: true,
 		EnvVar:   prefixEnvVar("L1_ETH_RPC"),
 	}
