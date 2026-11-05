@@ -44,11 +44,9 @@ parser.add_argument('--deployer-private-key',
                         '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
                     ),
                     help='Private key for the L1 contract deployer/owner')
+# Removed the vulnerable Hardhat/Anvil fallback key. The key must be explicitly provided via environment.
 parser.add_argument('--batch-submitter-private-key',
-                    default=os.environ.get(
-                        'BATCH_SUBMITTER_PRIVATE_KEY',
-                        '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d',
-                    ),
+                    default=os.environ.get('BATCH_SUBMITTER_PRIVATE_KEY'),
                     help='Private key for the devnet batch submitter; kept separate from the block sequencer')
 parser.add_argument('--cluster', action="store_true",
                     default=os.environ.get('DEVNET_CLUSTER', '').lower() in ('1', 'true', 'yes'),
@@ -95,6 +93,11 @@ def main():
     """Entry point: parse CLI arguments and bring up the L1-only or full devnet."""
     args = parser.parse_args()
 
+    # Fail early if the batch submitter private key is completely missing
+    if not args.batch_submitter_private_key:
+        log.error("BATCH_SUBMITTER_PRIVATE_KEY must be set in the environment or passed via --batch-submitter-private-key.")
+        exit(1)
+
     polyrepo_dir = os.path.abspath(args.polyrepo_dir)
     L2_dir = pjoin(polyrepo_dir, 'ops', 'l2-genesis')
     devnet_dir = pjoin(polyrepo_dir, 'ops', 'l2-genesis', '.devnet')
@@ -119,7 +122,7 @@ def main():
 
     os.makedirs(devnet_dir, exist_ok=True)
     if args.only_l1:
-        devnet_l1(paths)
+        devnet_l1(paths, args.batch_submitter_private_key)
         return True
 
     # log.info(f'Building docker images')
@@ -128,7 +131,7 @@ def main():
     devnet_deploy(paths, args)
 
 
-def devnet_l1(paths, result=None):
+def devnet_l1(paths, batch_submitter_private_key, result=None):
     """Start the L1 execution/consensus/validator stack and fund sequencer accounts."""
     log.info('Starting L1.')
     
@@ -154,7 +157,8 @@ def devnet_l1(paths, result=None):
     log.info('Starting layer1 services (layer1-el, layer1-cl, layer1-vc)...')
     run_command(['docker', 'compose', '-f', 'docker-compose-devnet.yml', 'up', '-d',
                  'layer1-el', 'layer1-cl', 'layer1-vc'], cwd=paths.ops_dir, env={
-            'PWD': paths.ops_dir
+            'PWD': paths.ops_dir,
+            'BATCH_SUBMITTER_PRIVATE_KEY': batch_submitter_private_key,
         })
     
     # Wait for EL node to be ready
@@ -206,7 +210,7 @@ def devnet_build(paths):
 def devnet_deploy(paths, args):
     """Bring up the devnet where the contracts are deployed to L1."""
     if not test_port(9545):
-        devnet_l1(paths)
+        devnet_l1(paths, args.batch_submitter_private_key)
     done_file = pjoin(paths.devnet_dir, 'done')
     log.info('Generating network config.')
     devnet_cfg_orig = pjoin(paths.deploy_config_dir, 'devnet-deploy-config.json')
@@ -316,7 +320,6 @@ def devnet_deploy(paths, args):
         env_data['MORPH_SUBMITTER'] = addresses['Proxy__Submitter']
         env_data['BATCH_BLOCK_INTERVAL'] = str(deploy_config['govBatchBlockInterval'])
         env_data['BATCH_TIMEOUT'] = str(deploy_config['govBatchTimeout'])
-        env_data['BATCH_SUBMITTER_PRIVATE_KEY'] = args.batch_submitter_private_key
         env_data['RUST_LOG'] = rust_log_level
         env_data.pop('Proxy__L1Staking', None)
         env_data.pop('MORPH_L1STAKING', None)

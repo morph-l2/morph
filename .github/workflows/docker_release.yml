@@ -41,8 +41,13 @@ jobs:
 
       - name: Extract version and commit
         id: meta
+        # Pass the tag through an env var: interpolating ${{ }} directly into
+        # run: would let a crafted tag name execute shell code BEFORE the
+        # regex gate below runs.
+        env:
+          TAG_INPUT: ${{ inputs.tag || github.ref_name }}
         run: |
-          TAG="${{ inputs.tag || github.ref_name }}"
+          TAG="${TAG_INPUT}"
           if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
             echo "Invalid release tag: $TAG (expected e.g. v0.5.0)"
             exit 1
