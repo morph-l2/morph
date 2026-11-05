@@ -121,7 +121,7 @@ func TestReSubmitTx(t *testing.T) {
 	r.cfg.TipFeeBump = 0 // no bump for replace mode
 
 	// Test nil tx
-	_, err := r.ReSubmitTx(false, nil)
+	_, err := r.ReSubmitTx(r.rollupAcc, false, nil)
 	require.ErrorContains(t, err, "nil tx")
 
 	t.Run("DynamicFeeTx", func(t *testing.T) {
@@ -138,7 +138,7 @@ func TestReSubmitTx(t *testing.T) {
 
 		// Test Replace Mode
 		t.Run("Replace", func(t *testing.T) {
-			newTx, err := r.ReSubmitTx(false, oldDynamicTx)
+			newTx, err := r.ReSubmitTx(r.rollupAcc, false, oldDynamicTx)
 			require.NoError(t, err)
 			require.NotNil(t, newTx)
 
@@ -164,7 +164,7 @@ func TestReSubmitTx(t *testing.T) {
 
 		// Test Resubmit Mode
 		t.Run("Resubmit", func(t *testing.T) {
-			newTx, err := r.ReSubmitTx(true, oldDynamicTx)
+			newTx, err := r.ReSubmitTx(r.rollupAcc, true, oldDynamicTx)
 			require.NoError(t, err)
 			require.NotNil(t, newTx)
 
@@ -202,7 +202,7 @@ func TestReSubmitTx(t *testing.T) {
 
 		// Test Replace Mode
 		t.Run("Replace", func(t *testing.T) {
-			newTx, err := r.ReSubmitTx(false, oldBlobTx)
+			newTx, err := r.ReSubmitTx(r.rollupAcc, false, oldBlobTx)
 			require.NoError(t, err)
 			require.NotNil(t, newTx)
 
@@ -235,7 +235,7 @@ func TestReSubmitTx(t *testing.T) {
 
 		// Test Resubmit Mode
 		t.Run("Resubmit", func(t *testing.T) {
-			newTx, err := r.ReSubmitTx(true, oldBlobTx)
+			newTx, err := r.ReSubmitTx(r.rollupAcc, true, oldBlobTx)
 			require.NoError(t, err)
 			require.NotNil(t, newTx)
 
@@ -273,7 +273,7 @@ func TestCancelTx(t *testing.T) {
 	r.cfg.TipFeeBump = 120 // 20% bump
 
 	// Test 1: Cancel nil transaction
-	_, err := r.CancelTx(nil)
+	_, err := r.CancelTx(r.rollupAcc, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "nil tx")
 
@@ -289,7 +289,7 @@ func TestCancelTx(t *testing.T) {
 		Data:      []byte{1, 2, 3, 4}, // Some non-empty data
 	})
 
-	cancelTx, err := r.CancelTx(originalDynamicTx)
+	cancelTx, err := r.CancelTx(r.rollupAcc, originalDynamicTx)
 	require.NoError(t, err)
 	require.NotNil(t, cancelTx)
 
@@ -330,7 +330,7 @@ func TestCancelTx(t *testing.T) {
 		},
 	})
 
-	cancelBlobTx, err := r.CancelTx(blobTx)
+	cancelBlobTx, err := r.CancelTx(r.rollupAcc, blobTx)
 	require.NoError(t, err)
 	require.NotNil(t, cancelBlobTx)
 
@@ -380,7 +380,7 @@ func TestTxStateTransition(t *testing.T) {
 	// Test transaction state transitions
 	t.Run("Transaction State Flow", func(t *testing.T) {
 		// Step 1: Transaction exists only locally (not in mempool or block)
-		err := rollup.pendingTxs.Add(tx1)
+		err := rollup.rollupAcc.pendingTxs.Add(tx1)
 		require.NoError(t, err)
 		status, err := rollup.getTxStatus(tx1)
 		require.NoError(t, err)
@@ -411,7 +411,7 @@ func TestTxStateTransition(t *testing.T) {
 		// Step 5: Process transaction and verify cleanup
 		rollup.ProcessTx()
 		// Verify transaction is removed from pendingTxs after finalization
-		txRecord := rollup.pendingTxs.GetTxRecord(tx1.Hash())
+		txRecord := rollup.rollupAcc.pendingTxs.GetTxRecord(tx1.Hash())
 		require.Nil(t, txRecord)
 	})
 }

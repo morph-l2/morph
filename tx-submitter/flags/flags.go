@@ -35,6 +35,13 @@ var (
 		EnvVar:   prefixEnvVar("L2_ETH_RPCS"),
 	}
 
+	FinalizePrivateKeyFlag = cli.StringFlag{
+		Name:     "l1_finalize_private_key",
+		Usage:    "The private key of the finalize account (local sign mode). If unset, finalize shares the rollup account",
+		EnvVar:   prefixEnvVar("L1_FINALIZE_PRIVATE_KEY"),
+		Required: false,
+	}
+
 	PrivateKeyFlag = cli.StringFlag{
 		Name:     "l1_private_key",
 		Usage:    "The private key to use for sending to the rollup contract",
@@ -192,6 +199,13 @@ var (
 		EnvVar: prefixEnvVar("JOURNAL_FILE_PATH"),
 		Value:  "journal.rlp",
 	}
+	// finalize account journal path
+	FinalizeJournalFlag = cli.StringFlag{
+		Name:   "finalize_journal_file_path",
+		Usage:  "The path of the journal file of the finalize account (required when a separate finalize account is configured)",
+		EnvVar: prefixEnvVar("FINALIZE_JOURNAL_FILE_PATH"),
+		Value:  "finalize_journal.rlp",
+	}
 	TipFeeBumpFlag = cli.Uint64Flag{
 		Name:   "TIP_FEE_BUMP",
 		Usage:  "The fee bump for tip",
@@ -229,6 +243,13 @@ var (
 		Name:   "external_sign",
 		Usage:  "Enable external sign",
 		EnvVar: prefixEnvVar("EXTERNAL_SIGN"),
+	}
+
+	// finalize account external sign address (reuses appid/rsa/url/chain)
+	ExternalSignFinalizeAddress = cli.StringFlag{
+		Name:   "external_sign_finalize_address",
+		Usage:  "The external sign address of the finalize account; reuses the other external sign settings",
+		EnvVar: prefixEnvVar("EXTERNAL_SIGN_FINALIZE_ADDRESS"),
 	}
 
 	// address
@@ -340,6 +361,8 @@ var optionalFlags = []cli.Flag{
 	JournalFlag,
 
 	PrivateKeyFlag,
+	FinalizePrivateKeyFlag,
+	FinalizeJournalFlag,
 	TipFeeBumpFlag,
 	MaxTipFlag,
 	MinTipFlag,
@@ -349,6 +372,7 @@ var optionalFlags = []cli.Flag{
 	// external sign
 	ExternalSign,
 	ExternalSignAddress,
+	ExternalSignFinalizeAddress,
 	ExternalSignAppid,
 	ExternalSignChain,
 	ExternalSignUrl,

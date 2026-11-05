@@ -2,8 +2,6 @@ package services
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/rsa"
 	"errors"
 	"fmt"
 	"math/big"
@@ -18,7 +16,6 @@ import (
 	"github.com/morph-l2/go-ethereum/consensus/misc/eip4844"
 	"github.com/morph-l2/go-ethereum/core"
 	ethtypes "github.com/morph-l2/go-ethereum/core/types"
-	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/crypto/kzg4844"
 	"github.com/morph-l2/go-ethereum/eth"
 	"github.com/morph-l2/go-ethereum/log"
@@ -32,7 +29,6 @@ import (
 	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/l1checker"
-	"morph-l2/tx-submitter/localpool"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/types"
 	"morph-l2/tx-submitter/utils"
@@ -47,24 +43,25 @@ const (
 )
 
 type Rollup struct {
-	ctx              context.Context
-	metrics          *metrics.Metrics
-	l1RpcClient      *rpc.Client
-	L1Client         iface.Client
-	L2Clients        []iface.L2Client
-	Rollup           iface.IRollup
-	Submitter        iface.ISubmitter
-	chainId          *big.Int
-	privKey          *ecdsa.PrivateKey
-	rollupAddr       common.Address
-	abi              *abi.ABI
-	pendingTxs       *PendingTxs
-	rollupFinalizeMu sync.Mutex
-	externalRsaPriv  *rsa.PrivateKey
+	ctx         context.Context
+	metrics     *metrics.Metrics
+	l1RpcClient *rpc.Client
+	L1Client    iface.Client
+	L2Clients   []iface.L2Client
+	Rollup      iface.IRollup
+	Submitter   iface.ISubmitter
+	chainId     *big.Int
+	rollupAddr  common.Address
+	abi         *abi.ABI
+	// rollupAcc sends commitBatch / commitState; finalizeAcc sends finalizeBatch.
+	// They point to the same instance in single-account compatibility mode.
+	rollupAcc   *Account
+	finalizeAcc *Account
+	// sharedAcctMu serializes rollup() and finalize() only in single-account
+	// mode, where both share one nonce sequence.
+	sharedAcctMu sync.Mutex
 	// cfg
 	cfg utils.Config
-	// signer
-	signer ethtypes.Signer
 	// leveldb
 	ldb *db.Db
 	// rollupFeeSum
@@ -91,31 +88,33 @@ func NewRollup(
 	rollup iface.IRollup,
 	submitter iface.ISubmitter,
 	chainId *big.Int,
-	priKey *ecdsa.PrivateKey,
+	rollupAcc *Account,
+	finalizeAcc *Account,
 	rollupAddr common.Address,
 	abi *abi.ABI,
 	cfg utils.Config,
-	rsaPriv *rsa.PrivateKey,
 	ldb *db.Db,
 	bm *l1checker.BlockMonitor,
 	l2Caller *types.L2Caller,
 ) *Rollup {
 	reorgDetector := NewReorgDetector(l1)
+	if finalizeAcc == nil {
+		finalizeAcc = rollupAcc
+	}
 	r := &Rollup{
-		ctx:             ctx,
-		metrics:         metrics,
-		l1RpcClient:     l1RpcClient,
-		L1Client:        l1,
-		Rollup:          rollup,
-		Submitter:       submitter,
-		L2Clients:       l2Clients,
-		privKey:         priKey,
-		chainId:         chainId,
-		rollupAddr:      rollupAddr,
-		abi:             abi,
-		cfg:             cfg,
-		signer:          ethtypes.LatestSignerForChainID(chainId),
-		externalRsaPriv: rsaPriv,
+		ctx:         ctx,
+		metrics:     metrics,
+		l1RpcClient: l1RpcClient,
+		L1Client:    l1,
+		Rollup:      rollup,
+		Submitter:   submitter,
+		L2Clients:   l2Clients,
+		rollupAcc:   rollupAcc,
+		finalizeAcc: finalizeAcc,
+		chainId:     chainId,
+		rollupAddr:  rollupAddr,
+		abi:         abi,
+		cfg:         cfg,
 		batchCache: batch.NewBatchCache(
 			nil,
 			func(blockTimestamp uint64) bool {
@@ -149,24 +148,18 @@ func (r *Rollup) Start() error {
 		return err
 	}
 
-	// journal
-	jn := localpool.New(r.cfg.JournalFilePath)
-	err := jn.Init()
-	if err != nil {
-		log.Crit("journal file init failed", "err", err)
+	// journal + pending pool per account
+	for _, acc := range r.accounts() {
+		if err := acc.initPending(r.abi); err != nil {
+			log.Crit("init account failed", "account", acc.name, "error", err)
+		}
 	}
-	// pendingtxs
-	r.pendingTxs = NewPendingTxs(jn)
-	txs, err := jn.ParseAllTxs()
-	if err != nil {
-		log.Crit("parse l1 mempool error", "error", err)
-	}
-	if err := r.pendingTxs.Recover(txs, r.abi); err != nil {
-		log.Crit("failed to recover pending transactions", "error", err)
+	if !r.splitAccounts() {
+		log.Warn("finalize account not configured, running in single-account compatibility mode")
 	}
 
 	// init fee metrics sum
-	err = r.InitFeeMetricsSum()
+	err := r.InitFeeMetricsSum()
 	if err != nil {
 		return fmt.Errorf("init fee metrics sum failed: %w", err)
 	}
@@ -177,25 +170,31 @@ func (r *Rollup) Start() error {
 
 	// metrics
 	go utils.Loop(r.ctx, 10*time.Second, func() {
-		// get balance of wallet
-		balance, err := r.L1Client.BalanceAt(context.Background(), r.WalletAddr(), nil)
-		if err != nil {
-			log.Error("get wallet balance error", "error", err)
-			if utils.IsRpcErr(err) {
-				r.metrics.IncRpcErrors()
+		// get balance of every distinct wallet
+		for i, acc := range r.accounts() {
+			balance, err := r.L1Client.BalanceAt(context.Background(), acc.WalletAddr(), nil)
+			if err != nil {
+				log.Error("get wallet balance error", "account", acc.name, "error", err)
+				if utils.IsRpcErr(err) {
+					r.metrics.IncRpcErrors()
+				}
+				return
 			}
-			return
-		}
-		// balance to eth
-		balanceEth := new(big.Rat).SetFrac(balance, big.NewInt(params.Ether))
+			// balance to eth
+			balanceEth := new(big.Rat).SetFrac(balance, big.NewInt(params.Ether))
 
-		// parse float64 from string
-		balanceEthFloat, err := strconv.ParseFloat(balanceEth.FloatString(18), 64)
-		if err != nil {
-			log.Warn("parse balance to float error", "error", err)
-			return
+			// parse float64 from string
+			balanceEthFloat, err := strconv.ParseFloat(balanceEth.FloatString(18), 64)
+			if err != nil {
+				log.Warn("parse balance to float error", "error", err)
+				return
+			}
+			if i == 0 {
+				r.metrics.SetWalletBalance(balanceEthFloat)
+			} else {
+				r.metrics.SetFinalizeWalletBalance(balanceEthFloat)
+			}
 		}
-		r.metrics.SetWalletBalance(balanceEthFloat)
 		// last committed batch
 		lastCommittedBatch, err := r.Rollup.LastCommittedBatchIndex(nil)
 		if err != nil {
@@ -229,8 +228,7 @@ func (r *Rollup) Start() error {
 
 	if r.cfg.Finalize {
 		go utils.Loop(r.ctx, r.cfg.FinalizeInterval, func() {
-			r.rollupFinalizeMu.Lock()
-			defer r.rollupFinalizeMu.Unlock()
+			defer r.lockIfShared()()
 
 			if err := r.finalize(); err != nil {
 				log.Error("finalize failed", "error", err)
@@ -309,8 +307,7 @@ func (r *Rollup) Start() error {
 
 func (r *Rollup) startRollupLoop() {
 	go utils.Loop(r.ctx, r.cfg.RollupInterval, func() {
-		r.rollupFinalizeMu.Lock()
-		defer r.rollupFinalizeMu.Unlock()
+		defer r.lockIfShared()()
 		if err := r.rollup(); err != nil {
 			if utils.IsRpcErr(err) {
 				r.metrics.IncRpcErrors()
@@ -318,6 +315,30 @@ func (r *Rollup) startRollupLoop() {
 			log.Error("rollup failed,wait for the next try", "error", err)
 		}
 	})
+}
+
+// splitAccounts reports whether rollup and finalize use distinct accounts.
+func (r *Rollup) splitAccounts() bool {
+	return r.finalizeAcc != r.rollupAcc
+}
+
+// accounts returns the distinct accounts (one in single-account mode).
+func (r *Rollup) accounts() []*Account {
+	if r.splitAccounts() {
+		return []*Account{r.rollupAcc, r.finalizeAcc}
+	}
+	return []*Account{r.rollupAcc}
+}
+
+// lockIfShared locks sharedAcctMu in single-account mode (shared nonce) and
+// returns the unlock func; in split mode it is a no-op so rollup and finalize
+// run in parallel.
+func (r *Rollup) lockIfShared() func() {
+	if r.splitAccounts() {
+		return func() {}
+	}
+	r.sharedAcctMu.Lock()
+	return r.sharedAcctMu.Unlock
 }
 
 func (r *Rollup) ProcessTx() error {
@@ -332,22 +353,32 @@ func (r *Rollup) ProcessTx() error {
 		}
 	}
 
-	// Get all local transactions
-	txRecords := r.pendingTxs.GetAll()
+	// Each account is processed independently so one stuck account cannot
+	// block the other; the first error is returned after all were attempted.
+	var firstErr error
+	for _, acc := range r.accounts() {
+		if err := r.processAccountTxs(acc); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+func (r *Rollup) processAccountTxs(acc *Account) error {
+	txRecords := acc.pendingTxs.GetAll()
 	if len(txRecords) == 0 {
 		return nil
 	}
 
-	// Process each transaction
 	for _, txRecord := range txRecords {
-		if err := r.processSingleTx(txRecord); err != nil {
+		if err := r.processSingleTx(acc, txRecord); err != nil {
 			log.Error("Transaction processing failed",
+				"account", acc.name,
 				"tx_hash", txRecord.Tx.Hash().String(),
 				"error", err)
 			return fmt.Errorf("transaction processing failed: %w", err)
 		}
 	}
-
 	return nil
 }
 
@@ -369,14 +400,16 @@ func (r *Rollup) detectReorgWithRetry() (bool, uint64, error) {
 func (r *Rollup) handleReorg(depth uint64) error {
 	r.metrics.SetReorgDepth(float64(depth))
 	r.metrics.IncReorgs()
-	if r.pendingTxs != nil {
-		r.pendingTxs.ClearConfirmedTxs()
+	for _, acc := range r.accounts() {
+		if acc.pendingTxs != nil {
+			acc.pendingTxs.ClearConfirmedTxs()
+		}
 	}
 	return nil
 }
 
 // Process a single transaction
-func (r *Rollup) processSingleTx(txRecord *types.TxRecord) error {
+func (r *Rollup) processSingleTx(acc *Account, txRecord *types.TxRecord) error {
 	rtx := txRecord.Tx
 	method := utils.ParseMethod(rtx, r.abi)
 
@@ -394,7 +427,7 @@ func (r *Rollup) processSingleTx(txRecord *types.TxRecord) error {
 
 	switch status.state {
 	case txStatusPending:
-		return r.handlePendingTx(txRecord, rtx, method)
+		return r.handlePendingTx(acc, txRecord, rtx, method)
 	case txStatusConfirmed:
 		// Get current block number
 		currentBlock, err := r.L1Client.BlockNumber(context.Background())
@@ -419,15 +452,15 @@ func (r *Rollup) processSingleTx(txRecord *types.TxRecord) error {
 				"gas_used", status.receipt.GasUsed,
 				"effective_gas_price", status.receipt.EffectiveGasPrice,
 				"method", method)
-			if err := r.pendingTxs.Remove(rtx.Hash()); err != nil {
+			if err := acc.pendingTxs.Remove(rtx.Hash()); err != nil {
 				log.Error("failed to remove transaction", "hash", rtx.Hash().String(), "error", err)
 			}
 			r.metrics.IncTxConfirmed(method)
 			return nil
 		}
-		return r.handleConfirmedTx(txRecord, rtx, status, currentBlock)
+		return r.handleConfirmedTx(acc, txRecord, rtx, status, currentBlock)
 	case txStatusMissing:
-		return r.handleMissingTx(txRecord, rtx, method)
+		return r.handleMissingTx(acc, txRecord, rtx, method)
 	default:
 		return fmt.Errorf("unknown transaction status: %v", status.state)
 	}
@@ -499,7 +532,7 @@ func (r *Rollup) getTxStatus(tx *ethtypes.Transaction) (*txStatus, error) {
 	return &txStatus{state: txStatusMissing}, nil
 }
 
-func (r *Rollup) handlePendingTx(txRecord *types.TxRecord, tx *ethtypes.Transaction, method string) error {
+func (r *Rollup) handlePendingTx(acc *Account, txRecord *types.TxRecord, tx *ethtypes.Transaction, method string) error {
 	// Obsolete / doomed txs: cancel before timeout handling so we do not resubmit a tx that will revert.
 	if constants.IsCommitLikeMethod(method) {
 		batchIndex := utils.ParseParentBatchIndex(tx.Data()) + 1
@@ -514,7 +547,7 @@ func (r *Rollup) handlePendingTx(txRecord *types.TxRecord, tx *ethtypes.Transact
 				"last_committed", lastCommitted.Uint64(),
 				"tx_hash", tx.Hash().String())
 
-			cancelTx, err := r.CancelTx(tx)
+			cancelTx, err := r.CancelTx(acc, tx)
 			if err != nil {
 				log.Error("Failed to cancel commit batch transaction",
 					"error", err,
@@ -533,7 +566,7 @@ func (r *Rollup) handlePendingTx(txRecord *types.TxRecord, tx *ethtypes.Transact
 				"old_tx", tx.Hash().Hex(),
 				"new_tx", cancelTx.Hash().String(),
 				"nonce", tx.Nonce())
-			if err := r.pendingTxs.Remove(tx.Hash()); err != nil {
+			if err := acc.pendingTxs.Remove(tx.Hash()); err != nil {
 				log.Error("failed to remove transaction", "hash", tx.Hash().String(), "error", err)
 			}
 			// CancelTx -> SendTx already adds the cancel tx to the pool
@@ -552,7 +585,7 @@ func (r *Rollup) handlePendingTx(txRecord *types.TxRecord, tx *ethtypes.Transact
 				"last_finalized", lastFinalized.Uint64(),
 				"tx_hash", tx.Hash().String())
 
-			cancelTx, err := r.CancelTx(tx)
+			cancelTx, err := r.CancelTx(acc, tx)
 			if err != nil {
 				log.Error("Failed to cancel finalize batch transaction",
 					"error", err,
@@ -571,7 +604,7 @@ func (r *Rollup) handlePendingTx(txRecord *types.TxRecord, tx *ethtypes.Transact
 				"old_tx", tx.Hash().Hex(),
 				"new_tx", cancelTx.Hash().String(),
 				"nonce", tx.Nonce())
-			if err := r.pendingTxs.Remove(tx.Hash()); err != nil {
+			if err := acc.pendingTxs.Remove(tx.Hash()); err != nil {
 				log.Error("failed to remove transaction", "hash", tx.Hash().String(), "error", err)
 			}
 			// CancelTx -> SendTx already adds the cancel tx to the pool
@@ -584,14 +617,14 @@ func (r *Rollup) handlePendingTx(txRecord *types.TxRecord, tx *ethtypes.Transact
 			"tx", tx.Hash().Hex(),
 			"nonce", tx.Nonce(),
 			"method", method)
-		return r.replaceTimedOutTx(tx)
+		return r.replaceTimedOutTx(acc, tx)
 	}
 
 	return nil
 }
 
-func (r *Rollup) replaceTimedOutTx(tx *ethtypes.Transaction) error {
-	newTx, err := r.ReSubmitTx(false, tx)
+func (r *Rollup) replaceTimedOutTx(acc *Account, tx *ethtypes.Transaction) error {
+	newTx, err := r.ReSubmitTx(acc, false, tx)
 	if err != nil {
 		log.Error("Failed to resubmit transaction",
 			"error", err,
@@ -605,22 +638,22 @@ func (r *Rollup) replaceTimedOutTx(tx *ethtypes.Transaction) error {
 		"new_tx", newTx.Hash().String(),
 		"nonce", tx.Nonce())
 
-	if err := r.pendingTxs.Remove(tx.Hash()); err != nil {
+	if err := acc.pendingTxs.Remove(tx.Hash()); err != nil {
 		log.Error("failed to remove transaction", "hash", tx.Hash().String(), "error", err)
 	}
 	// ReSubmitTx -> SendTx already adds newTx to the pool
 	return nil
 }
 
-func (r *Rollup) handleMissingTx(txRecord *types.TxRecord, tx *ethtypes.Transaction, method string) error {
-	r.pendingTxs.IncQueryTimes(tx.Hash())
+func (r *Rollup) handleMissingTx(acc *Account, txRecord *types.TxRecord, tx *ethtypes.Transaction, method string) error {
+	acc.pendingTxs.IncQueryTimes(tx.Hash())
 
 	// Mark transaction as unconfirmed since it's missing
 	txRecord.Confirmed = false
 
 	// Only resubmit after several retries
 	if txRecord.QueryTimes >= 5 {
-		return r.handleDiscardedTx(txRecord, tx, method)
+		return r.handleDiscardedTx(acc, txRecord, tx, method)
 	}
 
 	log.Info("Transaction not found in mempool or chain",
@@ -631,14 +664,14 @@ func (r *Rollup) handleMissingTx(txRecord *types.TxRecord, tx *ethtypes.Transact
 	return nil
 }
 
-func (r *Rollup) handleDiscardedTx(txRecord *types.TxRecord, tx *ethtypes.Transaction, method string) error {
+func (r *Rollup) handleDiscardedTx(acc *Account, txRecord *types.TxRecord, tx *ethtypes.Transaction, method string) error {
 	log.Warn("Transaction discarded",
 		"hash", tx.Hash().String(),
 		"nonce", tx.Nonce(),
 		"query_times", txRecord.QueryTimes)
 
 	// Try to resubmit with original parameters
-	replacedTx, err := r.ReSubmitTx(true, tx)
+	replacedTx, err := r.ReSubmitTx(acc, true, tx)
 	if err != nil {
 		if utils.ErrStringMatch(err, core.ErrNonceTooLow) {
 			// The tx was probably confirmed in a reorg
@@ -646,7 +679,7 @@ func (r *Rollup) handleDiscardedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 				"hash", tx.Hash().String(),
 				"nonce", tx.Nonce(),
 				"method", method)
-			if err = r.pendingTxs.Remove(tx.Hash()); err != nil {
+			if err = acc.pendingTxs.Remove(tx.Hash()); err != nil {
 				log.Error("failed to remove transaction", "hash", tx.Hash().String(), "error", err)
 			}
 			return nil
@@ -658,13 +691,13 @@ func (r *Rollup) handleDiscardedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 			"nonce", tx.Nonce(),
 			"error", err)
 
-		replacedTx, err = r.createReplacementTransferTx(tx)
+		replacedTx, err = r.createReplacementTransferTx(acc, tx)
 		if err != nil {
 			return fmt.Errorf("failed to create replacement transfer tx: %w", err)
 		}
 	}
 
-	if err = r.pendingTxs.Remove(tx.Hash()); err != nil {
+	if err = acc.pendingTxs.Remove(tx.Hash()); err != nil {
 		log.Error("failed to remove transaction", "hash", tx.Hash().String(), "error", err)
 	}
 	log.Info("Successfully resubmitted discarded transaction",
@@ -678,7 +711,7 @@ func (r *Rollup) handleDiscardedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 // handleConfirmedTx handles a confirmed transaction.
 // status and currentBlock must come from the same processSingleTx pass as getTxStatus / BlockNumber
 // so a reorg between polls cannot leave receipt nil while we still treat the tx as confirmed-on-chain.
-func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transaction, status *txStatus, currentBlock uint64) error {
+func (r *Rollup) handleConfirmedTx(acc *Account, txRecord *types.TxRecord, tx *ethtypes.Transaction, status *txStatus, currentBlock uint64) error {
 	if status == nil || status.receipt == nil {
 		return nil
 	}
@@ -745,12 +778,13 @@ func (r *Rollup) handleConfirmedTx(txRecord *types.TxRecord, tx *ethtypes.Transa
 		}
 	}
 
-	r.pendingTxs.MarkConfirmed(tx.Hash())
+	acc.pendingTxs.MarkConfirmed(tx.Hash())
 	return nil
 }
 
 func (r *Rollup) finalize() error {
-	if err := r.ensureActiveSubmitter(); err != nil {
+	acc := r.finalizeAcc
+	if err := r.ensureActiveSubmitter(acc); err != nil {
 		return fmt.Errorf("skip finalize: %w", err)
 	}
 	// get last finalized
@@ -774,7 +808,7 @@ func (r *Rollup) finalize() error {
 		return nil
 	}
 
-	if pf := r.pendingTxs.GetPFinalize(); pf > lastFinalized.Uint64() {
+	if pf := acc.pendingTxs.GetPFinalize(); pf > lastFinalized.Uint64() {
 		log.Warn("pfinalize ahead of lastFinalized, targeting lastFinalized+1",
 			"pfinalize", pf,
 			"last_finalized", lastFinalized,
@@ -782,7 +816,7 @@ func (r *Rollup) finalize() error {
 		)
 	}
 
-	if r.pendingTxs.ExistedFinalizeIndex(target.Uint64()) {
+	if acc.pendingTxs.ExistedFinalizeIndex(target.Uint64()) {
 		log.Info("finalize tx already pending", "batch_index", target)
 		return nil
 	}
@@ -851,7 +885,7 @@ func (r *Rollup) finalize() error {
 		return fmt.Errorf("get gas tip and cap error:%v", err)
 	}
 
-	gas, err := r.EstimateGas(r.WalletAddr(), r.rollupAddr, calldata, feecap, tip, nil, nil)
+	gas, err := r.EstimateGas(acc.WalletAddr(), r.rollupAddr, calldata, feecap, tip, nil, nil)
 	if err != nil {
 		log.Warn("estimate finalize tx gas error",
 			"error", err,
@@ -868,7 +902,7 @@ func (r *Rollup) finalize() error {
 	// gas bump
 	gas = r.BumpGas(gas)
 
-	nonce, err := r.getNextNonce()
+	nonce, err := acc.getNextNonce(r.L1Client)
 	if err != nil {
 		return fmt.Errorf("failed to get next nonce: %w", err)
 	}
@@ -887,7 +921,7 @@ func (r *Rollup) finalize() error {
 		return core.ErrOversizedData
 	}
 
-	signedTx, err := r.Sign(tx)
+	signedTx, err := acc.Sign(tx)
 	if err != nil {
 		return fmt.Errorf("sign tx error:%v", err)
 	}
@@ -905,7 +939,7 @@ func (r *Rollup) finalize() error {
 		"size", signedTx.Size(),
 	)
 
-	err = r.SendTx(signedTx)
+	err = r.SendTx(acc, signedTx)
 	if err != nil {
 		log.Error("send finalize tx to mempool", "error", err.Error())
 		if utils.ErrStringMatch(err, core.ErrNonceTooLow) {
@@ -914,25 +948,26 @@ func (r *Rollup) finalize() error {
 			if err != nil {
 				return fmt.Errorf("parse nonce err: %w", err)
 			}
-			r.pendingTxs.SetNonce(n1 - 1)
+			acc.pendingTxs.SetNonce(n1 - 1)
 			log.Info("update pnonce", "nonce", n1-1)
 		}
 		return fmt.Errorf("send tx error:%v", err.Error())
 	} else {
 		log.Info("finalize tx sent")
 
-		r.pendingTxs.SetNonce(signedTx.Nonce())
-		r.pendingTxs.SetPFinalize(target.Uint64())
+		acc.pendingTxs.SetNonce(signedTx.Nonce())
+		acc.pendingTxs.SetPFinalize(target.Uint64())
 		// SendTx already adds signedTx to the pending pool
 	}
 	return nil
 }
 
 func (r *Rollup) rollup() error {
-	if err := r.ensureActiveSubmitter(); err != nil {
+	acc := r.rollupAcc
+	if err := r.ensureActiveSubmitter(acc); err != nil {
 		return fmt.Errorf("skip rollup: %w", err)
 	}
-	if pendingN := r.pendingTxs.Len(); pendingN > int(r.cfg.MaxTxsInPendingPool) {
+	if pendingN := acc.pendingTxs.Len(); pendingN > int(r.cfg.MaxTxsInPendingPool) {
 		log.Info("Pending pool full",
 			"current_size", pendingN,
 			"max_size", r.cfg.MaxTxsInPendingPool)
@@ -947,8 +982,8 @@ func (r *Rollup) rollup() error {
 	}
 	cindex := cindexBig.Uint64()
 	batchIndex = cindex + 1
-	pendingN := r.pendingTxs.Len()
-	pidx := r.pendingTxs.GetPindex()
+	pendingN := acc.pendingTxs.Len()
+	pidx := acc.pendingTxs.GetPindex()
 	if pendingN != 0 && pidx != 0 {
 		batchIndex = max(cindex, pidx) + 1
 	}
@@ -958,7 +993,7 @@ func (r *Rollup) rollup() error {
 		"next_batch", batchIndex,
 		"current_processing", pidx)
 
-	if r.pendingTxs.ExistedIndex(batchIndex) {
+	if acc.pendingTxs.ExistedIndex(batchIndex) {
 		log.Debug("Batch already committed",
 			"batch_index", batchIndex)
 		return nil
@@ -1025,7 +1060,7 @@ func (r *Rollup) rollup() error {
 		estimateBlobHashes = blob.BlobHashes(rpcRollupBatch.Sidecar.Blobs, rpcRollupBatch.Sidecar.Commitments)
 		estimateBlobFeeCap = blobFee
 	}
-	gas, err := r.EstimateGas(r.WalletAddr(), r.rollupAddr, calldata, gasFeeCap, tip, estimateBlobHashes, estimateBlobFeeCap)
+	gas, err := r.EstimateGas(acc.WalletAddr(), r.rollupAddr, calldata, gasFeeCap, tip, estimateBlobHashes, estimateBlobFeeCap)
 	if err != nil {
 		log.Warn("Estimate gas failed", "batch_index", batchIndex, "error", err)
 		// Use estimation based on L1 message count. A revert is never guessed
@@ -1046,7 +1081,7 @@ func (r *Rollup) rollup() error {
 	gas = r.BumpGas(gas)
 
 	// Get next nonce
-	nonce, err := r.getNextNonce()
+	nonce, err := acc.getNextNonce(r.L1Client)
 	if err != nil {
 		return fmt.Errorf("failed to get next nonce: %w", err)
 	}
@@ -1062,7 +1097,7 @@ func (r *Rollup) rollup() error {
 		return fmt.Errorf("failed to create rollup tx: %w", err)
 	}
 
-	signedTx, err := r.Sign(tx)
+	signedTx, err := acc.Sign(tx)
 	if err != nil {
 		return fmt.Errorf("failed to sign tx: %w", err)
 	}
@@ -1071,31 +1106,16 @@ func (r *Rollup) rollup() error {
 	r.logTxInfo(signedTx, batchIndex)
 
 	// Send transaction
-	if err = r.SendTx(signedTx); err != nil {
+	if err = r.SendTx(acc, signedTx); err != nil {
 		return fmt.Errorf("failed to send tx: %w", err)
 	}
 
 	// Update pending state
-	r.pendingTxs.SetPindex(batchIndex)
-	r.pendingTxs.SetNonce(tx.Nonce())
+	acc.pendingTxs.SetPindex(batchIndex)
+	acc.pendingTxs.SetNonce(tx.Nonce())
 	// SendTx already adds signedTx to the pending pool
 
 	return nil
-}
-
-func (r *Rollup) getNextNonce() (uint64, error) {
-	nonce, err := r.L1Client.PendingNonceAt(context.Background(), r.WalletAddr())
-	if err != nil {
-		return 0, fmt.Errorf("failed to get pending nonce: %w", err)
-	}
-	if r.pendingTxs.Len() == 0 {
-		return nonce, nil
-	}
-	pn := r.pendingTxs.GetNonce()
-	if pn+1 > nonce {
-		return pn + 1, nil
-	}
-	return nonce, nil
 }
 
 func (r *Rollup) createRollupTx(batch *eth.RPCRollupBatch, nonce, gas uint64, tip, gasFeeCap, blobFee *big.Int, calldata []byte, head *ethtypes.Header) (*ethtypes.Transaction, error) {
@@ -1342,10 +1362,15 @@ func (r *Rollup) GetGasTipAndCap() (*big.Int, *big.Int, *big.Int, *ethtypes.Head
 
 // PreCheck is run before the submitter to check whether the submitter can be started
 func (r *Rollup) PreCheck() error {
-	return r.ensureActiveSubmitter()
+	for _, acc := range r.accounts() {
+		if err := r.ensureActiveSubmitter(acc); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-// ensureActiveSubmitter reports whether the configured wallet is an active
+// ensureActiveSubmitter reports whether acc's wallet is an active
 // submitter right now. commitBatch / commitState / finalizeBatch all carry
 // onlyActiveSubmitter, so submitting while inactive mines a reverting tx; for a
 // blob tx the blob fee is charged even on revert. A submitter can be removed,
@@ -1353,25 +1378,15 @@ func (r *Rollup) PreCheck() error {
 // point after startup, so every submitting loop must re-check instead of
 // trusting the one-shot startup result. Callers must treat an RPC error here as
 // "do not submit" rather than assuming the wallet is still eligible.
-func (r *Rollup) ensureActiveSubmitter() error {
-	isActive, err := r.Submitter.IsActive(nil, r.WalletAddr())
+func (r *Rollup) ensureActiveSubmitter(acc *Account) error {
+	isActive, err := r.Submitter.IsActive(nil, acc.WalletAddr())
 	if err != nil {
 		return fmt.Errorf("check Submitter activity: %w", err)
 	}
 	if !isActive {
-		return fmt.Errorf("wallet %s is not an active submitter", r.WalletAddr())
+		return fmt.Errorf("wallet %s (%s) is not an active submitter", acc.WalletAddr(), acc.name)
 	}
 	return nil
-}
-
-func (r *Rollup) WalletAddr() common.Address {
-
-	if r.cfg.ExternalSign {
-		return common.HexToAddress(r.cfg.ExternalSignAddress)
-	} else {
-		return crypto.PubkeyToAddress(r.privKey.PublicKey)
-	}
-
 }
 
 func GetRollupBatchByIndex(index uint64, clients []iface.L2Client) (*eth.RPCRollupBatch, error) {
@@ -1442,7 +1457,7 @@ func UpdateGasLimit(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 // SendTx tracks the transaction in the pending pool, then broadcasts it to L1.
 // Add runs before send so a broadcast failure never leaves an untracked in-flight nonce.
 // If send fails after Add, the tx is removed from the pool and journal.
-func (r *Rollup) SendTx(tx *ethtypes.Transaction) error {
+func (r *Rollup) SendTx(acc *Account, tx *ethtypes.Transaction) error {
 	if tx == nil {
 		return errors.New("nil tx")
 	}
@@ -1450,15 +1465,15 @@ func (r *Rollup) SendTx(tx *ethtypes.Transaction) error {
 		return fmt.Errorf("block not growth in %d blocks time", r.cfg.BlockNotIncreasedThreshold)
 	}
 
-	if r.pendingTxs != nil {
-		if err := r.pendingTxs.Add(tx); err != nil {
+	if acc.pendingTxs != nil {
+		if err := acc.pendingTxs.Add(tx); err != nil {
 			return fmt.Errorf("track tx before send: %w", err)
 		}
 	}
 
 	if err := sendTx(r.L1Client, r.cfg.TxFeeLimit, tx); err != nil {
-		if r.pendingTxs != nil {
-			if remErr := r.pendingTxs.Remove(tx.Hash()); remErr != nil {
+		if acc.pendingTxs != nil {
+			if remErr := acc.pendingTxs.Remove(tx.Hash()); remErr != nil {
 				log.Error("failed to untrack tx after send failure",
 					"hash", tx.Hash().String(), "send_err", err, "remove_err", remErr)
 			}
@@ -1492,7 +1507,7 @@ func sendTx(client iface.Client, txFeeLimit uint64, tx *ethtypes.Transaction) er
 	return client.SendTransaction(context.Background(), tx)
 }
 
-func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
+func (r *Rollup) ReSubmitTx(acc *Account, resend bool, tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 	if tx == nil {
 		return nil, errors.New("nil tx")
 	}
@@ -1653,12 +1668,12 @@ func (r *Rollup) ReSubmitTx(resend bool, tx *ethtypes.Transaction) (*ethtypes.Tr
 		"blob_fee_cap_gwei", weiToGwei(blobFeeCap),
 	)
 	// sign tx
-	newTx, err = r.Sign(newTx)
+	newTx, err = acc.Sign(newTx)
 	if err != nil {
 		return nil, fmt.Errorf("sign tx error:%w", err)
 	}
 	// send tx
-	err = r.SendTx(newTx)
+	err = r.SendTx(acc, newTx)
 	if err != nil {
 		return nil, fmt.Errorf("send tx error:%w", err)
 	}
@@ -1761,7 +1776,7 @@ func (r *Rollup) InitFeeMetricsSum() error {
 }
 
 // CancelTx creates a new transaction with empty calldata to cancel the original transaction
-func (r *Rollup) CancelTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
+func (r *Rollup) CancelTx(acc *Account, tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 	if tx == nil {
 		return nil, errors.New("nil tx")
 	}
@@ -1854,13 +1869,13 @@ func (r *Rollup) CancelTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, erro
 	)
 
 	// sign tx
-	newTx, err = r.Sign(newTx)
+	newTx, err = acc.Sign(newTx)
 	if err != nil {
 		return nil, fmt.Errorf("sign tx error:%w", err)
 	}
 
 	// send tx
-	err = r.SendTx(newTx)
+	err = r.SendTx(acc, newTx)
 	if err != nil {
 		return nil, fmt.Errorf("send tx error:%w", err)
 	}
@@ -1870,7 +1885,7 @@ func (r *Rollup) CancelTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, erro
 
 // createReplacementTransferTx creates a simple transfer transaction with the same nonce
 // to replace the original transaction. This is used when resubmission fails.
-func (r *Rollup) createReplacementTransferTx(tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
+func (r *Rollup) createReplacementTransferTx(acc *Account, tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
 	if tx == nil {
 		return nil, errors.New("nil tx")
 	}
@@ -1913,7 +1928,7 @@ func (r *Rollup) createReplacementTransferTx(tx *ethtypes.Transaction) (*ethtype
 	}
 
 	// Get sender address (send to self)
-	senderAddr := r.WalletAddr()
+	senderAddr := acc.WalletAddr()
 
 	// Create a simple transfer transaction (send to self with empty calldata)
 	// Use minimum gas limit for a simple transfer (21000)
@@ -1939,13 +1954,13 @@ func (r *Rollup) createReplacementTransferTx(tx *ethtypes.Transaction) (*ethtype
 	)
 
 	// Sign transaction
-	newTx, err = r.Sign(newTx)
+	newTx, err = acc.Sign(newTx)
 	if err != nil {
 		return nil, fmt.Errorf("sign tx error: %w", err)
 	}
 
 	// Send transaction
-	err = r.SendTx(newTx)
+	err = r.SendTx(acc, newTx)
 	if err != nil {
 		return nil, fmt.Errorf("send tx error: %w", err)
 	}

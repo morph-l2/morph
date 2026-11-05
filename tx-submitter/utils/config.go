@@ -46,7 +46,11 @@ type Config struct {
 	// PrivateKey the private key of the wallet used to submit
 	// transactions to the rollup contract.
 	PrivateKey string
-	TxTimeout  time.Duration
+	// FinalizePrivateKey is the local private key of the finalize account.
+	FinalizePrivateKey string
+	// FinalizeJournalFilePath is the journal file of the finalize account.
+	FinalizeJournalFilePath string
+	TxTimeout               time.Duration
 
 	// finalize
 	// if start finalize
@@ -91,10 +95,12 @@ type Config struct {
 	// external sign
 	ExternalSign        bool
 	ExternalSignAddress string
-	ExternalSignAppid   string
-	ExternalSignChain   string
-	ExternalSignUrl     string
-	ExternalSignRsaPriv string
+	// ExternalSignFinalizeAddress is the external sign address of the finalize account.
+	ExternalSignFinalizeAddress string
+	ExternalSignAppid           string
+	ExternalSignChain           string
+	ExternalSignUrl             string
+	ExternalSignRsaPriv         string
 	// rough estimate gas switch
 	RoughEstimateGas bool
 	// leveldb path name
@@ -113,12 +119,14 @@ type Config struct {
 func NewConfig(ctx *cli.Context) (Config, error) {
 	cfg := Config{
 		/* Required Flags */
-		BuildEnv:   ctx.GlobalString(flags.BuildEnvFlag.Name),
-		L1EthRpc:   ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		L2EthRpcs:  ctx.GlobalStringSlice(flags.L2EthRpcsFlag.Name),
-		LogLevel:   ctx.GlobalString(flags.LogLevelFlag.Name),
-		PrivateKey: ctx.GlobalString(flags.PrivateKeyFlag.Name),
-		TxTimeout:  ctx.GlobalDuration(flags.TxTimeoutFlag.Name),
+		BuildEnv:                ctx.GlobalString(flags.BuildEnvFlag.Name),
+		L1EthRpc:                ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L2EthRpcs:               ctx.GlobalStringSlice(flags.L2EthRpcsFlag.Name),
+		LogLevel:                ctx.GlobalString(flags.LogLevelFlag.Name),
+		PrivateKey:              ctx.GlobalString(flags.PrivateKeyFlag.Name),
+		FinalizePrivateKey:      ctx.GlobalString(flags.FinalizePrivateKeyFlag.Name),
+		FinalizeJournalFilePath: ctx.GlobalString(flags.FinalizeJournalFlag.Name),
+		TxTimeout:               ctx.GlobalDuration(flags.TxTimeoutFlag.Name),
 		// finalize
 		Finalize: ctx.GlobalBool(flags.FinalizeFlag.Name),
 		// L1 contracts and batch sealing configuration
@@ -155,12 +163,13 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MaxTxsInPendingPool: ctx.GlobalUint64(flags.MaxTxsInPendingPoolFlag.Name),
 
 		// external sign
-		ExternalSign:        ctx.GlobalBool(flags.ExternalSign.Name),
-		ExternalSignAppid:   ctx.GlobalString(flags.ExternalSignAppid.Name),
-		ExternalSignAddress: ctx.GlobalString(flags.ExternalSignAddress.Name),
-		ExternalSignChain:   ctx.GlobalString(flags.ExternalSignChain.Name),
-		ExternalSignUrl:     ctx.GlobalString(flags.ExternalSignUrl.Name),
-		ExternalSignRsaPriv: ctx.GlobalString(flags.ExternalSignRsaPriv.Name),
+		ExternalSign:                ctx.GlobalBool(flags.ExternalSign.Name),
+		ExternalSignAppid:           ctx.GlobalString(flags.ExternalSignAppid.Name),
+		ExternalSignAddress:         ctx.GlobalString(flags.ExternalSignAddress.Name),
+		ExternalSignFinalizeAddress: ctx.GlobalString(flags.ExternalSignFinalizeAddress.Name),
+		ExternalSignChain:           ctx.GlobalString(flags.ExternalSignChain.Name),
+		ExternalSignUrl:             ctx.GlobalString(flags.ExternalSignUrl.Name),
+		ExternalSignRsaPriv:         ctx.GlobalString(flags.ExternalSignRsaPriv.Name),
 		// rough estimate gas switch
 		RoughEstimateGas: ctx.GlobalBool(flags.RoughEstimateGasFlag.Name),
 
