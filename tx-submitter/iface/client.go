@@ -30,7 +30,6 @@ type L1Client interface {
 
 type L2Client interface {
 	Client
-	GetBlockTraceByNumber(ctx context.Context, number *big.Int) (*types.BlockTrace, error)
 	GetRollupBatchByIndex(ctx context.Context, batchIndex uint64) (*eth.RPCRollupBatch, error)
 }
 
@@ -234,17 +233,6 @@ func (c *L2Clients) BlockNumber(ctx context.Context) (uint64, error) {
 	err := c.tryAllClients(func(client L2Client) error {
 		var err error
 		result, err = client.BlockNumber(ctx)
-		return err
-	})
-	return result, err
-}
-
-// GetBlockTraceByNumber implements L2Client
-func (c *L2Clients) GetBlockTraceByNumber(ctx context.Context, number *big.Int) (*types.BlockTrace, error) {
-	var result *types.BlockTrace
-	err := c.tryAllClients(func(client L2Client) error {
-		var err error
-		result, err = client.GetBlockTraceByNumber(ctx, number)
 		return err
 	})
 	return result, err
