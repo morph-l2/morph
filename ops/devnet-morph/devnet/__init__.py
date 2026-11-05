@@ -122,7 +122,7 @@ def main():
 
     os.makedirs(devnet_dir, exist_ok=True)
     if args.only_l1:
-        devnet_l1(paths)
+        devnet_l1(paths, args.batch_submitter_private_key)
         return True
 
     # log.info(f'Building docker images')
@@ -131,7 +131,7 @@ def main():
     devnet_deploy(paths, args)
 
 
-def devnet_l1(paths, result=None):
+def devnet_l1(paths, batch_submitter_private_key, result=None):
     """Start the L1 execution/consensus/validator stack and fund sequencer accounts."""
     log.info('Starting L1.')
     
@@ -157,7 +157,8 @@ def devnet_l1(paths, result=None):
     log.info('Starting layer1 services (layer1-el, layer1-cl, layer1-vc)...')
     run_command(['docker', 'compose', '-f', 'docker-compose-devnet.yml', 'up', '-d',
                  'layer1-el', 'layer1-cl', 'layer1-vc'], cwd=paths.ops_dir, env={
-            'PWD': paths.ops_dir
+            'PWD': paths.ops_dir,
+            'BATCH_SUBMITTER_PRIVATE_KEY': batch_submitter_private_key,
         })
     
     # Wait for EL node to be ready
@@ -209,7 +210,7 @@ def devnet_build(paths):
 def devnet_deploy(paths, args):
     """Bring up the devnet where the contracts are deployed to L1."""
     if not test_port(9545):
-        devnet_l1(paths)
+        devnet_l1(paths, args.batch_submitter_private_key)
     done_file = pjoin(paths.devnet_dir, 'done')
     log.info('Generating network config.')
     devnet_cfg_orig = pjoin(paths.deploy_config_dir, 'devnet-deploy-config.json')
@@ -319,7 +320,6 @@ def devnet_deploy(paths, args):
         env_data['MORPH_SUBMITTER'] = addresses['Proxy__Submitter']
         env_data['BATCH_BLOCK_INTERVAL'] = str(deploy_config['govBatchBlockInterval'])
         env_data['BATCH_TIMEOUT'] = str(deploy_config['govBatchTimeout'])
-        env_data['BATCH_SUBMITTER_PRIVATE_KEY'] = args.batch_submitter_private_key
         env_data['RUST_LOG'] = rust_log_level
         env_data.pop('Proxy__L1Staking', None)
         env_data.pop('MORPH_L1STAKING', None)
