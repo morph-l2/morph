@@ -18,8 +18,7 @@ async fn main() {
     sp1_sdk::utils::setup_logger();
 
     // Setup the prover client.
-    std::env::set_var("SP1_PROVER", "cpu");
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::builder().cpu().build().await;
 
     // Setup the program.
     let pk = client.setup(Elf::Static(STATELESS_VERIFIER_ELF)).await.unwrap();

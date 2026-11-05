@@ -1,17 +1,20 @@
-use crate::{metrics::METRICS, BatchInfo, SHADOW_PROVING_BLOCKS_RANGE};
+use std::time::Duration;
+
 use alloy_consensus::Transaction;
 use alloy_network::{Network, ReceiptResponse};
-use alloy_primitives::{hex, Address, Bytes, Keccak256, TxHash, B256, U256, U64};
+use alloy_primitives::{Address, B256, Bytes, Keccak256, TxHash, U64, U256, hex};
 use alloy_provider::{DynProvider, Provider};
 use alloy_rpc_types::Log;
 use alloy_sol_types::SolCall;
-
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use futures::future::join_all;
 
 use crate::{
+    BatchInfo,
     Rollup::{self, RollupInstance},
+    SHADOW_PROVING_BLOCKS_RANGE,
     ShadowRollup::{self, ShadowRollupInstance},
+    metrics::METRICS,
 };
 
 #[derive(Clone, Debug)]
@@ -89,8 +92,7 @@ where
             log::warn!("No enough commit_batch logs for the last 600 blocks");
             return Ok(None);
         }
-        logs.sort_by(|a, b| a.block_number.unwrap().cmp(&b.block_number.unwrap()));
-
+        logs.sort_by_key(|a| a.block_number.unwrap());
         let batch_index_hash = match logs.get(logs.len() - 2) {
             Some(log) => {
                 let _index = U256::from_be_slice(log.topics()[1].as_slice());
@@ -371,8 +373,11 @@ where
                 return Ok(None);
             }
         };
-        let receipt =
-            pending_tx.get_receipt().await.map_err(|e| anyhow!("get receipt error: {e}"))?;
+        let receipt = pending_tx
+            .with_timeout(Some(Duration::from_secs(120)))
+            .get_receipt()
+            .await
+            .map_err(|e| anyhow!("get receipt error: {e}"))?;
         if !receipt.status() {
             log::error!("shadow_rollup.commit_batch check_receipt fail");
             return Ok(None);
@@ -514,11 +519,12 @@ pub async fn batch_input_inspect(l1_provider: &DynProvider, hash: TxHash) -> Opt
 }
 #[tokio::test]
 async fn test_sync_batch() {
+    use std::{env::var, str::FromStr};
+
     use alloy_network::EthereumWallet;
     use alloy_primitives::Address;
     use alloy_provider::ProviderBuilder;
     use alloy_signer_local::PrivateKeySigner;
-    use std::{env::var, str::FromStr};
 
     let l1_rpc: String = var("SHADOW_PROVING_VERIFY_L1_RPC").unwrap_or(
         var("SHADOW_PROVING_L1_RPC").expect("Shadow prove cannot detect L1_RPC env var"),
@@ -555,9 +561,10 @@ async fn test_sync_batch() {
 
 #[tokio::test]
 async fn test_inspect_batch_header() {
+    use std::str::FromStr;
+
     use alloy_primitives::B256;
     use alloy_provider::ProviderBuilder;
-    use std::str::FromStr;
 
     let provider: DynProvider = ProviderBuilder::new()
         .connect_http(

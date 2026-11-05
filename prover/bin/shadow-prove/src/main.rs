@@ -4,26 +4,27 @@ use alloy_network::{Ethereum, EthereumWallet};
 use alloy_primitives::Address;
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use alloy_signer_local::PrivateKeySigner;
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 use dotenv::dotenv;
 use flexi_logger::{
-    filter::{LogLineFilter, LogLineWriter},
     Cleanup, Criterion, DeferredNow, Duplicate, FileSpec, Logger, Naming, WriteMode,
+    filter::{LogLineFilter, LogLineWriter},
 };
 use log::Record;
 use prometheus::{Encoder, TextEncoder};
 use shadow_proving::{
+    SHADOW_EXECUTE, SHADOW_PROVING_BATCH_INTERVAL, SHADOW_PROVING_MAX_BLOCK,
+    SHADOW_PROVING_MAX_TXN, SHADOW_PROVING_PROVER_RPC,
     execute::try_execute_batch,
     metrics::{METRICS, REGISTRY},
     shadow_prove::{BatchProveInfo, ShadowProver},
     shadow_rollup::BatchSyncer,
     util::{read_env_var, read_parse_env},
-    SHADOW_EXECUTE, SHADOW_PROVING_BATCH_INTERVAL, SHADOW_PROVING_MAX_BLOCK,
-    SHADOW_PROVING_MAX_TXN, SHADOW_PROVING_PROVER_RPC,
 };
-
-use tokio::time::{interval, sleep};
-use tokio::{sync::broadcast, time::MissedTickBehavior};
+use tokio::{
+    sync::broadcast,
+    time::{MissedTickBehavior, interval, sleep},
+};
 
 #[tokio::main]
 async fn main() {
@@ -148,8 +149,8 @@ async fn main() {
     }
 }
 
-fn init_shadow_proving(
-) -> (BatchSyncer<DynProvider, Ethereum>, ShadowProver<DynProvider, Ethereum>, DynProvider) {
+fn init_shadow_proving()
+-> (BatchSyncer<DynProvider, Ethereum>, ShadowProver<DynProvider, Ethereum>, DynProvider) {
     let l1_verify_rpc: String = read_parse_env("SHADOW_PROVING_VERIFY_L1_RPC");
     let l1_rpc: String = read_parse_env("SHADOW_PROVING_L1_RPC");
     let l2_rpc: String = read_parse_env("SHADOW_PROVING_L2_RPC");
@@ -241,7 +242,7 @@ async fn handle_metrics() -> String {
 const LOG_LEVEL: &str = "info";
 const LOG_FILE_BASENAME: &str = "app_info";
 const LOG_FILE_SIZE_LIMIT: u64 = 200 * 10u64.pow(6); // 200MB
-                                                     // const LOG_FILE_SIZE_LIMIT: u64 = 10u64.pow(3); // 1kB
+// const LOG_FILE_SIZE_LIMIT: u64 = 10u64.pow(3); // 1kB
 const LOG_FILES_TO_KEEP: usize = 3;
 
 fn setup_logging() {
@@ -310,7 +311,8 @@ async fn test_shadow() {
     env_logger::Builder::new().filter_level(log::LevelFilter::Info).format_target(false).init();
     log::info!("Starting shadow proving...");
 
-    // cargo test -p shadow-proving --bin shadow-proving -- test_shadow --exact --nocapture -- --batch-num 100 --no-prove
+    // cargo test -p shadow-proving --bin shadow-proving -- test_shadow --exact --nocapture --
+    // --batch-num 100 --no-prove
     let (batch_num, prove) = test_args::read_shadow_test_args_from_argv();
 
     let (batch_syncer, shadow_prover, l2_provider) = init_shadow_proving();
@@ -382,10 +384,10 @@ mod test_args {
             if allowed_flags.iter().any(|f| *f == arg) {
                 filtered.push(arg);
                 // Only flags that take a value need to consume the next argv.
-                if filtered.last().map(|s| s.as_str()) != Some("--no-prove") {
-                    if let Some(v) = it.next() {
-                        filtered.push(v);
-                    }
+                if filtered.last().map(|s| s.as_str()) != Some("--no-prove")
+                    && let Some(v) = it.next()
+                {
+                    filtered.push(v);
                 }
             } else {
                 // ignore unknown args
