@@ -67,6 +67,8 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 	require.NoError(t, err)
 	require.NotNil(t, rollupAbi)
 
+	rollupAcc := NewLocalAccount("rollup", privateKey, ethtypes.LatestSignerForChainID(big.NewInt(1)), nil)
+
 	// Create rollup instance
 	rollup := NewRollup(
 		context.Background(),
@@ -77,18 +79,18 @@ func setupTestRollup(t *testing.T) (*Rollup, *mock.L1ClientWrapper, *mock.L2Clie
 		mockRollup,
 		submitter,
 		big.NewInt(1),
-		privateKey,
+		rollupAcc,
+		nil, // single-account compatibility mode
 		common.Address{},
 		rollupAbi,
 		defaultCfg,
 		nil,
 		nil,
 		nil,
-		nil,
 	)
 
 	// Initialize pending transactions
-	rollup.pendingTxs = NewPendingTxs(mockJournal)
+	rollup.rollupAcc.pendingTxs = NewPendingTxs(mockJournal)
 
 	// Initialize reorg detector
 	// Use the mock implementation for controlled testing
@@ -103,7 +105,7 @@ func TestPreCheckUsesSubmitterActivity(t *testing.T) {
 	submitter := r.Submitter.(*mock.MockSubmitter)
 
 	require.NoError(t, r.PreCheck())
-	submitter.SetActive(r.WalletAddr(), false)
+	submitter.SetActive(r.rollupAcc.WalletAddr(), false)
 	require.ErrorContains(t, r.PreCheck(), "not an active submitter")
 
 	submitter.SetError(errors.New("rpc unavailable"))
@@ -130,8 +132,8 @@ func TestSealBatchRollupCannotSubmitWhileCacheRebuildFails(t *testing.T) {
 	// Even a direct call (defense in depth beyond Start's loop gate) cannot
 	// create or enqueue a commit while cache validation remains unsuccessful.
 	require.NoError(t, r.rollup())
-	require.Zero(t, r.pendingTxs.Len())
-	require.Zero(t, r.pendingTxs.GetPindex())
+	require.Zero(t, r.rollupAcc.pendingTxs.Len())
+	require.Zero(t, r.rollupAcc.pendingTxs.GetPindex())
 }
 
 // TestHandleDiscardedTx tests the handling of discarded transactions
@@ -156,9 +158,9 @@ func TestHandleDiscardedTx(t *testing.T) {
 
 	// Test case 1: Transaction was confirmed in a reorg
 	l1Mock.SendTxErr = core.ErrNonceTooLow
-	err := r.handleDiscardedTx(txRecord, tx, "commitBatch")
+	err := r.handleDiscardedTx(r.rollupAcc, txRecord, tx, "commitBatch")
 	require.NoError(t, err)
-	require.Equal(t, 0, len(r.pendingTxs.GetAll()), "Transaction should be removed from pending pool")
+	require.Equal(t, 0, len(r.rollupAcc.pendingTxs.GetAll()), "Transaction should be removed from pending pool")
 
 	// Test case 2: Successful resubmission
 	l1Mock.SendTxErr = nil
@@ -172,9 +174,9 @@ func TestHandleDiscardedTx(t *testing.T) {
 	})
 	txRecord.Tx = tx
 
-	err = r.handleDiscardedTx(txRecord, tx, "commitBatch")
+	err = r.handleDiscardedTx(r.rollupAcc, txRecord, tx, "commitBatch")
 	require.NoError(t, err)
-	require.Equal(t, 1, len(r.pendingTxs.GetAll()), "New transaction should be added to pending pool")
+	require.Equal(t, 1, len(r.rollupAcc.pendingTxs.GetAll()), "New transaction should be added to pending pool")
 }
 
 // TestHandleReorg tests the handling of chain reorganizations
@@ -214,11 +216,11 @@ func TestHandleMissingTx(t *testing.T) {
 	}
 
 	// add record to localpool
-	r.pendingTxs.txinfos[tx.Hash()] = txRecord
+	r.rollupAcc.pendingTxs.txinfos[tx.Hash()] = txRecord
 
-	err := r.handleMissingTx(txRecord, tx, "commitBatch")
+	err := r.handleMissingTx(r.rollupAcc, txRecord, tx, "commitBatch")
 	require.NoError(t, err)
-	record := r.pendingTxs.GetTxRecord(tx.Hash())
+	record := r.rollupAcc.pendingTxs.GetTxRecord(tx.Hash())
 	require.NotNil(t, record, "Transaction record should exist")
 	require.Equal(t, uint64(3), record.QueryTimes)
 
@@ -227,16 +229,16 @@ func TestHandleMissingTx(t *testing.T) {
 	txRecord.QueryTimes = 5
 	// Set up mock for successful resubmission
 	l1Mock.SendTxErr = nil
-	err = r.handleMissingTx(txRecord, tx, "commitBatch")
+	err = r.handleMissingTx(r.rollupAcc, txRecord, tx, "commitBatch")
 	require.NoError(t, err)
 
 	// The old transaction should be removed
-	record = r.pendingTxs.GetTxRecord(oldHash)
+	record = r.rollupAcc.pendingTxs.GetTxRecord(oldHash)
 	require.Nil(t, record, "Old transaction should be removed")
 
 	// Find the new transaction by checking all pending transactions
 	found := false
-	for _, txRecord := range r.pendingTxs.GetAll() {
+	for _, txRecord := range r.rollupAcc.pendingTxs.GetAll() {
 		if txRecord.Tx.Nonce() == tx.Nonce() {
 			found = true
 			require.Equal(t, uint64(0), txRecord.QueryTimes, "New transaction should have reset query times")

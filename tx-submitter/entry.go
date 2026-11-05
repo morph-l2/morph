@@ -2,10 +2,9 @@ package tx_summitter
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/rsa"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"os/signal"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"morph-l2/tx-submitter/db"
 	"morph-l2/tx-submitter/iface"
 	"morph-l2/tx-submitter/l1checker"
+	"morph-l2/tx-submitter/localpool"
 	"morph-l2/tx-submitter/metrics"
 	"morph-l2/tx-submitter/services"
 	"morph-l2/tx-submitter/types"
@@ -22,10 +22,10 @@ import (
 
 	"github.com/morph-l2/externalsign"
 	"github.com/morph-l2/go-ethereum/common"
+	ethtypes "github.com/morph-l2/go-ethereum/core/types"
 	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/log"
-	"github.com/morph-l2/go-ethereum/rpc"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -44,7 +44,7 @@ func Main() func(ctx *cli.Context) error {
 
 		// log start info
 		log.Info("starting tx submitter",
-			"l1_rpc", cfg.L1EthRpc,
+			"l1_rpcs", cfg.L1EthRpcs,
 			"l2_rpcs", cfg.L2EthRpcs,
 			"rollup_addr", cfg.RollupAddress,
 			"submitter_addr", cfg.SubmitterAddress,
@@ -58,6 +58,7 @@ func Main() func(ctx *cli.Context) error {
 			"rollup_tx_gas_base", cfg.RollupTxGasBase,
 			"rollup_tx_gas_per_msg", cfg.RollupTxGasPerL1Msg,
 			"journal_path", cfg.JournalFilePath,
+			"finalize_journal_path", cfg.FinalizeJournalFilePath,
 			"gas_rough_estimate", cfg.RoughEstimateGas,
 			"gas_limit_buffer", cfg.GasLimitBuffer,
 			"rough_estimate_gas", cfg.RoughEstimateGas,
@@ -109,13 +110,35 @@ func Main() func(ctx *cli.Context) error {
 		}
 		log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 
-		l1RpcClient, err := rpc.Dial(cfg.L1EthRpc)
-		if err != nil {
-			return fmt.Errorf("failed to connect to L1 provider: %w", err)
-		}
 		// Connect to L1 and L2 providers. Perform these last since they are the
 		// most expensive.
-		l1Client := ethclient.NewClient(l1RpcClient)
+		var l1List []iface.L1Client
+		var chainID *big.Int
+		for _, url := range cfg.L1EthRpcs {
+			c, err := ethclient.DialContext(ctx, url)
+			if err != nil {
+				log.Warn("failed to connect to L1 provider", "url", url, "err", err)
+				continue
+			}
+			id, err := c.ChainID(ctx)
+			if err != nil {
+				log.Warn("failed to get chain id from L1 provider", "url", url, "err", err)
+				continue
+			}
+			if chainID == nil {
+				chainID = id
+			} else if chainID.Cmp(id) != 0 {
+				return fmt.Errorf("l1 rpc %s chain id %s mismatches %s", url, id, chainID)
+			}
+			l1List = append(l1List, c)
+		}
+		if len(l1List) == 0 {
+			return fmt.Errorf("cannot connect to any l1 rpc")
+		}
+		l1Client, err := iface.NewL1Clients(l1List)
+		if err != nil {
+			return err
+		}
 
 		// l2 rpcs
 		var l2Clients []iface.L2Client
@@ -130,11 +153,6 @@ func Main() func(ctx *cli.Context) error {
 		}
 		if len(l2Clients) == 0 {
 			return fmt.Errorf("cannot connect to any l2 rpc")
-		}
-
-		chainID, err := l1Client.ChainID(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to get chain id: %w", err)
 		}
 
 		rollupAddr := common.HexToAddress(cfg.RollupAddress)
@@ -154,23 +172,9 @@ func Main() func(ctx *cli.Context) error {
 			return fmt.Errorf("failed to connect to Submitter contract: %w", err)
 		}
 
-		var rsaPriv *rsa.PrivateKey
-		var privKey *ecdsa.PrivateKey
-		// external sign
-		if cfg.ExternalSign {
-			// parse rsa private key
-			rsaPriv, err = externalsign.ParseRsaPrivateKey(cfg.ExternalSignRsaPriv)
-			if err != nil {
-				return fmt.Errorf("failed to parse rsa private key: %w", err)
-			}
-		} else {
-			// parse priv key
-			hex := strings.TrimPrefix(cfg.PrivateKey, "0x")
-			privKey, err = crypto.HexToECDSA(hex)
-			if err != nil {
-				return fmt.Errorf("parse privkey err:%w", err)
-			}
-
+		rollupAcc, finalizeAcc, err := buildAccounts(cfg, chainID)
+		if err != nil {
+			return err
 		}
 
 		ldb, err := db.New(cfg.LeveldbPathName)
@@ -189,17 +193,17 @@ func Main() func(ctx *cli.Context) error {
 		sr := services.NewRollup(
 			ctx,
 			m,
-			l1RpcClient,
+			nil,
 			l1Client,
 			l2Clients,
 			l1Rollup,
 			submitter,
 			chainID,
-			privKey,
+			rollupAcc,
+			finalizeAcc,
 			rollupAddr,
 			rollupAbi,
 			cfg,
-			rsaPriv,
 			ldb,
 			bm,
 			l2Caller,
@@ -222,6 +226,7 @@ func Main() func(ctx *cli.Context) error {
 			"external_sign", cfg.ExternalSign,
 			"appid", cfg.ExternalSignAppid,
 			"addr", cfg.ExternalSignAddress,
+			"finalize_addr", cfg.ExternalSignFinalizeAddress,
 			"chain", cfg.ExternalSignChain,
 			"url", cfg.ExternalSignUrl,
 		)
@@ -242,4 +247,70 @@ func Main() func(ctx *cli.Context) error {
 
 		return nil
 	}
+}
+
+// buildAccounts builds the rollup and finalize accounts. The rollup account
+// keeps using L1_PRIVATE_KEY / EXTERNAL_SIGN_ADDRESS. If no finalize credential
+// is configured, finalize falls back to the very same Account instance as
+// rollup (single-account compatibility mode: shared nonce, pool and journal).
+func buildAccounts(cfg utils.Config, chainID *big.Int) (rollupAcc, finalizeAcc *services.Account, err error) {
+	signer := ethtypes.LatestSignerForChainID(chainID)
+	rollupJournal := localpool.New(cfg.JournalFilePath)
+
+	if cfg.ExternalSign {
+		rsaPriv, err := externalsign.ParseRsaPrivateKey(cfg.ExternalSignRsaPriv)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to parse rsa private key: %w", err)
+		}
+		esCfg := services.ExternalSignConfig{
+			Appid:   cfg.ExternalSignAppid,
+			RsaPriv: rsaPriv,
+			Chain:   cfg.ExternalSignChain,
+			Url:     cfg.ExternalSignUrl,
+		}
+		rollupAddr := common.HexToAddress(cfg.ExternalSignAddress)
+		rollupAcc = services.NewExternalAccount("rollup", rollupAddr, esCfg, signer, rollupJournal)
+		if cfg.ExternalSignFinalizeAddress == "" {
+			log.Warn("finalize account not configured, running in single-account compatibility mode")
+			return rollupAcc, rollupAcc, nil
+		}
+		finalizeAddr := common.HexToAddress(cfg.ExternalSignFinalizeAddress)
+		if err := checkSplit(finalizeAddr == rollupAddr, cfg); err != nil {
+			return nil, nil, err
+		}
+		finalizeAcc = services.NewExternalAccount("finalize", finalizeAddr, esCfg, signer, localpool.New(cfg.FinalizeJournalFilePath))
+		return rollupAcc, finalizeAcc, nil
+	}
+
+	privKey, err := crypto.HexToECDSA(strings.TrimPrefix(cfg.PrivateKey, "0x"))
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse privkey err:%w", err)
+	}
+	rollupAcc = services.NewLocalAccount("rollup", privKey, signer, rollupJournal)
+	if cfg.FinalizePrivateKey == "" {
+		log.Warn("finalize account not configured, running in single-account compatibility mode")
+		return rollupAcc, rollupAcc, nil
+	}
+	finalizeKey, err := crypto.HexToECDSA(strings.TrimPrefix(cfg.FinalizePrivateKey, "0x"))
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse finalize privkey err:%w", err)
+	}
+	same := crypto.PubkeyToAddress(finalizeKey.PublicKey) == crypto.PubkeyToAddress(privKey.PublicKey)
+	if err := checkSplit(same, cfg); err != nil {
+		return nil, nil, err
+	}
+	finalizeAcc = services.NewLocalAccount("finalize", finalizeKey, signer, localpool.New(cfg.FinalizeJournalFilePath))
+	return rollupAcc, finalizeAcc, nil
+}
+
+// checkSplit validates a split-account configuration: the two accounts must
+// differ, and must not share a journal file (nonce recovery would cross over).
+func checkSplit(sameAddress bool, cfg utils.Config) error {
+	if sameAddress {
+		return fmt.Errorf("finalize account must differ from rollup account; unset the finalize credential to use single-account mode")
+	}
+	if cfg.FinalizeJournalFilePath == "" || cfg.FinalizeJournalFilePath == cfg.JournalFilePath {
+		return fmt.Errorf("finalize journal file path must be set and differ from journal file path (%q)", cfg.JournalFilePath)
+	}
+	return nil
 }
