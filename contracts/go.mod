@@ -2,11 +2,11 @@ module morph-l2/contract
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.10
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.11-0.20261109041511-1a8d8e58eb85
 
 require (
 	github.com/iden3/go-iden3-crypto v0.0.16
-	github.com/morph-l2/go-ethereum v1.10.14-0.20261019103624-0308bfdb1dcb
+	github.com/morph-l2/go-ethereum v1.10.14-0.20261109063348-1c528b351da0
 	github.com/stretchr/testify v1.10.0
 )
 
