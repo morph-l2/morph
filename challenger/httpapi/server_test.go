@@ -15,6 +15,8 @@ import (
 	"morph-l2/challenger/service"
 )
 
+const token = "secret"
+
 type fakeChallenger struct {
 	result     service.ChallengeResult
 	err        error
@@ -30,11 +32,22 @@ func (f fakeChallenger) CompareBatch(context.Context, uint64) (service.Compariso
 	return f.comparison, f.compareErr
 }
 
-func postChallenge(t *testing.T, handler http.Handler, body, token string) *httptest.ResponseRecorder {
+func postChallenge(t *testing.T, handler http.Handler, body, bearer string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/challenge", strings.NewReader(body))
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
+	if bearer != "" {
+		req.Header.Set("Authorization", "Bearer "+bearer)
+	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec
+}
+
+func getBatch(t *testing.T, handler http.Handler, path, bearer string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	if bearer != "" {
+		req.Header.Set("Authorization", "Bearer "+bearer)
 	}
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -42,16 +55,29 @@ func postChallenge(t *testing.T, handler http.Handler, body, token string) *http
 }
 
 func TestChallengeUnauthorized(t *testing.T) {
-	srv := NewServer(":0", "secret", fakeChallenger{}, time.Second)
-	rec := postChallenge(t, srv.Handler(), `{"batchIndex":1,"batchHash":"0x11"}`, "")
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d", rec.Code)
+	srv := NewServer(":0", token, fakeChallenger{}, time.Second)
+	for _, bearer := range []string{"", "wrong"} {
+		rec := postChallenge(t, srv.Handler(), `{"batchIndex":1,"batchHash":"0x11"}`, bearer)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("bearer %q: status = %d", bearer, rec.Code)
+		}
+	}
+}
+
+func TestEmptyTokenLeavesEndpointsOpen(t *testing.T) {
+	srv := NewServer(":0", "", fakeChallenger{}, time.Second)
+	hash := common.HexToHash("0x22")
+	if rec := postChallenge(t, srv.Handler(), `{"batchIndex":4,"batchHash":"`+hash.Hex()+`"}`, ""); rec.Code != http.StatusOK {
+		t.Fatalf("POST status = %d body %s", rec.Code, rec.Body.String())
+	}
+	if rec := getBatch(t, srv.Handler(), "/batch/4", ""); rec.Code != http.StatusOK {
+		t.Fatalf("GET status = %d body %s", rec.Code, rec.Body.String())
 	}
 }
 
 func TestChallengeRejectsBadHash(t *testing.T) {
-	srv := NewServer(":0", "", fakeChallenger{}, time.Second)
-	rec := postChallenge(t, srv.Handler(), `{"batchIndex":4,"batchHash":"0x11"}`, "")
+	srv := NewServer(":0", token, fakeChallenger{}, time.Second)
+	rec := postChallenge(t, srv.Handler(), `{"batchIndex":4,"batchHash":"0x11"}`, token)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d body %s", rec.Code, rec.Body.String())
 	}
@@ -59,11 +85,11 @@ func TestChallengeRejectsBadHash(t *testing.T) {
 
 func TestChallengeSuccess(t *testing.T) {
 	hash := common.HexToHash("0x22")
-	srv := NewServer(":0", "secret", fakeChallenger{
+	srv := NewServer(":0", token, fakeChallenger{
 		result: service.ChallengeResult{TxHash: hash, BlockNumber: 9},
 	}, time.Second)
 	body := `{"batchIndex":4,"batchHash":"` + hash.Hex() + `"}`
-	rec := postChallenge(t, srv.Handler(), body, "secret")
+	rec := postChallenge(t, srv.Handler(), body, token)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d body %s", rec.Code, rec.Body.String())
 	}
@@ -73,6 +99,29 @@ func TestChallengeSuccess(t *testing.T) {
 	}
 	if resp.Status != "success" || resp.TxHash != hash.Hex() || resp.BlockNumber != 9 {
 		t.Fatalf("resp = %+v", resp)
+	}
+}
+
+// deadlineChallenger reports how much time the request context leaves.
+type deadlineChallenger struct {
+	fakeChallenger
+	left chan time.Duration
+}
+
+func (d deadlineChallenger) Challenge(ctx context.Context, _ uint64, _ common.Hash) (service.ChallengeResult, error) {
+	deadline, _ := ctx.Deadline()
+	d.left <- time.Until(deadline)
+	return service.ChallengeResult{}, nil
+}
+
+func TestChallengeContextOutlivesReceiptTimeout(t *testing.T) {
+	receiptTimeout := 2 * time.Minute
+	fake := deadlineChallenger{left: make(chan time.Duration, 1)}
+	srv := NewServer(":0", token, fake, receiptTimeout)
+	hash := common.HexToHash("0x22")
+	postChallenge(t, srv.Handler(), `{"batchIndex":4,"batchHash":"`+hash.Hex()+`"}`, token)
+	if left := <-fake.left; left <= receiptTimeout {
+		t.Fatalf("request context leaves %s, want more than receipt timeout %s", left, receiptTimeout)
 	}
 }
 
@@ -94,8 +143,8 @@ func TestChallengeErrorStatus(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			srv := NewServer(":0", "", fakeChallenger{err: tc.err}, time.Second)
-			rec := postChallenge(t, srv.Handler(), `{"batchIndex":4,"batchHash":"`+hash.Hex()+`"}`, "")
+			srv := NewServer(":0", token, fakeChallenger{err: tc.err}, time.Second)
+			rec := postChallenge(t, srv.Handler(), `{"batchIndex":4,"batchHash":"`+hash.Hex()+`"}`, token)
 			if rec.Code != tc.code {
 				t.Fatalf("status = %d body %s", rec.Code, rec.Body.String())
 			}
@@ -112,7 +161,7 @@ func TestChallengeErrorStatus(t *testing.T) {
 
 func TestGetBatch(t *testing.T) {
 	state := common.HexToHash("0x11")
-	srv := NewServer(":0", "", fakeChallenger{
+	srv := NewServer(":0", token, fakeChallenger{
 		comparison: service.Comparison{
 			BatchIndex:  4,
 			BlockNumber: 20,
@@ -120,9 +169,7 @@ func TestGetBatch(t *testing.T) {
 			StateRoot:   service.RootPair{L1: state, L2: state},
 		},
 	}, time.Second)
-	req := httptest.NewRequest(http.MethodGet, "/batch/4", nil)
-	rec := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(rec, req)
+	rec := getBatch(t, srv.Handler(), "/batch/4", token)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d body %s", rec.Code, rec.Body.String())
 	}
@@ -136,27 +183,22 @@ func TestGetBatch(t *testing.T) {
 }
 
 func TestGetBatchUnauthorized(t *testing.T) {
-	srv := NewServer(":0", "secret", fakeChallenger{}, time.Second)
-	req := httptest.NewRequest(http.MethodGet, "/batch/4", nil)
-	rec := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusUnauthorized {
+	srv := NewServer(":0", token, fakeChallenger{}, time.Second)
+	if rec := getBatch(t, srv.Handler(), "/batch/4", ""); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d", rec.Code)
 	}
 }
 
 func TestGetBatchNotCommitted(t *testing.T) {
-	srv := NewServer(":0", "", fakeChallenger{compareErr: &service.NotCommittedError{BatchIndex: 4}}, time.Second)
-	req := httptest.NewRequest(http.MethodGet, "/batch/4", nil)
-	rec := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(rec, req)
+	srv := NewServer(":0", token, fakeChallenger{compareErr: &service.NotCommittedError{BatchIndex: 4}}, time.Second)
+	rec := getBatch(t, srv.Handler(), "/batch/4", token)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d body %s", rec.Code, rec.Body.String())
 	}
 }
 
 func TestHealth(t *testing.T) {
-	srv := NewServer(":0", "", fakeChallenger{}, time.Second)
+	srv := NewServer(":0", token, fakeChallenger{}, time.Second)
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(rec, req)

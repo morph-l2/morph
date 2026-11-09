@@ -21,6 +21,12 @@ type commitInput struct {
 
 // batchInputFromCalldata reads BatchDataInput from a commit transaction.
 // commitBatch, commitState, and commitBatchWithProof all carry that struct as the first argument.
+//
+// This assumes the commit is a direct call to Rollup. commitBatch and commitState
+// are onlyActiveSubmitter and sent by the submitter EOA. If a submitter forwards
+// through a contract wallet, the outer calldata does not decode and the comparison
+// fails with an error instead of a verdict. commitBatchWithProof sets the batch's
+// finalizeTimestamp to the commit block, so such a batch is never challengeable.
 func batchInputFromCalldata(data []byte) (commitInput, error) {
 	if len(data) < 4 {
 		return commitInput{}, fmt.Errorf("commit calldata is too short")

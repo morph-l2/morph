@@ -28,10 +28,10 @@ var (
 	}
 
 	L1LogStartBlockFlag = cli.Uint64Flag{
-		Name:   "l1-log-start-block",
-		Usage:  "First L1 block to search for CommitBatch logs",
-		Value:  0,
-		EnvVar: prefixEnvVar("L1_LOG_START_BLOCK"),
+		Name:     "l1-log-start-block",
+		Usage:    "First L1 block to search for CommitBatch logs. Use the Rollup deployment block",
+		Required: true,
+		EnvVar:   prefixEnvVar("L1_LOG_START_BLOCK"),
 	}
 
 	RollupAddressFlag = cli.StringFlag{
@@ -61,9 +61,15 @@ var (
 		EnvVar: prefixEnvVar("HTTP_PORT"),
 	}
 
+	HTTPAuthEnableFlag = cli.BoolFlag{
+		Name:   "http-auth-enable",
+		Usage:  "Require a bearer token on GET /batch and POST /challenge. Off leaves them open",
+		EnvVar: prefixEnvVar("HTTP_AUTH_ENABLE"),
+	}
+
 	HTTPAuthTokenFlag = cli.StringFlag{
 		Name:   "http-auth-token",
-		Usage:  "Bearer token required by GET /batch and POST /challenge. Empty leaves them open",
+		Usage:  "Bearer token checked when http-auth-enable is set",
 		EnvVar: prefixEnvVar("HTTP_AUTH_TOKEN"),
 	}
 
@@ -185,14 +191,15 @@ var (
 var requiredFlags = []cli.Flag{
 	L1EthRPCFlag,
 	L2EthRPCFlag,
+	L1LogStartBlockFlag,
 	RollupAddressFlag,
 }
 
 var optionalFlags = []cli.Flag{
 	PrivateKeyFlag,
-	L1LogStartBlockFlag,
 	HTTPHostnameFlag,
 	HTTPPortFlag,
+	HTTPAuthEnableFlag,
 	HTTPAuthTokenFlag,
 	ReceiptTimeoutFlag,
 

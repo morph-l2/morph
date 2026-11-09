@@ -21,6 +21,7 @@ type Config struct {
 
 	HTTPHostname   string
 	HTTPPort       uint64
+	HTTPAuthEnable bool
 	HTTPAuthToken  string
 	ReceiptTimeout time.Duration
 
@@ -56,6 +57,7 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 
 		HTTPHostname:   ctx.String(flags.HTTPHostnameFlag.Name),
 		HTTPPort:       ctx.Uint64(flags.HTTPPortFlag.Name),
+		HTTPAuthEnable: ctx.Bool(flags.HTTPAuthEnableFlag.Name),
 		HTTPAuthToken:  strings.TrimSpace(ctx.String(flags.HTTPAuthTokenFlag.Name)),
 		ReceiptTimeout: ctx.Duration(flags.ReceiptTimeoutFlag.Name),
 
@@ -101,6 +103,12 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 	}
 	if cfg.L2RPC == "" {
 		return nil, fmt.Errorf("l2 rpc is required")
+	}
+	if cfg.HTTPAuthEnable && cfg.HTTPAuthToken == "" {
+		return nil, fmt.Errorf("http auth token is required when http auth is enabled")
+	}
+	if !cfg.HTTPAuthEnable {
+		cfg.HTTPAuthToken = ""
 	}
 	if cfg.HTTPPort == 0 || cfg.HTTPPort > 65535 {
 		return nil, fmt.Errorf("invalid http port: %d", cfg.HTTPPort)

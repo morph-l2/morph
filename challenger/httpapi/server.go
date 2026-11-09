@@ -25,27 +25,31 @@ type Challenger interface {
 	CompareBatch(ctx context.Context, batchIndex uint64) (service.Comparison, error)
 }
 
+// requestOverhead covers the comparison, preflight, and signing that run before
+// the receipt wait starts, so the receipt wait gets its full timeout.
+const requestOverhead = 30 * time.Second
+
 // Server exposes the external trigger for a challenge.
 type Server struct {
-	challenger   Challenger
-	token        string
-	writeTimeout time.Duration
-	httpServer   *http.Server
+	challenger     Challenger
+	token          string
+	requestTimeout time.Duration
+	httpServer     *http.Server
 }
 
 // NewServer builds the challenge HTTP server.
-func NewServer(addr, token string, challenger Challenger, writeTimeout time.Duration) *Server {
+func NewServer(addr, token string, challenger Challenger, receiptTimeout time.Duration) *Server {
 	s := &Server{
-		challenger:   challenger,
-		token:        token,
-		writeTimeout: writeTimeout,
+		challenger:     challenger,
+		token:          token,
+		requestTimeout: receiptTimeout + requestOverhead,
 	}
 	s.httpServer = &http.Server{
 		Addr:              addr,
 		Handler:           s.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      writeTimeout + 30*time.Second,
+		WriteTimeout:      s.requestTimeout + 30*time.Second,
 	}
 	return s
 }
@@ -137,7 +141,7 @@ func (s *Server) handleChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), s.writeTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), s.requestTimeout)
 	defer cancel()
 
 	result, err := s.challenger.Challenge(ctx, *req.BatchIndex, batchHash)

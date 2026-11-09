@@ -53,8 +53,8 @@ func run(cliCtx *cli.Context) error {
 		return err
 	}
 
-	if cfg.HTTPAuthToken == "" {
-		log.Warn("HTTP auth token is empty; GET /batch and POST /challenge are open")
+	if !cfg.HTTPAuthEnable {
+		log.Warn("HTTP auth is disabled; GET /batch and POST /challenge are open")
 	}
 
 	if cfg.MetricsServerEnable {

@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -325,6 +326,27 @@ func TestChallengeSendsWithRemoteSigner(t *testing.T) {
 	}
 	if signer.methodSig != svc.methodSig {
 		t.Fatalf("signer methodSig = %q, want %q", signer.methodSig, svc.methodSig)
+	}
+}
+
+func TestChallengeRefusesWrongRemoteSignature(t *testing.T) {
+	chain := &fakeL1{}
+	chain.mined(types.ReceiptStatusSuccessful)
+	rpc := httptest.NewServer(chain)
+	defer rpc.Close()
+	_, from := newTestKey(t)
+	otherKey, other := newTestKey(t)
+	signerSrv := httptest.NewServer(&fakeSigner{key: otherKey})
+	defer signerSrv.Close()
+	hash := common.HexToHash("0x11")
+
+	svc := mismatchService(t, remoteL1(t, rpc.URL, signerSrv.URL, from), hash, 5*time.Second)
+	_, err := svc.Challenge(context.Background(), 4, hash)
+	if err == nil || !strings.Contains(err.Error(), other.Hex()) {
+		t.Fatalf("err = %v, want wrong sender %s", err, other.Hex())
+	}
+	if n := len(chain.sentTxs()); n != 0 {
+		t.Fatalf("broadcast %d transactions signed by the wrong key", n)
 	}
 }
 

@@ -108,5 +108,18 @@ func (s *Signer) CreateAndSignTx(
 		"gasTipCap", caps.TipCap,
 		"methodSig", methodSig)
 
-	return s.remoteClient.Sign(tx, methodSig)
+	signed, err := s.remoteClient.Sign(tx, methodSig)
+	if err != nil {
+		return nil, err
+	}
+	// The signature is applied to the transaction built here, so only the
+	// recovered sender can differ from what was requested.
+	sender, err := types.Sender(types.NewLondonSigner(s.chainID), signed)
+	if err != nil {
+		return nil, fmt.Errorf("recover remote signature sender: %w", err)
+	}
+	if sender != from {
+		return nil, fmt.Errorf("remote signer signed as %s, want %s", sender.Hex(), from.Hex())
+	}
+	return signed, nil
 }
