@@ -1,0 +1,141 @@
+--- a/blocksync/pool.go
++++ b/blocksync/pool.go
+@@ -29,10 +29,12 @@
+ 
+ const (
+ 	requestIntervalMS         = 2
+-	maxTotalRequesters        = 600
++	maxTotalRequesters        = 900
+ 	maxPendingRequests        = maxTotalRequesters
+-	maxPendingRequestsPerPeer = 20
++	maxPendingRequestsPerPeer = 300
+ 	requestRetrySeconds       = 30
++	hedgeAfterMS              = 700
++	hedgeCheckMS              = 200
+ 
+ 	// Minimum recv rate to ensure we're receiving blocks from a peer fast
+ 	// enough. If a peer is not sending us data at at least that rate, we
+@@ -287,8 +289,20 @@
+ 	defer pool.mtx.Unlock()
+ 
+ 	height := block.GetHeight()
++	hedgedResponse := false
++	deliveringPeer := pool.peers[peerID]
++	if deliveringPeer != nil {
++		if _, ok := deliveringPeer.hedged[height]; ok {
++			hedgedResponse = true
++			delete(deliveringPeer.hedged, height)
++		}
++	}
+ 	requester := pool.requesters[height]
+ 	if requester == nil {
++		if hedgedResponse {
++			deliveringPeer.decrPending(blockSize)
++			return
++		}
+ 		pool.Logger.Info(
+ 			"peer sent us a block we didn't expect",
+ 			"peer",
+@@ -307,12 +321,14 @@
+ 		return
+ 	}
+ 
+-	if requester.setBlock(block, peerID) {
++	if requester.setBlock(block, peerID, hedgedResponse) {
+ 		atomic.AddInt32(&pool.numPending, -1)
+ 		peer := pool.peers[peerID]
+ 		if peer != nil {
+ 			peer.decrPending(blockSize)
+ 		}
++	} else if hedgedResponse {
++		deliveringPeer.decrPending(blockSize)
+ 	} else {
+ 		pool.Logger.Info("invalid peer", "peer", peerID, "blockHeight", height)
+ 		pool.sendError(errors.New("invalid peer"), peerID)
+@@ -562,6 +578,7 @@
+ //-------------------------------------
+ 
+ type bpPeer struct {
++	hedged map[int64]struct{}
+ 	didTimeout  bool
+ 	numPending  int32
+ 	height      int64
+@@ -577,6 +594,7 @@
+ 
+ func newBPPeer(pool *BlockPool, peerID p2p.ID, base int64, height int64) *bpPeer {
+ 	peer := &bpPeer{
++		hedged: make(map[int64]struct{}),
+ 		pool:       pool,
+ 		id:         peerID,
+ 		base:       base,
+@@ -667,9 +685,9 @@
+ }
+ 
+ // Returns true if the peer matches and block doesn't already exist.
+-func (bpr *bpRequester) setBlock(block types.SyncableBlock, peerID p2p.ID) bool {
++func (bpr *bpRequester) setBlock(block types.SyncableBlock, peerID p2p.ID, hedged bool) bool {
+ 	bpr.mtx.Lock()
+-	if bpr.block != nil || bpr.peerID != peerID {
++	if bpr.block != nil || (bpr.peerID != peerID && !hedged) {
+ 		bpr.mtx.Unlock()
+ 		return false
+ 	}
+@@ -721,6 +739,8 @@
+ // Responsible for making more requests as necessary
+ // Returns only when a block is found (e.g. AddBlock() is called)
+ func (bpr *bpRequester) requestRoutine() {
++	hedgeTick := time.NewTicker(hedgeCheckMS * time.Millisecond)
++	defer hedgeTick.Stop()
+ OUTER_LOOP:
+ 	for {
+ 		// Pick a peer to send request to.
+@@ -745,9 +765,19 @@
+ 		to := time.NewTimer(requestRetrySeconds * time.Second)
+ 		// Send request and wait.
+ 		bpr.pool.sendRequest(bpr.height, peer.id)
++		sentAt := time.Now()
++		hedges := 0
+ 	WAIT_LOOP:
+ 		for {
+ 			select {
++			case <-hedgeTick.C:
++				if hedges < 2 && time.Since(sentAt) >= hedgeAfterMS*time.Millisecond && bpr.getBlock() == nil {
++					if id, ok := bpr.pool.hedgeRequest(bpr.height, bpr.getPeerID()); ok {
++						hedges++
++						sentAt = time.Now()
++						bpr.pool.sendRequest(bpr.height, id)
++					}
++				}
+ 			case <-bpr.pool.Quit():
+ 				if err := bpr.Stop(); err != nil {
+ 					bpr.Logger.Error("Error stopped requester", "err", err)
+@@ -782,3 +812,29 @@
+ 	Height int64
+ 	PeerID p2p.ID
+ }
++
++
++// hedgeRequest asks one more peer for the height the pool is blocked on.
++func (pool *BlockPool) hedgeRequest(height int64, original p2p.ID) (p2p.ID, bool) {
++	pool.mtx.Lock()
++	defer pool.mtx.Unlock()
++	if height != pool.height {
++		return "", false
++	}
++	originalPeer := pool.peers[original]
++	for _, peer := range pool.peers {
++		if peer.id == original || peer.didTimeout || height < peer.base || height > peer.height {
++			continue
++		}
++		if _, dup := peer.hedged[height]; dup {
++			continue
++		}
++		peer.incrPending()
++		peer.hedged[height] = struct{}{}
++		if originalPeer != nil {
++			originalPeer.hedged[height] = struct{}{}
++		}
++		return peer.id, true
++	}
++	return "", false
++}

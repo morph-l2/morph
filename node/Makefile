@@ -15,6 +15,13 @@ morphnode:
 	env GO111MODULE=on CGO_ENABLED=1 CGO_LDFLAGS="-ldl" go build -o build/bin/morphnode -v $(LDFLAGS) ./cmd/node
 .PHONY: morphnode
 
+# Builds morphnode tuned for syncing from genesis, see fast-sync/README.md.
+morphnode-fast-sync:
+	if [ ! -d build/bin ]; then mkdir -p build/bin; fi
+	go mod download
+	./fast-sync/build.sh build/bin/morphnode-fast-sync "$(LDFLAGSSTRING) -X main.Version=$(VERSION)-fast-sync"
+.PHONY: morphnode-fast-sync
+
 tendermint:
 	if [ ! -d build/bin ]; then mkdir -p build/bin; fi
 	go mod download
