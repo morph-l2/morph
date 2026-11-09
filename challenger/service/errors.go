@@ -11,6 +11,16 @@ func (e *RejectError) Error() string {
 	return e.Reason
 }
 
+// NotCommittedError means committedBatches holds no hash for this index. The batch
+// was never committed, or it was reverted and has not been committed again.
+type NotCommittedError struct {
+	BatchIndex uint64
+}
+
+func (e *NotCommittedError) Error() string {
+	return "batch is not committed"
+}
+
 // CallError is an RPC or decoding failure while reading chain state.
 type CallError struct {
 	Err error

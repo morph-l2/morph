@@ -17,10 +17,23 @@ var Challenges = prometheus.NewCounterVec(
 	[]string{"result"},
 )
 
+// Comparisons counts root comparisons by verdict.
+var Comparisons = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "challenger_batch_comparisons_total",
+		Help: "Batch root comparisons by verdict",
+	},
+	[]string{"verdict"},
+)
+
 func init() {
 	prometheus.MustRegister(Challenges)
+	prometheus.MustRegister(Comparisons)
 	for _, result := range []string{"success", "rejected", "busy", "pending", "reverted", "error", "bad_request", "unauthorized"} {
 		Challenges.WithLabelValues(result).Add(0)
+	}
+	for _, verdict := range []string{"match", "mismatch", "inconclusive"} {
+		Comparisons.WithLabelValues(verdict).Add(0)
 	}
 }
 

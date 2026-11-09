@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/morph-l2/go-ethereum/log"
 	"github.com/urfave/cli"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -35,7 +36,7 @@ func main() {
 	app.Flags = flags.Flags
 	app.Version = fmt.Sprintf("%s-%s-%s", GitVersion, GitCommit, GitDate)
 	app.Name = "challenger"
-	app.Usage = "Submit Rollup.challengeState when an external caller triggers it"
+	app.Usage = "Compare batch roots and submit Rollup.challengeState when they differ"
 	app.Action = run
 
 	if err := app.Run(os.Args); err != nil {
@@ -53,7 +54,7 @@ func run(cliCtx *cli.Context) error {
 	}
 
 	if cfg.HTTPAuthToken == "" {
-		log.Warn("HTTP auth token is empty; POST /challenge is open")
+		log.Warn("HTTP auth token is empty; GET /batch and POST /challenge are open")
 	}
 
 	if cfg.MetricsServerEnable {
@@ -70,7 +71,13 @@ func run(cliCtx *cli.Context) error {
 	}
 	defer l1Client.Close()
 
-	challenger, err := service.New(l1Client, cfg.RollupAddress, cfg.ReceiptTimeout)
+	l2Client, err := ethclient.Dial(cfg.L2RPC)
+	if err != nil {
+		return fmt.Errorf("failed to dial L2 RPC: %w", err)
+	}
+	defer l2Client.Close()
+
+	challenger, err := service.New(l1Client, l2Client, cfg.RollupAddress, cfg.ReceiptTimeout, cfg.L1LogStartBlock)
 	if err != nil {
 		return fmt.Errorf("failed to create challenger: %w", err)
 	}
@@ -100,6 +107,9 @@ func run(cliCtx *cli.Context) error {
 
 func setupLogger(cfg *config.Config) error {
 	output := io.Writer(os.Stderr)
+	if cfg.LogTerminal {
+		output = os.Stdout
+	}
 	if cfg.LogFilename != "" {
 		dir := filepath.Dir(cfg.LogFilename)
 		if dir != "" && dir != "." {
@@ -128,7 +138,7 @@ func setupLogger(cfg *config.Config) error {
 
 	var handler log.Handler
 	if cfg.LogTerminal {
-		handler = log.StreamHandler(os.Stdout, log.TerminalFormat(true))
+		handler = log.StreamHandler(output, log.TerminalFormat(cfg.LogFilename == ""))
 	} else {
 		handler = log.StreamHandler(output, log.JSONFormat())
 	}

@@ -277,6 +277,7 @@ def devnet_deploy(paths, args):
     run_command([
         'npx', 'hardhat', 'register', '--network', 'l1', '--storagepath', paths.deployment_dir
     ], env=batch_submitter_env, cwd=paths.contracts_dir)
+    fund_challenger(paths, args)
 
     # run_command([
     #     'npx', 'hardhat', 'staking', '--network', 'l1', '--storagepath', paths.deployment_dir
@@ -356,6 +357,26 @@ def devnet_deploy(paths, args):
                 })
     wait_up(8545)
     wait_for_rpc_server('127.0.0.1:8545')
+
+
+def fund_challenger(paths, args):
+    """Fund the Rollup challenger so the devnet challenger service can pay the challenge deposit."""
+    with open(paths.contracts_config) as f:
+        match = re.search(r"rollupChallenger: '(0x[0-9a-fA-F]{40})'", f.read())
+    if not match:
+        log.warning('rollupChallenger not found in l1 deploy config, skip funding challenger')
+        return
+    challenger = match.group(1)
+    result = run_command_capture_output(
+        ['cast', 'balance', challenger, '--rpc-url', 'http://127.0.0.1:9545'])
+    if int(result.stdout) < 5 * ETH:
+        log.info(f'Funding challenger: {challenger}')
+        run_command([
+            'cast', 'send', '--private-key', args.deployer_private_key,
+            '--rpc-url', 'http://127.0.0.1:9545',
+            '--value', '10ether',
+            challenger,
+        ], env={}, cwd=paths.contracts_dir)
 
 
 def configure_l1_sequencer(paths, args, addresses, deploy_config):

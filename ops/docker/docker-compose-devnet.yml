@@ -287,3 +287,27 @@ services:
       - L2_GAS_ORACLE_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
       - OVERHEAD_INTERVAL=10
       - L1_ROLLUP=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+
+  # ========== Challenger ==========
+  challenger:
+    container_name: challenger
+    depends_on:
+      layer1-el:
+        condition: service_started
+      morph-el-0:
+        condition: service_started
+    build:
+      context: ../..
+      dockerfile: challenger/Dockerfile
+    image: morph-challenger:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - CHALLENGER_L1_ETH_RPC=${L1_ETH_RPC}
+      - CHALLENGER_L2_ETH_RPC=http://morph-el-0:8545
+      - CHALLENGER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
+      # rollupChallenger in contracts/src/deploy-config/l1.ts; the deploy registers it on Rollup.
+      - CHALLENGER_PRIVATE_KEY=0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
+      - CHALLENGER_HTTP_AUTH_TOKEN=devnet-test
+      - CHALLENGER_LOG_TERMINAL=true

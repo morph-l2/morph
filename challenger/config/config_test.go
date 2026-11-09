@@ -24,7 +24,8 @@ func load(args ...string) (*Config, error) {
 
 func TestLoadConfigLocalKey(t *testing.T) {
 	cfg, err := load(
-		"--l1-eth-rpc", "http://127.0.0.1:8545",
+		"--l1-eth-rpc", "http://127.0.0.1:9545",
+		"--l2-eth-rpc", "http://127.0.0.1:8545",
 		"--rollup-address", "0x0000000000000000000000000000000000000001",
 		"--private-key", "abc",
 		"--http-auth-token", "secret",
@@ -32,8 +33,8 @@ func TestLoadConfigLocalKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.L1RPC != "http://127.0.0.1:8545" {
-		t.Fatalf("l1 rpc = %s", cfg.L1RPC)
+	if cfg.L1RPC != "http://127.0.0.1:9545" || cfg.L2RPC != "http://127.0.0.1:8545" {
+		t.Fatalf("rpcs = %s %s", cfg.L1RPC, cfg.L2RPC)
 	}
 	if cfg.HTTPAddress() != "0.0.0.0:8080" {
 		t.Fatalf("http address = %s", cfg.HTTPAddress())
@@ -48,7 +49,8 @@ func TestLoadConfigLocalKey(t *testing.T) {
 
 func TestLoadConfigRequiresSignerMaterial(t *testing.T) {
 	_, err := load(
-		"--l1-eth-rpc", "http://127.0.0.1:8545",
+		"--l1-eth-rpc", "http://127.0.0.1:9545",
+		"--l2-eth-rpc", "http://127.0.0.1:8545",
 		"--rollup-address", "0x0000000000000000000000000000000000000001",
 	)
 	if err == nil || !strings.Contains(err.Error(), "private key is required") {
@@ -58,7 +60,8 @@ func TestLoadConfigRequiresSignerMaterial(t *testing.T) {
 
 func TestLoadConfigExternalSign(t *testing.T) {
 	cfg, err := load(
-		"--l1-eth-rpc", "http://127.0.0.1:8545",
+		"--l1-eth-rpc", "http://127.0.0.1:9545",
+		"--l2-eth-rpc", "http://127.0.0.1:8545",
 		"--rollup-address", "0x0000000000000000000000000000000000000001",
 		"--external-sign",
 		"--external-sign-address", "0x0000000000000000000000000000000000000002",
@@ -80,7 +83,8 @@ func TestLoadConfigExternalSign(t *testing.T) {
 
 func TestLoadConfigExternalSignMissingFields(t *testing.T) {
 	_, err := load(
-		"--l1-eth-rpc", "http://127.0.0.1:8545",
+		"--l1-eth-rpc", "http://127.0.0.1:9545",
+		"--l2-eth-rpc", "http://127.0.0.1:8545",
 		"--rollup-address", "0x0000000000000000000000000000000000000001",
 		"--external-sign",
 		"--external-sign-address", "0x0000000000000000000000000000000000000002",
@@ -92,7 +96,8 @@ func TestLoadConfigExternalSignMissingFields(t *testing.T) {
 
 func TestLoadConfigRejectsFeeCapBelowTip(t *testing.T) {
 	_, err := load(
-		"--l1-eth-rpc", "http://127.0.0.1:8545",
+		"--l1-eth-rpc", "http://127.0.0.1:9545",
+		"--l2-eth-rpc", "http://127.0.0.1:8545",
 		"--rollup-address", "0x0000000000000000000000000000000000000001",
 		"--private-key", "abc",
 		"--gas-fee-cap", "1",

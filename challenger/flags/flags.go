@@ -20,6 +20,20 @@ var (
 		EnvVar:   prefixEnvVar("L1_ETH_RPC"),
 	}
 
+	L2EthRPCFlag = cli.StringFlag{
+		Name:     "l2-eth-rpc",
+		Usage:    "HTTP provider URL for the trusted L2 geth",
+		Required: true,
+		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
+	}
+
+	L1LogStartBlockFlag = cli.Uint64Flag{
+		Name:   "l1-log-start-block",
+		Usage:  "First L1 block to search for CommitBatch logs",
+		Value:  0,
+		EnvVar: prefixEnvVar("L1_LOG_START_BLOCK"),
+	}
+
 	RollupAddressFlag = cli.StringFlag{
 		Name:     "rollup-address",
 		Usage:    "L1 Rollup contract address",
@@ -49,7 +63,7 @@ var (
 
 	HTTPAuthTokenFlag = cli.StringFlag{
 		Name:   "http-auth-token",
-		Usage:  "Bearer token required by POST /challenge. Empty leaves the endpoint open",
+		Usage:  "Bearer token required by GET /batch and POST /challenge. Empty leaves them open",
 		EnvVar: prefixEnvVar("HTTP_AUTH_TOKEN"),
 	}
 
@@ -170,11 +184,13 @@ var (
 
 var requiredFlags = []cli.Flag{
 	L1EthRPCFlag,
+	L2EthRPCFlag,
 	RollupAddressFlag,
 }
 
 var optionalFlags = []cli.Flag{
 	PrivateKeyFlag,
+	L1LogStartBlockFlag,
 	HTTPHostnameFlag,
 	HTTPPortFlag,
 	HTTPAuthTokenFlag,

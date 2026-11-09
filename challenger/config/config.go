@@ -13,9 +13,11 @@ import (
 
 // Config contains the challenger service configuration.
 type Config struct {
-	L1RPC         string
-	RollupAddress common.Address
-	PrivateKey    string
+	L1RPC           string
+	L2RPC           string
+	L1LogStartBlock uint64
+	RollupAddress   common.Address
+	PrivateKey      string
 
 	HTTPHostname   string
 	HTTPPort       uint64
@@ -47,8 +49,10 @@ type Config struct {
 // LoadConfig loads configuration from CLI flags and environment variables.
 func LoadConfig(ctx *cli.Context) (*Config, error) {
 	cfg := &Config{
-		L1RPC:      ctx.String(flags.L1EthRPCFlag.Name),
-		PrivateKey: strings.TrimSpace(ctx.String(flags.PrivateKeyFlag.Name)),
+		L1RPC:           ctx.String(flags.L1EthRPCFlag.Name),
+		L2RPC:           ctx.String(flags.L2EthRPCFlag.Name),
+		L1LogStartBlock: ctx.Uint64(flags.L1LogStartBlockFlag.Name),
+		PrivateKey:      strings.TrimSpace(ctx.String(flags.PrivateKeyFlag.Name)),
 
 		HTTPHostname:   ctx.String(flags.HTTPHostnameFlag.Name),
 		HTTPPort:       ctx.Uint64(flags.HTTPPortFlag.Name),
@@ -94,6 +98,9 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 
 	if cfg.L1RPC == "" {
 		return nil, fmt.Errorf("l1 rpc is required")
+	}
+	if cfg.L2RPC == "" {
+		return nil, fmt.Errorf("l2 rpc is required")
 	}
 	if cfg.HTTPPort == 0 || cfg.HTTPPort > 65535 {
 		return nil, fmt.Errorf("invalid http port: %d", cfg.HTTPPort)

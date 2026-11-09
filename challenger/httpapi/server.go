@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,9 +19,10 @@ import (
 	"morph-l2/challenger/service"
 )
 
-// Challenger submits one challengeState transaction.
+// Challenger compares a batch and submits challengeState.
 type Challenger interface {
 	Challenge(ctx context.Context, batchIndex uint64, batchHash common.Hash) (service.ChallengeResult, error)
+	CompareBatch(ctx context.Context, batchIndex uint64) (service.Comparison, error)
 }
 
 // Server exposes the external trigger for a challenge.
@@ -52,6 +54,7 @@ func NewServer(addr, token string, challenger Challenger, writeTimeout time.Dura
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.handleHealth)
+	mux.HandleFunc("GET /batch/{batchIndex}", s.handleBatch)
 	mux.HandleFunc("POST /challenge", s.handleChallenge)
 	return mux
 }
@@ -68,6 +71,30 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
+	if !s.authorized(r) {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"status": "unauthorized", "error": "unauthorized"})
+		return
+	}
+	index, err := strconv.ParseUint(r.PathValue("batchIndex"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"status": "bad_request", "error": "batchIndex must be an integer"})
+		return
+	}
+	comparison, err := s.challenger.CompareBatch(r.Context(), index)
+	var missing *service.NotCommittedError
+	if errors.As(err, &missing) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"status": "not_found", "error": missing.Error()})
+		return
+	}
+	if err != nil {
+		log.Error("Batch comparison failed", "batchIndex", index, "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"status": "error", "error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, comparison)
 }
 
 type challengeRequest struct {
