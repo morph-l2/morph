@@ -29,6 +29,9 @@ alloy = { workspace = true }
 dotenv = { workspace = true }
 alloy-provider = { workspace = true }
 alloy-primitives = { workspace = true }
+# Must match the tonic version used by sp1-sdk, otherwise `downcast_ref::<tonic::Status>()`
+# silently fails (see `NetworkFailure::classify`).
+tonic = { version = "0.12.3", default-features = false, optional = true }
 
 # workspace
 prover-executor-host = { workspace = true }
@@ -43,4 +46,4 @@ tokio = { workspace = true, features = ["macros"] }
 [features]
 default = ["network"]
 local = ["sp1-sdk/native-gnark"]
-network = ["sp1-sdk/network"]
+network = ["sp1-sdk/network", "dep:tonic"]

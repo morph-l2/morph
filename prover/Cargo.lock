@@ -6553,6 +6553,7 @@ dependencies = [
  "sp1-sdk",
  "sp1-verifier",
  "tokio",
+ "tonic 0.12.3",
 ]
 
 [[package]]
