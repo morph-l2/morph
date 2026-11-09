@@ -55,6 +55,8 @@ type Config struct {
 	MetricsServerEnable bool
 	MetricsHostname     string
 	MetricsPort         uint64
+	AdminHostname       string
+	AdminPort           uint64
 
 	// tx fee limit
 	TxFeeLimit uint64
@@ -130,6 +132,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnable.Name),
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostname.Name),
 		MetricsPort:         ctx.GlobalUint64(flags.MetricsPort.Name),
+		AdminHostname:       ctx.GlobalString(flags.AdminHostname.Name),
+		AdminPort:           ctx.GlobalUint64(flags.AdminPort.Name),
 		// tx config
 		TxFeeLimit: ctx.GlobalUint64(flags.TxFeeLimitFlag.Name),
 

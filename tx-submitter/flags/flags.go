@@ -108,6 +108,20 @@ var (
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
 
+	// admin http server: operational endpoints, local access only by default
+	AdminHostname = cli.StringFlag{
+		Name:   "admin_hostname",
+		Usage:  "Hostname of the admin http server; keep it 127.0.0.1 so it is only reachable from the host",
+		Value:  "127.0.0.1",
+		EnvVar: prefixEnvVar("ADMIN_HOSTNAME"),
+	}
+	AdminPort = cli.Uint64Flag{
+		Name:   "admin_port",
+		Usage:  "Port of the admin http server, 0 disables it",
+		Value:  6061,
+		EnvVar: prefixEnvVar("ADMIN_PORT"),
+	}
+
 	// tx fee limit
 	TxFeeLimitFlag = cli.Uint64Flag{
 		Name:     "tx_fee_limit",
@@ -323,6 +337,8 @@ var optionalFlags = []cli.Flag{
 	MetricsServerEnable,
 	MetricsHostname,
 	MetricsPort,
+	AdminHostname,
+	AdminPort,
 
 	LogFilename,
 	LogFileMaxSize,
