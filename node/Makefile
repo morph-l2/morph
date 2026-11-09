@@ -19,7 +19,7 @@ morphnode:
 morphnode-fast-sync:
 	if [ ! -d build/bin ]; then mkdir -p build/bin; fi
 	go mod download
-	./fast-sync/build.sh build/bin/morphnode-fast-sync "$(LDFLAGSSTRING) -X main.Version=$(VERSION)-fast-sync"
+	./fast-sync/build.sh build/bin/morphnode "$(LDFLAGSSTRING) -X main.Version=$(VERSION)-fast-sync"
 .PHONY: morphnode-fast-sync
 
 tendermint:

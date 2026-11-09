@@ -19,7 +19,7 @@ cd node
 make morphnode-fast-sync
 ```
 
-The binary is `build/bin/morphnode-fast-sync`. The patches in this directory are applied to copies of the dependency sources through a Go build overlay, so `go.mod` and the regular `make morphnode` build are unchanged.
+The binary is `build/bin/morphnode`, the same path as the regular build, so whichever build ran last is the one in place. The patches in this directory are applied to copies of the dependency sources through a Go build overlay, so `go.mod` and the regular `make morphnode` build are unchanged.
 
 ## Run
 
