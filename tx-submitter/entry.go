@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"time"
 
@@ -222,6 +225,27 @@ func Main() func(ctx *cli.Context) error {
 			log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 		}
 
+		// admin server: only serves the external sign address generator for now
+		if cfg.ExternalSign && cfg.AdminPort != 0 {
+			esCfg, err := newExternalSignConfig(cfg)
+			if err != nil {
+				return err
+			}
+			gen, err := services.NewExternalAddrGenerator(esCfg)
+			if err != nil {
+				return err
+			}
+			mux := http.NewServeMux()
+			mux.Handle("/external_sign/gen_address", gen)
+			adminAddr := net.JoinHostPort(cfg.AdminHostname, strconv.FormatUint(cfg.AdminPort, 10))
+			go func() {
+				if err := http.ListenAndServe(adminAddr, mux); err != nil {
+					log.Error("admin server failed", "addr", adminAddr, "err", err)
+				}
+			}()
+			log.Info("admin server enabled", "addr", adminAddr)
+		}
+
 		log.Info("external sign info",
 			"external_sign", cfg.ExternalSign,
 			"appid", cfg.ExternalSignAppid,
@@ -249,6 +273,20 @@ func Main() func(ctx *cli.Context) error {
 	}
 }
 
+// newExternalSignConfig builds the shared external sign app credentials.
+func newExternalSignConfig(cfg utils.Config) (services.ExternalSignConfig, error) {
+	rsaPriv, err := externalsign.ParseRsaPrivateKey(cfg.ExternalSignRsaPriv)
+	if err != nil {
+		return services.ExternalSignConfig{}, fmt.Errorf("failed to parse rsa private key: %w", err)
+	}
+	return services.ExternalSignConfig{
+		Appid:   cfg.ExternalSignAppid,
+		RsaPriv: rsaPriv,
+		Chain:   cfg.ExternalSignChain,
+		Url:     cfg.ExternalSignUrl,
+	}, nil
+}
+
 // buildAccounts builds the rollup and finalize accounts. The rollup account
 // keeps using L1_PRIVATE_KEY / EXTERNAL_SIGN_ADDRESS. If no finalize credential
 // is configured, finalize falls back to the very same Account instance as
@@ -258,15 +296,9 @@ func buildAccounts(cfg utils.Config, chainID *big.Int) (rollupAcc, finalizeAcc *
 	rollupJournal := localpool.New(cfg.JournalFilePath)
 
 	if cfg.ExternalSign {
-		rsaPriv, err := externalsign.ParseRsaPrivateKey(cfg.ExternalSignRsaPriv)
+		esCfg, err := newExternalSignConfig(cfg)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to parse rsa private key: %w", err)
-		}
-		esCfg := services.ExternalSignConfig{
-			Appid:   cfg.ExternalSignAppid,
-			RsaPriv: rsaPriv,
-			Chain:   cfg.ExternalSignChain,
-			Url:     cfg.ExternalSignUrl,
+			return nil, nil, err
 		}
 		rollupAddr := common.HexToAddress(cfg.ExternalSignAddress)
 		rollupAcc = services.NewExternalAccount("rollup", rollupAddr, esCfg, signer, rollupJournal)
