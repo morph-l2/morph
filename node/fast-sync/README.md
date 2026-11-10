@@ -9,8 +9,10 @@ Do not use it on sequencers or validators, and switch back to the regular build 
 | Change | Why |
 |---|---|
 | Tendermint database writes no longer fsync | Tendermint syncs at least three writes per block, which dominates block time on disks with slow fsync, macOS in particular |
-| Up to 300 concurrent block requests per peer and 900 in total, instead of 20 and 600 | Keeps enough requests in flight on high-latency links |
-| The request for the height the pool is blocked on is also sent to another peer after 700 ms, up to twice | A single slow connection no longer stalls every block behind it |
+| Concurrent block requests per peer are sized from the recent block size to keep about 2 MiB of blocks in flight, between 20 and 300. The regular build allows 20 | Keeps enough requests in flight on high-latency links, and falls back to the regular 20 once blocks are around 100 KB, so large blocks do not queue behind one connection for longer than the 30 s retry |
+| Blocks are requested at most 1.5 times the total per-peer allowance ahead of the current height, up to 900 instead of 600 | Requests are handed out in no particular height order, so a much wider window can leave the block the sync is waiting for unrequested |
+| While blocks are under 16 KiB, the request for the height the sync is blocked on is also sent to another peer after 700 ms, up to twice | A single slow connection no longer stalls every block behind it. With larger blocks the link is the limit, and a second request mostly downloads the same block twice |
+| A block that arrives after its request was retried elsewhere is used, or dropped if a copy is already in, instead of disconnecting the peer. A block that has arrived is not requested again when the 30 s retry fires, and a retry prefers a peer that has not been asked yet | The regular build disconnects the peer for such a block, and throws away a block still waiting to be processed when its retry fires. Once requests wait longer than 30 s, every peer gets disconnected in turn and the sync stops making progress |
 
 ## Build
 
@@ -32,7 +34,7 @@ flush_throttle_timeout = "10ms"
 ## Risks
 
 - A power loss or OS crash can corrupt the Tendermint database, which then has to be synced again. A crash of the process alone is safe.
-- Each peer receives up to 15 times the usual number of concurrent block requests.
+- On empty blocks each peer receives up to 15 times the usual number of concurrent block requests.
 
 ## Results
 

@@ -1,6 +1,6 @@
 --- a/blocksync/pool.go
 +++ b/blocksync/pool.go
-@@ -29,10 +29,12 @@
+@@ -29,11 +29,25 @@
  
  const (
  	requestIntervalMS         = 2
@@ -13,74 +13,215 @@
 +	hedgeAfterMS              = 700
 +	hedgeCheckMS              = 200
  
++	// Requests pending on one peer are capped so that about pendingBytesPerPeer
++	// bytes of blocks are in flight to it, between minPendingRequestsPerPeer and
++	// maxPendingRequestsPerPeer. A fixed count of 300 queues large blocks behind
++	// a single connection for longer than requestRetrySeconds.
++	pendingBytesPerPeer       = 2 << 20
++	minPendingRequestsPerPeer = 20
++
++	// Hedging only pays off while blocks are small and latency is the limit.
++	// With large blocks the link is the limit, requests queue for seconds, and
++	// a hedge mostly downloads the same block twice.
++	hedgeMaxBlockSize = 16 << 10
++
  	// Minimum recv rate to ensure we're receiving blocks from a peer fast
  	// enough. If a peer is not sending us data at at least that rate, we
-@@ -287,8 +289,20 @@
+ 	// consider them to have timedout and we disconnect.
+@@ -83,6 +97,9 @@
+ 	// The value stores the time at which the ban expires; entries are evicted
+ 	// lazily by isPeerBanned. Access is guarded by mtx.
+ 	bannedPeers map[p2p.ID]time.Time
++	// blockSizeEst estimates the size of a block response: it jumps up to any
++	// larger block and decays slowly. Access is guarded by mtx.
++	blockSizeEst int64
+ 
+ 	// atomic
+ 	numPending int32 // number of requests pending assignment or block response
+@@ -131,7 +148,7 @@
+ 			time.Sleep(requestIntervalMS * time.Millisecond)
+ 			// check for timed out peers
+ 			pool.removeTimedoutPeers()
+-		case lenRequesters >= maxTotalRequesters:
++		case lenRequesters >= pool.maxRequesters():
+ 			// sleep for a bit.
+ 			time.Sleep(requestIntervalMS * time.Millisecond)
+ 			// check for timed out peers
+@@ -287,8 +304,27 @@
  	defer pool.mtx.Unlock()
  
  	height := block.GetHeight()
-+	hedgedResponse := false
-+	deliveringPeer := pool.peers[peerID]
-+	if deliveringPeer != nil {
-+		if _, ok := deliveringPeer.hedged[height]; ok {
-+			hedgedResponse = true
-+			delete(deliveringPeer.hedged, height)
++	// A response to a request we sent is never misbehaviour, even when it
++	// arrives after the request was retried on another peer or hedged: the first
++	// copy of a block is kept and later copies are dropped.
++	solicited := false
++	if peer := pool.peers[peerID]; peer != nil {
++		if n := peer.requested[height]; n > 0 {
++			solicited = true
++			if n == 1 {
++				delete(peer.requested, height)
++			} else {
++				peer.requested[height] = n - 1
++			}
++			peer.decrPending(blockSize)
++			pool.observeBlockSize(blockSize)
 +		}
 +	}
  	requester := pool.requesters[height]
  	if requester == nil {
-+		if hedgedResponse {
-+			deliveringPeer.decrPending(blockSize)
++		if solicited {
 +			return
 +		}
  		pool.Logger.Info(
  			"peer sent us a block we didn't expect",
  			"peer",
-@@ -307,12 +321,14 @@
+@@ -307,18 +343,62 @@
  		return
  	}
  
 -	if requester.setBlock(block, peerID) {
-+	if requester.setBlock(block, peerID, hedgedResponse) {
- 		atomic.AddInt32(&pool.numPending, -1)
- 		peer := pool.peers[peerID]
- 		if peer != nil {
- 			peer.decrPending(blockSize)
- 		}
-+	} else if hedgedResponse {
-+		deliveringPeer.decrPending(blockSize)
- 	} else {
+-		atomic.AddInt32(&pool.numPending, -1)
+-		peer := pool.peers[peerID]
+-		if peer != nil {
+-			peer.decrPending(blockSize)
+-		}
+-	} else {
++	if !solicited {
  		pool.Logger.Info("invalid peer", "peer", peerID, "blockHeight", height)
  		pool.sendError(errors.New("invalid peer"), peerID)
-@@ -562,6 +578,7 @@
++		return
+ 	}
++	if requester.setBlock(block, peerID) {
++		atomic.AddInt32(&pool.numPending, -1)
++	}
+ }
+ 
++// observeBlockSize feeds a received block response into blockSizeEst. Caller
++// must hold pool.mtx.
++func (pool *BlockPool) observeBlockSize(size int) {
++	s := int64(size)
++	if s >= pool.blockSizeEst {
++		pool.blockSizeEst = s
++		return
++	}
++	pool.blockSizeEst -= (pool.blockSizeEst - s) / 64
++}
++
++// peerRequestLimit returns how many requests may be pending on one peer.
++// Caller must hold pool.mtx.
++func (pool *BlockPool) peerRequestLimit() int32 {
++	if pool.blockSizeEst <= 0 {
++		return minPendingRequestsPerPeer
++	}
++	limit := pendingBytesPerPeer / pool.blockSizeEst
++	if limit < minPendingRequestsPerPeer {
++		return minPendingRequestsPerPeer
++	}
++	if limit > maxPendingRequestsPerPeer {
++		return maxPendingRequestsPerPeer
++	}
++	return int32(limit)
++}
++
++// maxRequesters bounds how far ahead of pool.height blocks are requested.
++// Requesters race for free request slots in no particular height order, so a
++// window much wider than the slots can leave the block the pool is waiting for
++// unrequested.
++func (pool *BlockPool) maxRequesters() int {
++	pool.mtx.Lock()
++	defer pool.mtx.Unlock()
++
++	peers := len(pool.peers)
++	if peers == 0 {
++		peers = 1
++	}
++	n := peers * int(pool.peerRequestLimit()) * 3 / 2
++	if n > maxTotalRequesters {
++		return maxTotalRequesters
++	}
++	return n
++}
++
+ // GetPeerIDs returns all peer IDs in the pool.
+ func (pool *BlockPool) GetPeerIDs() []p2p.ID {
+ 	pool.mtx.Lock()
+@@ -484,21 +564,35 @@
+ 	pool.mtx.Lock()
+ 	defer pool.mtx.Unlock()
+ 
++	limit := pool.peerRequestLimit()
++	var owing *bpPeer
+ 	for _, peer := range pool.peers {
+ 		if peer.didTimeout {
+ 			pool.removePeer(peer.id)
+ 			continue
+ 		}
+-		if peer.numPending >= maxPendingRequestsPerPeer {
++		if peer.numPending >= limit {
+ 			continue
+ 		}
+ 		if height < peer.base || height > peer.height {
+ 			continue
+ 		}
++		if peer.requested[height] > 0 {
++			// A retry goes to another peer if there is one.
++			if owing == nil {
++				owing = peer
++			}
++			continue
++		}
+ 		peer.incrPending()
++		peer.requested[height]++
+ 		return peer
+ 	}
+-	return nil
++	if owing != nil {
++		owing.incrPending()
++		owing.requested[height]++
++	}
++	return owing
+ }
+ 
+ func (pool *BlockPool) makeNextRequester() {
+@@ -562,6 +656,9 @@
  //-------------------------------------
  
  type bpPeer struct {
-+	hedged map[int64]struct{}
++	// requested counts, per height, the requests sent to this peer whose
++	// response has not arrived yet. Access is guarded by pool.mtx.
++	requested   map[int64]int
  	didTimeout  bool
  	numPending  int32
  	height      int64
-@@ -577,6 +594,7 @@
+@@ -577,6 +674,7 @@
  
  func newBPPeer(pool *BlockPool, peerID p2p.ID, base int64, height int64) *bpPeer {
  	peer := &bpPeer{
-+		hedged: make(map[int64]struct{}),
++		requested:  make(map[int64]int),
  		pool:       pool,
  		id:         peerID,
  		base:       base,
-@@ -667,9 +685,9 @@
+@@ -666,14 +764,17 @@
+ 	return nil
  }
  
- // Returns true if the peer matches and block doesn't already exist.
--func (bpr *bpRequester) setBlock(block types.SyncableBlock, peerID p2p.ID) bool {
-+func (bpr *bpRequester) setBlock(block types.SyncableBlock, peerID p2p.ID, hedged bool) bool {
+-// Returns true if the peer matches and block doesn't already exist.
++// Returns true if the block doesn't already exist. The caller has checked that
++// peerID was asked for this height. The block is attributed to peerID, so a
++// block that fails verification gets the peer that served it removed.
+ func (bpr *bpRequester) setBlock(block types.SyncableBlock, peerID p2p.ID) bool {
  	bpr.mtx.Lock()
 -	if bpr.block != nil || bpr.peerID != peerID {
-+	if bpr.block != nil || (bpr.peerID != peerID && !hedged) {
++	if bpr.block != nil {
  		bpr.mtx.Unlock()
  		return false
  	}
-@@ -721,6 +739,8 @@
+ 	bpr.block = block
++	bpr.peerID = peerID
+ 	bpr.mtx.Unlock()
+ 
+ 	select {
+@@ -721,6 +822,8 @@
  // Responsible for making more requests as necessary
  // Returns only when a block is found (e.g. AddBlock() is called)
  func (bpr *bpRequester) requestRoutine() {
@@ -89,10 +230,35 @@
  OUTER_LOOP:
  	for {
  		// Pick a peer to send request to.
-@@ -745,9 +765,19 @@
+@@ -730,6 +833,10 @@
+ 			if !bpr.IsRunning() || !bpr.pool.IsRunning() {
+ 				return
+ 			}
++			if bpr.getBlock() != nil {
++				// A late response to an earlier request filled the block.
++				break PICK_PEER_LOOP
++			}
+ 			peer = bpr.pool.pickIncrAvailablePeer(bpr.height)
+ 			if peer == nil {
+ 				bpr.Logger.Debug("No peers currently available; will retry shortly", "height", bpr.height)
+@@ -738,16 +845,28 @@
+ 			}
+ 			break PICK_PEER_LOOP
+ 		}
+-		bpr.mtx.Lock()
+-		bpr.peerID = peer.id
+-		bpr.mtx.Unlock()
+ 
  		to := time.NewTimer(requestRetrySeconds * time.Second)
- 		// Send request and wait.
- 		bpr.pool.sendRequest(bpr.height, peer.id)
+-		// Send request and wait.
+-		bpr.pool.sendRequest(bpr.height, peer.id)
++		if peer != nil {
++			bpr.mtx.Lock()
++			bpr.peerID = peer.id
++			bpr.mtx.Unlock()
++			// Send request and wait.
++			bpr.pool.sendRequest(bpr.height, peer.id)
++		}
 +		sentAt := time.Now()
 +		hedges := 0
  	WAIT_LOOP:
@@ -109,32 +275,47 @@
  			case <-bpr.pool.Quit():
  				if err := bpr.Stop(); err != nil {
  					bpr.Logger.Error("Error stopped requester", "err", err)
-@@ -782,3 +812,29 @@
+@@ -756,12 +875,17 @@
+ 			case <-bpr.Quit():
+ 				return
+ 			case <-to.C:
+-				bpr.Logger.Debug("Retrying block request after timeout", "height", bpr.height, "peer", bpr.peerID)
++				if bpr.getBlock() != nil {
++					// The block arrived and is waiting to be processed.
++					continue WAIT_LOOP
++				}
++				bpr.Logger.Debug("Retrying block request after timeout", "height", bpr.height, "peer", bpr.getPeerID())
+ 				// Simulate a redo
+ 				bpr.reset()
+ 				continue OUTER_LOOP
+ 			case peerID := <-bpr.redoCh:
+-				if peerID == bpr.peerID {
++				// setBlock may have reattributed the block to the peer that served it.
++				if peerID == bpr.getPeerID() {
+ 					bpr.reset()
+ 					continue OUTER_LOOP
+ 				} else {
+@@ -782,3 +906,24 @@
  	Height int64
  	PeerID p2p.ID
  }
-+
 +
 +// hedgeRequest asks one more peer for the height the pool is blocked on.
 +func (pool *BlockPool) hedgeRequest(height int64, original p2p.ID) (p2p.ID, bool) {
 +	pool.mtx.Lock()
 +	defer pool.mtx.Unlock()
-+	if height != pool.height {
++	if height != pool.height || pool.blockSizeEst > hedgeMaxBlockSize {
 +		return "", false
 +	}
-+	originalPeer := pool.peers[original]
 +	for _, peer := range pool.peers {
 +		if peer.id == original || peer.didTimeout || height < peer.base || height > peer.height {
 +			continue
 +		}
-+		if _, dup := peer.hedged[height]; dup {
++		if peer.requested[height] > 0 {
 +			continue
 +		}
 +		peer.incrPending()
-+		peer.hedged[height] = struct{}{}
-+		if originalPeer != nil {
-+			originalPeer.hedged[height] = struct{}{}
-+		}
++		peer.requested[height]++
 +		return peer.id, true
 +	}
 +	return "", false
