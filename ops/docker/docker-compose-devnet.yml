@@ -307,9 +307,6 @@ services:
       - CHALLENGER_L1_ETH_RPC=${L1_ETH_RPC}
       - CHALLENGER_L2_ETH_RPC=http://morph-el-0:8545
       - CHALLENGER_ROLLUP_ADDRESS=${MORPH_ROLLUP:-0x6900000000000000000000000000000000000010}
-      - CHALLENGER_L1_LOG_START_BLOCK=0
       # rollupChallenger in contracts/src/deploy-config/l1.ts; the deploy registers it on Rollup.
       - CHALLENGER_PRIVATE_KEY=0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
-      - CHALLENGER_HTTP_AUTH_ENABLE=true
-      - CHALLENGER_HTTP_AUTH_TOKEN=devnet-test
       - CHALLENGER_LOG_TERMINAL=true

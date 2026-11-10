@@ -9,7 +9,7 @@ replace (
 )
 
 require (
-	github.com/morph-l2/go-ethereum v1.10.14-0.20261019103624-0308bfdb1dcb
+	github.com/morph-l2/go-ethereum v1.10.14-0.20261109063348-1c528b351da0
 	github.com/morph-l2/remote-signer-client/go v0.0.0-20260312080033-d078d86ddbe9
 	github.com/prometheus/client_golang v1.17.0
 	github.com/urfave/cli v1.22.17

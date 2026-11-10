@@ -77,7 +77,7 @@ func run(cliCtx *cli.Context) error {
 	}
 	defer l2Client.Close()
 
-	challenger, err := service.New(l1Client, l2Client, cfg.RollupAddress, cfg.ReceiptTimeout, cfg.L1LogStartBlock)
+	challenger, err := service.New(l1Client, l2Client, cfg.RollupAddress, cfg.ReceiptTimeout)
 	if err != nil {
 		return fmt.Errorf("failed to create challenger: %w", err)
 	}

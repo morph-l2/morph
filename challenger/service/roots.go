@@ -21,24 +21,22 @@ type batchComparer interface {
 }
 
 type rootSource struct {
-	rollup   *bindings.Rollup
-	l1       *ethclient.Client
-	l2       *ethclient.Client
-	passer   *bindings.L2ToL1MessagePasser
-	logStart uint64
+	rollup *bindings.Rollup
+	l1     *ethclient.Client
+	l2     *ethclient.Client
+	passer *bindings.L2ToL1MessagePasser
 }
 
-func newRootSource(rollup *bindings.Rollup, l1, l2 *ethclient.Client, logStart uint64) (*rootSource, error) {
+func newRootSource(rollup *bindings.Rollup, l1, l2 *ethclient.Client) (*rootSource, error) {
 	passer, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, l2)
 	if err != nil {
 		return nil, err
 	}
 	return &rootSource{
-		rollup:   rollup,
-		l1:       l1,
-		l2:       l2,
-		passer:   passer,
-		logStart: logStart,
+		rollup: rollup,
+		l1:     l1,
+		l2:     l2,
+		passer: passer,
 	}, nil
 }
 
@@ -47,10 +45,27 @@ func newRootSource(rollup *bindings.Rollup, l1, l2 *ethclient.Client, logStart u
 //
 // Every L1 value comes from the commit transaction whose CommitBatch event carries
 // the current batch hash. revertBatch leaves batchDataStore and committedStateRoots
-// in place, so storage can still describe a reverted version.
+// in place, so storage can still describe a reverted version. A nonzero hash means
+// the latest commit wrote batchDataStore in the same transaction, so its
+// originTimestamp is the timestamp of the block holding that transaction.
+//
+// Finalized batches are refused: finalizeBatch deletes the previous batch's
+// batchDataStore, and a finalized batch cannot be challenged anyway.
 func (s *rootSource) Compare(ctx context.Context, batchIndex uint64) (Comparison, error) {
 	index := new(big.Int).SetUint64(batchIndex)
-	raw, err := s.rollup.CommittedBatches(callOpts(ctx), index)
+	head, err := s.l1.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return Comparison{}, &CallError{Err: fmt.Errorf("l1 head: %w", err)}
+	}
+	opts := &bind.CallOpts{Context: ctx, BlockNumber: head.Number}
+	finalized, err := s.rollup.LastFinalizedBatchIndex(opts)
+	if err != nil {
+		return Comparison{}, &CallError{Err: fmt.Errorf("lastFinalizedBatchIndex: %w", err)}
+	}
+	if index.Cmp(finalized) <= 0 {
+		return Comparison{}, &RejectError{Reason: "batch already finalized"}
+	}
+	raw, err := s.rollup.CommittedBatches(opts, index)
 	if err != nil {
 		return Comparison{}, &CallError{Err: fmt.Errorf("committedBatches: %w", err)}
 	}
@@ -58,7 +73,18 @@ func (s *rootSource) Compare(ctx context.Context, batchIndex uint64) (Comparison
 	if batchHash == (common.Hash{}) {
 		return Comparison{}, &NotCommittedError{BatchIndex: batchIndex}
 	}
-	committed, err := s.committedBatch(ctx, index, batchHash)
+	data, err := s.rollup.BatchDataStore(opts, index)
+	if err != nil {
+		return Comparison{}, &CallError{Err: fmt.Errorf("batchDataStore: %w", err)}
+	}
+	if data.OriginTimestamp == nil || data.OriginTimestamp.Sign() == 0 {
+		return Comparison{}, &CallError{Err: fmt.Errorf("batchDataStore has no commit time for batch %d", batchIndex)}
+	}
+	from, to, err := blocksAtTime(ctx, s.l1, data.OriginTimestamp.Uint64(), head)
+	if err != nil {
+		return Comparison{}, &CallError{Err: fmt.Errorf("commit block: %w", err)}
+	}
+	committed, err := s.committedBatch(ctx, index, batchHash, from, to)
 	if err != nil {
 		return Comparison{}, err
 	}
@@ -97,12 +123,13 @@ func (s *rootSource) Compare(ctx context.Context, batchIndex uint64) (Comparison
 	return out, nil
 }
 
-// committedBatch decodes the commit transaction for this exact batch hash.
-// The hash covers every header field read here, so a recommit with the same
-// hash carries the same values.
-func (s *rootSource) committedBatch(ctx context.Context, index *big.Int, batchHash common.Hash) (commitInput, error) {
+// committedBatch decodes the commit transaction for this exact batch hash within
+// L1 blocks from..to. The hash covers every header field read here, so a recommit
+// with the same hash carries the same values.
+func (s *rootSource) committedBatch(ctx context.Context, index *big.Int, batchHash common.Hash, from, to uint64) (commitInput, error) {
 	iter, err := s.rollup.FilterCommitBatch(&bind.FilterOpts{
-		Start:   s.logStart,
+		Start:   from,
+		End:     &to,
 		Context: ctx,
 	}, []*big.Int{index}, [][32]byte{batchHash})
 	if err != nil {

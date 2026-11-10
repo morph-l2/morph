@@ -63,3 +63,11 @@ func TestChallengeRefusesRevertedBatch(t *testing.T) {
 		t.Fatalf("reason = %s", reason)
 	}
 }
+
+func TestChallengeRefusesFinalizedBatch(t *testing.T) {
+	svc := &Service{compare: &staticCompare{err: &RejectError{Reason: "batch already finalized"}}}
+	_, err := svc.Challenge(context.Background(), 4, common.HexToHash("0x11"))
+	if reason := rejectReason(t, err); reason != "batch already finalized" {
+		t.Fatalf("reason = %s", reason)
+	}
+}

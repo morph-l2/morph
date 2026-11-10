@@ -27,7 +27,6 @@ func base(extra ...string) []string {
 	return append([]string{
 		"--l1-eth-rpc", "http://127.0.0.1:9545",
 		"--l2-eth-rpc", "http://127.0.0.1:8545",
-		"--l1-log-start-block", "120",
 		"--rollup-address", "0x0000000000000000000000000000000000000001",
 	}, extra...)
 }
@@ -51,9 +50,6 @@ func TestLoadConfigLocalKey(t *testing.T) {
 	}
 	if cfg.L1RPC != "http://127.0.0.1:9545" || cfg.L2RPC != "http://127.0.0.1:8545" {
 		t.Fatalf("rpcs = %s %s", cfg.L1RPC, cfg.L2RPC)
-	}
-	if cfg.L1LogStartBlock != 120 {
-		t.Fatalf("log start block = %d", cfg.L1LogStartBlock)
 	}
 	if cfg.HTTPAddress() != "0.0.0.0:8080" {
 		t.Fatalf("http address = %s", cfg.HTTPAddress())
@@ -98,9 +94,9 @@ func TestLoadConfigAuthDisabledIgnoresToken(t *testing.T) {
 	}
 }
 
-func TestLoadConfigRequiresLogStartBlock(t *testing.T) {
-	_, err := load(without(base("--private-key", "abc"), "--l1-log-start-block")...)
-	if err == nil || !strings.Contains(err.Error(), "l1-log-start-block") {
+func TestLoadConfigRequiresRollupAddress(t *testing.T) {
+	_, err := load(without(base("--private-key", "abc"), "--rollup-address")...)
+	if err == nil || !strings.Contains(err.Error(), "rollup-address") {
 		t.Fatalf("err = %v", err)
 	}
 }

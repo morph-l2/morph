@@ -93,6 +93,11 @@ func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"status": "not_found", "error": missing.Error()})
 		return
 	}
+	var rejected *service.RejectError
+	if errors.As(err, &rejected) {
+		writeJSON(w, http.StatusConflict, map[string]string{"status": "rejected", "error": rejected.Reason})
+		return
+	}
 	if err != nil {
 		log.Error("Batch comparison failed", "batchIndex", index, "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"status": "error", "error": err.Error()})

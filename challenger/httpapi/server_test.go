@@ -197,6 +197,14 @@ func TestGetBatchNotCommitted(t *testing.T) {
 	}
 }
 
+func TestGetBatchFinalized(t *testing.T) {
+	srv := NewServer(":0", token, fakeChallenger{compareErr: &service.RejectError{Reason: "batch already finalized"}}, time.Second)
+	rec := getBatch(t, srv.Handler(), "/batch/4", token)
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "batch already finalized") {
+		t.Fatalf("status = %d body %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestHealth(t *testing.T) {
 	srv := NewServer(":0", token, fakeChallenger{}, time.Second)
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)

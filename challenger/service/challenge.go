@@ -36,7 +36,7 @@ type Service struct {
 }
 
 // New binds the L1 Rollup and the trusted L2 geth, and prepares the transaction path.
-func New(l1 *client.L1Client, l2 *ethclient.Client, rollupAddr common.Address, receiptTimeout time.Duration, logStart uint64) (*Service, error) {
+func New(l1 *client.L1Client, l2 *ethclient.Client, rollupAddr common.Address, receiptTimeout time.Duration) (*Service, error) {
 	rollup, err := bindings.NewRollup(rollupAddr, l1.GetClient())
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func New(l1 *client.L1Client, l2 *ethclient.Client, rollupAddr common.Address, r
 	if err != nil {
 		return nil, err
 	}
-	roots, err := newRootSource(rollup, l1.GetClient(), l2, logStart)
+	roots, err := newRootSource(rollup, l1.GetClient(), l2)
 	if err != nil {
 		return nil, err
 	}

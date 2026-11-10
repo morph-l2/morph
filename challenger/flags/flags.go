@@ -27,13 +27,6 @@ var (
 		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
 	}
 
-	L1LogStartBlockFlag = cli.Uint64Flag{
-		Name:     "l1-log-start-block",
-		Usage:    "First L1 block to search for CommitBatch logs. Use the Rollup deployment block",
-		Required: true,
-		EnvVar:   prefixEnvVar("L1_LOG_START_BLOCK"),
-	}
-
 	RollupAddressFlag = cli.StringFlag{
 		Name:     "rollup-address",
 		Usage:    "L1 Rollup contract address",
@@ -191,7 +184,6 @@ var (
 var requiredFlags = []cli.Flag{
 	L1EthRPCFlag,
 	L2EthRPCFlag,
-	L1LogStartBlockFlag,
 	RollupAddressFlag,
 }
 
