@@ -187,3 +187,28 @@ build-bk-prod-morph-prod-mainnet-to-morph-token-price-oracle:
 	cp token-price-oracle/token-price-oracle dist/
 	aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/secret-manager-wrapper.tar.gz ./
 	tar -xvzf secret-manager-wrapper.tar.gz
+
+# challenger
+# qanet
+build-bk-test-morph-test-qanet-to-morph-challenger-qanet:
+	if [ ! -d dist ]; then mkdir -p dist; fi
+	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o challenger/challenger ./challenger/cmd
+	cp challenger/challenger dist/
+	aws s3 cp s3://morph-7637-morph-technical-department-qanet-data/morph-setup/secret-manager-wrapper.tar.gz ./
+	tar -xvzf secret-manager-wrapper.tar.gz
+
+# hoodi
+build-bk-prod-morph-prod-testnet-to-morph-challenger-hoodi:
+	if [ ! -d dist ]; then mkdir -p dist; fi
+	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o challenger/challenger ./challenger/cmd
+	cp challenger/challenger dist/
+	aws s3 cp s3://morph-0582-morph-technical-department-testnet-data/testnet/hoodi/morph-setup/secret-manager-wrapper.tar.gz ./
+	tar -xvzf secret-manager-wrapper.tar.gz
+
+# mainnet
+build-bk-prod-morph-prod-mainnet-to-morph-challenger:
+	if [ ! -d dist ]; then mkdir -p dist; fi
+	env GO111MODULE=on CGO_LDFLAGS="-ldl" CGO_ENABLED=1 go build -v $(LDFLAGS) -o challenger/challenger ./challenger/cmd
+	cp challenger/challenger dist/
+	aws s3 cp s3://morph-0582-morph-technical-department-mainnet-data/morph-setup/secret-manager-wrapper.tar.gz ./
+	tar -xvzf secret-manager-wrapper.tar.gz

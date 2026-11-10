@@ -69,3 +69,16 @@ start-bk-prod-morph-prod-testnet-to-morph-token-price-oracle-hoodi:
 # mainnet
 start-bk-prod-morph-prod-mainnet-to-morph-token-price-oracle:
 	/data/secret-manager-wrapper ./token-price-oracle
+
+# challenger
+# qanet
+start-bk-test-morph-test-qanet-to-morph-challenger-qanet:
+	/data/secret-manager-wrapper ./challenger
+
+# hoodi
+start-bk-prod-morph-prod-testnet-to-morph-challenger-hoodi:
+	/data/secret-manager-wrapper ./challenger
+
+# mainnet
+start-bk-prod-morph-prod-mainnet-to-morph-challenger:
+	/data/secret-manager-wrapper ./challenger
