@@ -13,6 +13,7 @@ import (
 // Metrics represents the metrics collection for the tx-submitter
 type Metrics struct {
 	WalletBalance           prometheus.Gauge
+	FinalizeWalletBalance   prometheus.Gauge
 	RpcErrors               prometheus.Counter
 	RollupCostSum           prometheus.Gauge
 	FinalizeCostSum         prometheus.Gauge
@@ -36,6 +37,10 @@ func NewMetrics() *Metrics {
 		WalletBalance: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "tx_submitter_wallet_balance",
 			Help: "Current balance of the submitter wallet in ETH",
+		}),
+		FinalizeWalletBalance: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "tx_submitter_finalize_wallet_balance",
+			Help: "Current balance of the finalize account wallet in ETH (only set when rollup/finalize accounts are split)",
 		}),
 		RpcErrors: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "tx_submitter_rpc_errors_total",
@@ -97,6 +102,7 @@ func NewMetrics() *Metrics {
 	// Register metrics with Prometheus
 	// We use Register instead of MustRegister to avoid panics if metrics are already registered
 	_ = prometheus.Register(m.WalletBalance)
+	_ = prometheus.Register(m.FinalizeWalletBalance)
 	_ = prometheus.Register(m.RpcErrors)
 	_ = prometheus.Register(m.RollupCostSum)
 	_ = prometheus.Register(m.FinalizeCostSum)
@@ -117,6 +123,11 @@ func NewMetrics() *Metrics {
 // SetWalletBalance sets the wallet balance metric
 func (m *Metrics) SetWalletBalance(balance float64) {
 	m.WalletBalance.Set(balance)
+}
+
+// SetFinalizeWalletBalance sets the finalize account wallet balance metric
+func (m *Metrics) SetFinalizeWalletBalance(balance float64) {
+	m.FinalizeWalletBalance.Set(balance)
 }
 
 // IncRpcErrors increments the RPC error counter
@@ -212,6 +223,7 @@ func (m *Metrics) Serve(hostname string, port uint64) (*http.Server, error) {
 // UnregisterMetrics unregisters all metrics from the default registry
 func (m *Metrics) UnregisterMetrics() {
 	prometheus.Unregister(m.WalletBalance)
+	prometheus.Unregister(m.FinalizeWalletBalance)
 	prometheus.Unregister(m.RpcErrors)
 	prometheus.Unregister(m.RollupCostSum)
 	prometheus.Unregister(m.FinalizeCostSum)
