@@ -161,6 +161,25 @@ func resolveAdvertisedAddr(listenAddr string, listenPort int) (string, error) {
 	return net.JoinHostPort(ip, port), nil
 }
 
+// isLoopbackListenAddr reports whether the given listen address only accepts
+// connections from the local machine. An empty address or a wildcard cannot
+// be proven loopback, so it is treated as remotely reachable (fail closed).
+func isLoopbackListenAddr(listenAddr string) bool {
+	if listenAddr == "" {
+		return false
+	}
+	
+	// Normalize bracketed IPv6 addresses before loopback validation
+	if len(listenAddr) >= 2 && listenAddr[0] == '[' && listenAddr[len(listenAddr)-1] == ']' {
+		listenAddr = listenAddr[1 : len(listenAddr)-1]
+	}
+	
+	ip := net.ParseIP(listenAddr)
+	return ip != nil && ip.IsLoopback()
+}
+
+// localNonLoopbackIP scans active network interfaces to find and return
+// the first valid non-loopback IPv4 address.
 func localNonLoopbackIP() (string, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
@@ -192,7 +211,7 @@ func localNonLoopbackIP() (string, error) {
 
 // ── Step 4: Validate ─────────────────────────────────────────────────────────
 
-// Validate checks that all required fields are present. Call AFTER Resolve().
+// Validate checks that all required fields are present and valid. Call AFTER Resolve().
 func (c *Config) Validate() error {
 	if c.ServerID == "" {
 		return fmt.Errorf("server_id is required (set via config, --ha.server-id, or ensure hostname is available)")
@@ -205,6 +224,15 @@ func (c *Config) Validate() error {
 	}
 	if c.RPC.ListenPort < 0 || c.RPC.ListenPort > math.MaxUint16 {
 		return fmt.Errorf("invalid rpc.listen_port: %d", c.RPC.ListenPort)
+	}
+
+	// The RPC write APIs (ha_addServerAsVoter, ha_removeServer,
+	// ha_transferLeaderToServer) mutate Raft membership and leadership. They
+	// must not be reachable unauthenticated from other hosts: previously an
+	// empty token only produced a log line and the server kept serving write
+	// APIs on 0.0.0.0. Fail closed at startup instead.
+	if c.RPC.Token == "" && !isLoopbackListenAddr(c.RPC.ListenAddr) {
+		return fmt.Errorf("rpc.token is required when rpc.listen_addr (%q) is not loopback: write APIs would be unauthenticated", c.RPC.ListenAddr)
 	}
 
 	// Raft timing sanity. A non-positive heartbeat disables liveness; a leader
