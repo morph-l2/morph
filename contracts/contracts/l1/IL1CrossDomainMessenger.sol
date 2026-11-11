@@ -6,6 +6,16 @@ import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 
 interface IL1CrossDomainMessenger is ICrossDomainMessenger {
     /**********
+     * Errors *
+     **********/
+
+    /// @dev Thrown when the caller is neither the owner nor the rate limit admin.
+    error ErrNotOwnerOrRateLimitAdmin();
+
+    /// @dev Thrown when the rate limit admin tries to loosen or disable the ETH rate limit.
+    error ErrRateLimitAdminCanOnlyTighten();
+
+    /**********
      * Events *
      **********/
 
@@ -36,6 +46,23 @@ interface IL1CrossDomainMessenger is ICrossDomainMessenger {
         uint256 gasLimit,
         bytes message
     );
+
+    /// @notice Emitted when ETH is released under the ETH rate limit.
+    /// @param messageHash The hash of the relayed message.
+    /// @param amount The amount of ETH released.
+    /// @param remaining The amount of ETH left in the rate limiter.
+    event ETHRateLimitConsumed(bytes32 indexed messageHash, uint256 amount, uint256 remaining);
+
+    /// @notice Emitted when the config of the ETH rate limiter is updated.
+    /// @param isEnabled Whether the rate limit is enabled.
+    /// @param capacity The maximum amount of ETH the rate limiter can hold.
+    /// @param rate The amount of ETH refilled per second.
+    event UpdateETHRateLimiterConfig(bool isEnabled, uint256 capacity, uint256 rate);
+
+    /// @notice Emitted when the rate limit admin is updated.
+    /// @param oldRateLimitAdmin The address of the old rate limit admin.
+    /// @param newRateLimitAdmin The address of the new rate limit admin.
+    event UpdateRateLimitAdmin(address indexed oldRateLimitAdmin, address indexed newRateLimitAdmin);
 
     /*****************************
      * Public Mutating Functions *

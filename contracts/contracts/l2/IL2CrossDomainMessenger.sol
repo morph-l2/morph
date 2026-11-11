@@ -6,6 +6,15 @@ import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
 
 interface IL2CrossDomainMessenger is ICrossDomainMessenger {
     /**********
+     * Errors *
+     **********/
+
+    /// @dev Thrown when the ETH value of a L2 to L1 message exceeds `maxWithdrawalValue`.
+    /// @param value The ETH value of the message.
+    /// @param maxValue The maximum ETH value of a single message.
+    error ErrExceedMaxWithdrawalValue(uint256 value, uint256 maxValue);
+
+    /**********
      * Events *
      **********/
 
@@ -13,6 +22,11 @@ interface IL2CrossDomainMessenger is ICrossDomainMessenger {
     /// @param oldMaxFailedExecutionTimes The old maximum number of times each message can fail in L2.
     /// @param newMaxFailedExecutionTimes The new maximum number of times each message can fail in L2.
     event UpdateMaxFailedExecutionTimes(uint256 oldMaxFailedExecutionTimes, uint256 newMaxFailedExecutionTimes);
+
+    /// @notice Emitted when the maximum ETH value of a single L2 to L1 message is updated.
+    /// @param oldMaxWithdrawalValue The old maximum ETH value.
+    /// @param newMaxWithdrawalValue The new maximum ETH value.
+    event UpdateMaxWithdrawalValue(uint256 oldMaxWithdrawalValue, uint256 newMaxWithdrawalValue);
 
     /*****************************
      * Public Mutating Functions *

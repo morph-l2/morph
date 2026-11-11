@@ -24,6 +24,11 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, IL2CrossDomainMessenger
     /// @notice Mapping from L1 message hash to a boolean value indicating if the message has been successfully executed.
     mapping(bytes32 => bool) public isL1MessageExecuted;
 
+    /// @notice The maximum ETH value of a single L2 to L1 message, zero means no limit.
+    /// @dev Keep it no larger than the capacity of the ETH rate limiter in L1CrossDomainMessenger,
+    ///      otherwise larger messages cannot be relayed on L1.
+    uint256 public maxWithdrawalValue;
+
     /***************
      * Constructor *
      ***************/
@@ -91,6 +96,20 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, IL2CrossDomainMessenger
         return L2ToL1MessagePasser(Predeploys.L2_TO_L1_MESSAGE_PASSER).leafNodesCount();
     }
 
+    /************************
+     * Restricted Functions *
+     ************************/
+
+    /// @notice Update the maximum ETH value of a single L2 to L1 message.
+    /// @dev This function can only called by contract owner.
+    /// @param _newMaxWithdrawalValue The new maximum ETH value, zero means no limit.
+    function updateMaxWithdrawalValue(uint256 _newMaxWithdrawalValue) external onlyOwner {
+        uint256 _oldMaxWithdrawalValue = maxWithdrawalValue;
+        maxWithdrawalValue = _newMaxWithdrawalValue;
+
+        emit UpdateMaxWithdrawalValue(_oldMaxWithdrawalValue, _newMaxWithdrawalValue);
+    }
+
     /**********************
      * Internal Functions *
      **********************/
@@ -102,6 +121,10 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, IL2CrossDomainMessenger
     /// @param _gasLimit Optional gas limit to complete the message relay on corresponding chain.
     function _sendMessage(address _to, uint256 _value, bytes memory _message, uint256 _gasLimit) internal nonReentrant {
         require(msg.value == _value, "msg.value mismatch");
+        uint256 _maxWithdrawalValue = maxWithdrawalValue;
+        if (_maxWithdrawalValue != 0 && _value > _maxWithdrawalValue) {
+            revert ErrExceedMaxWithdrawalValue(_value, _maxWithdrawalValue);
+        }
 
         address messagePasser = Predeploys.L2_TO_L1_MESSAGE_PASSER;
         uint256 _nonce = L2ToL1MessagePasser(messagePasser).leafNodesCount();

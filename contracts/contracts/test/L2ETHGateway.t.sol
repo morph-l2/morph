@@ -7,6 +7,7 @@ import {IL2ETHGateway} from "../l2/gateways/IL2ETHGateway.sol";
 import {L2ETHGateway} from "../l2/gateways/L2ETHGateway.sol";
 import {L2GatewayRouter} from "../l2/gateways/L2GatewayRouter.sol";
 import {L2CrossDomainMessenger} from "../l2/L2CrossDomainMessenger.sol";
+import {IL2CrossDomainMessenger} from "../l2/IL2CrossDomainMessenger.sol";
 import {IL1ETHGateway} from "../l1/gateways/IL1ETHGateway.sol";
 import {L2ETHGateway} from "../l2/gateways/L2ETHGateway.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
@@ -164,6 +165,17 @@ contract L2ETHGatewayTest is L2GatewayBaseTest {
         uint256 feePerGas
     ) public {
         _withdrawETHWithRecipientAndCalldata(true, amount, recipient, dataToCall, gasLimit, feePerGas);
+    }
+
+    function test_withdrawETH_exceedMaxWithdrawalValue_reverts() public {
+        hevm.prank(multisig);
+        l2Messenger.updateMaxWithdrawalValue(100);
+
+        hevm.expectRevert(
+            abi.encodeWithSelector(IL2CrossDomainMessenger.ErrExceedMaxWithdrawalValue.selector, 101, 100)
+        );
+        gateway.withdrawETH{value: 101}(101, 21000);
+        gateway.withdrawETH{value: 100}(100, 21000);
     }
 
     function test_finalizeDepositETHFailedMocking_succeeds(
