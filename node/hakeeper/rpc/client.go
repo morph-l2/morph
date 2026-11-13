@@ -82,3 +82,9 @@ func (c *APIClient) ClusterMembership(ctx context.Context) (*ClusterMembership, 
 	err := c.c.CallContext(ctx, &membership, prefixRPC("clusterMembership"))
 	return &membership, err
 }
+
+func (c *APIClient) NodeInfo(ctx context.Context) (*NodeInfo, error) {
+	var info NodeInfo
+	err := c.c.CallContext(ctx, &info, prefixRPC("nodeInfo"))
+	return &info, err
+}

@@ -5,7 +5,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,7 +13,7 @@ import (
 )
 
 // awsCreds are the temporary AWS credentials the node injects into the
-// enclave over vsock (op=ProvideCredentials). The enclave reads no IMDS,
+// enclave over vsock with each LoadKeys request. The enclave reads no IMDS,
 // so the host resolves credentials and pushes them in.
 type awsCreds struct {
 	accessKeyID     string
@@ -23,36 +22,18 @@ type awsCreds struct {
 	expiryUnixSecs  uint64
 }
 
-// injectCredentials resolves credentials from the pod's IRSA environment
-// and pushes them into the enclave on a one-shot connection, so the
-// signer can run its deferred one-time key load (SM Get + KMS Decrypt).
-//
-// No IRSA env (local/dev) → skip; the following probe() then surfaces the
-// enclave's own error if it actually needed credentials. Idempotent
-// enclave-side: re-injecting after the key is loaded is a no-op Ack, so
-// this runs safely on every node (re)start.
-func (s *EnclaveSigner) injectCredentials() error {
+// resolveCreds returns the pod's IRSA credentials, or nil when no IRSA env
+// is present (local/dev: the enclave's file backend needs none). Resolved
+// fresh for every LoadKeys, so expiry is never an issue.
+func resolveCreds() (*awsCreds, error) {
 	creds, available, err := irsaCreds()
 	if err != nil {
-		return fmt.Errorf("resolve IRSA credentials: %w", err)
+		return nil, fmt.Errorf("resolve IRSA credentials: %w", err)
 	}
 	if !available {
-		s.logger.Info("no IRSA env; skipping enclave credential injection")
-		return nil
+		return nil, nil
 	}
-	conn, err := s.dial()
-	if err != nil {
-		return err
-	}
-	defer func() { _ = conn.Close() }()
-	if err := conn.SetDeadline(time.Now().Add(credLoadTimeout)); err != nil {
-		return fmt.Errorf("set deadline: %w", err)
-	}
-	if err := writeProvideCredentials(conn, creds); err != nil {
-		return fmt.Errorf("provide credentials: %w", err)
-	}
-	s.logger.Info("enclave credentials injected via IRSA", "role", os.Getenv("AWS_ROLE_ARN"))
-	return nil
+	return &creds, nil
 }
 
 // irsaCreds resolves temporary credentials from the EKS IRSA environment
@@ -146,7 +127,7 @@ func assumeRoleWithWebIdentity(region, roleARN, session, jwt string) (awsCreds, 
 	return out, nil
 }
 
-// ProvideCredentials field caps — must match crates/protocol in the
+// Credential field caps — must match crates/protocol in the
 // morph-enclave-signer repo. Bounding each field keeps the u16 length
 // prefix from overflowing (STS credential fields are opaque and, per AWS,
 // carry no documented max size).
@@ -156,38 +137,36 @@ const (
 	maxSessionTokenLen    = 8192
 )
 
-// writeProvideCredentials sends op=ProvideCredentials on an established
-// conn and reads the Ack. Field layout mirrors crates/protocol (and
-// ops-cli's client.go):
+// appendCreds appends the credential block shared by Init / LoadKeys
+// (mirrors crates/protocol and ops-cli's client.go):
 //
-//	[op=0x04][akid_lp][sak_lp][token_lp][expiry:u64]
+//	[akid_lp][sak_lp][token_lp][expiry:u64]
 //
-// where each _lp is [len:u16][bytes]; all integers are big-endian.
-func writeProvideCredentials(conn net.Conn, c awsCreds) error {
+// where each _lp is [len:u16][bytes]; nil creds = empty akid (none).
+func appendCreds(buf []byte, creds *awsCreds) ([]byte, error) {
+	var c awsCreds
+	if creds != nil {
+		c = *creds
+	}
 	if len(c.accessKeyID) > maxAccessKeyIDLen {
-		return fmt.Errorf("access key id len %d exceeds max %d", len(c.accessKeyID), maxAccessKeyIDLen)
+		return nil, fmt.Errorf("access key id len %d exceeds max %d", len(c.accessKeyID), maxAccessKeyIDLen)
 	}
 	if len(c.secretAccessKey) > maxSecretAccessKeyLen {
-		return fmt.Errorf("secret access key len %d exceeds max %d", len(c.secretAccessKey), maxSecretAccessKeyLen)
+		return nil, fmt.Errorf("secret access key len %d exceeds max %d", len(c.secretAccessKey), maxSecretAccessKeyLen)
 	}
 	if len(c.sessionToken) > maxSessionTokenLen {
-		return fmt.Errorf("session token len %d exceeds max %d", len(c.sessionToken), maxSessionTokenLen)
+		return nil, fmt.Errorf("session token len %d exceeds max %d", len(c.sessionToken), maxSessionTokenLen)
 	}
-	buf := []byte{opProvideCredentials}
 	buf = appendLPString(buf, c.accessKeyID)
 	buf = appendLPString(buf, c.secretAccessKey)
 	buf = appendLPString(buf, c.sessionToken)
 	var exp [8]byte
 	binary.BigEndian.PutUint64(exp[:], c.expiryUnixSecs)
-	buf = append(buf, exp[:]...)
-	if _, err := conn.Write(buf); err != nil {
-		return fmt.Errorf("write ProvideCredentials: %w", err)
-	}
-	return readOkStatus(conn)
+	return append(buf, exp[:]...), nil
 }
 
 // appendLPString appends a [len:u16][bytes] field (big-endian length).
-// Callers bound each field below the u16 max (see writeProvideCredentials),
+// Callers bound each field below the u16 max (see appendCreds),
 // so the length conversion cannot overflow.
 func appendLPString(buf []byte, s string) []byte {
 	var l [2]byte

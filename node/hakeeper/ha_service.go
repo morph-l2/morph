@@ -14,6 +14,7 @@ import (
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	boltdb "github.com/hashicorp/raft-boltdb/v2"
+	"github.com/morph-l2/go-ethereum/common"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	"github.com/tendermint/tendermint/types"
 
@@ -48,6 +49,10 @@ type HAService struct {
 	transport    *raft.NetworkTransport
 	raftObserver *raft.Observer
 
+	// signerAddrs returns this node's sequencer signer addresses, reported in
+	// NodeInfo. Nil for a node without a signer. Set before Start().
+	signerAddrs func() []common.Address
+
 	leaderReady int32 // atomic: 1 = can produce blocks
 	stopCh      chan struct{}
 	wg          sync.WaitGroup
@@ -71,6 +76,13 @@ func New(cfg *Config, logger tmlog.Logger) (*HAService, error) {
 		metrics:        m,
 		stopCh:         make(chan struct{}),
 	}, nil
+}
+
+// SetSignerAddrs registers the source of this node's signer addresses for
+// NodeInfo (e.g. signer.Addresses; it may change after an enclave
+// reconnect, so it is read on every call). Must be called before Start().
+func (h *HAService) SetSignerAddrs(fn func() []common.Address) {
+	h.signerAddrs = fn
 }
 
 // SetOnBlockApplied registers the business callback invoked by the FSM on every
@@ -314,6 +326,19 @@ func (h *HAService) ClusterMembership() (*hakeeperrpc.ClusterMembership, error) 
 func (h *HAService) ServerID() string { return h.cfg.ServerID }
 
 func (h *HAService) Addr() string { return h.advertisedAddr }
+
+func (h *HAService) NodeInfo() *hakeeperrpc.NodeInfo {
+	info := &hakeeperrpc.NodeInfo{
+		ServerID:    h.cfg.ServerID,
+		Addr:        h.advertisedAddr,
+		Leader:      h.Leader(),
+		SignerAddrs: []common.Address{},
+	}
+	if h.signerAddrs != nil {
+		info.SignerAddrs = append(info.SignerAddrs, h.signerAddrs()...)
+	}
+	return info
+}
 
 // ── internal ─────────────────────────────────────────────────────────────────
 

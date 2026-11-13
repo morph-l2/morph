@@ -161,3 +161,15 @@ func TestAuthMiddleware_UnparseableBody_NoToken_Returns401(t *testing.T) {
 		}
 	}
 }
+
+func TestAuthMiddleware_NodeInfo_NoToken_Passes(t *testing.T) {
+	h := authMiddleware("secret", okHandler)
+	body := `{"jsonrpc":"2.0","method":"ha_nodeInfo","params":[],"id":1}`
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 for read-only ha_nodeInfo without token, got %d", rr.Code)
+	}
+}

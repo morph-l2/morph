@@ -179,24 +179,29 @@ func (c *SequencerVerifier) refreshLoop(ctx context.Context) {
 	}
 }
 
-// SequencerAtHeight returns the sequencer address at the given L2 height.
-func (c *SequencerVerifier) SequencerAtHeight(l2Height uint64) (common.Address, bool) {
+// ============================================================================
+// Interface implementation
+// ============================================================================
+
+// SequencerAtHeight returns the sequencer address the L1 contract designates
+// for the given L2 height. It errors when no record covers that height.
+func (c *SequencerVerifier) SequencerAtHeight(l2Height uint64) (common.Address, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if len(c.history) == 0 {
-		return common.Address{}, false
+		return common.Address{}, fmt.Errorf("no sequencer record for height %d", l2Height)
 	}
 
 	if c.cursor.valid && l2Height >= c.cursor.from && l2Height < c.cursor.to {
-		return c.cursor.addr, true
+		return c.cursor.addr, nil
 	}
 
 	idx := sort.Search(len(c.history), func(i int) bool {
 		return c.history[i].StartL2Block > l2Height
 	}) - 1
 	if idx < 0 {
-		return common.Address{}, false
+		return common.Address{}, fmt.Errorf("no sequencer record for height %d", l2Height)
 	}
 
 	c.cursor.from = c.history[idx].StartL2Block
@@ -207,18 +212,14 @@ func (c *SequencerVerifier) SequencerAtHeight(l2Height uint64) (common.Address, 
 	}
 	c.cursor.addr = c.history[idx].SequencerAddr
 	c.cursor.valid = true
-	return c.cursor.addr, true
+	return c.cursor.addr, nil
 }
-
-// ============================================================================
-// Interface implementation
-// ============================================================================
 
 // IsSequencerAt checks if addr was the sequencer at the given L2 height.
 func (c *SequencerVerifier) IsSequencerAt(addr common.Address, l2Height uint64) (bool, error) {
-	histAddr, found := c.SequencerAtHeight(l2Height)
-	if !found {
-		return false, fmt.Errorf("no sequencer record for height %d", l2Height)
+	histAddr, err := c.SequencerAtHeight(l2Height)
+	if err != nil {
+		return false, err
 	}
 	return addr == histAddr, nil
 }

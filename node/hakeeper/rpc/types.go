@@ -1,5 +1,7 @@
 package rpc
 
+import "github.com/morph-l2/go-ethereum/common"
+
 // ServerSuffrage determines whether a Server in a Configuration gets a vote.
 type ServerSuffrage int
 
@@ -44,6 +46,17 @@ type ServerInfo struct {
 	Suffrage ServerSuffrage `json:"suffrage"`
 }
 
+// NodeInfo describes one HA node: its Raft identity and the sequencer
+// signer addresses it can sign blocks with (empty for a node without a
+// signer). Exchanged between raft members so a leader can tell which
+// member holds the key the L1 contract designates.
+type NodeInfo struct {
+	ServerID    string           `json:"serverId"`
+	Addr        string           `json:"addr"`
+	Leader      bool             `json:"leader"`
+	SignerAddrs []common.Address `json:"signerAddrs"`
+}
+
 // ConsensusAdapter is the interface the RPC backend requires.
 // It is implemented directly by HAService in ha_service.go.
 type ConsensusAdapter interface {
@@ -58,4 +71,5 @@ type ConsensusAdapter interface {
 	ClusterMembership() (*ClusterMembership, error)
 	ServerID() string
 	Addr() string
+	NodeInfo() *NodeInfo
 }

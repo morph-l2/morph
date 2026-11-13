@@ -58,3 +58,7 @@ func (api *APIBackend) TransferLeaderToServer(ctx context.Context, id string, ad
 func (api *APIBackend) ClusterMembership(ctx context.Context) (*ClusterMembership, error) {
 	return api.cons.ClusterMembership()
 }
+
+func (api *APIBackend) NodeInfo(ctx context.Context) (*NodeInfo, error) {
+	return api.cons.NodeInfo(), nil
+}
