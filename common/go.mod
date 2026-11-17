@@ -2,7 +2,7 @@ module morph-l2/common
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.12-0.20261117070126-163c66f9e0a0
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.12-0.20261117072417-04bdb93cdbfe
 
 require (
 	github.com/holiman/uint256 v1.2.4

@@ -1,7 +1,7 @@
 ################## update dependencies ####################
 ETHEREUM_SUBMODULE_COMMIT_OR_TAG := morph-v2.2.8
 ETHEREUM_TARGET_VERSION := morph-v2.2.8
-TENDERMINT_TARGET_VERSION := v0.3.12-0.20261117070126-163c66f9e0a0
+TENDERMINT_TARGET_VERSION := v0.3.12-0.20261117072417-04bdb93cdbfe
 
 ETHEREUM_MODULE_NAME := github.com/morph-l2/go-ethereum
 TENDERMINT_MODULE_NAME := github.com/morph-l2/tendermint
