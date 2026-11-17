@@ -98,6 +98,13 @@ func (f *fakeEnclave) setSecret(id string, k *ecdsa.PrivateKey) {
 	}
 }
 
+// setLie makes addr sign with a key other than its own (zero address: none).
+func (f *fakeEnclave) setLie(addr common.Address) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lie = addr
+}
+
 func (f *fakeEnclave) dial() (net.Conn, error) { return net.Dial("tcp", f.ln.Addr().String()) }
 
 func (f *fakeEnclave) serve() {
@@ -215,7 +222,7 @@ func newTestEnclaveSigner(t *testing.T, f *fakeEnclave, secretIDs ...string) (*E
 		dialFn:  f.dial,
 		credsFn: func() (*awsCreds, error) { return &awsCreds{accessKeyID: "AKIA", secretAccessKey: "s"}, nil },
 	}
-	if err := s.init(); err != nil {
+	if err := s.connect(); err != nil {
 		return nil, err
 	}
 	t.Cleanup(func() { _ = s.Close() })
@@ -281,8 +288,11 @@ func TestEnclaveSigner_MultiKey(t *testing.T) {
 	assertSignsAs(t, s, addrOf(a))
 	assertSignsAs(t, s, addrOf(b))
 
-	_, err = s.SignWith(addrOf(mustKey(t)), make([]byte, hashLen))
-	require.ErrorContains(t, err, "no loaded key")
+	require.True(t, s.HasAddress(addrOf(b)))
+	other := addrOf(mustKey(t))
+	require.False(t, s.HasAddress(other))
+	_, err = s.SignWith(other, make([]byte, hashLen))
+	require.ErrorContains(t, err, "has no key for")
 	_, err = s.SignWith(addrOf(a), []byte{1, 2, 3})
 	require.ErrorContains(t, err, "hash must be")
 }
@@ -290,7 +300,7 @@ func TestEnclaveSigner_MultiKey(t *testing.T) {
 func TestEnclaveSigner_AnyKeyFailingFailsStartup(t *testing.T) {
 	f := newFakeEnclave(t, map[string]*ecdsa.PrivateKey{"sa": mustKey(t)})
 	_, err := newTestEnclaveSigner(t, f, "sa", "missing")
-	require.ErrorContains(t, err, "1 of 2 enclave key(s) failed to load")
+	require.ErrorContains(t, err, "key 1 (missing) failed to load")
 	require.ErrorContains(t, err, "secret not found: missing")
 }
 
@@ -323,60 +333,42 @@ func TestEnclaveSigner_ReconnectReloadsKeys(t *testing.T) {
 	require.Equal(t, 2, f.loads)
 }
 
-func TestEnclaveSigner_ReconnectKeyMissingOnlyDisablesThatKey(t *testing.T) {
+// A reconnect must restore exactly the startup state. If the restarted
+// enclave cannot — a key no longer loads, a secret now holds another key,
+// a self-test fails — no key signs (not even the healthy one), the signer's
+// identity stays what it was, and signing resumes by itself once the
+// enclave is back to the startup state.
+func TestEnclaveSigner_ReconnectIsAllOrNothing(t *testing.T) {
 	a, b := mustKey(t), mustKey(t)
-	f := newFakeEnclave(t, map[string]*ecdsa.PrivateKey{"sa": a, "sb": b})
-	s, err := newTestEnclaveSigner(t, f, "sa", "sb")
-	require.NoError(t, err)
+	for _, tc := range []struct {
+		name    string
+		breakIt func(f *fakeEnclave)
+		wantErr string
+	}{
+		{"key no longer loads", func(f *fakeEnclave) { f.setSecret("sa", nil) }, "failed to load"},
+		{"secret holds another key", func(f *fakeEnclave) { f.setSecret("sa", mustKey(t)) }, "keys changed since startup"},
+		{"self-test fails", func(f *fakeEnclave) { f.setLie(addrOf(a)) }, "self-test"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFakeEnclave(t, map[string]*ecdsa.PrivateKey{"sa": a, "sb": b})
+			s, err := newTestEnclaveSigner(t, f, "sa", "sb")
+			require.NoError(t, err)
 
-	// After a restart, "sa" can no longer be loaded (e.g. its IAM access
-	// was revoked): only that key is unusable; "sb" still signs.
-	require.NoError(t, s.Close())
-	f.restart()
-	f.setSecret("sa", nil)
-	assertSignsAs(t, s, addrOf(b))
-	require.Equal(t, []common.Address{addrOf(b)}, s.Addresses())
-	require.False(t, s.HasAddress(addrOf(a)))
-	_, err = s.SignWith(addrOf(a), make([]byte, hashLen))
-	require.ErrorContains(t, err, "no loaded key")
+			require.NoError(t, s.Close())
+			f.restart()
+			tc.breakIt(f)
+			_, err = s.SignWith(addrOf(b), make([]byte, hashLen))
+			require.ErrorContains(t, err, tc.wantErr)
+			require.Equal(t, []common.Address{addrOf(a), addrOf(b)}, s.Addresses())
 
-	// Access restored: the key comes back on the next reconnect.
-	f.setSecret("sa", a)
-	assertSignsAs(t, s, addrOf(a))
-}
-
-func TestEnclaveSigner_ReconnectKeySetNotComparedWithStartup(t *testing.T) {
-	a, b, c := mustKey(t), mustKey(t), mustKey(t)
-	f := newFakeEnclave(t, map[string]*ecdsa.PrivateKey{"sa": a, "sb": b})
-	s, err := newTestEnclaveSigner(t, f, "sa", "sb")
-	require.NoError(t, err)
-
-	// After a restart "sa" holds a different key. The new set is used as
-	// is — only the requested (L1-designated) address has to be in it.
-	require.NoError(t, s.Close())
-	f.restart()
-	f.setSecret("sa", c)
-	assertSignsAs(t, s, addrOf(b))
-	require.Equal(t, []common.Address{addrOf(c), addrOf(b)}, s.Addresses())
-	require.True(t, s.HasAddress(addrOf(c)))
-	require.False(t, s.HasAddress(addrOf(a)))
-	assertSignsAs(t, s, addrOf(c))
-}
-
-func TestEnclaveSigner_ReconnectSelfTestStillEnforced(t *testing.T) {
-	a, b := mustKey(t), mustKey(t)
-	f := newFakeEnclave(t, map[string]*ecdsa.PrivateKey{"sa": a, "sb": b})
-	s, err := newTestEnclaveSigner(t, f, "sa", "sb")
-	require.NoError(t, err)
-
-	// The enclave now signs "sb" with a key other than the one it reports.
-	require.NoError(t, s.Close())
-	f.restart()
-	f.mu.Lock()
-	f.lie = addrOf(b)
-	f.mu.Unlock()
-	_, err = s.SignWith(addrOf(a), make([]byte, hashLen))
-	require.ErrorContains(t, err, "self-test after reconnect")
+			// Fixed and the enclave restarted: no node restart needed.
+			f.restart()
+			f.setSecret("sa", a)
+			f.setLie(common.Address{})
+			assertSignsAs(t, s, addrOf(a))
+			assertSignsAs(t, s, addrOf(b))
+		})
+	}
 }
 
 func TestLocalSigner_MultiKey(t *testing.T) {
@@ -439,7 +431,7 @@ func TestEnclaveSigner_RealEnclave(t *testing.T) {
 		dialFn:  func() (net.Conn, error) { return net.Dial("tcp", addr) },
 		credsFn: func() (*awsCreds, error) { return nil, nil },
 	}
-	require.NoError(t, s.init())
+	require.NoError(t, s.connect())
 	defer s.Close()
 	require.Len(t, s.Addresses(), len(keys))
 	for _, a := range s.Addresses() {

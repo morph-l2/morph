@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -139,9 +140,10 @@ func ParseEnclaveKeys(environ []string) ([]EnclaveKey, error) {
 // restarted enclave — which has lost its in-memory keys — is reloaded
 // without a node restart.
 //
-// The loaded addresses are kept in a set: block production asks for the
-// one address the L1 contract designates, and SignWith only needs to know
-// whether the enclave currently holds it.
+// The signer's identity — the address of every configured key — is fixed
+// by the first connection and never changes afterwards: every later
+// connection must load exactly the same addresses or it is refused.
+// Changing keys means changing the config and restarting the node.
 type EnclaveSigner struct {
 	cid    uint32
 	port   uint32
@@ -153,27 +155,20 @@ type EnclaveSigner struct {
 	dialFn  func() (net.Conn, error)
 	credsFn func() (*awsCreds, error)
 
+	// addrs[i] is the address of keys[i]. Set once by the first connection
+	// and read-only from then on, so it needs no lock.
+	addrs []common.Address
+
 	// mu guards conn and is held for a whole sign (including a reconnect).
 	mu   sync.Mutex
 	conn net.Conn
-
-	// keysMu guards the loaded, self-tested key set of the current conn.
-	// Separate from mu so Addresses / HasAddress never wait on a sign or a
-	// slow reconnect.
-	keysMu sync.RWMutex
-	addrs  []common.Address            // config order, for Addresses()
-	keySet map[common.Address]struct{} // lookup
 }
 
-// NewEnclaveSigner dials the enclave, has it load every key in keys and
-// runs a signature self-test for each (sign a zero hash, recover the
-// address, assert it matches what LoadKeys reported).
-//
-// Startup is strict: any key failing to load, two keys with the same
-// address, or a self-test mismatch is fatal — the caller (node startup
-// in cmd/node/main.go) exits before tendermint comes up. Starting with
-// only some keys could make this node leader with no valid key at a
-// rotation height.
+// NewEnclaveSigner connects to the enclave and has it load every key in
+// keys (see connect). Any failure is fatal: the caller (node startup in
+// cmd/node/main.go) exits before tendermint comes up. Starting with only
+// some keys could make this node leader with no valid key at a rotation
+// height.
 func NewEnclaveSigner(addr string, keys []EnclaveKey, logger tmlog.Logger) (*EnclaveSigner, error) {
 	cid, port, err := parseAddr(addr)
 	if err != nil {
@@ -187,52 +182,68 @@ func NewEnclaveSigner(addr string, keys []EnclaveKey, logger tmlog.Logger) (*Enc
 		credsFn: resolveCreds,
 	}
 	s.dialFn = s.dialVsock
-	if err := s.init(); err != nil {
+	if err := s.connect(); err != nil {
 		return nil, fmt.Errorf("enclave signer %s: %w", addr, err)
 	}
 	return s, nil
 }
 
-// init loads every key, self-tests each and caches the addresses.
-// Separated from NewEnclaveSigner so tests can drive it over a fake dialer.
-func (s *EnclaveSigner) init() error {
-	if len(s.keys) == 0 {
-		return fmt.Errorf("no enclave key configured")
-	}
-	conn, results, err := s.dialAndLoad()
+// connect opens a connection on which the enclave holds every configured
+// key: dial, LoadKeys (idempotent enclave-side: a key still in memory is
+// answered from there, a restarted enclave loads it again), then a
+// signature self-test per key.
+//
+// It is all-or-nothing: a key that fails to load, two keys with the same
+// address or a failed self-test fail the whole connection, on startup and
+// on every reconnect alike. The first connection fixes the signer's
+// identity (s.addrs); a later one that loads different addresses is
+// refused, so a reconnect can only ever restore the startup state.
+//
+// Caller holds s.mu, or is the constructor.
+func (s *EnclaveSigner) connect() (err error) {
+	creds, err := s.credsFn()
 	if err != nil {
-		s.logger.Error("enclave key load failed; node cannot start", "err", err)
 		return err
 	}
-	var failed []string
-	var addrs []common.Address
-	seen := make(map[common.Address]int, len(results))
+	conn, err := s.dialFn()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = conn.Close()
+		}
+	}()
+
+	results, err := loadKeysOnce(conn, creds, s.keys)
+	if err != nil {
+		return fmt.Errorf("LoadKeys: %w", err)
+	}
+	if len(results) != len(s.keys) {
+		return fmt.Errorf("LoadKeys: %d results for %d keys", len(results), len(s.keys))
+	}
+	addrs := make([]common.Address, len(results))
 	for i, r := range results {
 		if !r.ok() {
-			s.logger.Error("enclave key failed to load", "key", i, "secret", s.keys[i].SecretID,
-				"status", fmt.Sprintf("0x%02X", r.status), "reason", r.msg)
-			failed = append(failed, fmt.Sprintf("key %d: %s", i, r.msg))
-			continue
+			return fmt.Errorf("key %d (%s) failed to load: status=0x%02X %s", i, s.keys[i].SecretID, r.status, r.msg)
 		}
-		if j, dup := seen[r.address]; dup {
-			_ = conn.Close()
+		if j := slices.Index(addrs[:i], r.address); j >= 0 {
 			return fmt.Errorf("keys %d and %d resolve to the same address %s", j, i, r.address.Hex())
 		}
-		seen[r.address] = i
-		addrs = append(addrs, r.address)
+		addrs[i] = r.address
 	}
-	if len(failed) > 0 {
-		_ = conn.Close()
-		return fmt.Errorf("%d of %d enclave key(s) failed to load: %s", len(failed), len(results), strings.Join(failed, "; "))
+	if s.addrs != nil && !slices.Equal(addrs, s.addrs) {
+		return fmt.Errorf("enclave keys changed since startup: loaded %v, expected %v", AddrHexes(addrs), AddrHexes(s.addrs))
 	}
 	if err := verifySigningIdentity(conn, addrs); err != nil {
-		s.logger.Error("enclave signer self-test failed; node cannot start", "err", err)
-		_ = conn.Close()
 		return fmt.Errorf("self-test: %w", err)
 	}
+
 	s.conn = conn
-	s.setKeys(addrs)
-	s.logger.Info("enclave signer ready", "keys", len(addrs), "addresses", AddrHexes(addrs))
+	if s.addrs == nil {
+		s.addrs = addrs
+	}
+	s.logger.Info("enclave signer connected", "addresses", AddrHexes(addrs))
 	return nil
 }
 
@@ -261,47 +272,30 @@ func verifySigningIdentity(conn net.Conn, addrs []common.Address) error {
 	return nil
 }
 
-// setKeys replaces the loaded key set.
-func (s *EnclaveSigner) setKeys(addrs []common.Address) {
-	set := make(map[common.Address]struct{}, len(addrs))
-	for _, a := range addrs {
-		set[a] = struct{}{}
-	}
-	s.keysMu.Lock()
-	s.addrs, s.keySet = addrs, set
-	s.keysMu.Unlock()
-}
-
-// Addresses returns the addresses currently loaded in the enclave, in
-// config order. After a reconnect this reflects what the enclave holds
-// now, which may differ from startup (e.g. a key that failed to reload).
+// Addresses returns the address of every configured key, in config order.
 func (s *EnclaveSigner) Addresses() []common.Address {
-	s.keysMu.RLock()
-	defer s.keysMu.RUnlock()
-	return append([]common.Address(nil), s.addrs...)
+	return slices.Clone(s.addrs)
 }
 
-// HasAddress reports whether the enclave currently holds a key for addr.
+// HasAddress reports whether addr is one of the signer's keys.
 func (s *EnclaveSigner) HasAddress(addr common.Address) bool {
-	s.keysMu.RLock()
-	defer s.keysMu.RUnlock()
-	_, ok := s.keySet[addr]
-	return ok
+	return slices.Contains(s.addrs, addr)
 }
 
 // SignWith signs a 32-byte prehash with the key of addr — the address the
 // L1 contract designates for the block being produced. Returns the
 // 65-byte [r||s||v] signature.
 //
-// Up to 3 attempts: each uses the cached conn, or reconnects — and every
-// reconnect re-runs LoadKeys and rebuilds the key set (see reconnect). The
-// only requirement on the new set is that it contains addr; it is not
-// compared with the startup set. On any error the conn is dropped so the
-// next attempt starts fresh. After 3 failures returns an error wrapping
-// the last cause; the caller abandons this block round.
+// Up to 3 attempts: each uses the cached conn or reconnects (see connect),
+// and drops the conn on any error so the next attempt starts fresh. After
+// 3 failures returns an error wrapping the last cause; the caller abandons
+// this block round, and the next sign starts over with a reconnect.
 func (s *EnclaveSigner) SignWith(addr common.Address, data []byte) ([]byte, error) {
 	if len(data) != hashLen {
 		return nil, fmt.Errorf("enclave signer: hash must be %d bytes, got %d", hashLen, len(data))
+	}
+	if !s.HasAddress(addr) {
+		return nil, fmt.Errorf("enclave signer has no key for %s", addr.Hex())
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -310,18 +304,10 @@ func (s *EnclaveSigner) SignWith(addr common.Address, data []byte) ([]byte, erro
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		if s.conn == nil {
-			if err := s.reconnect(); err != nil {
-				lastErr = err
-				s.logger.Error("enclave reconnect failed", "attempt", attempt, "max", maxAttempts, "err", err)
+			if lastErr = s.connect(); lastErr != nil {
+				s.logger.Error("enclave reconnect failed", "attempt", attempt, "max", maxAttempts, "err", lastErr)
 				continue
 			}
-		}
-		if !s.HasAddress(addr) {
-			// The enclave doesn't hold this key (yet); drop the conn so the
-			// next attempt reconnects and retries the load.
-			lastErr = fmt.Errorf("enclave has no loaded key for %s", addr.Hex())
-			s.dropConn()
-			continue
 		}
 		sig, err := signOnce(s.conn, addr, data)
 		if err == nil {
@@ -334,69 +320,6 @@ func (s *EnclaveSigner) SignWith(addr common.Address, data []byte) ([]byte, erro
 	}
 	s.logger.Error("sign exhausted all retries", "attempts", maxAttempts, "signer", addr.Hex(), "err", lastErr)
 	return nil, fmt.Errorf("enclave sign with %s failed after %d attempts: %w", addr.Hex(), maxAttempts, lastErr)
-}
-
-// reconnect dials a fresh conn, re-runs LoadKeys (idempotent enclave-side:
-// keys it still holds answer from memory; a restarted enclave reloads
-// them) and replaces the key set with whatever loaded:
-//   - keys that fail to load are logged and left out — the others keep
-//     signing, so e.g. a revoked old key doesn't stop the new one;
-//   - every loaded key is self-tested again on the new conn; a mismatch
-//     refuses the conn entirely.
-//
-// The new set is not compared with the startup set: the caller only needs
-// the L1-designated address to be in it (checked in SignWith).
-//
-// Caller holds s.mu.
-func (s *EnclaveSigner) reconnect() error {
-	conn, results, err := s.dialAndLoad()
-	if err != nil {
-		return err
-	}
-	var addrs []common.Address
-	seen := make(map[common.Address]bool, len(results))
-	for i, r := range results {
-		if !r.ok() {
-			s.logger.Error("enclave key failed to load after reconnect; key unusable until it loads",
-				"key", i, "secret", s.keys[i].SecretID, "status", fmt.Sprintf("0x%02X", r.status), "reason", r.msg)
-			continue
-		}
-		if !seen[r.address] {
-			seen[r.address] = true
-			addrs = append(addrs, r.address)
-		}
-	}
-	if err := verifySigningIdentity(conn, addrs); err != nil {
-		_ = conn.Close()
-		return fmt.Errorf("self-test after reconnect: %w", err)
-	}
-	s.conn = conn
-	s.setKeys(addrs)
-	s.logger.Info("enclave reconnected", "keys", len(addrs), "addresses", AddrHexes(addrs))
-	return nil
-}
-
-// dialAndLoad opens a fresh conn and runs LoadKeys on it. On success the
-// conn stays open and results has one entry per configured key.
-func (s *EnclaveSigner) dialAndLoad() (net.Conn, []keyResult, error) {
-	creds, err := s.credsFn()
-	if err != nil {
-		return nil, nil, err
-	}
-	conn, err := s.dialFn()
-	if err != nil {
-		return nil, nil, err
-	}
-	results, err := loadKeysOnce(conn, creds, s.keys)
-	if err != nil {
-		_ = conn.Close()
-		return nil, nil, fmt.Errorf("LoadKeys: %w", err)
-	}
-	if len(results) != len(s.keys) {
-		_ = conn.Close()
-		return nil, nil, fmt.Errorf("LoadKeys: %d results for %d keys", len(results), len(s.keys))
-	}
-	return conn, results, nil
 }
 
 func (s *EnclaveSigner) dropConn() {

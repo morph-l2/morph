@@ -6,6 +6,7 @@ import (
 	"github.com/go-kit/kit/metrics"
 	"github.com/go-kit/kit/metrics/discard"
 	"github.com/go-kit/kit/metrics/prometheus"
+	"github.com/morph-l2/go-ethereum/common"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
 )
 
@@ -50,3 +51,20 @@ func NopMetrics() *Metrics {
 
 // SetLag records the L1 lag, truncated to whole seconds.
 func (m *Metrics) SetLag(d time.Duration) { m.LagSeconds.Set(float64(d / time.Second)) }
+
+// ExposeSignerAddresses publishes the addresses the sequencer signer holds
+// as <namespace>_sequencer_signer_address{address="0x…"} 1 — an info-style
+// gauge: the value is always 1, the label carries the information (e.g. a
+// Grafana table of the keys every node holds). The addresses are fixed for
+// the life of the process, so this is called once at startup.
+func ExposeSignerAddresses(namespace string, addrs []common.Address) {
+	g := prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: "sequencer",
+		Name:      "signer_address",
+		Help:      "Addresses the sequencer signer holds a key for (always 1; see the address label).",
+	}, []string{"address"})
+	for _, a := range addrs {
+		g.With("address", a.Hex()).Set(1)
+	}
+}

@@ -486,6 +486,9 @@ func initL1SequencerComponents(
 	default:
 		logger.Info("Sequencer signer not configured (no privateKey, no enclaveSignerAddr)")
 	}
+	if signer != nil {
+		l1sequencer.ExposeSignerAddresses("morphnode", signer.Addresses())
+	}
 
 	return tracker, verifier, signer, nil
 }

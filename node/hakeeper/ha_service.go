@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -79,8 +80,7 @@ func New(cfg *Config, logger tmlog.Logger) (*HAService, error) {
 }
 
 // SetSignerAddrs registers the source of this node's signer addresses for
-// NodeInfo (e.g. signer.Addresses; it may change after an enclave
-// reconnect, so it is read on every call). Must be called before Start().
+// NodeInfo (e.g. signer.Addresses). Must be called before Start().
 func (h *HAService) SetSignerAddrs(fn func() []common.Address) {
 	h.signerAddrs = fn
 }
@@ -300,6 +300,69 @@ func (h *HAService) TransferLeader() error {
 
 func (h *HAService) TransferLeaderTo(id, addr string) error {
 	return h.r.LeadershipTransferToServer(raft.ServerID(id), raft.ServerAddress(addr)).Error()
+}
+
+// TransferLeaderToEligible hands leadership to an eligible voter: one whose
+// signer holds a key for addr, the address the L1 contract designates as
+// sequencer for the next block. Used by a leader that holds no key for it.
+func (h *HAService) TransferLeaderToEligible(addr common.Address) error {
+	future := h.r.GetConfiguration()
+	if err := future.Error(); err != nil {
+		return err
+	}
+	target, ok := h.findSignerHolder(future.Configuration().Servers, addr)
+	if !ok {
+		return fmt.Errorf("no other voter holds a key for %s", addr.Hex())
+	}
+	h.logger.Info("hakeeper: handing leadership to the holder of the designated key",
+		"to", target.ID, "signer", addr.Hex())
+	return h.r.LeadershipTransferToServer(target.ID, target.Address).Error()
+}
+
+// findSignerHolder returns the first voter other than this node whose
+// signer holds a key for addr, asking each for its NodeInfo. A member that
+// cannot be reached is skipped: it could not take over anyway.
+func (h *HAService) findSignerHolder(servers []raft.Server, addr common.Address) (raft.Server, bool) {
+	for _, srv := range servers {
+		if srv.Suffrage != raft.Voter || string(srv.ID) == h.cfg.ServerID {
+			continue
+		}
+		info, err := h.peerNodeInfo(srv)
+		if err != nil {
+			h.logger.Error("hakeeper: cannot query member's signer addresses", "id", srv.ID, "err", err)
+			continue
+		}
+		if slices.Contains(info.SignerAddrs, addr) {
+			return srv, true
+		}
+	}
+	return raft.Server{}, false
+}
+
+// peerNodeInfo fetches a member's NodeInfo over its HAKeeper RPC (see
+// RPCConfig.PeerAddr for where that is). The answer must come from the
+// member that was asked for: a wrong address is an error, never another
+// node's signer addresses.
+func (h *HAService) peerNodeInfo(srv raft.Server) (*hakeeperrpc.NodeInfo, error) {
+	rpcAddr, err := h.cfg.RPC.PeerAddr(string(srv.ID), string(srv.Address))
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), raftTimeout)
+	defer cancel()
+	client, err := hakeeperrpc.DialAPIClient(ctx, rpcAddr, "")
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+	info, err := client.NodeInfo(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if info.ServerID != string(srv.ID) {
+		return nil, fmt.Errorf("%s answered as %q", rpcAddr, info.ServerID)
+	}
+	return info, nil
 }
 
 func (h *HAService) ClusterMembership() (*hakeeperrpc.ClusterMembership, error) {
