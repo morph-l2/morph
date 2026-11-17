@@ -2,7 +2,7 @@ module morph-l2/bindings
 
 go 1.24.0
 
-replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.11
+replace github.com/tendermint/tendermint => github.com/morph-l2/tendermint v0.3.12-0.20261117070126-163c66f9e0a0
 
 require github.com/morph-l2/go-ethereum v1.10.14-0.20261109063348-1c528b351da0
 
