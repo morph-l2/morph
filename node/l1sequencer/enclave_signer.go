@@ -243,7 +243,6 @@ func (s *EnclaveSigner) connect() (err error) {
 	if s.addrs == nil {
 		s.addrs = addrs
 	}
-	s.logger.Info("enclave signer connected", "addresses", AddrHexes(addrs))
 	return nil
 }
 
@@ -308,6 +307,7 @@ func (s *EnclaveSigner) SignWith(addr common.Address, data []byte) ([]byte, erro
 				s.logger.Error("enclave reconnect failed", "attempt", attempt, "max", maxAttempts, "err", lastErr)
 				continue
 			}
+			s.logger.Info("enclave signer reconnected", "addresses", AddrHexes(s.addrs))
 		}
 		sig, err := signOnce(s.conn, addr, data)
 		if err == nil {
