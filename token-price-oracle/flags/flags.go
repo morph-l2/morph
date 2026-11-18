@@ -52,7 +52,7 @@ var (
 
 	PriceFeedPriorityFlag = cli.StringFlag{
 		Name:   "price-feed-priority",
-		Usage:  "Comma-separated list of price feed types in priority order (e.g. \"chainlink,pyth,bitget,binance,okx\")",
+		Usage:  "Comma-separated list of price feed types in priority order (e.g. \"chainlink,pyth,resolved,bitget,binance,okx\")",
 		Value:  "bitget",
 		EnvVar: prefixEnvVar("PRICE_FEED_PRIORITY"),
 	}
@@ -92,6 +92,13 @@ var (
 		EnvVar: prefixEnvVar("TOKEN_MAPPING_PYTH"),
 	}
 
+	TokenMappingResolvedFlag = cli.StringFlag{
+		Name:   "token-mapping-resolved",
+		Usage:  "Token ID to resolved price API asset mapping, as chain/contract; an empty contract means the chain's native coin (e.g. \"1:eth/0x...,2:bnb/\")",
+		Value:  "",
+		EnvVar: prefixEnvVar("TOKEN_MAPPING_RESOLVED"),
+	}
+
 	BitgetAPIBaseURLFlag = cli.StringFlag{
 		Name:   "bitget-api-base-url",
 		Usage:  "Bitget API base URL (required if bitget feed is enabled)",
@@ -111,6 +118,20 @@ var (
 		Usage:  "OKX API base URL (required if okx feed is enabled)",
 		Value:  "https://www.okx.com",
 		EnvVar: prefixEnvVar("OKX_API_BASE_URL"),
+	}
+
+	ResolvedPriceAPIBaseURLFlag = cli.StringFlag{
+		Name:   "resolved-price-api-base-url",
+		Usage:  "Resolved price API base URL, without the /api/v1/price path (required if resolved feed is enabled)",
+		Value:  "",
+		EnvVar: prefixEnvVar("RESOLVED_PRICE_API_BASE_URL"),
+	}
+
+	ResolvedPriceETHAssetFlag = cli.StringFlag{
+		Name:   "resolved-price-eth-asset",
+		Usage:  "Asset the resolved feed prices as ETH/USD, as chain/contract",
+		Value:  "eth/",
+		EnvVar: prefixEnvVar("RESOLVED_PRICE_ETH_ASSET"),
 	}
 
 	ChainlinkRPCFlag = cli.StringFlag{
@@ -290,9 +311,12 @@ var optionalFlags = []cli.Flag{
 	TokenMappingOKXFlag,
 	TokenMappingChainlinkFlag,
 	TokenMappingPythFlag,
+	TokenMappingResolvedFlag,
 	BitgetAPIBaseURLFlag,
 	BinanceAPIBaseURLFlag,
 	OKXAPIBaseURLFlag,
+	ResolvedPriceAPIBaseURLFlag,
+	ResolvedPriceETHAssetFlag,
 	ChainlinkRPCFlag,
 	ChainlinkETHUSDFeedFlag,
 	ChainlinkMaxStalenessFlag,

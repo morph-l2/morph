@@ -146,6 +146,22 @@ func createSinglePriceFeed(feedType config.PriceFeedType, cfg *config.Config) (c
 			"mapping", mapping)
 		return feed, "pyth", nil
 
+	case config.PriceFeedTypeResolved:
+		mapping, exists := cfg.TokenMappings[config.PriceFeedTypeResolved]
+		if !exists || len(mapping) == 0 {
+			return nil, "", fmt.Errorf("resolved price feed requires token mapping, please configure --token-mapping-resolved")
+		}
+		feed, err := client.NewResolvedPriceFeed(mapping, cfg.ResolvedPriceAPIBaseURL, cfg.ResolvedPriceETHAsset)
+		if err != nil {
+			return nil, "", err
+		}
+		log.Info("Resolved price feed created",
+			"type", "resolved",
+			"base_url", cfg.ResolvedPriceAPIBaseURL,
+			"eth_asset", cfg.ResolvedPriceETHAsset,
+			"mapping", mapping)
+		return feed, "resolved", nil
+
 	case config.PriceFeedTypeBitget:
 		mapping, exists := cfg.TokenMappings[config.PriceFeedTypeBitget]
 		if !exists || len(mapping) == 0 {
