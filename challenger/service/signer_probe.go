@@ -9,39 +9,67 @@ import (
 	"morph-l2/challenger/metrics"
 )
 
-// signerProbeInterval is how often the remote signer is probed.
-const signerProbeInterval = 10 * time.Minute
+const (
+	// signerProbeInterval is how often a healthy remote signer is probed.
+	signerProbeInterval = 10 * time.Minute
+	// signerProbeRetryInterval is how often it is probed after a failed probe.
+	signerProbeRetryInterval = 30 * time.Second
+)
 
-// RunSignerProbe checks on a fixed interval that the remote signer can still sign
-// a challengeState transaction, starting immediately. The signer is otherwise
-// only used when a batch is challenged, so a broken signer would go unnoticed
-// until then. Nothing is broadcast. It returns when ctx is done, or at once when
-// local signing is used.
+// RunSignerProbe checks that the remote signer can still sign a challengeState
+// transaction, starting immediately. The signer is otherwise only used when a
+// batch is challenged, so a broken signer would go unnoticed until then.
+// Nothing is broadcast. It returns when ctx is done, or at once when local
+// signing is used.
 func (s *Service) RunSignerProbe(ctx context.Context) {
 	signer := s.l1.GetSigner()
 	if !s.l1.IsExternalSign() || signer == nil {
 		return
 	}
+	probe := func(ctx context.Context) error {
+		return signer.Probe(ctx, s.rollupAddr, s.probeData, s.methodSig)
+	}
+	runSignerProbe(ctx, probe, signerProbeInterval, signerProbeRetryInterval)
+}
 
-	ticker := time.NewTicker(signerProbeInterval)
-	defer ticker.Stop()
+// runSignerProbe probes every interval while the signer is healthy and every
+// retryInterval after a failure, until a probe succeeds again.
+func runSignerProbe(ctx context.Context, probe func(context.Context) error, interval, retryInterval time.Duration) {
+	var (
+		downSince time.Time
+		failures  int
+	)
 	for {
-		if err := signer.Probe(ctx, s.rollupAddr, s.probeData, s.methodSig); err != nil {
-			if ctx.Err() != nil {
-				return
+		err := probe(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+
+		wait := interval
+		switch {
+		case err != nil:
+			if failures == 0 {
+				downSince = time.Now()
 			}
-			metrics.SignerUp.Set(0)
-			log.Error("Remote signer health check failed", "method_sig", s.methodSig, "err", err)
-		} else {
-			metrics.SignerUp.Set(1)
-			metrics.SignerLastSuccess.SetToCurrentTime()
-			log.Info("Remote signer health check succeeded", "method_sig", s.methodSig)
+			failures++
+			wait = retryInterval
+			metrics.RecordSignerProbe(false)
+			log.Error("Remote signer health check failed",
+				"err", err, "failed_probes", failures, "retry_in", retryInterval)
+		case failures > 0:
+			metrics.RecordSignerProbe(true)
+			log.Warn("!!! Remote signer RECOVERED, signing works again !!!",
+				"down_for", time.Since(downSince).Round(time.Second), "failed_probes", failures)
+			failures = 0
+		default:
+			metrics.RecordSignerProbe(true)
+			log.Info("Remote signer health check succeeded")
 		}
 
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-time.After(wait):
 		}
 	}
 }
