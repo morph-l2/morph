@@ -36,6 +36,10 @@ type DevnetTestToken struct {
 // Token 1: BTC - for testing high-value asset price queries (all data sources support)
 // Token 2: ETH - for testing gas token benchmark and relative price calculation
 // Token 3: BGB - for testing platform token and CEX-specific data sources
+//
+// All three register without a balanceSlot so fee deduction uses the EVM-call
+// path (balanceOf/transfer), matching mainnet and testnet. Slot-mode fee
+// tokens are retired on those networks.
 func GetDevnetTestTokens() []DevnetTestToken {
 	return []DevnetTestToken{
 		{
@@ -49,11 +53,9 @@ func GetDevnetTestTokens() []DevnetTestToken {
 			Scale:           big.NewInt(1e8),
 		},
 		{
-			TokenID:      2,
-			TokenAddress: common.HexToAddress("0x5300000000000000000000000000000000000011"), // L2WETH predeploy address
-			// WrappedEther keeps _balances at slot 0; slot 3 is _name.
-			BalanceSlot:     common.Hash{},
-			NeedBalanceSlot: true,
+			TokenID:         2,
+			TokenAddress:    common.HexToAddress("0x5300000000000000000000000000000000000011"), // L2WETH predeploy address
+			NeedBalanceSlot: false,
 			Decimals:        18,
 			Scale:           big.NewInt(1e18),
 		},
