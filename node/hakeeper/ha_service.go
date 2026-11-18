@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,6 +15,7 @@ import (
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	boltdb "github.com/hashicorp/raft-boltdb/v2"
+	"github.com/morph-l2/go-ethereum/common"
 	tmlog "github.com/tendermint/tendermint/libs/log"
 	"github.com/tendermint/tendermint/types"
 
@@ -48,6 +50,15 @@ type HAService struct {
 	transport    *raft.NetworkTransport
 	raftObserver *raft.Observer
 
+	// hasExistingState is true when the Raft stores already held state (a
+	// term, log entries or a snapshot) at startup, i.e. this node has taken
+	// part in a cluster before. Set by initRaft.
+	hasExistingState bool
+
+	// signerAddrs returns this node's sequencer signer addresses, reported in
+	// NodeInfo. Nil for a node without a signer. Set before Start().
+	signerAddrs func() []common.Address
+
 	leaderReady int32 // atomic: 1 = can produce blocks
 	stopCh      chan struct{}
 	wg          sync.WaitGroup
@@ -71,6 +82,12 @@ func New(cfg *Config, logger tmlog.Logger) (*HAService, error) {
 		metrics:        m,
 		stopCh:         make(chan struct{}),
 	}, nil
+}
+
+// SetSignerAddrs registers the source of this node's signer addresses for
+// NodeInfo (e.g. signer.Addresses). Must be called before Start().
+func (h *HAService) SetSignerAddrs(fn func() []common.Address) {
+	h.signerAddrs = fn
 }
 
 // SetOnBlockApplied registers the business callback invoked by the FSM on every
@@ -109,13 +126,31 @@ func (h *HAService) Start() error {
 	h.wg.Add(1)
 	go h.leaderMonitor()
 
-	if !h.cfg.Bootstrap {
+	if h.shouldJoin() {
 		h.wg.Add(1)
 		go h.joinLoop()
+	} else if !h.cfg.Bootstrap {
+		h.logger.Info("hakeeper: raft state found on disk, not joining via join_addrs",
+			"storage_dir", h.cfg.StorageDir)
 	}
 
 	h.logger.Info("hakeeper: started", "server_id", h.cfg.ServerID, "bootstrap", h.cfg.Bootstrap)
 	return nil
+}
+
+// shouldJoin reports whether this node asks join_addrs to add it to a cluster.
+// Like bootstrap, that is only for a node with empty Raft storage. A node that
+// has state already knows its cluster's members from it and reconnects on its
+// own; sending it to join_addrs again would add it to whatever cluster those
+// addresses belong to by now. Raft messages carry no cluster identity, so if
+// that is a different cluster (a join address that was wiped and bootstrapped
+// anew), its leader would overwrite the log kept here and this node would drop
+// out of its own cluster.
+//
+// Consequently a node removed from the cluster does not add itself back on
+// restart: wipe its storage_dir, or add it with ha_addServerAsVoter.
+func (h *HAService) shouldJoin() bool {
+	return !h.cfg.Bootstrap && !h.hasExistingState
 }
 
 // Stop gracefully shuts down the HAService.
@@ -171,7 +206,9 @@ func (h *HAService) tryJoin(addr string) error {
 		return fmt.Errorf("get membership from %s: %w", addr, err)
 	}
 
-	// If this node is already a member (e.g. after a restart), skip AddServerAsVoter.
+	// If this node is already a member (its storage was wiped without removing
+	// it, or an earlier attempt timed out after the leader had added it), skip
+	// AddServerAsVoter.
 	for _, srv := range membership.Servers {
 		if srv.ID == h.cfg.ServerID {
 			h.logger.Info("hakeeper: already a cluster member, skipping join", "id", h.cfg.ServerID)
@@ -290,6 +327,69 @@ func (h *HAService) TransferLeaderTo(id, addr string) error {
 	return h.r.LeadershipTransferToServer(raft.ServerID(id), raft.ServerAddress(addr)).Error()
 }
 
+// TransferLeaderToEligible hands leadership to an eligible voter: one whose
+// signer holds a key for addr, the address the L1 contract designates as
+// sequencer for the next block. Used by a leader that holds no key for it.
+func (h *HAService) TransferLeaderToEligible(addr common.Address) error {
+	future := h.r.GetConfiguration()
+	if err := future.Error(); err != nil {
+		return err
+	}
+	target, ok := h.findSignerHolder(future.Configuration().Servers, addr)
+	if !ok {
+		return fmt.Errorf("no other voter holds a key for %s", addr.Hex())
+	}
+	h.logger.Info("hakeeper: handing leadership to the holder of the designated key",
+		"to", target.ID, "signer", addr.Hex())
+	return h.r.LeadershipTransferToServer(target.ID, target.Address).Error()
+}
+
+// findSignerHolder returns the first voter other than this node whose
+// signer holds a key for addr, asking each for its NodeInfo. A member that
+// cannot be reached is skipped: it could not take over anyway.
+func (h *HAService) findSignerHolder(servers []raft.Server, addr common.Address) (raft.Server, bool) {
+	for _, srv := range servers {
+		if srv.Suffrage != raft.Voter || string(srv.ID) == h.cfg.ServerID {
+			continue
+		}
+		info, err := h.peerNodeInfo(srv)
+		if err != nil {
+			h.logger.Error("hakeeper: cannot query member's signer addresses", "id", srv.ID, "err", err)
+			continue
+		}
+		if slices.Contains(info.SignerAddrs, addr) {
+			return srv, true
+		}
+	}
+	return raft.Server{}, false
+}
+
+// peerNodeInfo fetches a member's NodeInfo over its HAKeeper RPC (see
+// RPCConfig.PeerAddr for where that is). The answer must come from the
+// member that was asked for: a wrong address is an error, never another
+// node's signer addresses.
+func (h *HAService) peerNodeInfo(srv raft.Server) (*hakeeperrpc.NodeInfo, error) {
+	rpcAddr, err := h.cfg.RPC.PeerAddr(string(srv.ID), string(srv.Address))
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), raftTimeout)
+	defer cancel()
+	client, err := hakeeperrpc.DialAPIClient(ctx, rpcAddr, "")
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+	info, err := client.NodeInfo(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if info.ServerID != string(srv.ID) {
+		return nil, fmt.Errorf("%s answered as %q", rpcAddr, info.ServerID)
+	}
+	return info, nil
+}
+
 func (h *HAService) ClusterMembership() (*hakeeperrpc.ClusterMembership, error) {
 	future := h.r.GetConfiguration()
 	if err := future.Error(); err != nil {
@@ -314,6 +414,19 @@ func (h *HAService) ClusterMembership() (*hakeeperrpc.ClusterMembership, error) 
 func (h *HAService) ServerID() string { return h.cfg.ServerID }
 
 func (h *HAService) Addr() string { return h.advertisedAddr }
+
+func (h *HAService) NodeInfo() *hakeeperrpc.NodeInfo {
+	info := &hakeeperrpc.NodeInfo{
+		ServerID:    h.cfg.ServerID,
+		Addr:        h.advertisedAddr,
+		Leader:      h.Leader(),
+		SignerAddrs: []common.Address{},
+	}
+	if h.signerAddrs != nil {
+		info.SignerAddrs = append(info.SignerAddrs, h.signerAddrs()...)
+	}
+	return info
+}
 
 // ── internal ─────────────────────────────────────────────────────────────────
 
@@ -409,6 +522,12 @@ func (h *HAService) initRaft() (retErr error) {
 		return fmt.Errorf("TCP transport: %w", err)
 	}
 
+	// Checked before Raft runs, since it may write to the stores once it does.
+	hasExistingState, err := raft.HasExistingState(logStore, stableStore, snapshotStore)
+	if err != nil {
+		return fmt.Errorf("check existing raft state: %w", err)
+	}
+
 	r, err = raft.NewRaft(rc, h.fsm, logStore, stableStore, snapshotStore, transport)
 	if err != nil {
 		return fmt.Errorf("raft.NewRaft: %w", err)
@@ -425,6 +544,7 @@ func (h *HAService) initRaft() (retErr error) {
 
 	h.r = r
 	h.transport = transport
+	h.hasExistingState = hasExistingState
 
 	h.logger.Info("hakeeper: raft initialized", "bind", bindAddr)
 	return nil

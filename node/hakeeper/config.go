@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,6 +54,28 @@ type RPCConfig struct {
 	ListenAddr string `mapstructure:"listen_addr"`
 	ListenPort int    `mapstructure:"listen_port"`
 	Token      string `mapstructure:"token"`
+
+	// Peers overrides where other cluster members' HAKeeper RPC is reached,
+	// as server id -> "host:port". By default a member's RPC is assumed to
+	// be on its Raft host at this node's own ListenPort, which holds when
+	// every member uses the same ports; list a member here when that does
+	// not (several nodes on one host, port mapping). Config file only.
+	Peers map[string]string `mapstructure:"peers"`
+}
+
+// PeerAddr returns the HAKeeper RPC address of the member with the given
+// server id and Raft address: its Peers entry if there is one, otherwise
+// the Raft host with this node's own RPC port.
+func (c *RPCConfig) PeerAddr(id, raftAddr string) (string, error) {
+	// The config loader lower-cases keys, so ids are matched case-insensitively.
+	if addr, ok := c.Peers[strings.ToLower(id)]; ok {
+		return addr, nil
+	}
+	host, _, err := net.SplitHostPort(raftAddr)
+	if err != nil {
+		return "", err
+	}
+	return net.JoinHostPort(host, strconv.Itoa(c.ListenPort)), nil
 }
 
 // ── Step 1: Defaults ─────────────────────────────────────────────────────────
@@ -92,7 +115,9 @@ func (c *Config) LoadFile(path string) error {
 	ext := filepath.Ext(filename)
 	name := filename[:len(filename)-len(ext)]
 
-	v := viper.New()
+	// "::" instead of the default "." key delimiter: server ids are keys of
+	// rpc.peers and may contain dots (host names).
+	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
 	v.AddConfigPath(dir)
 	v.SetConfigName(name)
 	v.SetConfigType("toml")
@@ -205,6 +230,11 @@ func (c *Config) Validate() error {
 	}
 	if c.RPC.ListenPort < 0 || c.RPC.ListenPort > math.MaxUint16 {
 		return fmt.Errorf("invalid rpc.listen_port: %d", c.RPC.ListenPort)
+	}
+	for id, addr := range c.RPC.Peers {
+		if _, _, err := net.SplitHostPort(addr); err != nil {
+			return fmt.Errorf("invalid rpc.peers entry %s = %q: %w", id, addr, err)
+		}
 	}
 
 	// Raft timing sanity. A non-positive heartbeat disables liveness; a leader

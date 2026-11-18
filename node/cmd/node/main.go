@@ -9,12 +9,10 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/morph-l2/go-ethereum/common"
-	"github.com/morph-l2/go-ethereum/crypto"
 	"github.com/morph-l2/go-ethereum/ethclient"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	tmcrypto "github.com/tendermint/tendermint/crypto"
@@ -207,6 +205,10 @@ func L2NodeMain(ctx *cli.Context) error {
 	haService, err = initHAService(ctx, home, nodeConfig.Logger)
 	if err != nil {
 		return err
+	}
+	// Report this node's signer addresses in HAKeeper NodeInfo.
+	if haService != nil && signer != nil {
+		haService.SetSignerAddrs(signer.Addresses)
 	}
 
 	switch {
@@ -457,26 +459,35 @@ func initL1SequencerComponents(
 		return nil, nil, nil, fmt.Errorf(
 			"sequencer.privateKey and sequencer.enclaveSignerAddr are mutually exclusive; pick one")
 	case seqPrivKeyHex != "":
-		seqPrivKeyHex = strings.TrimPrefix(seqPrivKeyHex, "0x")
-		privKey, err := crypto.HexToECDSA(seqPrivKeyHex)
+		// Comma-separated list: several keys let the node switch to a new
+		// sequencer key at its L1 activation height (devnet / testing).
+		privKeys, err := l1sequencer.ParsePrivateKeys(seqPrivKeyHex)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("invalid sequencer private key: %w", err)
 		}
-		signer, err = l1sequencer.NewLocalSigner(privKey, logger)
+		signer, err = l1sequencer.NewLocalSigner(logger, privKeys...)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		logger.Info("Sequencer signer initialized (local)", "address", signer.Address().Hex())
+		logger.Info("Sequencer signer initialized (local)", "addresses", l1sequencer.AddrHexes(signer.Addresses()))
 	case enclaveSignerAddr != "":
-		var err error
-		signer, err = l1sequencer.NewEnclaveSigner(enclaveSignerAddr, logger)
+		// Which keys the enclave loads (KMS key id + SM secret id each)
+		// comes from MORPH_NODE_SEQUENCER_ENCLAVE_{KMS_KEY_ID,SECRET_ID}_<n>.
+		keys, err := l1sequencer.ParseEnclaveKeys(os.Environ())
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("enclave key config: %w", err)
+		}
+		signer, err = l1sequencer.NewEnclaveSigner(enclaveSignerAddr, keys, logger)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("init enclave signer: %w", err)
 		}
 		logger.Info("Sequencer signer initialized (enclave)",
-			"addr", enclaveSignerAddr, "address", signer.Address().Hex())
+			"addr", enclaveSignerAddr, "addresses", l1sequencer.AddrHexes(signer.Addresses()))
 	default:
 		logger.Info("Sequencer signer not configured (no privateKey, no enclaveSignerAddr)")
+	}
+	if signer != nil {
+		l1sequencer.ExposeSignerAddresses("morphnode", signer.Addresses())
 	}
 
 	return tracker, verifier, signer, nil

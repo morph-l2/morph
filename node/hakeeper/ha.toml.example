@@ -16,6 +16,8 @@ enabled = true
 bootstrap = false
 
 # Addresses of existing cluster nodes to join (follower only).
+# Only used while storage_dir is empty: a node that already has Raft state
+# reconnects to the cluster recorded there and ignores this list.
 # Override: --ha.join addr1,addr2
 # join_addrs = ["10.0.0.1:9401", "10.0.0.2:9401"]
 
@@ -45,3 +47,11 @@ listen_port = 9401
 # If empty, auth is disabled (not recommended for production).
 # Override: --ha.rpc-token or MORPH_NODE_HA_RPC_TOKEN env var
 # token = ""
+
+# Where to reach other members' admin RPC, as server id = "host:port".
+# Not needed when every member uses the same ports: a member's RPC is then
+# found on its Raft host at this node's own rpc.listen_port. List a member
+# only when that does not hold (several nodes on one host, port mapping).
+# [rpc.peers]
+# node-1 = "127.0.0.1:9501"
+# node-2 = "127.0.0.1:9601"
