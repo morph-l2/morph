@@ -1,4 +1,5 @@
 use alloy_consensus::BlockHeader;
+use morph_primitives::Block;
 use prover_executor_core::MorphExecutor;
 use reth_trie::{HashedPostState, KeccakKeyHasher};
 
@@ -45,8 +46,60 @@ impl EVMVerifier {
                 return Err(ClientError::DiscontinuousStateRoot);
             }
         }
+
+        // The DA commitments bind only the L1-only projection (`data_hash`) and the
+        // L2-only projection (blob) of each block's transactions, never their
+        // interleaving. Enforce the canonical order before execution so that one
+        // committed batch admits exactly one transaction stream.
+        validate_canonical_order(blocks.iter().map(|input| &input.current_block))?;
+
         execute(blocks)
     }
+}
+
+/// Validates the L1 message ordering of a batch, mirroring the node's
+/// `validateL1Messages` (node/core/l1_message.go):
+///
+/// - within a block, every L1 message precedes every L2 transaction (constraint 5);
+/// - L1 message queue indices are strictly consecutive (constraint 3), here checked across the
+///   whole batch, which `Rollup._commitBatch` already requires through `data_hash`.
+///
+/// Together with the per-block `num_l1_txs` in the blob's block context, this makes the
+/// transaction stream of every block a function of the committed batch data.
+pub(crate) fn validate_canonical_order<'a>(
+    blocks: impl IntoIterator<Item = &'a Block>,
+) -> Result<(), ClientError> {
+    let mut expected_queue_index: Option<u64> = None;
+    for block in blocks {
+        let block_num = block.header.number();
+        let mut l1_section_over = false;
+        for (tx_index, tx) in block.body.transactions.iter().enumerate() {
+            if !tx.is_l1_msg() {
+                l1_section_over = true;
+                continue;
+            }
+            if l1_section_over {
+                return Err(ClientError::L1MessageAfterL2Tx { block_num, tx_index });
+            }
+            let queue_index =
+                tx.queue_index().ok_or(ClientError::MalformedL1Message { block_num, tx_index })?;
+            if let Some(expected) = expected_queue_index
+                && queue_index != expected
+            {
+                return Err(ClientError::L1MessageNotConsecutive {
+                    block_num,
+                    expected,
+                    actual: queue_index,
+                });
+            }
+            expected_queue_index = Some(
+                queue_index
+                    .checked_add(1)
+                    .ok_or(ClientError::MalformedL1Message { block_num, tx_index })?,
+            );
+        }
+    }
+    Ok(())
 }
 
 fn execute(mut block_inputs: Vec<BlockInput>) -> Result<BatchInfo, ClientError> {
@@ -110,4 +163,94 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     log::debug!("success execute block_{_block_num} in client, txns.len: {_txn_count}");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use alloy_consensus::{BlockBody, Sealed, Signed, TxLegacy};
+    use alloy_primitives::{B256, Signature};
+    use morph_primitives::{MorphHeader, MorphTxEnvelope, TxL1Msg};
+
+    use super::*;
+
+    fn l1(queue_index: u64) -> MorphTxEnvelope {
+        MorphTxEnvelope::L1Msg(Sealed::new(TxL1Msg { queue_index, ..Default::default() }))
+    }
+
+    fn l2(nonce: u64) -> MorphTxEnvelope {
+        MorphTxEnvelope::Legacy(Signed::new_unchecked(
+            TxLegacy { nonce, ..Default::default() },
+            Signature::test_signature(),
+            B256::with_last_byte(nonce as u8),
+        ))
+    }
+
+    fn block(number: u64, transactions: Vec<MorphTxEnvelope>) -> Block {
+        let mut header = MorphHeader::default();
+        header.inner.number = number;
+        Block { header, body: BlockBody { transactions, ..Default::default() } }
+    }
+
+    #[test]
+    fn accepts_canonical_order() {
+        let blocks = [
+            block(1, vec![l1(0), l1(1), l2(0), l2(1)]),
+            block(2, vec![l2(2)]),
+            block(3, vec![]),
+            block(4, vec![l1(2)]),
+            block(5, vec![l1(3), l2(3)]),
+        ];
+        validate_canonical_order(&blocks).unwrap();
+    }
+
+    #[test]
+    fn rejects_l1_message_after_l2_tx() {
+        for txs in [vec![l2(0), l2(1), l1(0), l1(1)], vec![l1(0), l2(0), l1(1)], vec![l2(0), l1(0)]]
+        {
+            let err = validate_canonical_order(&[block(7, txs)]).unwrap_err();
+            assert!(matches!(err, ClientError::L1MessageAfterL2Tx { block_num: 7, .. }), "{err}");
+        }
+    }
+
+    #[test]
+    fn rejects_non_consecutive_queue_index() {
+        let err = validate_canonical_order(&[block(1, vec![l1(0), l1(2)])]).unwrap_err();
+        assert!(matches!(
+            err,
+            ClientError::L1MessageNotConsecutive { block_num: 1, expected: 1, actual: 2 }
+        ));
+
+        let err =
+            validate_canonical_order(&[block(1, vec![l1(5)]), block(2, vec![l1(5)])]).unwrap_err();
+        assert!(matches!(
+            err,
+            ClientError::L1MessageNotConsecutive { block_num: 2, expected: 6, actual: 5 }
+        ));
+    }
+
+    /// Real mainnet/devnet block inputs must still pass full verification.
+    #[test]
+    fn testdata_block_inputs_verify() {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../testdata/block_inputs");
+        let mut paths: Vec<_> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
+            .collect();
+        paths.sort();
+        assert!(!paths.is_empty());
+
+        let mut num_l1_msgs = 0;
+        for path in paths {
+            let inputs: Vec<BlockInput> =
+                serde_json::from_reader(std::fs::File::open(&path).unwrap()).unwrap();
+            num_l1_msgs += inputs
+                .iter()
+                .flat_map(|input| &input.current_block.body.transactions)
+                .filter(|tx| tx.is_l1_msg())
+                .count();
+            EVMVerifier::verify(inputs).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        }
+        assert!(num_l1_msgs > 0, "testdata should cover L1 messages");
+    }
 }

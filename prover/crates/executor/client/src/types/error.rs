@@ -39,6 +39,16 @@ pub enum ClientError {
     InvalidHeaderBaseFee(u64, u64),
     #[error("Invalid parent header found for block \n expected: {}, found: {}", .0, .1)]
     InvalidHeaderParentHash(FixedBytes<32>, FixedBytes<32>),
+    #[error(
+        "L1 message follows an L2 transaction: block number = {block_num}, tx index = {tx_index}"
+    )]
+    L1MessageAfterL2Tx { block_num: u64, tx_index: usize },
+    #[error(
+        "L1 message queue index not consecutive: block number = {block_num}, expected = {expected}, actual = {actual}"
+    )]
+    L1MessageNotConsecutive { block_num: u64, expected: u64, actual: u64 },
+    #[error("Malformed L1 message: block number = {block_num}, tx index = {tx_index}")]
+    MalformedL1Message { block_num: u64, tx_index: usize },
     #[error("Failed to validate post exectution state {}", 0)]
     PostExecutionError(String),
     #[error("Block Execution Failed: {}", .0)]
