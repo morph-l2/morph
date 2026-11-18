@@ -50,6 +50,11 @@ type HAService struct {
 	transport    *raft.NetworkTransport
 	raftObserver *raft.Observer
 
+	// hasExistingState is true when the Raft stores already held state (a
+	// term, log entries or a snapshot) at startup, i.e. this node has taken
+	// part in a cluster before. Set by initRaft.
+	hasExistingState bool
+
 	// signerAddrs returns this node's sequencer signer addresses, reported in
 	// NodeInfo. Nil for a node without a signer. Set before Start().
 	signerAddrs func() []common.Address
@@ -121,13 +126,31 @@ func (h *HAService) Start() error {
 	h.wg.Add(1)
 	go h.leaderMonitor()
 
-	if !h.cfg.Bootstrap {
+	if h.shouldJoin() {
 		h.wg.Add(1)
 		go h.joinLoop()
+	} else if !h.cfg.Bootstrap {
+		h.logger.Info("hakeeper: raft state found on disk, not joining via join_addrs",
+			"storage_dir", h.cfg.StorageDir)
 	}
 
 	h.logger.Info("hakeeper: started", "server_id", h.cfg.ServerID, "bootstrap", h.cfg.Bootstrap)
 	return nil
+}
+
+// shouldJoin reports whether this node asks join_addrs to add it to a cluster.
+// Like bootstrap, that is only for a node with empty Raft storage. A node that
+// has state already knows its cluster's members from it and reconnects on its
+// own; sending it to join_addrs again would add it to whatever cluster those
+// addresses belong to by now. Raft messages carry no cluster identity, so if
+// that is a different cluster (a join address that was wiped and bootstrapped
+// anew), its leader would overwrite the log kept here and this node would drop
+// out of its own cluster.
+//
+// Consequently a node removed from the cluster does not add itself back on
+// restart: wipe its storage_dir, or add it with ha_addServerAsVoter.
+func (h *HAService) shouldJoin() bool {
+	return !h.cfg.Bootstrap && !h.hasExistingState
 }
 
 // Stop gracefully shuts down the HAService.
@@ -183,7 +206,9 @@ func (h *HAService) tryJoin(addr string) error {
 		return fmt.Errorf("get membership from %s: %w", addr, err)
 	}
 
-	// If this node is already a member (e.g. after a restart), skip AddServerAsVoter.
+	// If this node is already a member (its storage was wiped without removing
+	// it, or an earlier attempt timed out after the leader had added it), skip
+	// AddServerAsVoter.
 	for _, srv := range membership.Servers {
 		if srv.ID == h.cfg.ServerID {
 			h.logger.Info("hakeeper: already a cluster member, skipping join", "id", h.cfg.ServerID)
@@ -497,6 +522,12 @@ func (h *HAService) initRaft() (retErr error) {
 		return fmt.Errorf("TCP transport: %w", err)
 	}
 
+	// Checked before Raft runs, since it may write to the stores once it does.
+	hasExistingState, err := raft.HasExistingState(logStore, stableStore, snapshotStore)
+	if err != nil {
+		return fmt.Errorf("check existing raft state: %w", err)
+	}
+
 	r, err = raft.NewRaft(rc, h.fsm, logStore, stableStore, snapshotStore, transport)
 	if err != nil {
 		return fmt.Errorf("raft.NewRaft: %w", err)
@@ -513,6 +544,7 @@ func (h *HAService) initRaft() (retErr error) {
 
 	h.r = r
 	h.transport = transport
+	h.hasExistingState = hasExistingState
 
 	h.logger.Info("hakeeper: raft initialized", "bind", bindAddr)
 	return nil

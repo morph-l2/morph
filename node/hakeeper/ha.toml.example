@@ -16,6 +16,8 @@ enabled = true
 bootstrap = false
 
 # Addresses of existing cluster nodes to join (follower only).
+# Only used while storage_dir is empty: a node that already has Raft state
+# reconnects to the cluster recorded there and ignores this list.
 # Override: --ha.join addr1,addr2
 # join_addrs = ["10.0.0.1:9401", "10.0.0.2:9401"]
 

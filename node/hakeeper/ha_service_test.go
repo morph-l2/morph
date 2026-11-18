@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-kit/kit/metrics"
 	"github.com/hashicorp/raft"
+	boltdb "github.com/hashicorp/raft-boltdb/v2"
 	"github.com/morph-l2/go-ethereum/common"
 	ethrpc "github.com/morph-l2/go-ethereum/rpc"
 	tmlog "github.com/tendermint/tendermint/libs/log"
@@ -131,6 +132,59 @@ func TestFindSignerHolder(t *testing.T) {
 	h.cfg.RPC.Peers = map[string]string{"node-2": ts.Listener.Addr().String()}
 	if got, ok := h.findSignerHolder([]raft.Server{self, voter}, newKey); !ok || got.ID != voter.ID {
 		t.Fatalf("with rpc.peers: holder = %v,%v; want %s", got.ID, ok, voter.ID)
+	}
+}
+
+// Only a node with empty Raft storage asks join_addrs to add it to a cluster.
+// One that already has state belongs to the cluster recorded there, and must
+// not be added to whichever cluster a join address is part of by now.
+func TestJoinOnlyWithEmptyRaftStorage(t *testing.T) {
+	start := func(t *testing.T, dir string, bootstrap bool) *HAService {
+		cfg := DefaultConfig()
+		cfg.ServerID = "node-1"
+		cfg.StorageDir = dir
+		cfg.Bootstrap = bootstrap
+		cfg.JoinAddrs = []string{"127.0.0.1:9401"}
+		cfg.Consensus.ListenAddr = "127.0.0.1"
+		cfg.Consensus.ListenPort = 0 // any free port
+		h := &HAService{
+			logger:         tmlog.NewNopLogger(),
+			cfg:            cfg,
+			advertisedAddr: "127.0.0.1:9400",
+			fsm:            NewBlockFSM(tmlog.NewNopLogger(), NopMetrics()),
+			metrics:        NopMetrics(),
+		}
+		if err := h.initRaft(); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(h.shutdownRaft)
+		return h
+	}
+
+	// Raft storage as a node that has taken part in a cluster leaves it.
+	usedDir := func(t *testing.T) string {
+		dir := t.TempDir()
+		logs, err := boltdb.NewBoltStore(filepath.Join(dir, "raft-log.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := logs.StoreLog(&raft.Log{Index: 1, Term: 1, Type: raft.LogNoop}); err != nil {
+			t.Fatal(err)
+		}
+		if err := logs.Close(); err != nil {
+			t.Fatal(err)
+		}
+		return dir
+	}
+
+	if h := start(t, t.TempDir(), false); !h.shouldJoin() {
+		t.Error("empty storage: a follower must join")
+	}
+	if h := start(t, usedDir(t), false); h.shouldJoin() {
+		t.Error("existing raft state: a follower must not join again")
+	}
+	if h := start(t, t.TempDir(), true); h.shouldJoin() {
+		t.Error("a bootstrap node never joins")
 	}
 }
 
