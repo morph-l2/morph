@@ -28,7 +28,7 @@ func NewTxManager(l1 *client.L1Client, receiptTimeout time.Duration) *TxManager 
 
 // SendTransaction builds, signs, and broadcasts one transaction.
 // txFunc must set opts.Value before invoking the contract binding.
-// methodSig is the canonical ABI signature passed to the remote signer.
+// methodSig is the canonical ABI signature, logged with the signing request.
 func (m *TxManager) SendTransaction(
 	ctx context.Context,
 	txFunc func(*bind.TransactOpts) (*types.Transaction, error),
