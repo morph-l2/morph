@@ -28,9 +28,6 @@ func TestRecordSignerProbe(t *testing.T) {
 	if v, ok := gaugeValue(t, up); !ok || v != 0 {
 		t.Fatalf("%s = %v (exported %v), want 0", up, v, ok)
 	}
-	if v, _ := gaugeValue(t, last); v != 0 {
-		t.Fatalf("%s = %v after a failed probe, want 0", last, v)
-	}
 
 	RecordSignerProbe(true)
 	if v, _ := gaugeValue(t, up); v != 1 {

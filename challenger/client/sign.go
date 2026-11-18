@@ -18,6 +18,10 @@ import (
 // probeTimeout bounds one remote signer health check.
 const probeTimeout = 20 * time.Second
 
+// probeGasLimit is the gas limit of the probe transaction. It cannot be
+// estimated, because the placeholder batch makes challengeState revert.
+const probeGasLimit = 500_000
+
 // remoteSigner is the part of the remote signer client used here.
 type remoteSigner interface {
 	Sign(tx *types.Transaction, methodSig string) (*types.Transaction, error)
@@ -67,6 +71,21 @@ func (s *Signer) CreateAndSignTx(
 	maxTipCap *big.Int,
 	maxFeeCap *big.Int,
 ) (*types.Transaction, error) {
+	return s.createAndSignTx(ctx, client, to, value, callData, methodSig, maxTipCap, maxFeeCap, 0)
+}
+
+// createAndSignTx estimates the gas limit when gasLimit is zero.
+func (s *Signer) createAndSignTx(
+	ctx context.Context,
+	client *ethclient.Client,
+	to common.Address,
+	value *big.Int,
+	callData []byte,
+	methodSig string,
+	maxTipCap *big.Int,
+	maxFeeCap *big.Int,
+	gasLimit uint64,
+) (*types.Transaction, error) {
 	from := s.externalSignAddress
 	if value == nil {
 		value = big.NewInt(0)
@@ -83,18 +102,21 @@ func (s *Signer) CreateAndSignTx(
 		return nil, fmt.Errorf("failed to calculate gas caps: %w", err)
 	}
 
-	gas, err := client.EstimateGas(ctx, ethereum.CallMsg{
-		From:      from,
-		To:        &to,
-		Value:     value,
-		GasFeeCap: caps.FeeCap,
-		GasTipCap: caps.TipCap,
-		Data:      callData,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to estimate gas: %w", err)
+	gas := gasLimit
+	if gas == 0 {
+		gas, err = client.EstimateGas(ctx, ethereum.CallMsg{
+			From:      from,
+			To:        &to,
+			Value:     value,
+			GasFeeCap: caps.FeeCap,
+			GasTipCap: caps.TipCap,
+			Data:      callData,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to estimate gas: %w", err)
+		}
+		gas = gas * 3 / 2
 	}
-	gas = gas * 3 / 2
 
 	tx := types.NewTx(&types.DynamicFeeTx{
 		ChainID:   s.chainID,
@@ -141,40 +163,34 @@ func (s *Signer) verifySender(signed *types.Transaction) error {
 	return nil
 }
 
-// Probe asks the remote signer to sign a throwaway transaction and checks the
-// recovered sender. It makes no L1 calls and never broadcasts: the signed
-// transaction is discarded, and its zero gas limit makes it invalid on chain.
-func (s *Signer) Probe(ctx context.Context, to common.Address, callData []byte, methodSig string) error {
-	tx := types.NewTx(&types.DynamicFeeTx{
-		ChainID:   s.chainID,
-		GasTipCap: new(big.Int),
-		GasFeeCap: new(big.Int),
-		To:        &to,
-		Value:     new(big.Int),
-		Data:      callData,
-	})
-
+// Probe builds a challengeState transaction the same way a real challenge
+// does, asks the remote signer to sign it, and checks the recovered sender.
+// Only the gas limit is fixed instead of estimated. The signed transaction is
+// discarded here and is never broadcast.
+func (s *Signer) Probe(
+	ctx context.Context,
+	client *ethclient.Client,
+	to common.Address,
+	value *big.Int,
+	callData []byte,
+	methodSig string,
+	maxTipCap *big.Int,
+	maxFeeCap *big.Int,
+) error {
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
 
 	// The remote signer client takes no context, so the wait is bounded here.
-	type result struct {
-		signed *types.Transaction
-		err    error
-	}
-	done := make(chan result, 1)
+	done := make(chan error, 1)
 	go func() {
-		signed, err := s.remoteClient.Sign(tx, methodSig)
-		done <- result{signed, err}
+		_, err := s.createAndSignTx(ctx, client, to, value, callData, methodSig, maxTipCap, maxFeeCap, probeGasLimit)
+		done <- err
 	}()
 
 	select {
 	case <-ctx.Done():
 		return fmt.Errorf("remote signer probe: %w", ctx.Err())
-	case res := <-done:
-		if res.err != nil {
-			return fmt.Errorf("remote signer probe: %w", res.err)
-		}
-		return s.verifySender(res.signed)
+	case err := <-done:
+		return err
 	}
 }

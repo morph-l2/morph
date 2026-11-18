@@ -139,6 +139,7 @@ type fakeSigner struct {
 	key       *ecdsa.PrivateKey
 	mu        sync.Mutex
 	methodSig string
+	signed    []*types.Transaction
 }
 
 func (s *fakeSigner) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -169,6 +170,7 @@ func (s *fakeSigner) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Lock()
 	s.methodSig = data.MethodSig
+	s.signed = append(s.signed, tx)
 	s.mu.Unlock()
 	_ = json.NewEncoder(w).Encode(remotesigner.Response{
 		Result: remotesigner.Result{SignDatas: []*remotesigner.SignData{{Sign: hexutil.Encode(sig)}}},

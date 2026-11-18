@@ -19,7 +19,7 @@ func challengeMethodSig() (string, error) {
 }
 
 // probeCallData encodes a challengeState call with placeholder arguments.
-// It has the selector and length of a real call and is only used to probe the remote signer.
+// It is the same method as a real challenge and is only used to probe the remote signer.
 func probeCallData() ([]byte, error) {
 	parsed, err := bindings.RollupMetaData.GetAbi()
 	if err != nil {
