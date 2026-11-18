@@ -1,24 +1,27 @@
-use crate::{
-    queue::{ProveRequest, Prover},
-    read_env_var, PROVER_PROOF_DIR, PROVE_RESULT, PROVE_TIME, REGISTRY,
-};
-use alloy_primitives::hex;
-use axum::{
-    routing::{get, post},
-    Router,
-};
-
-use morph_prove::evm::EvmProofFixture;
-use once_cell::sync::Lazy;
-use prometheus::{Encoder, TextEncoder};
-use serde::{Deserialize, Serialize};
 use std::{
+    collections::VecDeque,
     fs,
     io::{BufReader, Read},
     sync::Arc,
     time::Duration,
 };
+
+use alloy_primitives::hex;
+use axum::{
+    Router,
+    routing::{get, post},
+};
+use morph_prove::evm::EvmProofFixture;
+use once_cell::sync::Lazy;
+use prometheus::{Encoder, TextEncoder};
+use serde::{Deserialize, Serialize};
 use tokio::{sync::Mutex, time::timeout};
+
+use crate::{
+    PROVE_RESULT, PROVE_TIME, PROVER_PROOF_DIR, REGISTRY,
+    queue::{ProveRequest, Prover},
+    read_env_var,
+};
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct ProveResult {
     pub error_msg: String,
@@ -36,8 +39,8 @@ mod task_status {
 
 pub static MAX_PROVE_BLOCKS: Lazy<usize> = Lazy::new(|| read_env_var("MAX_PROVE_BLOCKS", 4096));
 
-pub static PROVE_QUEUE: Lazy<Arc<Mutex<Vec<ProveRequest>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(vec![])));
+pub static PROVE_QUEUE: Lazy<Arc<Mutex<VecDeque<ProveRequest>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(VecDeque::new())));
 
 // Main async function to start prover service.
 // 1. Spawns prover mng.
@@ -165,7 +168,7 @@ async fn add_pending_req(param: String) -> String {
     }
     // Add request to queue
     log::info!("add pending req of batch: {:#?}", prove_request.batch_index);
-    queue_lock.push(prove_request);
+    queue_lock.push_back(prove_request);
     String::from(task_status::STARTED)
 }
 
@@ -206,7 +209,7 @@ async fn query_proof(batch_index: String) -> ProveResult {
             return ProveResult {
                 error_msg: "Read proof dir error".to_string(),
                 ..Default::default()
-            }
+            };
         }
     };
     let mut result = ProveResult {

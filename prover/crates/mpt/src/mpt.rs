@@ -20,21 +20,19 @@
 #![allow(dead_code)]
 
 use alloc::boxed::Box;
-use alloy_primitives::{b256, map::HashMap, B256};
-use alloy_rlp::Encodable;
 use core::{
     cmp,
     fmt::{Debug, Write},
     iter, mem,
 };
-use reth_trie::{AccountProof, Nibbles};
 use std::sync::Mutex;
 
+use alloy_primitives::{Address, B256, b256, map::HashMap};
+use alloy_rlp::Encodable;
+use reth_trie::{AccountProof, Nibbles};
 use rlp::{Decodable, DecoderError, Prototype, Rlp};
 use serde::{Deserialize, Serialize};
 use thiserror::Error as ThisError;
-
-use alloy_primitives::Address;
 
 use super::{EthereumState, FromProofError};
 
@@ -250,10 +248,10 @@ impl core::fmt::Debug for MptNode {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut ds = f.debug_struct("MptNode");
         ds.field("data", &self.data);
-        if let Ok(guard) = self.cached_reference.lock() {
-            if let Some(reference) = guard.as_ref() {
-                ds.field("cached_reference", reference);
-            }
+        if let Ok(guard) = self.cached_reference.lock()
+            && let Some(reference) = guard.as_ref()
+        {
+            ds.field("cached_reference", reference);
         }
         ds.finish()
     }
@@ -999,7 +997,7 @@ pub fn mpt_from_proof(proof_nodes: &[MptNode]) -> Result<MptNode, FromProofError
                 MptNodeData::Extension(prefix, Box::new(replacement)).into()
             }
             MptNodeData::Null | MptNodeData::Leaf(_, _) | MptNodeData::Digest(_) => {
-                return Err(FromProofError::NodeCannotHaveChildren(i))
+                return Err(FromProofError::NodeCannotHaveChildren(i));
             }
         };
 
@@ -1267,7 +1265,7 @@ fn node_from_digest(digest: B256) -> MptNode {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::{hex, Keccak256};
+    use alloy_primitives::{Keccak256, hex};
 
     use super::*;
 

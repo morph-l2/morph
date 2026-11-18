@@ -1,5 +1,6 @@
-use sp1_sdk::{Elf, ProverClient, ProvingKey, SP1Stdin};
 use std::time::Instant;
+
+use sp1_sdk::{Elf, Prover, ProverClient, ProvingKey, SP1Stdin};
 
 #[tokio::main]
 async fn main() {
@@ -10,7 +11,7 @@ async fn main() {
     let dev_elf: &[u8] = include_bytes!("../../client/elf/riscv32im-succinct-zkvm-elf");
 
     // Setup the prover client.
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::builder().cpu().build().await;
 
     // Setup the inputs.
     let mut stdin = SP1Stdin::new();
@@ -26,7 +27,10 @@ async fn main() {
     println!("Number of cycles: {}", execution_report.total_instruction_count());
 
     let rt_data = public_values.as_slice();
-    println!("pi_hash generated with sp1-vm execution: {}", hex::encode(rt_data));
+    println!(
+        "pi_hash generated with sp1-vm execution: {}",
+        alloy_primitives::hex::encode_prefixed(rt_data)
+    );
 
     let start = Instant::now();
 

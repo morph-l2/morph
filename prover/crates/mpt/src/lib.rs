@@ -1,9 +1,8 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
 use alloy_primitives::{
-    keccak256,
-    map::{hash_map::Entry, HashMap},
-    Address, B256,
+    Address, B256, keccak256,
+    map::{HashMap, hash_map::Entry},
 };
 use alloy_rpc_types::EIP1186AccountProofResponse;
 use reth_trie::{AccountProof, HashedPostState, HashedStorage, TrieAccount};
@@ -16,8 +15,8 @@ mod execution_witness;
 mod mpt;
 pub use mpt::Error;
 use mpt::{
-    mpt_from_proof, parse_proof, proofs_to_tries, resolve_nodes, transition_proofs_to_tries,
-    MptNode,
+    MptNode, mpt_from_proof, parse_proof, proofs_to_tries, resolve_nodes,
+    transition_proofs_to_tries,
 };
 
 /// Ethereum state trie and account storage tries.
@@ -74,6 +73,61 @@ impl EthereumState {
         };
 
         Ok(state)
+    }
+
+    /// Merges the account and storage trie nodes from an EIP-1186 proof response.
+    ///
+    /// This is used to force-include accounts (e.g. Morph predeploy contracts) whose storage
+    /// was *not* touched during block execution and is therefore missing from an execution
+    /// witness. The proof must be taken at the same state root this `EthereumState` is rooted at,
+    /// so the resolved storage trie is consistent with the account's `storage_root`.
+    pub fn insert_storage_trie_from_proof(
+        &mut self,
+        proof: &EIP1186AccountProofResponse,
+    ) -> Result<(), FromProofError> {
+        // The execution witness may not contain the account path when the account was only
+        // force-included for a read outside block execution. Resolve that path before adding its
+        // storage trie so consumers can validate the storage root against the account leaf.
+        let account_proof_nodes = parse_proof(&proof.account_proof)?;
+        mpt_from_proof(&account_proof_nodes)?;
+        let account_nodes =
+            account_proof_nodes.into_iter().map(|node| (node.reference(), node)).collect();
+        self.state_trie = resolve_nodes(&self.state_trie, &account_nodes);
+
+        let mut storage_nodes = HashMap::with_hasher(Default::default());
+        let mut storage_root_node = MptNode::default();
+
+        for storage_proof in &proof.storage_proof {
+            let proof_nodes = parse_proof(&storage_proof.proof)?;
+            mpt_from_proof(&proof_nodes)?;
+
+            // the first node in the proof is the root
+            if let Some(node) = proof_nodes.first() {
+                storage_root_node = node.clone();
+            }
+
+            proof_nodes.into_iter().for_each(|node| {
+                storage_nodes.insert(node.reference(), node);
+            });
+        }
+
+        let hashed_address = keccak256(proof.address);
+        let storage_trie = match self.storage_tries.get(&hashed_address) {
+            // Preserve storage paths already supplied by the execution witness and only resolve
+            // the additional path from the force-included proof.
+            Some(existing) => resolve_nodes(existing, &storage_nodes),
+            None => resolve_nodes(&storage_root_node, &storage_nodes),
+        };
+        let storage_root = storage_trie.hash();
+        if storage_root != proof.storage_hash {
+            return Err(FromProofError::MismatchedStorageRoot(
+                proof.address,
+                storage_root,
+                proof.storage_hash,
+            ));
+        }
+        self.storage_tries.insert(hashed_address, storage_trie);
+        Ok(())
     }
 
     #[cfg(feature = "execution-witness")]
@@ -158,6 +212,7 @@ impl EthereumState {
 
     /// Computes the state root.
     pub fn state_root(&self) -> B256 {
+        // The first call will perform a full calculation.
         self.state_trie.hash()
     }
 }

@@ -1,9 +1,9 @@
-use alloy_primitives::{keccak256, map::HashMap, B256};
+use alloy_primitives::{B256, keccak256, map::HashMap};
 use alloy_rlp::Decodable;
 use alloy_rpc_types_debug::ExecutionWitness;
 use reth_trie::TrieAccount;
 
-use crate::mpt::{resolve_nodes, MptNode, MptNodeData, MptNodeReference};
+use crate::mpt::{MptNode, MptNodeData, MptNodeReference, resolve_nodes};
 
 // Builds tries from the witness state.
 //

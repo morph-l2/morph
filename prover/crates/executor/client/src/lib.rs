@@ -1,16 +1,27 @@
 pub mod types;
 mod verifier;
+use alloy_primitives::B256;
 #[cfg(not(target_os = "zkvm"))]
 use alloy_primitives::hex;
-use prover_primitives::{types::blob::get_blob_data_from_blocks, B256};
+use prover_primitives::types::blob::get_blob_data_from_blocks;
 use types::input::ExecutorInput;
 pub use verifier::{blob_verifier::BlobVerifier, evm_verifier::EVMVerifier};
 
-pub const EVM_VERIFY: &str = "evm verify";
+use crate::types::blob::decompress_batch;
 
 pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
+    // Verify basicInfo
+    if input.block_inputs.is_empty() {
+        return Err(anyhow::anyhow!("empty batch: no block inputs provided"));
+    }
+
     // Verify DA
-    let (versioned_hashes, batch_data_from_blob) = BlobVerifier::verify_blobs(&input.blob_infos)?;
+    let (versioned_hashes, batch_bytes) = BlobVerifier::verify_blobs(&input.blob_infos)?;
+    if versioned_hashes.len() != input.blob_infos.len() {
+        return Err(anyhow::anyhow!("versioned_hashes.len not equals blob_infos.len",));
+    }
+    let batch_data_from_blob = decompress_batch(&batch_bytes)?;
+
     let batch_data_from_blocks = get_blob_data_from_blocks(
         &input.block_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
     );
@@ -19,40 +30,21 @@ pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
     }
 
     // Verify EVM exec.
-    let batch_info = profile_report!(EVM_VERIFY, { EVMVerifier::verify(input.block_inputs) })?;
+    let batch_info = EVMVerifier::verify(input.block_inputs)?;
 
-    // Calc public input hash based on version.
     #[cfg(not(target_os = "zkvm"))]
     log::info!(
         "cacl pi hash, prevStateRoot = {:?}, postStateRoot = {:?}, withdrawalRoot = {:?},
-        dataHash = {:?}, blobVersionedHashes = {:?}, batch_version = {}",
+        dataHash = {:?}, blobVersionedHashes = {:?}",
         hex::encode(batch_info.prev_state_root().as_slice()),
         hex::encode(batch_info.post_state_root().as_slice()),
         hex::encode(batch_info.withdraw_root().as_slice()),
         hex::encode(batch_info.data_hash().as_slice()),
         versioned_hashes.iter().map(|h| hex::encode(h.as_slice())).collect::<Vec<_>>(),
-        input.batch_version,
     );
-    let public_input_hash = match input.batch_version {
-        0 | 1 => {
-            if versioned_hashes.is_empty() {
-                return Err(anyhow::anyhow!(
-                    "batch version {} requires exactly 1 versioned hash, got 0",
-                    input.batch_version
-                ));
-            }
-            batch_info.public_input_hash(&versioned_hashes[0])
-        }
-        2 => {
-            if versioned_hashes.is_empty() {
-                return Err(anyhow::anyhow!("batch version 2 requires at least 1 versioned hash"));
-            }
-            batch_info.public_input_hash_v2(&versioned_hashes)
-        }
-        v => {
-            return Err(anyhow::anyhow!("unsupported batch version: {}", v));
-        }
-    };
+    // Calc public input hash.
+    let public_input_hash = batch_info.public_input_hash(&versioned_hashes);
+
     #[cfg(not(target_os = "zkvm"))]
     log::info!("public input hash: {public_input_hash:?}");
     Ok(B256::from_slice(public_input_hash.as_slice()))

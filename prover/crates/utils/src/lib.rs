@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-pub mod provider;
+pub mod witness;
 
 /// Read an environment variable and parse it to the desired type, or return the default value.
 pub fn read_env_var<T: Clone + FromStr>(var_name: &'static str, default: T) -> T {

@@ -1,12 +1,6 @@
-use serde::{Deserialize, Serialize};
-use sp1_sdk::{Elf, HashableKey, ProverClient, ProvingKey, SP1ProofWithPublicValues, SP1Stdin};
-use std::{
-    fs::File,
-    io::BufReader,
-    path::{Path, PathBuf},
-    str::FromStr,
-    time::Instant,
-};
+use std::{path::PathBuf, str::FromStr, time::Instant};
+
+use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, ProvingKey, SP1Stdin};
 
 #[tokio::main]
 async fn main() {
@@ -17,7 +11,7 @@ async fn main() {
     let dev_elf: &[u8] = include_bytes!("../../client/elf/riscv32im-succinct-zkvm-elf");
 
     // Setup the prover client.
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::builder().cpu().build().await;
 
     // Setup the inputs.
     let mut stdin = SP1Stdin::new();
@@ -65,17 +59,26 @@ fn read_env_var<T: Clone + FromStr>(var_name: &'static str, default: T) -> T {
         .unwrap_or(default)
 }
 
-/// A fixture that can be used to test the verification of SP1 zkVM proofs inside Solidity.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct AlgebraProofFixture {
-    vkey: String,
-    public_values: String,
-    proof: String,
-}
-
 #[tokio::test]
 async fn test_verify_plonk() {
+    use std::{
+        fs::File,
+        io::BufReader,
+        path::{Path, PathBuf},
+    };
+
+    use serde::{Deserialize, Serialize};
+    use sp1_sdk::{HashableKey, SP1ProofWithPublicValues};
+
+    /// A fixture that can be used to test the verification of SP1 zkVM proofs inside Solidity.
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub(crate) struct AlgebraProofFixture {
+        vkey: String,
+        public_values: String,
+        proof: String,
+    }
+
     // Setup the logger.
     sp1_sdk::utils::setup_logger();
 
@@ -97,8 +100,8 @@ async fn test_verify_plonk() {
 
     let fixture = AlgebraProofFixture {
         vkey: vk.bytes32().to_string(),
-        public_values: format!("0x{}", hex::encode(pi_bytes)),
-        proof: format!("0x{}", hex::encode(proof.bytes())),
+        public_values: alloy_primitives::hex::encode_prefixed(pi_bytes),
+        proof: alloy_primitives::hex::encode_prefixed(proof.bytes()),
     };
 
     // Save the fixture to a file.
