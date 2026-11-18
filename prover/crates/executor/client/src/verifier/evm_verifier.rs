@@ -1,4 +1,5 @@
 use alloy_consensus::BlockHeader;
+use alloy_primitives::B256;
 use morph_primitives::Block;
 use prover_executor_core::MorphExecutor;
 use reth_trie::{HashedPostState, KeccakKeyHasher};
@@ -47,6 +48,11 @@ impl EVMVerifier {
             }
         }
 
+        // Header fields consumed by the EVM but not committed by the blob must be pinned.
+        for input in &blocks {
+            validate_header_constants(&input.current_block)?;
+        }
+
         // The DA commitments bind only the L1-only projection (`data_hash`) and the
         // L2-only projection (blob) of each block's transactions, never their
         // interleaving. Enforce the canonical order before execution so that one
@@ -55,6 +61,23 @@ impl EVMVerifier {
 
         execute(blocks)
     }
+}
+
+/// Validates header fields that feed the EVM block environment but are not committed by the
+/// blob. `mix_hash` becomes PREVRANDAO and `difficulty` becomes DIFFICULTY (pre-Merge spec);
+/// morph-geth always returns 0 for opcode 0x44 and builds L2 headers with both set to zero, so
+/// any other value would yield a state transition the L2 network never executed.
+fn validate_header_constants(block: &Block) -> Result<(), ClientError> {
+    let block_num = block.header.number();
+    let mix_hash = block.header.mix_hash().unwrap_or_default();
+    if mix_hash != B256::ZERO {
+        return Err(ClientError::InvalidHeaderMixHash { block_num, mix_hash });
+    }
+    let difficulty = block.header.difficulty();
+    if !difficulty.is_zero() {
+        return Err(ClientError::InvalidHeaderDifficulty { block_num, difficulty });
+    }
+    Ok(())
 }
 
 /// Validates the L1 message ordering of a batch, mirroring the node's
@@ -168,7 +191,7 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
 #[cfg(test)]
 mod tests {
     use alloy_consensus::{BlockBody, Sealed, Signed, TxLegacy};
-    use alloy_primitives::{B256, Signature};
+    use alloy_primitives::{Signature, U256};
     use morph_primitives::{MorphHeader, MorphTxEnvelope, TxL1Msg};
 
     use super::*;
@@ -226,6 +249,21 @@ mod tests {
             err,
             ClientError::L1MessageNotConsecutive { block_num: 2, expected: 6, actual: 5 }
         ));
+    }
+
+    #[test]
+    fn rejects_non_zero_mix_hash_and_difficulty() {
+        let mut b = block(9, vec![]);
+        validate_header_constants(&b).unwrap();
+
+        b.header.inner.mix_hash = B256::with_last_byte(1);
+        let err = validate_header_constants(&b).unwrap_err();
+        assert!(matches!(err, ClientError::InvalidHeaderMixHash { block_num: 9, .. }));
+
+        b.header.inner.mix_hash = B256::ZERO;
+        b.header.inner.difficulty = U256::from(1);
+        let err = validate_header_constants(&b).unwrap_err();
+        assert!(matches!(err, ClientError::InvalidHeaderDifficulty { block_num: 9, .. }));
     }
 
     /// Real mainnet/devnet block inputs must still pass full verification.

@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, B256, FixedBytes};
+use alloy_primitives::{Address, B256, FixedBytes, U256};
 use prover_mpt::Error as MptError;
 
 #[derive(Debug, thiserror::Error)]
@@ -39,6 +39,10 @@ pub enum ClientError {
     InvalidHeaderBaseFee(u64, u64),
     #[error("Invalid parent header found for block \n expected: {}, found: {}", .0, .1)]
     InvalidHeaderParentHash(FixedBytes<32>, FixedBytes<32>),
+    #[error("Invalid mix hash in header: block number = {block_num}, mix hash = {mix_hash}")]
+    InvalidHeaderMixHash { block_num: u64, mix_hash: B256 },
+    #[error("Invalid difficulty in header: block number = {block_num}, difficulty = {difficulty}")]
+    InvalidHeaderDifficulty { block_num: u64, difficulty: U256 },
     #[error(
         "L1 message follows an L2 transaction: block number = {block_num}, tx index = {tx_index}"
     )]
