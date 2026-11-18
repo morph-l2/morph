@@ -24,7 +24,7 @@ const probeGasLimit = 500_000
 
 // remoteSigner is the part of the remote signer client used here.
 type remoteSigner interface {
-	Sign(tx *types.Transaction, methodSig string) (*types.Transaction, error)
+	SignV1(tx *types.Transaction) (*types.Transaction, error)
 }
 
 // Signer talks to the remote signer. The request shape was taken from
@@ -139,7 +139,10 @@ func (s *Signer) createAndSignTx(
 		"gasTipCap", caps.TipCap,
 		"methodSig", methodSig)
 
-	signed, err := s.remoteClient.Sign(tx, methodSig)
+	// L1 signing uses the v1 API, which sends the transaction hash, as
+	// tx-submitter and the prover challenge handler do. The signer rejects a
+	// v2 request for this transaction because it carries no sha3.
+	signed, err := s.remoteClient.SignV1(tx)
 	if err != nil {
 		return nil, err
 	}

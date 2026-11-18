@@ -133,13 +133,12 @@ func (f *fakeL1) sentTxs() []*types.Transaction {
 	return append([]*types.Transaction(nil), f.sent...)
 }
 
-// fakeSigner plays the remote signer: it signs the raw transaction it is sent
-// and records the method signature of the request.
+// fakeSigner plays the remote signer's v1 API: it checks that the sha3 of the
+// request matches the transaction it is sent, signs it, and keeps it.
 type fakeSigner struct {
-	key       *ecdsa.PrivateKey
-	mu        sync.Mutex
-	methodSig string
-	signed    []*types.Transaction
+	key    *ecdsa.PrivateKey
+	mu     sync.Mutex
+	signed []*types.Transaction
 }
 
 func (s *fakeSigner) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -148,12 +147,12 @@ func (s *fakeSigner) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	var data remotesigner.DataV2
+	var data remotesigner.Data
 	if err := json.Unmarshal([]byte(req.Data), &data); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	raw, err := hex.DecodeString(data.RawData)
+	raw, err := hex.DecodeString(req.TxData)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -163,13 +162,17 @@ func (s *fakeSigner) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	sig, err := crypto.Sign(types.NewLondonSigner(testChainID).Hash(tx).Bytes(), s.key)
+	hash := types.NewLondonSigner(testChainID).Hash(tx)
+	if data.Sha3 != hash.Hex() {
+		http.Error(w, "sha3 hash is inconsistent, expect :"+data.Sha3+", actual :"+hash.Hex(), http.StatusInternalServerError)
+		return
+	}
+	sig, err := crypto.Sign(hash.Bytes(), s.key)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	s.mu.Lock()
-	s.methodSig = data.MethodSig
 	s.signed = append(s.signed, tx)
 	s.mu.Unlock()
 	_ = json.NewEncoder(w).Encode(remotesigner.Response{
@@ -326,8 +329,8 @@ func TestChallengeSendsWithRemoteSigner(t *testing.T) {
 	if result.TxHash != sent[0].Hash() {
 		t.Fatalf("result = %+v", result)
 	}
-	if signer.methodSig != svc.methodSig {
-		t.Fatalf("signer methodSig = %q, want %q", signer.methodSig, svc.methodSig)
+	if len(signer.signed) != 1 {
+		t.Fatalf("signer was asked %d times, want 1", len(signer.signed))
 	}
 }
 

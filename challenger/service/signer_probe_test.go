@@ -75,9 +75,6 @@ func TestProbeSignerSignsChallengeTxWithoutBroadcast(t *testing.T) {
 	if len(signer.signed) != 1 {
 		t.Fatalf("signer was asked %d times, want 1", len(signer.signed))
 	}
-	if signer.methodSig != "challengeState(uint64,bytes32)" {
-		t.Fatalf("method sig = %q", signer.methodSig)
-	}
 	tx := signer.signed[0]
 	if tx.To() == nil || *tx.To() != testRollup {
 		t.Fatalf("to = %v", tx.To())
