@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/morph-l2/go-ethereum"
 	"github.com/morph-l2/go-ethereum/common"
@@ -14,10 +15,18 @@ import (
 	remotesigner "github.com/morph-l2/remote-signer-client/go/signer"
 )
 
+// probeTimeout bounds one remote signer health check.
+const probeTimeout = 20 * time.Second
+
+// remoteSigner is the part of the remote signer client used here.
+type remoteSigner interface {
+	Sign(tx *types.Transaction, methodSig string) (*types.Transaction, error)
+}
+
 // Signer talks to the remote signer. The request shape was taken from
 // token-price-oracle as a reference; this package does not import that service.
 type Signer struct {
-	remoteClient        *remotesigner.Client
+	remoteClient        remoteSigner
 	externalSignAddress common.Address
 	chainID             *big.Int
 }
@@ -112,14 +121,60 @@ func (s *Signer) CreateAndSignTx(
 	if err != nil {
 		return nil, err
 	}
-	// The signature is applied to the transaction built here, so only the
-	// recovered sender can differ from what was requested.
-	sender, err := types.Sender(types.NewLondonSigner(s.chainID), signed)
-	if err != nil {
-		return nil, fmt.Errorf("recover remote signature sender: %w", err)
-	}
-	if sender != from {
-		return nil, fmt.Errorf("remote signer signed as %s, want %s", sender.Hex(), from.Hex())
+	if err := s.verifySender(signed); err != nil {
+		return nil, err
 	}
 	return signed, nil
+}
+
+// verifySender checks that the remote signer signed with the configured address.
+// The signature is applied to the transaction built here, so only the
+// recovered sender can differ from what was requested.
+func (s *Signer) verifySender(signed *types.Transaction) error {
+	sender, err := types.Sender(types.NewLondonSigner(s.chainID), signed)
+	if err != nil {
+		return fmt.Errorf("recover remote signature sender: %w", err)
+	}
+	if sender != s.externalSignAddress {
+		return fmt.Errorf("remote signer signed as %s, want %s", sender.Hex(), s.externalSignAddress.Hex())
+	}
+	return nil
+}
+
+// Probe asks the remote signer to sign a throwaway transaction and checks the
+// recovered sender. It makes no L1 calls and never broadcasts: the signed
+// transaction is discarded, and its zero gas limit makes it invalid on chain.
+func (s *Signer) Probe(ctx context.Context, to common.Address, callData []byte, methodSig string) error {
+	tx := types.NewTx(&types.DynamicFeeTx{
+		ChainID:   s.chainID,
+		GasTipCap: new(big.Int),
+		GasFeeCap: new(big.Int),
+		To:        &to,
+		Value:     new(big.Int),
+		Data:      callData,
+	})
+
+	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+
+	// The remote signer client takes no context, so the wait is bounded here.
+	type result struct {
+		signed *types.Transaction
+		err    error
+	}
+	done := make(chan result, 1)
+	go func() {
+		signed, err := s.remoteClient.Sign(tx, methodSig)
+		done <- result{signed, err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("remote signer probe: %w", ctx.Err())
+	case res := <-done:
+		if res.err != nil {
+			return fmt.Errorf("remote signer probe: %w", res.err)
+		}
+		return s.verifySender(res.signed)
+	}
 }

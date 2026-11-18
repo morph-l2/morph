@@ -32,7 +32,10 @@ type Service struct {
 	txs       *TxManager
 	methodSig string
 	from      common.Address
-	mu        sync.Mutex
+	// rollupAddr and probeData describe the transaction used to probe the remote signer.
+	rollupAddr common.Address
+	probeData  []byte
+	mu         sync.Mutex
 }
 
 // New binds the L1 Rollup and the trusted L2 geth, and prepares the transaction path.
@@ -42,6 +45,10 @@ func New(l1 *client.L1Client, l2 *ethclient.Client, rollupAddr common.Address, r
 		return nil, err
 	}
 	methodSig, err := challengeMethodSig()
+	if err != nil {
+		return nil, err
+	}
+	probeData, err := probeCallData()
 	if err != nil {
 		return nil, err
 	}
@@ -57,6 +64,9 @@ func New(l1 *client.L1Client, l2 *ethclient.Client, rollupAddr common.Address, r
 		txs:       NewTxManager(l1, receiptTimeout),
 		methodSig: methodSig,
 		from:      l1.WalletAddress(),
+
+		rollupAddr: rollupAddr,
+		probeData:  probeData,
 	}, nil
 }
 

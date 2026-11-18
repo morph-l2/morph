@@ -82,6 +82,10 @@ func run(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to create challenger: %w", err)
 	}
 
+	probeCtx, stopProbe := context.WithCancel(context.Background())
+	defer stopProbe()
+	go challenger.RunSignerProbe(probeCtx)
+
 	server := httpapi.NewServer(cfg.HTTPAddress(), cfg.HTTPAuthToken, challenger, cfg.ReceiptTimeout)
 	errCh := make(chan error, 1)
 	go func() {

@@ -26,6 +26,23 @@ var Comparisons = prometheus.NewCounterVec(
 	[]string{"verdict"},
 )
 
+// SignerUp is 1 when the last remote signer probe succeeded and 0 when it failed.
+// It is only set when external signing is enabled.
+var SignerUp = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "challenger_ext_signer_up",
+		Help: "Whether the last remote signer probe succeeded (1) or failed (0)",
+	},
+)
+
+// SignerLastSuccess is the unix time of the last successful remote signer probe.
+var SignerLastSuccess = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "challenger_ext_signer_last_success_timestamp_seconds",
+		Help: "Unix time of the last successful remote signer probe",
+	},
+)
+
 func init() {
 	prometheus.MustRegister(Challenges)
 	prometheus.MustRegister(Comparisons)
