@@ -1,0 +1,11 @@
+# runtime data, binaries, secrets: never commit
+/bin/
+/run/
+/deployments/
+/env/secrets.env
+/env/archive/
+*.out
+journal.rlp
+submitter-leveldb/
+__pycache__/
+*.pyc

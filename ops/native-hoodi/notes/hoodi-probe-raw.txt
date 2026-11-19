@@ -1,0 +1,19 @@
+== 并发 20 × 3 轮
+EL      https://0xrpc.io/hoodi                       200x60  avg=0.92s max=1.25s n=60
+EL      https://rpc.hoodi.ethpandaops.io             200x60  avg=0.39s max=0.63s n=60
+BEACON  https://beacon.hoodi.ethpandaops.io          200x60  avg=0.46s max=0.71s n=60
+BEACON  https://ethereum-hoodi-beacon-api.publicnode.com 200x60  avg=0.06s max=0.19s n=60
+
+== eth_getLogs:区间上限(Morph 的 L1 同步会用)
+  https://0xrpc.io/hoodi                   span=1000   ok
+  https://0xrpc.io/hoodi                   span=5000   ok
+  https://0xrpc.io/hoodi                   span=10000  Request contains invalid block params
+  https://0xrpc.io/hoodi                   span=50000  Request contains invalid block params
+  https://rpc.hoodi.ethpandaops.io         span=1000   ok
+  https://rpc.hoodi.ethpandaops.io         span=5000   ok
+  https://rpc.hoodi.ethpandaops.io         span=10000  ok
+  https://rpc.hoodi.ethpandaops.io         span=50000  getLogs request exceeded max allowed range
+
+== 信标:近期 slot 的 blob_sidecars 连续取 5 个
+  https://beacon.hoodi.ethpandaops.io                  head_slot=4398552 ok=4 fail=1
+  https://ethereum-hoodi-beacon-api.publicnode.com     head_slot=4398552 ok=4 fail=1
