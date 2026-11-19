@@ -41,6 +41,13 @@ const QA_URL = process.env.QA_RPC_URL || 'http://127.0.0.1:8545'
 const SEPOLIA_URL = process.env.SEPOLIA_RPC_URL || 'http://127.0.0.1:8545'
 const HOLESKY_URL = process.env.HOLESKY_RPC_URL || 'http://127.0.0.1:8545'
 const HOODI_URL = process.env.HOODI_RPC_URL || 'http://127.0.0.1:8545'
+// hoodidev: a private Morph L2 whose L1 is the public Ethereum Hoodi testnet. Unlike the networks above it does NOT
+// fall back to the publicly known Anvil key: without DEPLOYER_PRIVATE_KEY (or with that public key) there is no
+// signer, so a deployment fails instead of putting admin rights behind a key that anyone can use.
+const PUBLIC_ANVIL_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+const HOODIDEV_URL = process.env.HOODIDEV_RPC_URL || 'http://127.0.0.1:8545'
+const HOODIDEV_PK = process.env.DEPLOYER_PRIVATE_KEY
+const HOODIDEV_ACCOUNTS = HOODIDEV_PK && HOODIDEV_PK.toLowerCase() !== PUBLIC_ANVIL_KEY ? [HOODIDEV_PK] : []
 
 module.exports = {
     defaultNetwork: 'hardhat',
@@ -107,6 +114,13 @@ module.exports = {
             gas: 'auto',
             gasPrice: 'auto',
             accounts: [DEPLOYER_PK]
+        },
+        hoodidev: {
+            url: HOODIDEV_URL,
+            chainId: 560048,
+            gas: 'auto',
+            gasPrice: 'auto',
+            accounts: HOODIDEV_ACCOUNTS
         }
     },
     foundry: {

@@ -5,6 +5,36 @@ import { ethers } from 'ethers'
 
 const fs = require("fs")
 
+// Public RPC endpoints sit behind several nodes: a read issued right after a mined write can reach a node that has not
+// seen the block yet and fail (empty return data) or return stale state. Retrying the read is opt-in: with
+// MORPH_READ_RETRIES unset (the default) behaviour is exactly as before, so local devnets are unaffected.
+const READ_RETRIES = Number(process.env.MORPH_READ_RETRIES || 0)
+const READ_RETRY_DELAY_MS = Number(process.env.MORPH_READ_RETRY_DELAY_MS || 2000)
+
+const matchesExpected = (actual: any, expected: any): boolean => {
+    if (ethers.utils.isAddress(expected)) {
+        return typeof actual === 'string' && actual.toLowerCase() === expected.toLowerCase()
+    }
+    return actual === expected || !!(actual && actual.eq && actual.eq(expected))
+}
+
+// Calls `read` until it succeeds and (if `expected` is given) matches, at most READ_RETRIES extra times.
+// The final attempt is returned/thrown as-is so the caller's own assertion reports the real problem.
+const readWithRetry = async (read: () => Promise<any>, expected?: any): Promise<any> => {
+    for (let attempt = 0; ; attempt++) {
+        const last = attempt >= READ_RETRIES
+        try {
+            const actual = await read()
+            if (last || expected === undefined || matchesExpected(actual, expected)) {
+                return actual
+            }
+        } catch (e) {
+            if (last) throw e
+        }
+        await sleep(READ_RETRY_DELAY_MS)
+    }
+}
+
 /**
  * Helper function for asserting that a contract variable is set to the expected value.
  *
@@ -28,9 +58,9 @@ export const assertContractVariable = async (
     if (caller === null || !ethers.utils.isAddress(caller)) {
         caller = ethers.constants.AddressZero
     }
-    const actual = await temp.callStatic[variable]({
+    const actual = await readWithRetry(() => temp.callStatic[variable]({
         from: caller,
-    })
+    }), expected)
 
     if (ethers.utils.isAddress(expected)) {
         assert(
@@ -60,7 +90,7 @@ export const assertContractVariableWithSigner = async (
         contract.signer,
     )
 
-    const actual = await temp.callStatic[variable]()
+    const actual = await readWithRetry(() => temp.callStatic[variable](), expected)
 
     if (ethers.utils.isAddress(expected)) {
         assert(
