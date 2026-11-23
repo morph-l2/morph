@@ -57,9 +57,10 @@ func TestSetDevnetTestTokensStorageLayout(t *testing.T) {
 	}
 }
 
-// TestDevnetTestTokenDefinitions pins the two properties that cannot be derived from
-// the encoding itself: WETH's balance slot is a real slot 0 rather than "no slot", and
-// the placeholder addresses stay out of the precompile range.
+// TestDevnetTestTokenDefinitions pins the properties that cannot be derived from
+// the encoding itself: every pre-registered token uses the call-mode path (no
+// balanceSlot), WETH stays on the L2WETH predeploy, and placeholder addresses
+// stay out of the precompile range.
 func TestDevnetTestTokenDefinitions(t *testing.T) {
 	byID := make(map[uint16]DevnetTestToken)
 	for _, token := range GetDevnetTestTokens() {
@@ -68,11 +69,13 @@ func TestDevnetTestTokenDefinitions(t *testing.T) {
 
 	weth := byID[2]
 	require.Equal(t, predeploys.L2WETHAddr, weth.TokenAddress)
-	require.True(t, weth.NeedBalanceSlot, "WrappedEther keeps _balances at slot 0, which still needs to be registered")
-	require.Equal(t, common.Hash{}, weth.BalanceSlot)
 
 	lowestNonPrecompile := big.NewInt(0xff)
 	for _, token := range byID {
+		require.False(t, token.NeedBalanceSlot,
+			"token %d must use call-mode fee deduction to match mainnet/testnet", token.TokenID)
+		require.Equal(t, common.Hash{}, token.BalanceSlot)
+
 		require.Positive(t, new(big.Int).SetBytes(token.TokenAddress.Bytes()).Cmp(lowestNonPrecompile),
 			"token %d address %s falls in the precompile range", token.TokenID, token.TokenAddress)
 
