@@ -15,8 +15,8 @@ import (
 	remotesigner "github.com/morph-l2/remote-signer-client/go/signer"
 )
 
-// probeTimeout bounds one remote signer health check.
-const probeTimeout = 20 * time.Second
+// ProbeTimeout bounds one remote signer health check.
+const ProbeTimeout = 20 * time.Second
 
 // probeGasLimit is the gas limit of the probe transaction. It cannot be
 // estimated, because the placeholder batch makes challengeState revert.
@@ -180,7 +180,7 @@ func (s *Signer) Probe(
 	maxTipCap *big.Int,
 	maxFeeCap *big.Int,
 ) error {
-	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	ctx, cancel := context.WithTimeout(ctx, ProbeTimeout)
 	defer cancel()
 
 	// The remote signer client takes no context, so the wait is bounded here.

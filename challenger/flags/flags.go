@@ -22,7 +22,7 @@ var (
 
 	L2EthRPCFlag = cli.StringFlag{
 		Name:     "l2-eth-rpc",
-		Usage:    "HTTP provider URL for the trusted L2 geth",
+		Usage:    "HTTP provider URL for the trusted L2 geth. It must be an archive node: roots are read at each batch's last block",
 		Required: true,
 		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
 	}

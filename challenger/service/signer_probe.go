@@ -7,6 +7,7 @@ import (
 
 	"github.com/morph-l2/go-ethereum/log"
 
+	"morph-l2/challenger/client"
 	"morph-l2/challenger/metrics"
 )
 
@@ -28,6 +29,10 @@ func (s *Service) RunSignerProbe(ctx context.Context) {
 // probeSigner has the remote signer sign a challengeState transaction that
 // carries the real deposit, nonce and fees, then drops it before broadcast.
 func (s *Service) probeSigner(ctx context.Context) error {
+	// The deadline also covers the L1 read, so a hung L1 cannot stall the loop.
+	ctx, cancel := context.WithTimeout(ctx, client.ProbeTimeout)
+	defer cancel()
+
 	deposit, err := s.view.ChallengeDeposit(ctx)
 	if err != nil {
 		return fmt.Errorf("challengeDeposit: %w", err)
