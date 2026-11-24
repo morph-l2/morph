@@ -8317,6 +8317,7 @@ name = "prover-executor-core"
 version = "2.1.0"
 dependencies = [
  "alloy-consensus 2.4.1",
+ "alloy-eips 2.4.1",
  "alloy-evm",
  "alloy-primitives",
  "anyhow",

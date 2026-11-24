@@ -1,7 +1,7 @@
 use alloy_consensus::BlockHeader;
 use alloy_primitives::B256;
 use morph_primitives::Block;
-use prover_executor_core::MorphExecutor;
+use prover_executor_core::{MorphExecutor, validate_next_l1_msg_index};
 use reth_trie::{HashedPostState, KeccakKeyHasher};
 
 use crate::types::{batch::BatchInfo, error::ClientError, input::BlockInput};
@@ -9,8 +9,7 @@ use crate::types::{batch::BatchInfo, error::ClientError, input::BlockInput};
 // use Verifier;
 pub struct EVMVerifier;
 
-// The base fee for L2 blocks.
-const L2_BASE_FEE: u64 = 1_000_000;
+const MAX_L2_BASE_FEE: u64 = 10_000_000_000;
 
 impl EVMVerifier {
     pub fn verify(blocks: Vec<BlockInput>) -> Result<BatchInfo, ClientError> {
@@ -48,9 +47,9 @@ impl EVMVerifier {
             }
         }
 
-        // Header fields consumed by the EVM but not committed by the blob must be pinned.
         for input in &blocks {
             validate_header_constants(&input.current_block)?;
+            validate_base_fee(&input.current_block)?;
         }
 
         // The DA commitments bind only the L1-only projection (`data_hash`) and the
@@ -58,6 +57,20 @@ impl EVMVerifier {
         // interleaving. Enforce the canonical order before execution so that one
         // committed batch admits exactly one transaction stream.
         validate_canonical_order(blocks.iter().map(|input| &input.current_block))?;
+        for (index, input) in blocks.iter().enumerate() {
+            let parent_header =
+                index.checked_sub(1).map(|parent_index| &blocks[parent_index].current_block.header);
+            validate_next_l1_msg_index(
+                input.chain_id,
+                parent_header,
+                &input.current_block.header,
+                &input.current_block.body.transactions,
+            )
+            .map_err(|reason| ClientError::InvalidNextL1MessageIndex {
+                block_num: input.current_block.number(),
+                reason: reason.to_string(),
+            })?;
+        }
 
         execute(blocks)
     }
@@ -76,6 +89,17 @@ fn validate_header_constants(block: &Block) -> Result<(), ClientError> {
     let difficulty = block.header.difficulty();
     if !difficulty.is_zero() {
         return Err(ClientError::InvalidHeaderDifficulty { block_num, difficulty });
+    }
+    Ok(())
+}
+
+fn validate_base_fee(block: &Block) -> Result<(), ClientError> {
+    let base_fee = block
+        .header
+        .base_fee_per_gas()
+        .ok_or(ClientError::MissingHeaderBaseFee(block.header.number()))?;
+    if base_fee > MAX_L2_BASE_FEE {
+        return Err(ClientError::InvalidHeaderBaseFee(MAX_L2_BASE_FEE, base_fee));
     }
     Ok(())
 }
@@ -150,17 +174,12 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
         return Ok(());
     }
     let header = &block.header;
-    let base_fee = header.base_fee_per_gas().unwrap_or_default();
-    if base_fee != L2_BASE_FEE {
-        return Err(ClientError::InvalidHeaderBaseFee(L2_BASE_FEE, base_fee));
-    }
     let chain_id = block_input.chain_id;
     let _block_num = block.number();
     let _txn_count = block.body.transactions.len();
 
     // Build DB, this will internally verify the correctness of mpt.
-    let witness_block = block_input.clone();
-    let trie_db = witness_block.witness_db()?;
+    let trie_db = block_input.witness_db()?;
 
     // Execute the whole block via reth's BasicBlockExecutor.
     let core_executor = MorphExecutor::new_ref(trie_db, chain_id);
@@ -248,6 +267,38 @@ mod tests {
         assert!(matches!(
             err,
             ClientError::L1MessageNotConsecutive { block_num: 2, expected: 6, actual: 5 }
+        ));
+    }
+
+    #[test]
+    fn validates_base_fee_range() {
+        let mut b = block(9, vec![]);
+        b.header.inner.base_fee_per_gas = Some(0);
+        validate_base_fee(&b).unwrap();
+
+        b.header.inner.base_fee_per_gas = Some(MAX_L2_BASE_FEE);
+        validate_base_fee(&b).unwrap();
+
+        b.header.inner.base_fee_per_gas = None;
+        assert!(matches!(validate_base_fee(&b), Err(ClientError::MissingHeaderBaseFee(9))));
+    }
+
+    #[test]
+    fn rejects_excessive_base_fee_for_an_empty_block() {
+        let mut input = BlockInput {
+            current_block: block(9, vec![]),
+            parent_state: Default::default(),
+            bytecodes: vec![],
+            chain_id: 0,
+        };
+        input.current_block.header.inner.state_root = input.parent_state.state_root();
+        input.current_block.header.inner.base_fee_per_gas = Some(MAX_L2_BASE_FEE + 1);
+
+        let err = EVMVerifier::verify(vec![input]).unwrap_err();
+        assert!(matches!(
+            err,
+            ClientError::InvalidHeaderBaseFee(MAX_L2_BASE_FEE, actual)
+                if actual == MAX_L2_BASE_FEE + 1
         ));
     }
 

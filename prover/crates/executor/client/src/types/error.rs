@@ -35,8 +35,12 @@ pub enum ClientError {
     InvalidHeaderBlockNumber(u64, u64),
     #[error("Invalid block timestamp for block: {}", .0)]
     InvalidBlockTimestamp(u64),
-    #[error("Invalid base fee found in header \n expected: {} found: {}", .0, .1)]
+    #[error("Missing base fee in header: block number = {0}")]
+    MissingHeaderBaseFee(u64),
+    #[error("Invalid base fee found in header \n maximum: {} found: {}", .0, .1)]
     InvalidHeaderBaseFee(u64, u64),
+    #[error("Invalid next L1 message index: block number = {block_num}, reason = {reason}")]
+    InvalidNextL1MessageIndex { block_num: u64, reason: String },
     #[error("Invalid parent header found for block \n expected: {}, found: {}", .0, .1)]
     InvalidHeaderParentHash(FixedBytes<32>, FixedBytes<32>),
     #[error("Invalid mix hash in header: block number = {block_num}, mix hash = {mix_hash}")]

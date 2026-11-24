@@ -12,11 +12,12 @@ use revm::{
     database::{BundleState, WrapDatabaseRef},
 };
 
-use crate::{DEVNET_CHAIN_ID, MAINNET_CHAIN_ID, TESTNET_CHAIN_ID};
+use crate::{DEVNET_CHAIN_ID, MAINNET_CHAIN_ID, TESTNET_CHAIN_ID, validation::validate_block};
 
 /// An Morph executor wrapper based on reth's block executor.
 pub struct MorphExecutor<DB: Database> {
     inner: BasicBlockExecutor<MorphEvmConfig, DB>,
+    chain_spec: Arc<MorphChainSpec>,
 }
 
 impl<DB> MorphExecutor<DB>
@@ -25,9 +26,10 @@ where
 {
     /// Create a new [`MorphExecutor`] instance.
     pub fn new(db: DB, chain_id: u64) -> Self {
-        let evm_config = MorphEvmConfig::new_with_default_factory(chain_spec_by_chain_id(chain_id));
+        let chain_spec = chain_spec_by_chain_id(chain_id);
+        let evm_config = MorphEvmConfig::new_with_default_factory(chain_spec.clone());
         let inner = BasicBlockExecutor::new(evm_config, db);
-        Self { inner }
+        Self { inner, chain_spec }
     }
 
     /// Execute a full recovered block via [`BasicBlockExecutor::execute`].
@@ -35,6 +37,8 @@ where
         self,
         block: &RecoveredBlock<MorphBlock>,
     ) -> Result<(BundleState, BlockExecutionResult<MorphReceipt>)> {
+        let sealed_block = block.sealed_block();
+        validate_block(sealed_block.header(), &sealed_block.body().transactions, &self.chain_spec)?;
         let execution_output = self.inner.execute(block)?;
         let mut bundle_state = execution_output.state;
         retain_changed_accounts(&mut bundle_state);
@@ -59,7 +63,7 @@ where
     }
 }
 
-fn chain_spec_by_chain_id(chain_id: u64) -> Arc<MorphChainSpec> {
+pub(crate) fn chain_spec_by_chain_id(chain_id: u64) -> Arc<MorphChainSpec> {
     match chain_id {
         MAINNET_CHAIN_ID => MORPH_MAINNET.clone(),
         TESTNET_CHAIN_ID => MORPH_HOODI.clone(),
