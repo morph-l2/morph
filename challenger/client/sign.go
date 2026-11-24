@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"math/big"
+	"runtime/debug"
 	"time"
 
 	"github.com/morph-l2/go-ethereum"
@@ -159,6 +160,8 @@ func (s *Signer) createAndSignTx(
 func (s *Signer) signV1(tx *types.Transaction) (signed *types.Transaction, err error) {
 	defer func() {
 		if r := recover(); r != nil {
+			// The error carries only the panic value, so the stack is logged here.
+			log.Error("Remote signer client panicked", "panic", r, "stack", string(debug.Stack()))
 			signed, err = nil, fmt.Errorf("remote signer client panicked: %v", r)
 		}
 	}()
