@@ -355,6 +355,55 @@ func TestChallengeRefusesWrongRemoteSignature(t *testing.T) {
 	}
 }
 
+// nullSignatureSigner answers 200 with a null first signature entry, which
+// the remote signer client dereferences.
+func nullSignatureSigner() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":{"signDatas":[null]}}`))
+	}))
+}
+
+// A null signature entry fails the challenge with an error and sends nothing.
+func TestChallengeFailsOnNullRemoteSignature(t *testing.T) {
+	chain := &fakeL1{}
+	chain.mined(types.ReceiptStatusSuccessful)
+	rpc := httptest.NewServer(chain)
+	defer rpc.Close()
+	_, from := newTestKey(t)
+	signerSrv := nullSignatureSigner()
+	defer signerSrv.Close()
+	hash := common.HexToHash("0x11")
+
+	svc := mismatchService(t, remoteL1(t, rpc.URL, signerSrv.URL, from), hash, 5*time.Second)
+	_, err := svc.Challenge(context.Background(), 4, hash)
+	if err == nil || !strings.Contains(err.Error(), "remote signer client panicked") {
+		t.Fatalf("err = %v", err)
+	}
+	if n := len(chain.sentTxs()); n != 0 {
+		t.Fatalf("broadcast %d transactions", n)
+	}
+}
+
+// A null signature entry fails the probe instead of ending the process: the
+// probe signs in its own goroutine, where a panic cannot be caught by the caller.
+func TestProbeSignerFailsOnNullRemoteSignature(t *testing.T) {
+	chain := &fakeL1{confirmed: 7, pending: 7}
+	rpc := httptest.NewServer(chain)
+	defer rpc.Close()
+	_, from := newTestKey(t)
+	signerSrv := nullSignatureSigner()
+	defer signerSrv.Close()
+
+	svc := probeService(t, remoteL1(t, rpc.URL, signerSrv.URL, from))
+	err := svc.probeSigner(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "remote signer client panicked") {
+		t.Fatalf("err = %v", err)
+	}
+	if sent := chain.sentTxs(); len(sent) != 0 {
+		t.Fatalf("probe broadcast %d transactions", len(sent))
+	}
+}
+
 func TestChallengeSkipsWhenSignerBusy(t *testing.T) {
 	chain := &fakeL1{confirmed: 3, pending: 4}
 	rpc := httptest.NewServer(chain)

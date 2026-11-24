@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"math/big"
+	"runtime/debug"
 	"time"
 
 	"github.com/morph-l2/go-ethereum"
@@ -142,7 +143,7 @@ func (s *Signer) createAndSignTx(
 	// L1 signing uses the v1 API, which sends the transaction hash, as
 	// tx-submitter and the prover challenge handler do. The signer rejects a
 	// v2 request for this transaction because it carries no sha3.
-	signed, err := s.remoteClient.SignV1(tx)
+	signed, err := s.signV1(tx)
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +151,21 @@ func (s *Signer) createAndSignTx(
 		return nil, err
 	}
 	return signed, nil
+}
+
+// signV1 asks the remote signer to sign tx. The signer client reads the first
+// signature entry without a nil check, so a response of "signDatas":[null]
+// panics inside it. The probe signs in its own goroutine, where that panic
+// would end the process, so it is returned as an error here.
+func (s *Signer) signV1(tx *types.Transaction) (signed *types.Transaction, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			// The error carries only the panic value, so the stack is logged here.
+			log.Error("Remote signer client panicked", "panic", r, "stack", string(debug.Stack()))
+			signed, err = nil, fmt.Errorf("remote signer client panicked: %v", r)
+		}
+	}()
+	return s.remoteClient.SignV1(tx)
 }
 
 // verifySender checks that the remote signer signed with the configured address.
