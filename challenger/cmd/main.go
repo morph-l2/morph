@@ -44,6 +44,9 @@ func main() {
 	}
 }
 
+// startupCheckTimeout bounds the RPC checks made before the service starts.
+const startupCheckTimeout = 30 * time.Second
+
 func run(cliCtx *cli.Context) error {
 	cfg, err := config.LoadConfig(cliCtx)
 	if err != nil {
@@ -80,6 +83,13 @@ func run(cliCtx *cli.Context) error {
 	challenger, err := service.New(l1Client, l2Client, cfg.RollupAddress, cfg.ReceiptTimeout)
 	if err != nil {
 		return fmt.Errorf("failed to create challenger: %w", err)
+	}
+
+	startCtx, cancelStart := context.WithTimeout(context.Background(), startupCheckTimeout)
+	err = challenger.VerifyL2ChainID(startCtx, l2Client)
+	cancelStart()
+	if err != nil {
+		return fmt.Errorf("L2 RPC check failed: %w", err)
 	}
 
 	probeCtx, stopProbe := context.WithCancel(context.Background())

@@ -90,3 +90,29 @@ func (v *bindingView) ChallengeDeposit(ctx context.Context) (*big.Int, error) {
 func (v *bindingView) Balance(ctx context.Context, addr common.Address) (*big.Int, error) {
 	return v.l1.GetBalance(ctx, addr)
 }
+
+// VerifyL2ChainID checks that the L2 endpoint serves the chain this Rollup
+// settles. Comparing against another chain would report every batch as a
+// mismatch and a challenge would then lose its deposit.
+func (s *Service) VerifyL2ChainID(ctx context.Context, l2 chainIDReader) error {
+	return verifyL2ChainID(ctx, s.rollup.LAYER2CHAINID, l2)
+}
+
+type chainIDReader interface {
+	ChainID(ctx context.Context) (*big.Int, error)
+}
+
+func verifyL2ChainID(ctx context.Context, rollupChainID func(*bind.CallOpts) (uint64, error), l2 chainIDReader) error {
+	want, err := rollupChainID(callOpts(ctx))
+	if err != nil {
+		return fmt.Errorf("read Rollup LAYER_2_CHAIN_ID: %w", err)
+	}
+	got, err := l2.ChainID(ctx)
+	if err != nil {
+		return fmt.Errorf("read L2 chain ID: %w", err)
+	}
+	if !got.IsUint64() || got.Uint64() != want {
+		return fmt.Errorf("L2 endpoint has chain ID %s, but the Rollup settles chain %d", got, want)
+	}
+	return nil
+}
