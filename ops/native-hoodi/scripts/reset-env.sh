@@ -80,9 +80,12 @@ def new_key():
     if isinstance(out, list): out = out[0]
     return out["private_key"]
 text = open(src).read()
-for r in roles:
+optional = ["CHALLENGER_PRIVATE_KEY"]   # absent in secrets files made before the challenger was added
+for r in roles + optional:
     pat = re.compile(r'^(\s*(?:export\s+)?' + r + r'\s*=\s*).*$', re.M)
-    if not pat.search(text): sys.exit("role not found in secrets: " + r)
+    if not pat.search(text):
+        if r in optional: continue
+        sys.exit("role not found in secrets: " + r)
     k = new_key()
     text = pat.sub(lambda m: m.group(1) + k, text, count=1)
 open(dst, "w").write(text)

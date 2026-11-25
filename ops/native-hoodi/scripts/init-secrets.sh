@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# init-secrets.sh — create env/secrets.env (mode 600) from the template: your deployer key + three freshly generated keys.
+# init-secrets.sh — create env/secrets.env (mode 600) from the template: your deployer key + four freshly generated keys.
 # The deployer key comes from the environment (DEPLOYER_PRIVATE_KEY), never from the command line. Prints only addresses.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,7 +16,8 @@ def new_key():
     if isinstance(out, list): out = out[0]
     return out["private_key"]
 keys = {"DEPLOYER_PRIVATE_KEY": os.environ["DEPLOYER_PRIVATE_KEY"], "SEQUENCER_PRIVATE_KEY": new_key(),
-        "BATCH_SUBMITTER_PRIVATE_KEY": new_key(), "L2_GAS_ORACLE_PRIVATE_KEY": new_key()}
+        "BATCH_SUBMITTER_PRIVATE_KEY": new_key(), "L2_GAS_ORACLE_PRIVATE_KEY": new_key(),
+        "CHALLENGER_PRIVATE_KEY": new_key()}
 text = open(src).read()
 for k, v in keys.items():
     text, n = re.subn(r'^(export ' + k + r'=).*$', lambda m: m.group(1) + '"' + v + '"', text, flags=re.M)
@@ -25,5 +26,5 @@ fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
 with os.fdopen(fd, "w") as f: f.write(text)
 PY
 set -a; source "${OUT}"; set +a
-for r in DEPLOYER SEQUENCER BATCH_SUBMITTER L2_GAS_ORACLE; do v="${r}_PRIVATE_KEY"; printf '%-16s %s\n' "${r}" "$(cast wallet address --private-key "${!v}")"; done
+for r in DEPLOYER SEQUENCER BATCH_SUBMITTER L2_GAS_ORACLE CHALLENGER; do v="${r}_PRIVATE_KEY"; printf '%-16s %s\n' "${r}" "$(cast wallet address --private-key "${!v}")"; done
 echo "written ${OUT} (mode 600). Fund the DEPLOYER address with ~1.5 Hoodi ETH, then follow README.md."

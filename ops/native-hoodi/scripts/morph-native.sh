@@ -7,10 +7,12 @@
 #   node-2 exists only so that node-0 can be restarted: see notes/issues.md I-028
 #   l1-proxy 是本机的 rpc-consistency-proxy.js:所有进程访问 L1 都走它(限流时切换备用端点、读写一致性),见 notes/issues.md I-018~I-021
 #   node-0 是 tendermint 验证者(出块);node-1 以 layer1 校验模式运行,不启动 tendermint。
+#   可选进程 challenger(不在上面的默认列表里):比对 L1/L2 的 batch 根并在不一致时发起 challengeState。
+#   用 `up challenger` 启动,或在 env/secrets.env 里设 CHALLENGER_ENABLE=1 让 `up` 一并启动。仅监听 127.0.0.1。
 #
 # 用法:
 #   morph-native.sh setup            生成 tendermint / geth 运行目录(用 deploy-l1.sh 产出的创世文件)
-#   morph-native.sh up [NAME...]     启动全部或指定进程
+#   morph-native.sh up [NAME...]     启动全部或指定进程(challenger 需显式指定或设 CHALLENGER_ENABLE=1)
 #   morph-native.sh down             停止全部进程(保留链数据)
 #   morph-native.sh status           进程、L2 高度、L1 同步高度、Rollup 批次
 #   morph-native.sh logs NAME        跟随某个进程的日志
@@ -38,6 +40,7 @@ STATE="${L2_RUN}/state"
 SECRETS="${SECRETS:-${ROOT}/env/secrets.env}"
 
 ALL=(l1-proxy morph-el-0 node-0 morph-el-1 node-1 morph-el-2 node-2 tx-submitter gas-price-oracle)
+OPTIONAL=(challenger)   # not started by a plain `up` unless CHALLENGER_ENABLE=1
 CHAIN_ID=53077
 JWT="${L2_RUN}/jwt-secret.txt"
 
@@ -207,7 +210,22 @@ launch() {
         "GAS_ORACLE_LOG_DIR=${LOGS}/gas-oracle-files" \
         -- "${BIN}/gas-oracle/app"
       ;;
-    *) die "unknown process: ${name} (one of: ${ALL[*]})" ;;
+    challenger)
+      [[ -n "${CHALLENGER_PRIVATE_KEY:-}" ]] || die "CHALLENGER_PRIVATE_KEY is not set in ${SECRETS} (see scripts/register-challenger.sh)"
+      [[ -x "${BIN}/challenger/challenger" ]] || die "missing ${BIN}/challenger/challenger: run scripts/build-all.sh"
+      # The service reads archive state from el-0 and sends challengeState through the l1-proxy. It is open (no auth) by
+      # default, so it only listens on 127.0.0.1. Ports 8080/6060 are avoided on purpose (see the port table in RUNBOOK.md).
+      spawn challenger \
+        "CHALLENGER_L1_ETH_RPC=${L1_ETH_RPC}" \
+        "CHALLENGER_L2_ETH_RPC=http://127.0.0.1:$(el_http 0)" \
+        "CHALLENGER_ROLLUP_ADDRESS=$(addr Proxy__Rollup)" \
+        "CHALLENGER_PRIVATE_KEY=${CHALLENGER_PRIVATE_KEY}" \
+        "CHALLENGER_HTTP_HOSTNAME=127.0.0.1" "CHALLENGER_HTTP_PORT=${CHALLENGER_HTTP_PORT:-8090}" \
+        "CHALLENGER_METRICS_SERVER_ENABLE=true" "CHALLENGER_METRICS_HOSTNAME=127.0.0.1" "CHALLENGER_METRICS_PORT=${CHALLENGER_METRICS_PORT:-6065}" \
+        "CHALLENGER_LOG_TERMINAL=true" \
+        -- "${BIN}/challenger/challenger"
+      ;;
+    *) die "unknown process: ${name} (one of: ${ALL[*]} ${OPTIONAL[*]})" ;;
   esac
 }
 
@@ -225,7 +243,7 @@ cmd_setup() {
 # clean: never deletes anything -- it MOVES data into run/archive/<what>-<timestamp>/ so a mistake can be undone.
 cmd_clean() {
   local what="${1:-}" p ts dest
-  for p in "${ALL[@]}"; do alive "${p}" && die "${p} is still running: run 'down' first"; done
+  for p in "${ALL[@]}" "${OPTIONAL[@]}"; do alive "${p}" && die "${p} is still running: run 'down' first"; done
   ts="$(date +%Y%m%d-%H%M%S)"; dest="${ROOT}/run/archive/${what}-${ts}"
   case "${what}" in
     logs)
@@ -249,12 +267,13 @@ cmd_up() {
   [[ -f "${L1_RUN}/deployment/hoodidev.json" ]] || die "no L1 deployment at ${L1_RUN}/deployment/hoodidev.json"
   [[ -d "${L2_RUN}/nodes/node0" ]] || die "no ${L2_RUN}/nodes — run: morph-native.sh setup"
   load_secrets
-  local names=("$@"); [[ ${#names[@]} -gt 0 ]] || names=("${ALL[@]}")
+  local names=("$@"); [[ ${#names[@]} -gt 0 ]] || { names=("${ALL[@]}"); [[ "${CHALLENGER_ENABLE:-0}" == "1" ]] && names+=("${OPTIONAL[@]}"); }
   for n in "${names[@]}"; do launch "${n}"; done
 }
 
 cmd_down() {
-  local i
+  local i p
+  for p in "${OPTIONAL[@]}"; do alive "${p}" && stop_one "${p}"; done
   for ((i = ${#ALL[@]} - 1; i >= 0; i--)); do stop_one "${ALL[i]}"; done
 }
 
@@ -264,6 +283,9 @@ cmd_status() {
   local n
   for n in "${ALL[@]}"; do
     if alive "${n}"; then printf '  %-18s running (pid %s)\n' "${n}" "$(cat "${PIDS}/${n}.pid")"; else printf '  %-18s stopped\n' "${n}"; fi
+  done
+  for n in "${OPTIONAL[@]}"; do
+    if alive "${n}"; then printf '  %-18s running (pid %s)  [optional]\n' "${n}" "$(cat "${PIDS}/${n}.pid")"; else printf '  %-18s stopped  [optional]\n' "${n}"; fi
   done
   echo ">>> L2 heights:  el-0 :$(el_http 0) -> $(rpc_height "$(el_http 0)")    el-1 :$(el_http 1) -> $(rpc_height "$(el_http 1)")    el-2 :$(el_http 2) -> $(rpc_height "$(el_http 2)")"
   if [[ -f "${SECRETS}" ]]; then

@@ -20,6 +20,7 @@ DEP="$(cast wallet address --private-key "${DEPLOYER_PRIVATE_KEY}")"
 SEQ="$(cast wallet address --private-key "${SEQUENCER_PRIVATE_KEY}")"
 SUB="$(cast wallet address --private-key "${BATCH_SUBMITTER_PRIVATE_KEY}")"
 ORA="$(cast wallet address --private-key "${L2_GAS_ORACLE_PRIVATE_KEY}")"
+CHA=""; [[ -n "${CHALLENGER_PRIVATE_KEY:-}" ]] && CHA="$(cast wallet address --private-key "${CHALLENGER_PRIVATE_KEY}")"
 {
   echo "# Deployment ${NAME}"; echo
   echo "- exported: $(date -Is)"
@@ -29,6 +30,7 @@ ORA="$(cast wallet address --private-key "${L2_GAS_ORACLE_PRIVATE_KEY}")"
   echo; echo "## Accounts (addresses only)"; echo
   echo "| role | address |"; echo "|---|---|"
   echo "| deployer | ${DEP} |"; echo "| sequencer | ${SEQ} |"; echo "| batch submitter | ${SUB} |"; echo "| gas oracle | ${ORA} |"
+  [[ -n "${CHA}" ]] && echo "| challenger | ${CHA} |"
   echo; echo "## Contracts (L1)"; echo; echo "| name | address |"; echo "|---|---|"
   node -e 'for (const x of JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))) console.log("| "+x.name+" | "+x.address+" |")' "${D}/contracts.json"
   echo; echo "Files: contracts.json, genesis/, versions.md, verification/ (test outputs)."

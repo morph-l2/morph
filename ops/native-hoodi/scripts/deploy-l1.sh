@@ -82,6 +82,8 @@ export ETH_RPC_URL="${RPC_URL}"
 for v in DEPLOYER_PRIVATE_KEY SEQUENCER_PRIVATE_KEY BATCH_SUBMITTER_PRIVATE_KEY; do
   [[ "${!v:-}" =~ ^0x[0-9a-fA-F]{64}$ ]] || { echo "${v} is not set to a 32-byte hex key in ${SECRETS}" >&2; exit 1; }
 done
+# the challenger key is optional (older secrets files do not have one); if set it must be well-formed
+[[ -z "${CHALLENGER_PRIVATE_KEY:-}" || "${CHALLENGER_PRIVATE_KEY}" =~ ^0x[0-9a-fA-F]{64}$ ]] || { echo "CHALLENGER_PRIVATE_KEY in ${SECRETS} is not a 32-byte hex key" >&2; exit 1; }
 
 # addr_of ENVVAR: derive an address from the key held in that variable without putting the key on a command line
 # (ethers from the contracts' node_modules reads the key from the environment; `cast wallet address` only takes it as an argument)
@@ -217,6 +219,12 @@ s33_fund_submitter() {
   echo "submitter funded: $(wei_to_eth "${before}") -> $(wei_to_eth "${after}") ETH"
 }
 
+s34_register_challenger() {
+  if [[ -z "${CHALLENGER_PRIVATE_KEY:-}" ]]; then echo "no CHALLENGER_PRIVATE_KEY in ${SECRETS}: not registering a challenger"; return 0; fi
+  # same RPC as this script (the consistency proxy when it is on); the deployment file is the one this run wrote
+  RPC_URL="${RPC_URL}" L1_RUN="${RUN_DIR}" SECRETS="${SECRETS}" MORPH="${MORPH}" "${ROOT}/scripts/register-challenger.sh"
+}
+
 s40_wait_finalized() {
   if [[ "${WAIT_FINALIZED}" != "1" ]]; then echo "WAIT_FINALIZED=${WAIT_FINALIZED}: skipped"; return 0; fi
   local target end fin
@@ -245,6 +253,10 @@ s90_summary() {
     echo "  transactions  : $((n1 - n0))"
     echo "submitter ${SUBMITTER}"
     echo "  balance before: $(wei_to_eth "${s0}") ETH   after: $(wei_to_eth "${s1}") ETH"
+    if [[ -n "${CHALLENGER_PRIVATE_KEY:-}" ]]; then
+      CHA="$(addr_of CHALLENGER_PRIVATE_KEY)"
+      echo "challenger ${CHA}  (Rollup.isChallenger; balance $(wei_to_eth "$(cast balance "${CHA}" --rpc-url "${RPC_URL}")") ETH)"
+    fi
     echo "L1 start block  : $(cat "${STATE}/start-block.dec") ($(cat "${STATE}/start-block.hex"))"
   } | tee "${STATE}/summary.txt"
 }
@@ -259,6 +271,7 @@ step s30_initialize s30_initialize
 step s31_register s31_register
 step s32_first_sequencer s32_first_sequencer
 step s33_fund_submitter s33_fund_submitter
+step s34_register_challenger s34_register_challenger
 step s40_wait_finalized s40_wait_finalized
 s90_summary
 if [[ -n "${PROXY_PID:-}" ]]; then say "proxy stats: $(curl -s "http://127.0.0.1:${PROXY_PORT}/stats")"; fi
