@@ -27,7 +27,8 @@ trap cleanup EXIT
 if (exec 3<>"/dev/tcp/127.0.0.1/${PORT}") 2>/dev/null; then echo "port ${PORT} is already in use" >&2; exit 1; fi
 
 echo "starting anvil fork of ${FORK_URL} on 127.0.0.1:${PORT} (chain-id 560048)"
-anvil --fork-url "${FORK_URL}" --chain-id 560048 --port "${PORT}" --host 127.0.0.1 >"${RUN_DIR}/logs/anvil.log" 2>&1 &
+# --block-time: without it anvil only mines on a transaction, and the deploy waits for later blocks (confirmations) forever
+anvil --fork-url "${FORK_URL}" --chain-id 560048 --port "${PORT}" --host 127.0.0.1 --block-time "${ANVIL_BLOCK_TIME:-1}" >"${RUN_DIR}/logs/anvil.log" 2>&1 &
 echo $! >"${PIDFILE}"
 for _ in $(seq 1 60); do
   cast chain-id --rpc-url "http://127.0.0.1:${PORT}" >/dev/null 2>&1 && break
