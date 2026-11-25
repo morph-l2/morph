@@ -2,6 +2,7 @@
 pragma solidity =0.8.24;
 
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 import {L1MessageQueueWithGasPriceOracle} from "../l1/rollup/L1MessageQueueWithGasPriceOracle.sol";
 import {IL1CrossDomainMessenger} from "../l1/L1CrossDomainMessenger.sol";
@@ -9,6 +10,7 @@ import {L1CrossDomainMessenger} from "../l1/L1CrossDomainMessenger.sol";
 import {IRollup} from "../l1/rollup/IRollup.sol";
 import {Predeploys} from "../libraries/constants/Predeploys.sol";
 import {ICrossDomainMessenger} from "../libraries/ICrossDomainMessenger.sol";
+import {RateLimiter} from "../libraries/common/RateLimiter.sol";
 import {L1MessageBaseTest} from "./base/L1MessageBase.t.sol";
 import {L1GatewayBaseTest} from "./base/L1GatewayBase.t.sol";
 import {IL2ETHGateway} from "../l2/gateways/IL2ETHGateway.sol";
@@ -471,5 +473,213 @@ contract L1CrossDomainMessengerTest is L1GatewayBaseTest {
         hevm.prank(multisig);
         l1CrossDomainMessenger.setPause(false);
         assertBoolEq(false, l1CrossDomainMessenger.paused());
+    }
+
+    function test_proveAndRelayMessage_ethRateLimit_succeeds() external {
+        hevm.deal(address(l1CrossDomainMessenger), 1000 ether);
+        _setETHRateLimiterConfig(true, 100 ether, 1 ether);
+
+        // released within the limit
+        bytes32 _hash = keccak256(_encodeXDomainCalldata(alice, bob, 60 ether, 0, ""));
+        (bytes32[32] memory _proof, bytes32 _root) = messageProveAndRelayPrepare(alice, bob, 60 ether, 0, "");
+        hevm.expectEmit(true, false, false, true);
+        emit IL1CrossDomainMessenger.ETHRateLimitConsumed(_hash, 60 ether, 40 ether);
+        l1CrossDomainMessenger.proveAndRelayMessage(alice, bob, 60 ether, 0, "", _proof, _root);
+        _assertETHRateLimiterState(40 ether, true, 100 ether, 1 ether);
+
+        // reverted when the limit is reached, and released after the wait time
+        _hash = keccak256(_encodeXDomainCalldata(alice, bob, 50 ether, 0, ""));
+        (_proof, _root) = messageProveAndRelayPrepare(alice, bob, 50 ether, 0, "");
+        hevm.expectRevert(abi.encodeWithSelector(RateLimiter.ErrRateLimitReached.selector, 10, 40 ether));
+        l1CrossDomainMessenger.proveAndRelayMessage(alice, bob, 50 ether, 0, "", _proof, _root);
+        assertBoolEq(false, l1CrossDomainMessenger.finalizedWithdrawals(_hash));
+
+        hevm.warp(block.timestamp + 10);
+        uint256 _balance = bob.balance;
+        l1CrossDomainMessenger.proveAndRelayMessage(alice, bob, 50 ether, 0, "", _proof, _root);
+        assertBoolEq(true, l1CrossDomainMessenger.finalizedWithdrawals(_hash));
+        assertEq(bob.balance, _balance + 50 ether);
+        _assertETHRateLimiterState(0, true, 100 ether, 1 ether);
+
+        // reverted when exceeding the capacity
+        (_proof, _root) = messageProveAndRelayPrepare(alice, bob, 101 ether, 0, "");
+        hevm.expectRevert(
+            abi.encodeWithSelector(RateLimiter.ErrRateLimitCapacityExceeded.selector, 100 ether, 101 ether)
+        );
+        l1CrossDomainMessenger.proveAndRelayMessage(alice, bob, 101 ether, 0, "", _proof, _root);
+    }
+
+    function test_proveAndRelayMessage_ethRateLimitRefund_succeeds() external {
+        hevm.deal(address(l1CrossDomainMessenger), 1000 ether);
+        _setETHRateLimiterConfig(true, 100 ether, 1 ether);
+
+        address _to = address(this);
+        bytes32 _hash = keccak256(_encodeXDomainCalldata(alice, _to, 60 ether, 0, ""));
+        (bytes32[32] memory _proof, bytes32 _root) = messageProveAndRelayPrepare(alice, _to, 60 ether, 0, "");
+
+        // the tokens are given back when the relay fails
+        revertOnReceive = true;
+        hevm.expectEmit(true, false, false, true);
+        emit ICrossDomainMessenger.FailedRelayedMessage(_hash);
+        l1CrossDomainMessenger.proveAndRelayMessage(alice, _to, 60 ether, 0, "", _proof, _root);
+        _assertETHRateLimiterState(100 ether, true, 100 ether, 1 ether);
+
+        // and consumed once the relay succeeds
+        revertOnReceive = false;
+        hevm.expectEmit(true, false, false, true);
+        emit IL1CrossDomainMessenger.ETHRateLimitConsumed(_hash, 60 ether, 40 ether);
+        l1CrossDomainMessenger.proveAndRelayMessage(alice, _to, 60 ether, 0, "", _proof, _root);
+        _assertETHRateLimiterState(40 ether, true, 100 ether, 1 ether);
+    }
+
+    function test_proveAndRelayMessage_zeroValueThrottled_succeeds() external {
+        hevm.deal(address(l1CrossDomainMessenger), 1 ether);
+        _setETHRateLimiterConfig(true, 0, 0);
+
+        (bytes32[32] memory _proof, bytes32 _root) = messageProveAndRelayPrepare(alice, bob, 1, 0, "");
+        hevm.expectRevert(abi.encodeWithSelector(RateLimiter.ErrRateLimitCapacityExceeded.selector, 0, 1));
+        l1CrossDomainMessenger.proveAndRelayMessage(alice, bob, 1, 0, "", _proof, _root);
+
+        // messages without ETH, such as ERC20 withdrawals, are not limited
+        bytes32 _hash = keccak256(_encodeXDomainCalldata(alice, bob, 0, 0, "message"));
+        (_proof, _root) = messageProveAndRelayPrepare(alice, bob, 0, 0, "message");
+        Vm(HEVM_ADDRESS).recordLogs();
+        l1CrossDomainMessenger.proveAndRelayMessage(alice, bob, 0, 0, "message", _proof, _root);
+        assertBoolEq(true, l1CrossDomainMessenger.finalizedWithdrawals(_hash));
+        _assertNoETHRateLimitConsumed();
+    }
+
+    function test_proveAndRelayMessage_ethRateLimitDisabled_succeeds() external {
+        hevm.deal(address(l1CrossDomainMessenger), 1000 ether);
+
+        (bytes32[32] memory _proof, bytes32 _root) = messageProveAndRelayPrepare(alice, bob, 1000 ether, 0, "");
+        Vm(HEVM_ADDRESS).recordLogs();
+        l1CrossDomainMessenger.proveAndRelayMessage(alice, bob, 1000 ether, 0, "", _proof, _root);
+        _assertNoETHRateLimitConsumed();
+        _assertETHRateLimiterState(0, false, 0, 0);
+    }
+
+    function test_proveAndRelayMessage_ethRateLimitCheckedLast_reverts() external {
+        hevm.deal(address(l1CrossDomainMessenger), 1 ether);
+        _setETHRateLimiterConfig(true, 0, 0);
+
+        bytes32 _hash = keccak256(_encodeXDomainCalldata(alice, bob, 1 ether, 0, ""));
+        (, bytes32[32] memory _proof, bytes32 _root) = ffi.getProveWithdrawalTransactionInputs(_hash);
+        hevm.expectRevert("Messenger: withdrawalRoot not finalized");
+        l1CrossDomainMessenger.proveAndRelayMessage(alice, bob, 1 ether, 0, "", _proof, _root);
+
+        hevm.mockCall(
+            address(l1CrossDomainMessenger.rollup()),
+            abi.encodeCall(IRollup.withdrawalRoots, (_root)),
+            abi.encode(true)
+        );
+        hevm.expectRevert("Messenger: invalid withdrawal inclusion proof");
+        l1CrossDomainMessenger.proveAndRelayMessage(alice, bob, 1 ether, 0, "invalid", _proof, _root);
+
+        hevm.prank(multisig);
+        l1CrossDomainMessenger.setPause(true);
+        hevm.expectRevert("Pausable: paused");
+        l1CrossDomainMessenger.proveAndRelayMessage(alice, bob, 1 ether, 0, "", _proof, _root);
+        hevm.prank(multisig);
+        l1CrossDomainMessenger.setPause(false);
+
+        hevm.expectRevert(abi.encodeWithSelector(RateLimiter.ErrRateLimitCapacityExceeded.selector, 0, 1 ether));
+        l1CrossDomainMessenger.proveAndRelayMessage(alice, bob, 1 ether, 0, "", _proof, _root);
+
+        // relayed with the limit disabled, then replayed with the limit throttled
+        _setETHRateLimiterConfig(false, 0, 0);
+        l1CrossDomainMessenger.proveAndRelayMessage(alice, bob, 1 ether, 0, "", _proof, _root);
+        _setETHRateLimiterConfig(true, 0, 0);
+        hevm.expectRevert("Messenger: withdrawal has already been finalized");
+        l1CrossDomainMessenger.proveAndRelayMessage(alice, bob, 1 ether, 0, "", _proof, _root);
+    }
+
+    function test_setETHRateLimiterConfig_owner_succeeds() external {
+        // enabled with a full bucket
+        hevm.expectEmit(false, false, false, true);
+        emit IL1CrossDomainMessenger.UpdateETHRateLimiterConfig(true, 100 ether, 1 ether);
+        _setETHRateLimiterConfig(true, 100 ether, 1 ether);
+        _assertETHRateLimiterState(100 ether, true, 100 ether, 1 ether);
+
+        // the owner can loosen and disable the limit
+        _setETHRateLimiterConfig(true, 200 ether, 2 ether);
+        _assertETHRateLimiterState(100 ether, true, 200 ether, 2 ether);
+        _setETHRateLimiterConfig(false, 0, 0);
+        _assertETHRateLimiterState(0, false, 0, 0);
+
+        hevm.expectRevert(abi.encodeWithSelector(RateLimiter.ErrInvalidRateLimitConfig.selector, true, 1, 2));
+        _setETHRateLimiterConfig(true, 1, 2);
+    }
+
+    function test_setETHRateLimiterConfig_rateLimitAdmin_succeeds() external {
+        hevm.prank(multisig);
+        l1CrossDomainMessenger.updateRateLimitAdmin(alice);
+
+        hevm.startPrank(alice);
+        // the admin can enable the limit, and lower the capacity and the rate
+        l1CrossDomainMessenger.setETHRateLimiterConfig(RateLimiter.Config(true, 100 ether, 1 ether));
+        l1CrossDomainMessenger.setETHRateLimiterConfig(RateLimiter.Config(true, 50 ether, 1 ether));
+        l1CrossDomainMessenger.setETHRateLimiterConfig(RateLimiter.Config(true, 50 ether, 0.5 ether));
+        _assertETHRateLimiterState(50 ether, true, 50 ether, 0.5 ether);
+
+        // but cannot raise or disable it
+        hevm.expectRevert(IL1CrossDomainMessenger.ErrRateLimitAdminCanOnlyTighten.selector);
+        l1CrossDomainMessenger.setETHRateLimiterConfig(RateLimiter.Config(true, 51 ether, 0.5 ether));
+        hevm.expectRevert(IL1CrossDomainMessenger.ErrRateLimitAdminCanOnlyTighten.selector);
+        l1CrossDomainMessenger.setETHRateLimiterConfig(RateLimiter.Config(true, 50 ether, 0.6 ether));
+        hevm.expectRevert(IL1CrossDomainMessenger.ErrRateLimitAdminCanOnlyTighten.selector);
+        l1CrossDomainMessenger.setETHRateLimiterConfig(RateLimiter.Config(false, 0, 0));
+
+        // the admin can throttle all ETH withdrawals
+        l1CrossDomainMessenger.setETHRateLimiterConfig(RateLimiter.Config(true, 0, 0));
+        _assertETHRateLimiterState(0, true, 0, 0);
+        hevm.stopPrank();
+
+        // the role is revoked
+        hevm.prank(multisig);
+        l1CrossDomainMessenger.updateRateLimitAdmin(address(0));
+        hevm.expectRevert(IL1CrossDomainMessenger.ErrNotOwnerOrRateLimitAdmin.selector);
+        hevm.prank(alice);
+        l1CrossDomainMessenger.setETHRateLimiterConfig(RateLimiter.Config(true, 0, 0));
+    }
+
+    function test_setETHRateLimiterConfig_notOwnerOrRateLimitAdmin_reverts() external {
+        hevm.expectRevert(IL1CrossDomainMessenger.ErrNotOwnerOrRateLimitAdmin.selector);
+        hevm.prank(bob);
+        l1CrossDomainMessenger.setETHRateLimiterConfig(RateLimiter.Config(true, 0, 0));
+    }
+
+    function test_updateRateLimitAdmin_succeeds(address _rateLimitAdmin) external {
+        hevm.expectRevert("Ownable: caller is not the owner");
+        hevm.prank(bob);
+        l1CrossDomainMessenger.updateRateLimitAdmin(_rateLimitAdmin);
+
+        hevm.expectEmit(true, true, false, true);
+        emit IL1CrossDomainMessenger.UpdateRateLimitAdmin(address(0), _rateLimitAdmin);
+        hevm.prank(multisig);
+        l1CrossDomainMessenger.updateRateLimitAdmin(_rateLimitAdmin);
+        assertEq(l1CrossDomainMessenger.rateLimitAdmin(), _rateLimitAdmin);
+    }
+
+    function _setETHRateLimiterConfig(bool _isEnabled, uint128 _capacity, uint128 _rate) internal {
+        hevm.prank(multisig);
+        l1CrossDomainMessenger.setETHRateLimiterConfig(RateLimiter.Config(_isEnabled, _capacity, _rate));
+    }
+
+    function _assertETHRateLimiterState(uint256 _tokens, bool _isEnabled, uint256 _capacity, uint256 _rate) internal {
+        RateLimiter.TokenBucket memory _state = l1CrossDomainMessenger.currentETHRateLimiterState();
+        assertEq(_state.tokens, _tokens);
+        assertBoolEq(_state.isEnabled, _isEnabled);
+        assertEq(_state.capacity, _capacity);
+        assertEq(_state.rate, _rate);
+    }
+
+    function _assertNoETHRateLimitConsumed() internal {
+        Vm.Log[] memory _logs = Vm(HEVM_ADDRESS).getRecordedLogs();
+        for (uint256 i = 0; i < _logs.length; i++) {
+            if (_logs[i].topics.length > 0) {
+                assertTrue(_logs[i].topics[0] != IL1CrossDomainMessenger.ETHRateLimitConsumed.selector);
+            }
+        }
     }
 }
