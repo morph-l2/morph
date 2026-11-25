@@ -67,7 +67,9 @@ has() { node -e 'process.exit(BigInt(process.argv[1]) >= BigInt(process.argv[2])
 if has; then
   say "challenger balance $(cast balance "${CHALLENGER}" --ether --rpc-url "${RPC_URL}") ETH (>= ${FUND_ETH}): not funding"
 else
-  KEY="${DEPLOYER_PRIVATE_KEY}" node "${ROOT}/scripts/send-tx.js" "${RPC_URL}" "${CHALLENGER}" --value-ether "${FUND_ETH}"
+  # send only the difference, so the balance ends at CHALLENGER_FUND_ETH
+  top_up="$(cast from-wei "$(node -e 'console.log((BigInt(process.argv[1]) - BigInt(process.argv[2])).toString())' "${want}" "$(cast balance "${CHALLENGER}" --rpc-url "${RPC_URL}")")")"
+  KEY="${DEPLOYER_PRIVATE_KEY}" node "${ROOT}/scripts/send-tx.js" "${RPC_URL}" "${CHALLENGER}" --value-ether "${top_up}"
   wait_for has || { echo "challenger balance is still below ${FUND_ETH} ETH after funding" >&2; exit 1; }
   say "challenger funded: $(cast balance "${CHALLENGER}" --ether --rpc-url "${RPC_URL}") ETH"
 fi
