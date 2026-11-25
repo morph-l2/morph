@@ -115,8 +115,9 @@ curl -s http://127.0.0.1:8090/batch/$((FIN + 1))    # 已提交未 finalized 的
 4. **公共 RPC 不可靠。** 背后是多个节点:刚上链的区块可能读不到,偶尔限流。`l1-proxy` 解决这两件事,所有进程都应经过它,不要直接连 Hoodi。
 5. **node-1 不是实时的。** 它按批次推进,批次提交到 L1 后才前进,所以总会落后几百个块(约一个批次)。
 6. **不要把 `hardhat` 任务的退出码当成功。** 它们出错时常常只打印一行然后退出码为 0。部署后用 `verify-l1.sh` 读链上状态。
-7. **改动在 git 里。** 对上游仓库的改动只有 4 个文件:`contracts/hardhat.config.ts`(加网络 `hoodidev`)、`contracts/src/deploy-config/hoodidev.ts`、`ops/l2-genesis/deploy-config/hoodidev-deploy-config.json`、`contracts/src/deploy-utils.ts`(可选的读重试)。
-8. **challenger 不会自动挑战。** 它不轮询 L1,必须有人 `POST /challenge`。挑战成功后 finalize 会停住,需要 owner `revertBatch` 收尾;`proofWindow` 过后调 `proveState` 判挑战方胜,会罚没提交该批次的 submitter 并让合约进入 `pending revert request`。
+7. **owner / 管理员 / 费用接收方都是 deployer,不是写死在仓库里的地址。** `deploy-l1.sh` 从 `env/secrets.env` 的密钥推导出地址,经环境变量传给 `hoodidev.ts`,并填进生成的创世配置(`run/l1/hoodidev-deploy-config.generated.json`)。谁来部署,谁就是 owner。序列器集合、Tendermint 与 BLS 公钥是固定的。
+8. **改动在 git 里。** 对上游仓库的改动只有 4 个文件:`contracts/hardhat.config.ts`(加网络 `hoodidev`)、`contracts/src/deploy-config/hoodidev.ts`、`ops/l2-genesis/deploy-config/hoodidev-deploy-config.json`、`contracts/src/deploy-utils.ts`(可选的读重试)。
+9. **challenger 不会自动挑战。** 它不轮询 L1,必须有人 `POST /challenge`。挑战成功后 finalize 会停住,需要 owner `revertBatch` 收尾;`proofWindow` 过后调 `proveState` 判挑战方胜,会罚没提交该批次的 submitter 并让合约进入 `pending revert request`。
 
 ## 8. 成本(实测)
 

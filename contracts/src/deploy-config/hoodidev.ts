@@ -1,9 +1,14 @@
 // hoodidev: a private Morph L2 (chain 53077) whose L1 is the public Ethereum Hoodi testnet (chain 560048).
 // Derived from l1.ts (the local devnet). Do NOT reuse hoodi.ts: that is Morph's official Hoodi deployment.
+// Addresses that follow whoever runs the deploy come from the environment, not from this file: deploy-l1.sh derives them
+// from the keys in env/secrets.env and exports them. An empty value is rejected by the deploy tasks (isAddress checks, or the
+// contract constructor), so a missing variable stops the run instead of silently using someone else's address.
+const addr = (name: string): string => process.env[name] || ''
+
 const config = {
     // Global configuration
-    contractAdmin: '0x2d66b081246b93caC31dEdC03421ee863AE0624D',
-    l1FeeVaultRecipient: '0x2d66b081246b93caC31dEdC03421ee863AE0624D',
+    contractAdmin: addr('MORPH_DEPLOYER_ADDRESS'),
+    l1FeeVaultRecipient: addr('MORPH_DEPLOYER_ADDRESS'),
 
     l1WETHAddress: "",
     l1USDCAddress: "",
@@ -28,8 +33,9 @@ const config = {
     rollupDelayPeriod: 86400,
 
     // challenge config
-    batchSubmitterAddresses: ['0x988709F4B219faC95440CEF25F2c50c554201008'],
-    rollupChallenger: '0x2d66b081246b93caC31dEdC03421ee863AE0624D',
+    // `register` uses the keys in $batchSubmitterPks when they are set (deploy-l1.sh does); this list is only the fallback.
+    batchSubmitterAddresses: process.env.MORPH_BATCH_SUBMITTER_ADDRESS ? [process.env.MORPH_BATCH_SUBMITTER_ADDRESS] : [],
+    rollupChallenger: addr('MORPH_CHALLENGER_ADDRESS'),
     // genesis config
     // The genesis batch header comes out of the L2 genesis tool, so it is passed in through MORPH_BATCH_HEADER instead of
     // being rewritten into this file (l1.ts is rewritten in place by the devnet's main.py). Empty means "not generated yet":
@@ -37,7 +43,7 @@ const config = {
     batchHeader: process.env.MORPH_BATCH_HEADER || '',
 
     // submitter initialize config
-    submitterOwner: '0x2d66b081246b93caC31dEdC03421ee863AE0624D',
+    submitterOwner: addr('MORPH_DEPLOYER_ADDRESS'),
     submitterChallengeDeposit: 0.01, // 0.01 ether (devnet: l1.ts uses 1)
     submitterMinimumStake: 0.01, // 0.01 ether (devnet: l1.ts uses 1); `register` stakes this from the owner
     submitterRewardPercentage: 100,

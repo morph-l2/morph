@@ -6,6 +6,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${ROOT}/scripts/lib/env.sh"
 OUT="${ROOT}/env/secrets.env"
 [[ -n "${DEPLOYER_PRIVATE_KEY:-}" ]] || { echo "error: set DEPLOYER_PRIVATE_KEY in the environment first" >&2; exit 1; }
+[[ "${DEPLOYER_PRIVATE_KEY}" =~ ^0x[0-9a-fA-F]{64}$ ]] || { echo "error: DEPLOYER_PRIVATE_KEY must be 0x followed by 64 hex characters" >&2; exit 1; }
+[[ "${DEPLOYER_PRIVATE_KEY,,}" != "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" ]] || { echo "error: that is the public Anvil key; use a key only you hold" >&2; exit 1; }
 [[ ! -e "${OUT}" ]] || { echo "error: ${OUT} exists; move it away first (scripts/reset-env.sh --new-keys does that)" >&2; exit 1; }
 python3 -I - "${ROOT}/env/hoodi.env.example" "${OUT}" <<'PY'
 import json, os, re, subprocess, sys
@@ -27,4 +29,5 @@ with os.fdopen(fd, "w") as f: f.write(text)
 PY
 set -a; source "${OUT}"; set +a
 for r in DEPLOYER SEQUENCER BATCH_SUBMITTER L2_GAS_ORACLE CHALLENGER; do v="${r}_PRIVATE_KEY"; printf '%-16s %s\n' "${r}" "$(cast wallet address --private-key "${!v}")"; done
+echo "The DEPLOYER address becomes the owner, admin and fee recipient of this deployment (nothing of the kind is fixed in the repo)."
 echo "written ${OUT} (mode 600). Fund the DEPLOYER address with ~1.5 Hoodi ETH, then follow README.md."

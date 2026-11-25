@@ -28,6 +28,12 @@ Four small, already-committed changes on this branch (everything else is in this
 - `contracts/hardhat.config.ts`: a `hoodidev` network (chain 560048, RPC from `HOODIDEV_RPC_URL`, key from `DEPLOYER_PRIVATE_KEY`)
 - `contracts/src/deploy-config/hoodidev.ts`: deploy config for it
 - `ops/l2-genesis/deploy-config/hoodidev-deploy-config.json`: L2 genesis config for it
+
+No owner, admin, fee-recipient or challenger address is fixed in these two files. `deploy-l1.sh` derives them from the keys in
+`env/secrets.env` and passes them in (`MORPH_DEPLOYER_ADDRESS`, `MORPH_CHALLENGER_ADDRESS`, `MORPH_BATCH_SUBMITTER_ADDRESS` for `hoodidev.ts`;
+a `REPLACE_WITH_DEPLOYER_ADDRESS` placeholder in the genesis config, filled into `run/l1/hoodidev-deploy-config.generated.json`).
+Owner, admin and fee recipient are **the deployer**, so whoever runs the deployment holds them; the challenger, sequencer, batch
+submitter and gas oracle are separate generated keys. The sequencer set, Tendermint and BLS keys in the configs are fixed.
 - `contracts/src/deploy-utils.ts`: optional read retries (`MORPH_READ_RETRIES`), used because public RPCs are read-after-write inconsistent
 
 ## 2. What you need
@@ -56,7 +62,7 @@ All commands from this directory (`ops/native-hoodi/`).
 # 1. build all binaries into ./bin (about 5-10 minutes the first time)
 scripts/build-all.sh
 
-# 2. keys: your funded deployer key + four generated ones (sequencer, batch submitter, gas oracle, challenger). Prints
+# 2. keys: your funded deployer key (it becomes the owner of everything; the public Anvil key is refused) + four generated ones (sequencer, batch submitter, gas oracle, challenger). Prints
 #    addresses only. Then fund the DEPLOYER address.
 DEPLOYER_PRIVATE_KEY=0x... scripts/init-secrets.sh
 

@@ -82,6 +82,8 @@ export ETH_RPC_URL="${RPC_URL}"
 for v in DEPLOYER_PRIVATE_KEY SEQUENCER_PRIVATE_KEY BATCH_SUBMITTER_PRIVATE_KEY; do
   [[ "${!v:-}" =~ ^0x[0-9a-fA-F]{64}$ ]] || { echo "${v} is not set to a 32-byte hex key in ${SECRETS}" >&2; exit 1; }
 done
+# The publicly known Anvil key must never own a public-chain deployment (hardhat.config.ts refuses it as well).
+[[ "${DEPLOYER_PRIVATE_KEY,,}" != "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" ]] || { echo "DEPLOYER_PRIVATE_KEY is the public Anvil key: use a key only you hold" >&2; exit 1; }
 # the challenger key is optional (older secrets files do not have one); if set it must be well-formed
 [[ -z "${CHALLENGER_PRIVATE_KEY:-}" || "${CHALLENGER_PRIVATE_KEY}" =~ ^0x[0-9a-fA-F]{64}$ ]] || { echo "CHALLENGER_PRIVATE_KEY in ${SECRETS} is not a 32-byte hex key" >&2; exit 1; }
 
@@ -91,6 +93,11 @@ addr_of() { ( cd "${MORPH}/contracts" && KEY="${!1}" node -e 'console.log(new (r
 DEPLOYER="$(addr_of DEPLOYER_PRIVATE_KEY)"
 SEQUENCER="$(addr_of SEQUENCER_PRIVATE_KEY)"
 SUBMITTER="$(addr_of BATCH_SUBMITTER_PRIVATE_KEY)"
+# The challenger is its own account when a key is configured; otherwise the deployer doubles as challenger (older secrets files).
+if [[ -n "${CHALLENGER_PRIVATE_KEY:-}" ]]; then CHALLENGER="$(addr_of CHALLENGER_PRIVATE_KEY)"; else CHALLENGER="${DEPLOYER}"; fi
+# contracts/src/deploy-config/hoodidev.ts reads these; the L2 genesis config gets the deployer address in s00_preflight.
+# Nothing about the owner / admin / fee-recipient accounts is fixed in the repo: they follow the key that runs this script.
+export MORPH_DEPLOYER_ADDRESS="${DEPLOYER}" MORPH_CHALLENGER_ADDRESS="${CHALLENGER}" MORPH_BATCH_SUBMITTER_ADDRESS="${SUBMITTER}"
 
 say() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*"; }
 
@@ -126,20 +133,31 @@ s00_preflight() {
   [[ "${id}" == "${EXPECT_L1_CHAIN_ID}" ]] || { echo "L1 chain id is ${id}, expected ${EXPECT_L1_CHAIN_ID}"; return 1; }
   bal="$(cast balance "${DEPLOYER}" --rpc-url "${RPC_URL}")"
   [[ "${bal}" != "0" ]] || { echo "deployer ${DEPLOYER} has no balance on this L1"; return 1; }
+  # deploy gas (~0.07 ETH, 0.1 for margin) + what this run transfers on to the submitter and the challenger
+  local need_eth need_wei
+  need_eth="$(node -e 'console.log(String(0.1 + Number(process.argv[1]) + (process.argv[2] ? Number(process.argv[2]) : 0)))' "${SUBMITTER_FUND_ETH}" "$([[ -n "${CHALLENGER_PRIVATE_KEY:-}" ]] && echo "${CHALLENGER_FUND_ETH:-0.2}")")"
+  need_wei="$(cast to-wei "${need_eth}" ether)"
+  node -e 'process.exit(BigInt(process.argv[1]) >= BigInt(process.argv[2]) ? 0 : 1)' "${bal}" "${need_wei}" ||
+    { echo "deployer ${DEPLOYER} has $(wei_to_eth "${bal}") ETH, this run needs about ${need_eth} ETH"; return 1; }
+  echo "owner / admin / fee recipient of this deployment: ${DEPLOYER} (the deployer)"
+  echo "challenger: ${CHALLENGER}$([[ "${CHALLENGER}" == "${DEPLOYER}" ]] && echo " (same as the deployer: no CHALLENGER_PRIVATE_KEY in ${SECRETS})")"
   echo "${bal}" >"${STATE}/deployer-balance-before.wei"
   cast balance "${SUBMITTER}" --rpc-url "${RPC_URL}" >"${STATE}/submitter-balance-before.wei"
   cast nonce "${DEPLOYER}" --rpc-url "${RPC_URL}" >"${STATE}/deployer-nonce-before"
   start_dec="$(cast block-number --rpc-url "${RPC_URL}")"
   echo "${start_dec}" >"${STATE}/start-block.dec"
   printf '0x%x\n' "${start_dec}" >"${STATE}/start-block.hex"
-  # generated copy of the genesis deploy config with the real L1 starting block (the tracked file keeps a placeholder)
+  # generated copy of the genesis deploy config: the tracked file keeps placeholders for the L1 starting block and for the
+  # deployer address (owners, admin, fee recipients); this fills both in and refuses to continue if any placeholder is left
   node -e '
     const fs = require("fs");
-    const [src, dst, tag] = process.argv.slice(1);
-    const c = JSON.parse(fs.readFileSync(src, "utf8"));
+    const [src, dst, tag, deployer] = process.argv.slice(1);
+    const c = JSON.parse(fs.readFileSync(src, "utf8").split("REPLACE_WITH_DEPLOYER_ADDRESS").join(deployer));
     c.l1StartingBlockTag = tag;
+    const left = JSON.stringify(c).match(/REPLACE_WITH_[A-Z_]+/g);
+    if (left) { console.error("unreplaced placeholders in the genesis config: " + [...new Set(left)].join(", ")); process.exit(1); }
     fs.writeFileSync(dst, JSON.stringify(c, null, 2) + "\n");
-  ' "${MORPH}/ops/l2-genesis/deploy-config/hoodidev-deploy-config.json" "${GEN_CONFIG}" "$(cat "${STATE}/start-block.hex")"
+  ' "${MORPH}/ops/l2-genesis/deploy-config/hoodidev-deploy-config.json" "${GEN_CONFIG}" "$(cat "${STATE}/start-block.hex")" "${DEPLOYER}"
   echo "chain ${id}; deployer ${DEPLOYER} balance $(wei_to_eth "${bal}") ETH; L1 start block ${start_dec}"
 }
 
@@ -190,6 +208,15 @@ s31_register() {
   # NOT `hardhat fund`, which would send 100 ETH to the submitter.
   batchSubmitterPks="[\"${BATCH_SUBMITTER_PRIVATE_KEY}\"]" \
     hardhat register --network hoodidev --storagepath "${DEPLOY_JSON}"
+  # the task exits 0 even when it fails (for instance when the Submitter owner is not the deployer): read the result back
+  local sub_proxy active
+  sub_proxy="$(node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).find(x=>x.name==="Proxy__Submitter"); if(!d){process.exit(1)} console.log(d.address)' "${DEPLOY_JSON}")"
+  for _ in $(seq 1 15); do
+    active="$(cast call "${sub_proxy}" 'isActive(address)(bool)' "${SUBMITTER}" --rpc-url "${RPC_URL}" 2>/dev/null || true)"
+    [[ "${active}" == "true" ]] && break; sleep 2
+  done
+  [[ "${active}" == "true" ]] || { echo "Submitter.isActive(${SUBMITTER}) = ${active:-?} after register: it is not registered and staked"; return 1; }
+  echo "submitter ${SUBMITTER} is active on ${sub_proxy}"
 }
 
 s32_first_sequencer() {
