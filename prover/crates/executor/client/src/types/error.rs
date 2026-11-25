@@ -39,8 +39,6 @@ pub enum ClientError {
     MissingHeaderBaseFee(u64),
     #[error("Invalid base fee found in header \n maximum: {} found: {}", .0, .1)]
     InvalidHeaderBaseFee(u64, u64),
-    #[error("Invalid next L1 message index: block number = {block_num}, reason = {reason}")]
-    InvalidNextL1MessageIndex { block_num: u64, reason: String },
     #[error("Invalid parent header found for block \n expected: {}, found: {}", .0, .1)]
     InvalidHeaderParentHash(FixedBytes<32>, FixedBytes<32>),
     #[error("Invalid mix hash in header: block number = {block_num}, mix hash = {mix_hash}")]
@@ -57,6 +55,8 @@ pub enum ClientError {
     L1MessageNotConsecutive { block_num: u64, expected: u64, actual: u64 },
     #[error("Malformed L1 message: block number = {block_num}, tx index = {tx_index}")]
     MalformedL1Message { block_num: u64, tx_index: usize },
+    #[error("batch has {count} L1 messages, exceeding the data_hash limit of {}", u16::MAX)]
+    BatchL1MessageCountOverflow { count: usize },
     #[error("Failed to validate post exectution state {}", 0)]
     PostExecutionError(String),
     #[error("Block Execution Failed: {}", .0)]

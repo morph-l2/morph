@@ -16,6 +16,7 @@ alloy-rlp.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_with.workspace = true
 morph-primitives.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

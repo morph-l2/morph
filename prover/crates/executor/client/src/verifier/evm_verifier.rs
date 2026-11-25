@@ -1,7 +1,7 @@
 use alloy_consensus::BlockHeader;
 use alloy_primitives::B256;
-use morph_primitives::Block;
-use prover_executor_core::{MorphExecutor, validate_next_l1_msg_index};
+use morph_primitives::{Block, MorphHeader};
+use prover_executor_core::{MorphExecutor, chain_spec_by_chain_id, validate_block_pre_execution};
 use reth_trie::{HashedPostState, KeccakKeyHasher};
 
 use crate::types::{batch::BatchInfo, error::ClientError, input::BlockInput};
@@ -26,20 +26,10 @@ impl EVMVerifier {
                 return Err(ClientError::ChainIdNotMatch);
             }
 
-            // Blocknum check
-            let previous = window[0].current_block.number();
-            let current = window[1].current_block.number();
-            let expected = previous
-                .checked_add(1)
-                .ok_or(ClientError::InvalidHeaderBlockNumber(previous, current))?;
-            if current != expected {
-                return Err(ClientError::InvalidHeaderBlockNumber(expected, current));
-            }
-
-            // Block timestamp check
-            if window[0].current_block.timestamp() > window[1].current_block.timestamp() {
-                return Err(ClientError::InvalidBlockTimestamp(current));
-            }
+            validate_header_against_parent(
+                &window[1].current_block.header,
+                &window[0].current_block.header,
+            )?;
 
             // StateRoot continuous check
             if window[0].current_block.state_root() != window[1].parent_state.state_root() {
@@ -48,58 +38,52 @@ impl EVMVerifier {
         }
 
         for input in &blocks {
-            validate_header_constants(&input.current_block)?;
-            validate_base_fee(&input.current_block)?;
+            validate_header(&input.current_block.header)?;
         }
 
         // The DA commitments bind only the L1-only projection (`data_hash`) and the
         // L2-only projection (blob) of each block's transactions, never their
         // interleaving. Enforce the canonical order before execution so that one
         // committed batch admits exactly one transaction stream.
-        validate_canonical_order(blocks.iter().map(|input| &input.current_block))?;
-        for (index, input) in blocks.iter().enumerate() {
-            let parent_header =
-                index.checked_sub(1).map(|parent_index| &blocks[parent_index].current_block.header);
-            validate_next_l1_msg_index(
-                input.chain_id,
-                parent_header,
-                &input.current_block.header,
-                &input.current_block.body.transactions,
-            )
-            .map_err(|reason| ClientError::InvalidNextL1MessageIndex {
-                block_num: input.current_block.number(),
-                reason: reason.to_string(),
-            })?;
-        }
+        // The header's next_l1_msg_index is not committed and does not affect execution.
+        validate_batch_l1_message_order(blocks.iter().map(|input| &input.current_block))?;
 
         execute(blocks)
     }
 }
 
-/// Validates header fields that feed the EVM block environment but are not committed by the
-/// blob. `mix_hash` becomes PREVRANDAO and `difficulty` becomes DIFFICULTY (pre-Merge spec);
-/// morph-geth always returns 0 for opcode 0x44 and builds L2 headers with both set to zero, so
-/// any other value would yield a state transition the L2 network never executed.
-fn validate_header_constants(block: &Block) -> Result<(), ClientError> {
-    let block_num = block.header.number();
-    let mix_hash = block.header.mix_hash().unwrap_or_default();
+fn validate_header(header: &MorphHeader) -> Result<(), ClientError> {
+    // The blob does not commit mix_hash (PREVRANDAO) or difficulty (pre-Merge DIFFICULTY).
+    // Morph L2 fixes both to zero, so the witness cannot choose the value of opcode 0x44.
+    let block_num = header.number();
+    let mix_hash = header.mix_hash().unwrap_or_default();
     if mix_hash != B256::ZERO {
         return Err(ClientError::InvalidHeaderMixHash { block_num, mix_hash });
     }
-    let difficulty = block.header.difficulty();
+    let difficulty = header.difficulty();
     if !difficulty.is_zero() {
         return Err(ClientError::InvalidHeaderDifficulty { block_num, difficulty });
+    }
+    let base_fee = header.base_fee_per_gas().ok_or(ClientError::MissingHeaderBaseFee(block_num))?;
+    if base_fee > MAX_L2_BASE_FEE {
+        return Err(ClientError::InvalidHeaderBaseFee(MAX_L2_BASE_FEE, base_fee));
     }
     Ok(())
 }
 
-fn validate_base_fee(block: &Block) -> Result<(), ClientError> {
-    let base_fee = block
-        .header
-        .base_fee_per_gas()
-        .ok_or(ClientError::MissingHeaderBaseFee(block.header.number()))?;
-    if base_fee > MAX_L2_BASE_FEE {
-        return Err(ClientError::InvalidHeaderBaseFee(MAX_L2_BASE_FEE, base_fee));
+fn validate_header_against_parent(
+    header: &MorphHeader,
+    parent: &MorphHeader,
+) -> Result<(), ClientError> {
+    let current = header.number();
+    let previous = parent.number();
+    let expected =
+        previous.checked_add(1).ok_or(ClientError::InvalidHeaderBlockNumber(previous, current))?;
+    if current != expected {
+        return Err(ClientError::InvalidHeaderBlockNumber(expected, current));
+    }
+    if header.timestamp() < parent.timestamp() {
+        return Err(ClientError::InvalidBlockTimestamp(current));
     }
     Ok(())
 }
@@ -113,7 +97,7 @@ fn validate_base_fee(block: &Block) -> Result<(), ClientError> {
 ///
 /// Together with the per-block `num_l1_txs` in the blob's block context, this makes the
 /// transaction stream of every block a function of the committed batch data.
-pub(crate) fn validate_canonical_order<'a>(
+fn validate_batch_l1_message_order<'a>(
     blocks: impl IntoIterator<Item = &'a Block>,
 ) -> Result<(), ClientError> {
     let mut expected_queue_index: Option<u64> = None;
@@ -160,6 +144,9 @@ fn execute(mut block_inputs: Vec<BlockInput>) -> Result<BatchInfo, ClientError> 
 
 fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     let block = &block_input.current_block;
+    let chain_spec = chain_spec_by_chain_id(block_input.chain_id);
+    validate_block_pre_execution(block, &chain_spec)
+        .map_err(|e| ClientError::BlockExecutionError(format!("{e:#}")))?;
 
     if block.body.transactions.is_empty() {
         if block.state_root() != block_input.parent_state.state_root() {
@@ -174,7 +161,6 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
         return Ok(());
     }
     let header = &block.header;
-    let chain_id = block_input.chain_id;
     let _block_num = block.number();
     let _txn_count = block.body.transactions.len();
 
@@ -182,7 +168,7 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
     let trie_db = block_input.witness_db()?;
 
     // Execute the whole block via reth's BasicBlockExecutor.
-    let core_executor = MorphExecutor::new_ref(trie_db, chain_id);
+    let core_executor = MorphExecutor::new_ref(trie_db, chain_spec);
     let bundle_state = core_executor
         .execute_block(block.clone())
         .map_err(|e| ClientError::BlockExecutionError(format!("{e:#}")))?;
@@ -211,7 +197,8 @@ fn execute_block(block_input: &mut BlockInput) -> Result<(), ClientError> {
 mod tests {
     use alloy_consensus::{BlockBody, Sealed, Signed, TxLegacy};
     use alloy_primitives::{Signature, U256};
-    use morph_primitives::{MorphHeader, MorphTxEnvelope, TxL1Msg};
+    use morph_primitives::{MorphTxEnvelope, TxL1Msg, TxMorph};
+    use prover_executor_core::MAINNET_CHAIN_ID;
 
     use super::*;
 
@@ -242,28 +229,28 @@ mod tests {
             block(4, vec![l1(2)]),
             block(5, vec![l1(3), l2(3)]),
         ];
-        validate_canonical_order(&blocks).unwrap();
+        validate_batch_l1_message_order(&blocks).unwrap();
     }
 
     #[test]
     fn rejects_l1_message_after_l2_tx() {
         for txs in [vec![l2(0), l2(1), l1(0), l1(1)], vec![l1(0), l2(0), l1(1)], vec![l2(0), l1(0)]]
         {
-            let err = validate_canonical_order(&[block(7, txs)]).unwrap_err();
+            let err = validate_batch_l1_message_order(&[block(7, txs)]).unwrap_err();
             assert!(matches!(err, ClientError::L1MessageAfterL2Tx { block_num: 7, .. }), "{err}");
         }
     }
 
     #[test]
     fn rejects_non_consecutive_queue_index() {
-        let err = validate_canonical_order(&[block(1, vec![l1(0), l1(2)])]).unwrap_err();
+        let err = validate_batch_l1_message_order(&[block(1, vec![l1(0), l1(2)])]).unwrap_err();
         assert!(matches!(
             err,
             ClientError::L1MessageNotConsecutive { block_num: 1, expected: 1, actual: 2 }
         ));
 
-        let err =
-            validate_canonical_order(&[block(1, vec![l1(5)]), block(2, vec![l1(5)])]).unwrap_err();
+        let err = validate_batch_l1_message_order(&[block(1, vec![l1(5)]), block(2, vec![l1(5)])])
+            .unwrap_err();
         assert!(matches!(
             err,
             ClientError::L1MessageNotConsecutive { block_num: 2, expected: 6, actual: 5 }
@@ -274,13 +261,13 @@ mod tests {
     fn validates_base_fee_range() {
         let mut b = block(9, vec![]);
         b.header.inner.base_fee_per_gas = Some(0);
-        validate_base_fee(&b).unwrap();
+        validate_header(&b.header).unwrap();
 
         b.header.inner.base_fee_per_gas = Some(MAX_L2_BASE_FEE);
-        validate_base_fee(&b).unwrap();
+        validate_header(&b.header).unwrap();
 
         b.header.inner.base_fee_per_gas = None;
-        assert!(matches!(validate_base_fee(&b), Err(ClientError::MissingHeaderBaseFee(9))));
+        assert!(matches!(validate_header(&b.header), Err(ClientError::MissingHeaderBaseFee(9))));
     }
 
     #[test]
@@ -303,17 +290,44 @@ mod tests {
     }
 
     #[test]
+    fn rejects_morph_tx_before_emerald_in_pre_execution() {
+        let tx = MorphTxEnvelope::Morph(Signed::new_unchecked(
+            TxMorph { fee_token_id: 1, ..Default::default() },
+            Signature::test_signature(),
+            B256::ZERO,
+        ));
+        let mut current_block = block(1, vec![tx]);
+        current_block.header.inner.base_fee_per_gas = Some(0);
+        let input = BlockInput {
+            current_block,
+            parent_state: Default::default(),
+            bytecodes: vec![],
+            chain_id: MAINNET_CHAIN_ID,
+        };
+
+        let err = EVMVerifier::verify(vec![input]).unwrap_err();
+        assert!(
+            matches!(
+                &err,
+                ClientError::BlockExecutionError(reason) if reason.contains("emerald fork not reached")
+            ),
+            "{err}"
+        );
+    }
+
+    #[test]
     fn rejects_non_zero_mix_hash_and_difficulty() {
         let mut b = block(9, vec![]);
-        validate_header_constants(&b).unwrap();
+        b.header.inner.base_fee_per_gas = Some(0);
+        validate_header(&b.header).unwrap();
 
         b.header.inner.mix_hash = B256::with_last_byte(1);
-        let err = validate_header_constants(&b).unwrap_err();
+        let err = validate_header(&b.header).unwrap_err();
         assert!(matches!(err, ClientError::InvalidHeaderMixHash { block_num: 9, .. }));
 
         b.header.inner.mix_hash = B256::ZERO;
         b.header.inner.difficulty = U256::from(1);
-        let err = validate_header_constants(&b).unwrap_err();
+        let err = validate_header(&b.header).unwrap_err();
         assert!(matches!(err, ClientError::InvalidHeaderDifficulty { block_num: 9, .. }));
     }
 

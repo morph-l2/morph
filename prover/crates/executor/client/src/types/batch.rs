@@ -4,7 +4,7 @@ use morph_primitives::MorphTxEnvelope;
 use prover_primitives::predeployed::l2_to_l1_message::{WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT};
 use revm::primitives::B256;
 
-use crate::types::input::BlockInput;
+use crate::types::{error::ClientError, input::BlockInput};
 
 /// BatchInfo is metadata of chunk, with following fields:
 /// - state root before this chunk
@@ -28,7 +28,7 @@ impl BatchInfo {
     pub fn from_block_inputs(
         prev_state_root: B256,
         block_inputs: &[BlockInput],
-    ) -> Result<Self, crate::types::error::ClientError> {
+    ) -> Result<Self, ClientError> {
         let chain_id = block_inputs.first().map(|b| b.chain_id).unwrap_or(2818);
         let latest_block_input = block_inputs.last().unwrap();
 
@@ -38,7 +38,7 @@ impl BatchInfo {
             latest_block_input.get_storage_value(WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT)?;
 
         let post_state_root = latest_block_input.current_block.state_root();
-        let data_hash = Self::calculate_data_hash(block_inputs);
+        let data_hash = Self::calculate_data_hash(block_inputs)?;
 
         Ok(BatchInfo {
             chain_id,
@@ -49,21 +49,23 @@ impl BatchInfo {
         })
     }
 
-    fn calculate_data_hash(block_inputs: &[BlockInput]) -> B256 {
+    fn calculate_data_hash(block_inputs: &[BlockInput]) -> Result<B256, ClientError> {
         let last_block_input = block_inputs.last().expect("block inputs must not be empty");
-        let total_num_l1_txs = block_inputs
+        let count = block_inputs
             .iter()
             .flat_map(|input| &input.current_block.body.transactions)
             .filter(|tx| tx.is_l1_msg())
             .count();
+        let total_num_l1_txs =
+            u16::try_from(count).map_err(|_| ClientError::BatchL1MessageCountOverflow { count })?;
 
         let mut data_hasher = Keccak256::new();
         data_hasher.update(last_block_input.current_block.header.number().to_be_bytes());
-        data_hasher.update((total_num_l1_txs as u16).to_be_bytes());
+        data_hasher.update(total_num_l1_txs.to_be_bytes());
         for input in block_inputs {
             Self::hash_l1_msg(&input.current_block.body.transactions, &mut data_hasher);
         }
-        data_hasher.finalize()
+        Ok(data_hasher.finalize())
     }
 
     /// Calculates the data hash for an invalid blob that is finalized as a no-op batch.
@@ -112,7 +114,7 @@ impl BatchInfo {
     pub fn _public_input_hash_for_invalid_blob(
         blob_hashes: &[B256],
         block_inputs: &[BlockInput],
-    ) -> Result<B256, crate::types::error::ClientError> {
+    ) -> Result<B256, ClientError> {
         let first_block_input = block_inputs.first().expect("block inputs must not be empty");
         let original_state_root: B256 = first_block_input.parent_state.state_root();
         let original_withdraw_root =
@@ -176,7 +178,9 @@ impl BatchInfo {
 
 #[cfg(test)]
 mod tests {
+    use alloy_consensus::Sealed;
     use alloy_primitives::keccak256;
+    use morph_primitives::{Block, TxL1Msg};
 
     use super::*;
 
@@ -187,6 +191,38 @@ mod tests {
         let mut b = [0u8; 32];
         b[24..].copy_from_slice(&val.to_be_bytes());
         B256::from(b)
+    }
+
+    #[test]
+    fn checks_batch_l1_message_count_limit_across_blocks() {
+        let tx = TxL1Msg::default();
+        let tx_hash = tx.signature_hash();
+        let l1 = MorphTxEnvelope::L1Msg(Sealed::new(tx));
+        let input = |number, count| {
+            let mut current_block = Block::default();
+            current_block.header.inner.number = number;
+            current_block.body.transactions = vec![l1.clone(); count];
+            BlockInput {
+                current_block,
+                parent_state: Default::default(),
+                bytecodes: vec![],
+                chain_id: TEST_CHAIN_ID,
+            }
+        };
+        let mut inputs = [input(1, 32_768), input(2, 32_767)];
+        let mut expected = Keccak256::new();
+        expected.update(2u64.to_be_bytes());
+        expected.update([0xff, 0xff]);
+        for _ in 0..u16::MAX {
+            expected.update(tx_hash);
+        }
+        assert_eq!(BatchInfo::calculate_data_hash(&inputs).unwrap(), expected.finalize());
+
+        inputs[1].current_block.body.transactions.push(l1);
+        assert!(matches!(
+            BatchInfo::calculate_data_hash(&inputs),
+            Err(ClientError::BatchL1MessageCountOverflow { count: 65_536 })
+        ));
     }
 
     /// V2 aggregated hash for two blobs: keccak256(h0 || h1) matches contract formula.

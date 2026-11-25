@@ -78,9 +78,8 @@ pub async fn try_execute_batch(
                     }
                     ShadowExecuteMode::Both => unreachable!("execute one mode at a time"),
                 };
-                let blob_infos = get_blob_infos_from_blocks(
-                    &block_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
-                )?;
+                let blob_infos =
+                    get_blob_infos_from_blocks(block_inputs.iter().map(|b| &b.current_block))?;
                 verify(ExecutorInput { block_inputs, blob_infos })
                     .with_context(|| format!("native execution failed ({mode:?})"))
             };

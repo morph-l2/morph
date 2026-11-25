@@ -20,9 +20,11 @@ const BLOB_DATA_SIZE: usize = BLOB_WIDTH * N_BYTES_U256;
 const MAX_BLOB_BYTES_SIZE: usize = BLOB_WIDTH * (N_BYTES_U256 - 1); // 4096 * 31 = 126,976
 
 // Get blob info from L2 blocks
-pub fn get_blob_info_from_blocks(blocks: &Vec<Block>) -> Result<BlobInfo> {
+pub fn get_blob_info_from_blocks<'a>(
+    blocks: impl IntoIterator<Item = &'a Block>,
+) -> Result<BlobInfo> {
     // Assemble batch data from block header and transactions.
-    let batch_data = get_blob_data_from_blocks(blocks);
+    let batch_data = get_blob_data_from_blocks(blocks)?;
 
     // Compress batch data and encode into blob format.
     let blob_data = encode_blob(batch_data)?;
@@ -32,8 +34,10 @@ pub fn get_blob_info_from_blocks(blocks: &Vec<Block>) -> Result<BlobInfo> {
 }
 
 /// Encode batch data from L2 blocks into multiple blob infos (one per 126,976-byte chunk).
-pub fn get_blob_infos_from_blocks(blocks: &[Block]) -> Result<Vec<BlobInfo>> {
-    let batch_data = get_blob_data_from_blocks(&blocks.to_vec());
+pub fn get_blob_infos_from_blocks<'a>(
+    blocks: impl IntoIterator<Item = &'a Block>,
+) -> Result<Vec<BlobInfo>> {
+    let batch_data = get_blob_data_from_blocks(blocks)?;
     let compressed = compresse_batch(batch_data.as_slice())?;
     encode_multi_blob(compressed)
 }

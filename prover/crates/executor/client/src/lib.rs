@@ -22,9 +22,8 @@ pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
     }
     let batch_data_from_blob = decompress_batch(&batch_bytes)?;
 
-    let batch_data_from_blocks = get_blob_data_from_blocks(
-        &input.block_inputs.iter().map(|input| input.current_block.clone()).collect::<Vec<_>>(),
-    );
+    let batch_data_from_blocks =
+        get_blob_data_from_blocks(input.block_inputs.iter().map(|input| &input.current_block))?;
     if batch_data_from_blob != batch_data_from_blocks {
         return Err(anyhow::anyhow!("blob data mismatch!"));
     }

@@ -71,3 +71,12 @@ cargo run --release --bin vkey
 
 The programVKey generated above must be identical to the configuration in the L1 Verifier contract `morph-repo/contracts/src/deploy-config`.
 This key serves as a cryptographic commitment to the L2 State Transition Function (STF) logic, ensuring that the off-chain computation has not been tampered with.
+
+### Static Checks
+
+Run the static checks:
+
+```sh
+cargo +nightly fmt --all -- --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+```

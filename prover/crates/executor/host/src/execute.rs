@@ -3,7 +3,7 @@ use alloy_primitives::{Address, B256, U256};
 use alloy_provider::{DynProvider, Provider};
 use anyhow::{Context, bail};
 use morph_primitives::{MorphHeader, MorphTxEnvelope};
-use prover_executor_core::MorphExecutor;
+use prover_executor_core::{MorphExecutor, chain_spec_by_chain_id, validate_block_pre_execution};
 use prover_mpt::EthereumState;
 use prover_primitives::predeployed::l2_to_l1_message::{WITHDRAW_ROOT_ADDRESS, WITHDRAW_ROOT_SLOT};
 use prover_storage_rpc::{
@@ -38,6 +38,9 @@ impl HostExecutor {
     ) -> Result<HostExecutorOutput, anyhow::Error> {
         let ctx =
             ExecutionContext::fetch(block_number, provider, "HostExecutor::execute_block").await?;
+        let chain_spec = chain_spec_by_chain_id(ctx.chain_id);
+        validate_block_pre_execution(&ctx.morph_block, &chain_spec)
+            .with_context(|| format!("failed to validate block {block_number} before execution"))?;
 
         // Init DB (RPC-backed, rooted at previous block).
         let rpc_db = BasicRpcDb::new(
@@ -51,7 +54,7 @@ impl HostExecutor {
         load_predeployed_contracts(&rpc_db).await?;
 
         // Execute the whole block via reth's BasicBlockExecutor.
-        let core_executor = MorphExecutor::new_ref(&rpc_db, ctx.chain_id);
+        let core_executor = MorphExecutor::new_ref(&rpc_db, chain_spec);
         let bundle_state = core_executor
             .execute_block(ctx.morph_block.clone())
             .with_context(|| format!("failed to execute block {block_number}"))?;
@@ -85,6 +88,9 @@ impl HostExecutor {
     ) -> Result<HostExecutorOutput, anyhow::Error> {
         let ctx =
             ExecutionContext::fetch(block_number, provider, "execute_block_with_witness").await?;
+        let chain_spec = chain_spec_by_chain_id(ctx.chain_id);
+        validate_block_pre_execution(&ctx.morph_block, &chain_spec)
+            .with_context(|| format!("failed to validate block {block_number} before execution"))?;
 
         // Build the witness-backed DB.  This issues a single `debug_executionWitness` RPC call
         // and pre-populates the entire pre-state trie in memory.
@@ -102,7 +108,7 @@ impl HostExecutor {
         .context("failed to build ExecutionWitnessRpcDb")?;
 
         // Execute the whole block via reth's BasicBlockExecutor.
-        let core_executor = MorphExecutor::new_ref(&witness_db, ctx.chain_id);
+        let core_executor = MorphExecutor::new_ref(&witness_db, chain_spec);
         let bundle_state = core_executor
             .execute_block(ctx.morph_block.clone())
             .with_context(|| format!("failed to execute block {block_number}"))?;

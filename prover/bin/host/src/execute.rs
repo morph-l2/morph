@@ -67,22 +67,14 @@ pub async fn execute_batch(
         end_block,
         source,
     );
-    let executor_input = match source {
+    let block_inputs = match source {
         InputSource::Basic => {
             // Use per-account eth_getProof RPC calls.
             let mut block_inputs = vec![];
             for block_number in start_block..=end_block {
                 block_inputs.push(execute_with_basic_rpc(block_number, provider).await?);
             }
-            ExecutorInput {
-                block_inputs: block_inputs.clone(),
-                blob_infos: get_blob_infos_from_blocks(
-                    &block_inputs
-                        .iter()
-                        .map(|input| input.current_block.clone())
-                        .collect::<Vec<_>>(),
-                )?,
-            }
+            block_inputs
         }
         InputSource::ExecutionWitness => {
             // Use a single debug_executionWitness call per block (reth / geth).
@@ -90,19 +82,12 @@ pub async fn execute_batch(
             for block_number in start_block..=end_block {
                 block_inputs.push(execute_with_witness(block_number, provider).await?);
             }
-            ExecutorInput {
-                block_inputs: block_inputs.clone(),
-                blob_infos: get_blob_infos_from_blocks(
-                    &block_inputs
-                        .iter()
-                        .map(|input| input.current_block.clone())
-                        .collect::<Vec<_>>(),
-                )?,
-            }
+            block_inputs
         }
     };
 
-    Ok(executor_input)
+    let blob_infos = get_blob_infos_from_blocks(block_inputs.iter().map(|b| &b.current_block))?;
+    Ok(ExecutorInput { block_inputs, blob_infos })
 }
 
 /// Execute a range of blocks (inclusive).

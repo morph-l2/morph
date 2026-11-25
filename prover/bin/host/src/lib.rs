@@ -343,8 +343,9 @@ mod tests {
     #[cfg(all(feature = "network", not(feature = "local")))]
     #[test]
     fn classify_network_failures() {
-        use super::NetworkFailure;
         use sp1_sdk::network::Error as NetErr;
+
+        use super::NetworkFailure;
 
         let id = vec![0u8; 32];
         let case = |e: NetErr| NetworkFailure::classify(&anyhow::Error::from(e).context("ctx"));

@@ -65,13 +65,10 @@ async fn main() {
         execute_batch(1, args.start_block, args.end_block, &provider, source).await.unwrap()
     } else {
         // Use local witness file.
-        let blocks_inputs: Vec<ClientBlockInput> = load_inputs(&args.block_path);
-        let blocks = blocks_inputs.iter().map(|b| b.current_block.clone()).collect::<Vec<_>>();
-
-        ExecutorInput {
-            block_inputs: blocks_inputs,
-            blob_infos: get_blob_infos_from_blocks(&blocks).unwrap(),
-        }
+        let block_inputs: Vec<ClientBlockInput> = load_inputs(&args.block_path);
+        let blob_infos =
+            get_blob_infos_from_blocks(block_inputs.iter().map(|b| &b.current_block)).unwrap();
+        ExecutorInput { block_inputs, blob_infos }
     };
     if args.save_input {
         let input_path =

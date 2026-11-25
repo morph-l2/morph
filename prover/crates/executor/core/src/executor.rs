@@ -12,12 +12,11 @@ use revm::{
     database::{BundleState, WrapDatabaseRef},
 };
 
-use crate::{DEVNET_CHAIN_ID, MAINNET_CHAIN_ID, TESTNET_CHAIN_ID, validation::validate_block};
+use crate::{DEVNET_CHAIN_ID, MAINNET_CHAIN_ID, TESTNET_CHAIN_ID};
 
 /// An Morph executor wrapper based on reth's block executor.
 pub struct MorphExecutor<DB: Database> {
     inner: BasicBlockExecutor<MorphEvmConfig, DB>,
-    chain_spec: Arc<MorphChainSpec>,
 }
 
 impl<DB> MorphExecutor<DB>
@@ -25,20 +24,18 @@ where
     DB: Database + std::fmt::Debug,
 {
     /// Create a new [`MorphExecutor`] instance.
-    pub fn new(db: DB, chain_id: u64) -> Self {
-        let chain_spec = chain_spec_by_chain_id(chain_id);
-        let evm_config = MorphEvmConfig::new_with_default_factory(chain_spec.clone());
+    pub fn new(db: DB, chain_spec: Arc<MorphChainSpec>) -> Self {
+        let evm_config = MorphEvmConfig::new_with_default_factory(chain_spec);
         let inner = BasicBlockExecutor::new(evm_config, db);
-        Self { inner, chain_spec }
+        Self { inner }
     }
 
     /// Execute a full recovered block via [`BasicBlockExecutor::execute`].
+    /// The caller is responsible for pre-execution block validation.
     pub fn execute_recovered_block(
         self,
         block: &RecoveredBlock<MorphBlock>,
     ) -> Result<(BundleState, BlockExecutionResult<MorphReceipt>)> {
-        let sealed_block = block.sealed_block();
-        validate_block(sealed_block.header(), &sealed_block.body().transactions, &self.chain_spec)?;
         let execution_output = self.inner.execute(block)?;
         let mut bundle_state = execution_output.state;
         retain_changed_accounts(&mut bundle_state);
@@ -46,6 +43,7 @@ where
     }
 
     /// Execute a full block by first recovering transaction senders.
+    /// The caller is responsible for pre-execution block validation.
     pub fn execute_block(self, block: MorphBlock) -> Result<BundleState> {
         let recovered_block = RecoveredBlock::try_recover(block)?;
         let (bundle_state, _) = self.execute_recovered_block(&recovered_block)?;
@@ -58,12 +56,12 @@ where
     DB: revm::DatabaseRef + std::fmt::Debug,
 {
     /// Create a new executor from a read-only database reference.
-    pub fn new_ref(db: DB, chain_id: u64) -> Self {
-        Self::new(WrapDatabaseRef(db), chain_id)
+    pub fn new_ref(db: DB, chain_spec: Arc<MorphChainSpec>) -> Self {
+        Self::new(WrapDatabaseRef(db), chain_spec)
     }
 }
 
-pub(crate) fn chain_spec_by_chain_id(chain_id: u64) -> Arc<MorphChainSpec> {
+pub fn chain_spec_by_chain_id(chain_id: u64) -> Arc<MorphChainSpec> {
     match chain_id {
         MAINNET_CHAIN_ID => MORPH_MAINNET.clone(),
         TESTNET_CHAIN_ID => MORPH_HOODI.clone(),
@@ -101,6 +99,7 @@ mod tests {
 
     #[test]
     fn test_create_executor() {
-        let _evm = MorphExecutor::new(CacheDB::<EmptyDB>::default(), TESTNET_CHAIN_ID);
+        let chain_spec = chain_spec_by_chain_id(TESTNET_CHAIN_ID);
+        let _evm = MorphExecutor::new(CacheDB::<EmptyDB>::default(), chain_spec);
     }
 }
