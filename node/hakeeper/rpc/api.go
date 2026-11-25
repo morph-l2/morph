@@ -20,4 +20,7 @@ type API interface {
 	TransferLeaderToServer(ctx context.Context, id string, addr string) error
 	// ClusterMembership returns the current cluster membership configuration.
 	ClusterMembership(ctx context.Context) (*ClusterMembership, error)
+	// NodeInfo returns this node's identity and the sequencer signer
+	// addresses it holds. Read-only, public information (no auth).
+	NodeInfo(ctx context.Context) (*NodeInfo, error)
 }

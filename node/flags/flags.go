@@ -238,10 +238,12 @@ var (
 		Value:  5 * time.Minute,
 	}
 
-	// Sequencer private key for block signing (hex encoded, without 0x prefix)
+	// Sequencer private key(s) for block signing (hex encoded, optional 0x
+	// prefix). Comma-separated for several keys: before each block the node
+	// signs with whichever key the L1 contract designates for that height.
 	SequencerPrivateKey = cli.StringFlag{
 		Name:   "sequencer.privateKey",
-		Usage:  "Sequencer private key for block signing (hex encoded)",
+		Usage:  "Sequencer private key(s) for block signing (hex encoded; comma-separated for multiple keys)",
 		EnvVar: prefixEnvVar("SEQUENCER_PRIVATE_KEY"),
 	}
 
@@ -250,8 +252,10 @@ var (
 	// --addr convention so the same string works in either tool).
 	// Mutually exclusive with sequencer.privateKey — with this set,
 	// the node never sees the plaintext key, signing happens via the
-	// enclave. The signer's EVM address is fetched at startup via
-	// GetPubkey.
+	// enclave. Which keys the enclave loads is configured with env pairs
+	// MORPH_NODE_SEQUENCER_ENCLAVE_KMS_KEY_ID_<n> /
+	// MORPH_NODE_SEQUENCER_ENCLAVE_SECRET_ID_<n> (one pair per key, any
+	// number of keys); see l1sequencer.ParseEnclaveKeys.
 	SequencerEnclaveSignerAddr = cli.StringFlag{
 		Name:   "sequencer.enclaveSignerAddr",
 		Usage:  "Vsock address of the enclave signer: `CID:port` or `vsock:CID:port`. Mutually exclusive with sequencer.privateKey.",

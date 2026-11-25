@@ -2,10 +2,11 @@ package l1sequencer
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"net"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,115 +21,280 @@ import (
 // Wire protocol constants — must match crates/protocol/src/lib.rs in
 // the morph-enclave-signer repo. Big-endian throughout.
 //
-// Init (op=0x01) is the key-creation flow handled by ops-cli on a
-// throwaway EC2; the morph node never sends it. ProvideCredentials
-// (op=0x04) is sent once at startup to inject IRSA credentials so the
-// AWS-backed signer can load its key (see injectCredentials).
+// The enclave image carries no key configuration: the node names every
+// key (KMS key id + SM secret id) in LoadKeys (op=0x04), together with
+// the AWS credentials, and signs with Sign(address, hash) (op=0x02).
+// Init (op=0x01) is the key-creation flow run by ops-cli; ListKeys
+// (op=0x03) is for operators. The node never sends either.
 const (
-	opSign               byte = 0x02
-	opGetPubkey          byte = 0x03
-	opProvideCredentials byte = 0x04
+	opSign     byte = 0x02 // [address:20][hash:32]
+	opLoadKeys byte = 0x04 // [creds][n:u8] + n × [kms_lp][sid_lp]
 
 	statusOk byte = 0x00
-	// statusKeyNotInitialized (Status::KeyNotInitialized in crates/protocol)
-	// means the enclave has no key loaded — its in-memory keystore is empty,
-	// e.g. because the enclave restarted and lost the key. Sign recovers by
-	// re-injecting credentials (idempotent enclave-side) and retrying.
-	statusKeyNotInitialized byte = 0x02
 
 	hashLen    = 32
 	sigLen     = 65
 	pubkeyLen  = 33
 	addressLen = 20
 	maxErrMsg  = 1024
+	// maxIDLen caps a KMS key id / SM secret id (crates/protocol
+	// MAX_SECRET_ID_LEN).
+	maxIDLen = 512
 
 	// dialTimeout bounds vsock connect. mdlayher/vsock has no
 	// context/timeout-aware Dial, so we wrap it in a goroutine and
 	// race against a timer; without this the constructor and any
-	// reconnect on the Sign hot path could block forever if the
+	// reconnect on the sign hot path could block forever if the
 	// enclave accepted the FD but never sends.
 	dialTimeout = 3 * time.Second
-	// requestTimeout bounds one round-trip on an established conn.
-	// Applied via SetDeadline at the start of probe/signOnce, cleared
-	// on exit so the persistent conn can be reused for the next call.
+	// requestTimeout bounds one Sign round-trip on an established conn.
+	// Applied via SetDeadline at the start of each RPC, cleared on
+	// exit so the persistent conn can be reused for the next call.
 	requestTimeout = 1 * time.Second
-	// credLoadTimeout bounds the one-shot ProvideCredentials round-trip.
-	// Unlike a normal RPC, the enclave's Ack returns only after its
-	// one-time SM Get + KMS Decrypt + key load, so this is far larger
-	// than requestTimeout.
-	credLoadTimeout = 5 * time.Second
+	// perKeyLoadTimeout budgets one key's SM Get + KMS Decrypt inside
+	// LoadKeys; the whole request gets this times the key count. Keys the
+	// enclave already holds answer from memory and cost nothing.
+	perKeyLoadTimeout = 5 * time.Second
 )
 
-// EnclaveSigner implements Signer by talking to a Nitro Enclave signer
-// over vsock. One persistent connection is reused across all Sign
-// calls; on any wire error the next call transparently reconnects.
+// Env var names for the enclave key config: one KMS key id / SM secret id
+// pair per key, numbered by <n>, e.g.
 //
-// Address format: "CID:port" (e.g. "16:5000"). The enclave's EVM
-// address is fetched at startup via GetPubkey and cached.
-type EnclaveSigner struct {
-	cid     uint32
-	port    uint32
-	address common.Address
-	logger  tmlog.Logger
+//	MORPH_NODE_SEQUENCER_ENCLAVE_KMS_KEY_ID_0=arn:aws:kms:...
+//	MORPH_NODE_SEQUENCER_ENCLAVE_SECRET_ID_0=arn:aws:secretsmanager:...
+const (
+	EnclaveKMSKeyIDEnvPrefix   = "MORPH_NODE_SEQUENCER_ENCLAVE_KMS_KEY_ID_"
+	EnclaveSecretIDEnvPrefix   = "MORPH_NODE_SEQUENCER_ENCLAVE_SECRET_ID_"
+	enclaveKeyEnvPrefixSummary = "MORPH_NODE_SEQUENCER_ENCLAVE_{KMS_KEY_ID,SECRET_ID}_<n>"
+)
 
+// EnclaveKey names one key the enclave should load.
+type EnclaveKey struct {
+	KMSKeyID string
+	SecretID string
+}
+
+// ParseEnclaveKeys collects the enclave key config from environment
+// entries ("K=V", as from os.Environ). Every <n> that appears is one key;
+// keys are ordered by <n>, which need not be contiguous. <n> must be a
+// plain decimal number ("0", "1", "10"; not "01"). An <n> with only one
+// half of the pair (or an empty value) is an error, as is having no key
+// at all.
+func ParseEnclaveKeys(environ []string) ([]EnclaveKey, error) {
+	type pair struct{ kms, sid string }
+	pairs := map[uint64]*pair{}
+	for _, kv := range environ {
+		k, v, _ := strings.Cut(kv, "=")
+		var suffix string
+		var isKMS bool
+		switch {
+		case strings.HasPrefix(k, EnclaveKMSKeyIDEnvPrefix):
+			suffix, isKMS = strings.TrimPrefix(k, EnclaveKMSKeyIDEnvPrefix), true
+		case strings.HasPrefix(k, EnclaveSecretIDEnvPrefix):
+			suffix = strings.TrimPrefix(k, EnclaveSecretIDEnvPrefix)
+		default:
+			continue
+		}
+		// Canonical decimal only: "01" and "1" would otherwise both parse
+		// to 1 and one pair would silently overwrite the other.
+		n, err := strconv.ParseUint(suffix, 10, 32)
+		if err != nil || strconv.FormatUint(n, 10) != suffix {
+			return nil, fmt.Errorf("%s: suffix must be a decimal number without leading zeros", k)
+		}
+		p := pairs[n]
+		if p == nil {
+			p = &pair{}
+			pairs[n] = p
+		}
+		if isKMS {
+			p.kms = v
+		} else {
+			p.sid = v
+		}
+	}
+	if len(pairs) == 0 {
+		return nil, fmt.Errorf("no enclave key configured: set %s", enclaveKeyEnvPrefixSummary)
+	}
+	ns := make([]uint64, 0, len(pairs))
+	for n := range pairs {
+		ns = append(ns, n)
+	}
+	sort.Slice(ns, func(i, j int) bool { return ns[i] < ns[j] })
+	keys := make([]EnclaveKey, 0, len(ns))
+	for _, n := range ns {
+		p := pairs[n]
+		if p.kms == "" || p.sid == "" {
+			return nil, fmt.Errorf("%s%d and %s%d must both be set", EnclaveKMSKeyIDEnvPrefix, n, EnclaveSecretIDEnvPrefix, n)
+		}
+		keys = append(keys, EnclaveKey{KMSKeyID: p.kms, SecretID: p.sid})
+	}
+	return keys, nil
+}
+
+// EnclaveSigner implements Signer by talking to a Nitro Enclave signer
+// over vsock. One persistent connection is reused across all sign calls;
+// on any wire error the next call transparently reconnects.
+//
+// The node owns the key config (which KMS key / SM secret backs each
+// key) and pushes it on every new connection with LoadKeys, so a
+// restarted enclave — which has lost its in-memory keys — is reloaded
+// without a node restart.
+//
+// The signer's identity — the address of every configured key — is fixed
+// by the first connection and never changes afterwards: every later
+// connection must load exactly the same addresses or it is refused.
+// Changing keys means changing the config and restarting the node.
+type EnclaveSigner struct {
+	cid    uint32
+	port   uint32
+	logger tmlog.Logger
+	keys   []EnclaveKey
+	// dialFn opens a fresh connection to the enclave (vsock in production);
+	// credsFn resolves the AWS credentials sent with LoadKeys (IRSA, nil
+	// when absent). Both replaceable in tests.
+	dialFn  func() (net.Conn, error)
+	credsFn func() (*awsCreds, error)
+
+	// addrs[i] is the address of keys[i]. Set once by the first connection
+	// and read-only from then on, so it needs no lock.
+	addrs []common.Address
+
+	// mu guards conn and is held for a whole sign (including a reconnect).
 	mu   sync.Mutex
 	conn net.Conn
 }
 
-// NewEnclaveSigner dials the enclave, fetches the loaded EVM address
-// via GetPubkey, then runs a signature self-test (sign a zero hash,
-// recover the address from the resulting signature, assert it matches).
-// The self-test catches misconfig where the enclave reports one
-// address but signs with a key for a different one — wrong SECRET_ID
-// baked into the .eif, vsock-proxy MITM swap, etc.
-//
-// Failure here is fatal: the caller (node startup in cmd/node/main.go)
-// propagates the error and the process exits before tendermint comes
-// up. The self-test mismatch case panics with the recovered vs.
-// reported addresses; other init errors return through the caller.
-func NewEnclaveSigner(addr string, logger tmlog.Logger) (*EnclaveSigner, error) {
+// NewEnclaveSigner connects to the enclave and has it load every key in
+// keys (see connect). Any failure is fatal: the caller (node startup in
+// cmd/node/main.go) exits before tendermint comes up. Starting with only
+// some keys could make this node leader with no valid key at a rotation
+// height.
+func NewEnclaveSigner(addr string, keys []EnclaveKey, logger tmlog.Logger) (*EnclaveSigner, error) {
 	cid, port, err := parseAddr(addr)
 	if err != nil {
 		return nil, err
 	}
 	s := &EnclaveSigner{
-		cid:    cid,
-		port:   port,
-		logger: logger.With("module", "signer", "kind", "enclave", "addr", addr),
+		cid:     cid,
+		port:    port,
+		keys:    keys,
+		logger:  logger.With("module", "signer", "kind", "enclave", "addr", addr),
+		credsFn: resolveCreds,
 	}
-	// Inject AWS credentials (resolved from the pod's IRSA env) before the
-	// probe: an AWS-backed signer loads its key lazily on ProvideCredentials
-	// and would otherwise reject GetPubkey/Sign. No-op when no IRSA env is
-	// present (local/dev); idempotent enclave-side, so safe on every restart.
-	if err := s.injectCredentials(); err != nil {
-		s.logger.Error("enclave credential injection failed; node cannot start", "err", err)
-		return nil, fmt.Errorf("enclave signer credentials %s: %w", addr, err)
-	}
-	if err := s.probe(); err != nil {
-		s.logger.Error("enclave signer init failed; node cannot start", "err", err)
-		return nil, fmt.Errorf("enclave signer probe %s: %w", addr, err)
-	}
-	if err := s.verifySigningIdentity(); err != nil {
-		s.logger.Error("enclave signer self-test failed; node cannot start", "err", err)
-		_ = s.Close()
-		return nil, fmt.Errorf("enclave signer self-test: %w", err)
+	s.dialFn = s.dialVsock
+	if err := s.connect(); err != nil {
+		return nil, fmt.Errorf("enclave signer %s: %w", addr, err)
 	}
 	return s, nil
 }
 
-// Sign signs a 32-byte prehash. Returns the 65-byte [r||s||v] signature.
+// connect opens a connection on which the enclave holds every configured
+// key: dial, LoadKeys (idempotent enclave-side: a key still in memory is
+// answered from there, a restarted enclave loads it again), then a
+// signature self-test per key.
 //
-// Up to 3 attempts: each tries the cached conn (or dials fresh if
-// none), and on any wire error drops the conn and retries. If the
-// enclave reports KeyNotInitialized (it restarted and lost its
-// in-memory key), the credentials are re-injected between attempts so
-// the signer reloads the key without waiting for a full node restart.
-// After 3 failures returns an error wrapping the last cause; the caller
-// is expected to treat that as fatal (block production can't proceed
-// without a signer, so tendermint will halt consensus).
-func (s *EnclaveSigner) Sign(data []byte) ([]byte, error) {
+// It is all-or-nothing: a key that fails to load, two keys with the same
+// address or a failed self-test fail the whole connection, on startup and
+// on every reconnect alike. The first connection fixes the signer's
+// identity (s.addrs); a later one that loads different addresses is
+// refused, so a reconnect can only ever restore the startup state.
+//
+// Caller holds s.mu, or is the constructor.
+func (s *EnclaveSigner) connect() (err error) {
+	creds, err := s.credsFn()
+	if err != nil {
+		return err
+	}
+	conn, err := s.dialFn()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = conn.Close()
+		}
+	}()
+
+	results, err := loadKeysOnce(conn, creds, s.keys)
+	if err != nil {
+		return fmt.Errorf("LoadKeys: %w", err)
+	}
+	if len(results) != len(s.keys) {
+		return fmt.Errorf("LoadKeys: %d results for %d keys", len(results), len(s.keys))
+	}
+	addrs := make([]common.Address, len(results))
+	for i, r := range results {
+		if !r.ok() {
+			return fmt.Errorf("key %d (%s) failed to load: status=0x%02X %s", i, s.keys[i].SecretID, r.status, r.msg)
+		}
+		if j := slices.Index(addrs[:i], r.address); j >= 0 {
+			return fmt.Errorf("keys %d and %d resolve to the same address %s", j, i, r.address.Hex())
+		}
+		addrs[i] = r.address
+	}
+	if s.addrs != nil && !slices.Equal(addrs, s.addrs) {
+		return fmt.Errorf("enclave keys changed since startup: loaded %v, expected %v", AddrHexes(addrs), AddrHexes(s.addrs))
+	}
+	if err := verifySigningIdentity(conn, addrs); err != nil {
+		return fmt.Errorf("self-test: %w", err)
+	}
+
+	s.conn = conn
+	if s.addrs == nil {
+		s.addrs = addrs
+	}
+	return nil
+}
+
+// verifySigningIdentity asks the enclave to sign a 32-byte zero hash with
+// every key in addrs, recovers the public key from each signature, derives
+// the EVM address, and returns an error if any doesn't match. This catches
+// a keystore whose claimed address disagrees with what its signature
+// actually recovers to, and any layer between the SDK and the wire
+// (vsock-proxy, in-enclave stub) tampering with payloads.
+func verifySigningIdentity(conn net.Conn, addrs []common.Address) error {
+	var zero [hashLen]byte
+	for _, addr := range addrs {
+		sig, err := signOnce(conn, addr, zero[:])
+		if err != nil {
+			return fmt.Errorf("self-test sign with %s: %w", addr.Hex(), err)
+		}
+		pub, err := crypto.SigToPub(zero[:], sig)
+		if err != nil {
+			return fmt.Errorf("self-test recover pubkey for %s: %w", addr.Hex(), err)
+		}
+		if derived := crypto.PubkeyToAddress(*pub); derived != addr {
+			return fmt.Errorf("address mismatch: enclave reported %s but its signature recovers to %s",
+				addr.Hex(), derived.Hex())
+		}
+	}
+	return nil
+}
+
+// Addresses returns the address of every configured key, in config order.
+func (s *EnclaveSigner) Addresses() []common.Address {
+	return slices.Clone(s.addrs)
+}
+
+// HasAddress reports whether addr is one of the signer's keys.
+func (s *EnclaveSigner) HasAddress(addr common.Address) bool {
+	return slices.Contains(s.addrs, addr)
+}
+
+// SignWith signs a 32-byte prehash with the key of addr — the address the
+// L1 contract designates for the block being produced. Returns the
+// 65-byte [r||s||v] signature.
+//
+// Up to 3 attempts: each uses the cached conn or reconnects (see connect),
+// and drops the conn on any error so the next attempt starts fresh. After
+// 3 failures returns an error wrapping the last cause; the caller abandons
+// this block round, and the next sign starts over with a reconnect.
+func (s *EnclaveSigner) SignWith(addr common.Address, data []byte) ([]byte, error) {
 	if len(data) != hashLen {
 		return nil, fmt.Errorf("enclave signer: hash must be %d bytes, got %d", hashLen, len(data))
+	}
+	if !s.HasAddress(addr) {
+		return nil, fmt.Errorf("enclave signer has no key for %s", addr.Hex())
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -137,40 +303,31 @@ func (s *EnclaveSigner) Sign(data []byte) ([]byte, error) {
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		if s.conn == nil {
-			conn, err := s.dial()
-			if err != nil {
-				lastErr = err
-				s.logger.Info("sign attempt failed at dial",
-					"attempt", attempt, "max", maxAttempts, "err", err)
+			if lastErr = s.connect(); lastErr != nil {
+				s.logger.Error("enclave reconnect failed", "attempt", attempt, "max", maxAttempts, "err", lastErr)
 				continue
 			}
-			s.conn = conn
+			s.logger.Info("enclave signer reconnected", "addresses", AddrHexes(s.addrs))
 		}
-		sig, err := s.signOnce(s.conn, data)
+		sig, err := signOnce(s.conn, addr, data)
 		if err == nil {
 			return sig, nil
 		}
 		lastErr = err
 		s.logger.Info("sign attempt failed",
-			"attempt", attempt, "max", maxAttempts, "err", err)
-		_ = s.conn.Close()
-		s.conn = nil
-		// KeyNotInitialized means the enclave lost its key (it restarted):
-		// its keystore is empty until credentials are pushed again. Re-inject
-		// (a no-op Ack enclave-side once loaded) so the next attempt can sign,
-		// instead of failing every Sign until the whole node is restarted.
-		if isKeyNotInitialized(err) {
-			if ierr := s.injectCredentials(); ierr != nil {
-				s.logger.Error("re-inject credentials after key-not-loaded failed", "err", ierr)
-			}
-		}
+			"attempt", attempt, "max", maxAttempts, "signer", addr.Hex(), "err", err)
+		s.dropConn()
 	}
-	s.logger.Error("sign exhausted all retries", "attempts", maxAttempts, "err", lastErr)
-	return nil, fmt.Errorf("enclave sign failed after %d attempts: %w", maxAttempts, lastErr)
+	s.logger.Error("sign exhausted all retries", "attempts", maxAttempts, "signer", addr.Hex(), "err", lastErr)
+	return nil, fmt.Errorf("enclave sign with %s failed after %d attempts: %w", addr.Hex(), maxAttempts, lastErr)
 }
 
-// Address returns the enclave's EVM address (fetched at construction).
-func (s *EnclaveSigner) Address() common.Address { return s.address }
+func (s *EnclaveSigner) dropConn() {
+	if s.conn != nil {
+		_ = s.conn.Close()
+		s.conn = nil
+	}
+}
 
 // Close releases the persistent connection. Safe to call multiple times.
 func (s *EnclaveSigner) Close() error {
@@ -184,80 +341,78 @@ func (s *EnclaveSigner) Close() error {
 	return err
 }
 
-func (s *EnclaveSigner) probe() error {
-	conn, err := s.dial()
-	if err != nil {
-		return err
-	}
-	success := false
-	defer func() {
-		if !success {
-			_ = conn.Close()
-		}
-	}()
-	if err := conn.SetDeadline(time.Now().Add(requestTimeout)); err != nil {
-		return fmt.Errorf("set deadline: %w", err)
-	}
-	defer func() { _ = conn.SetDeadline(time.Time{}) }() // clear on exit so signOnce can manage its own deadline
+// keyResult is one LoadKeys outcome, in request order.
+type keyResult struct {
+	status  byte
+	address common.Address
+	msg     string
+}
 
-	if _, err := conn.Write([]byte{opGetPubkey}); err != nil {
-		return fmt.Errorf("write GetPubkey: %w", err)
+func (r keyResult) ok() bool { return r.status == statusOk }
+
+// loadKeysOnce sends LoadKeys(creds, keys) on conn and decodes the
+// per-key results.
+func loadKeysOnce(conn net.Conn, creds *awsCreds, keys []EnclaveKey) ([]keyResult, error) {
+	if len(keys) > 255 {
+		return nil, fmt.Errorf("too many enclave keys: %d", len(keys))
+	}
+	if err := conn.SetDeadline(time.Now().Add(time.Duration(len(keys)) * perKeyLoadTimeout)); err != nil {
+		return nil, fmt.Errorf("set deadline: %w", err)
+	}
+	defer func() { _ = conn.SetDeadline(time.Time{}) }()
+
+	req, err := appendCreds([]byte{opLoadKeys}, creds)
+	if err != nil {
+		return nil, err
+	}
+	req = append(req, byte(len(keys)))
+	for _, k := range keys {
+		if len(k.KMSKeyID) > maxIDLen || len(k.SecretID) > maxIDLen {
+			return nil, fmt.Errorf("kms key id / secret id longer than %d bytes", maxIDLen)
+		}
+		req = appendLPString(req, k.KMSKeyID)
+		req = appendLPString(req, k.SecretID)
+	}
+	if _, err := conn.Write(req); err != nil {
+		return nil, fmt.Errorf("write LoadKeys: %w", err)
 	}
 	if err := readOkStatus(conn); err != nil {
-		return err
+		return nil, err
 	}
-	body := make([]byte, pubkeyLen+addressLen)
-	if _, err := io.ReadFull(conn, body); err != nil {
-		return fmt.Errorf("read pubkey+address: %w", err)
+	var n [1]byte
+	if _, err := io.ReadFull(conn, n[:]); err != nil {
+		return nil, fmt.Errorf("read result count: %w", err)
 	}
-	copy(s.address[:], body[pubkeyLen:])
-	s.conn = conn
-	success = true
-	return nil
+	results := make([]keyResult, n[0])
+	body := make([]byte, 1+pubkeyLen+addressLen)
+	for i := range results {
+		if _, err := io.ReadFull(conn, body); err != nil {
+			return nil, fmt.Errorf("read result %d: %w", i, err)
+		}
+		msg, err := readLPString(conn, maxErrMsg)
+		if err != nil {
+			return nil, fmt.Errorf("read result %d msg: %w", i, err)
+		}
+		results[i] = keyResult{
+			status:  body[0],
+			address: common.BytesToAddress(body[1+pubkeyLen:]),
+			msg:     msg,
+		}
+	}
+	return results, nil
 }
 
-// verifySigningIdentity asks the enclave to sign a 32-byte zero hash,
-// recovers the public key from the signature using secp256k1 ECDSA
-// recovery, derives the EVM address, and returns an error if it
-// doesn't match the address GetPubkey reported. This catches:
-//   - SECRET_ID baked into the .eif points at a different bundle than
-//     the operator believes
-//   - keystore loaded a key whose claimed address disagrees with what
-//     the signature actually recovers to
-//   - any layer between the SDK and the wire (vsock-proxy, in-enclave
-//     stub) tampering with payloads
-//
-// Called only from NewEnclaveSigner. A non-nil return aborts node
-// startup via main.go's error path; tendermint never sees the bad
-// signer, so we don't need to panic for runtime safety.
-func (s *EnclaveSigner) verifySigningIdentity() error {
-	var zero [hashLen]byte
-	sig, err := s.signOnce(s.conn, zero[:])
-	if err != nil {
-		return fmt.Errorf("self-test sign: %w", err)
-	}
-	pub, err := crypto.SigToPub(zero[:], sig)
-	if err != nil {
-		return fmt.Errorf("self-test recover pubkey: %w", err)
-	}
-	derived := crypto.PubkeyToAddress(*pub)
-	if derived != s.address {
-		return fmt.Errorf(
-			"address mismatch: GetPubkey reported %s but Sign recovers to %s",
-			s.address.Hex(), derived.Hex())
-	}
-	return nil
-}
-
-func (s *EnclaveSigner) signOnce(conn net.Conn, data []byte) ([]byte, error) {
+// signOnce sends one Sign(addr, data) round-trip on conn.
+func signOnce(conn net.Conn, addr common.Address, data []byte) ([]byte, error) {
 	if err := conn.SetDeadline(time.Now().Add(requestTimeout)); err != nil {
 		return nil, err
 	}
 	defer func() { _ = conn.SetDeadline(time.Time{}) }()
 
-	req := make([]byte, 1+hashLen)
-	req[0] = opSign
-	copy(req[1:], data)
+	req := make([]byte, 0, 1+addressLen+hashLen)
+	req = append(req, opSign)
+	req = append(req, addr.Bytes()...)
+	req = append(req, data...)
 	if _, err := conn.Write(req); err != nil {
 		return nil, fmt.Errorf("write Sign: %w", err)
 	}
@@ -271,11 +426,11 @@ func (s *EnclaveSigner) signOnce(conn net.Conn, data []byte) ([]byte, error) {
 	return sig, nil
 }
 
-// dial wraps vsock.Dial with dialTimeout. mdlayher/vsock has no
+// dialVsock wraps vsock.Dial with dialTimeout. mdlayher/vsock has no
 // context-aware Dial, so we run it in a goroutine and race against a
 // timer; if Dial returns after we've given up, the late conn is
 // closed in a background goroutine to avoid an FD leak.
-func (s *EnclaveSigner) dial() (net.Conn, error) {
+func (s *EnclaveSigner) dialVsock() (net.Conn, error) {
 	type result struct {
 		conn net.Conn
 		err  error
@@ -306,8 +461,6 @@ func parseAddr(addr string) (uint32, uint32, error) {
 	// Accept both "vsock:CID:port" (matches ops-cli's --addr convention)
 	// and bare "CID:port" (legacy — kept so existing systemd Environment
 	// / k8s ConfigMap entries keep working through the format unification).
-	// TrimPrefix is a no-op when the prefix isn't there, so one parse
-	// path covers both.
 	s := strings.TrimPrefix(addr, "vsock:")
 	parts := strings.SplitN(s, ":", 2)
 	if len(parts) != 2 {
@@ -324,6 +477,23 @@ func parseAddr(addr string) (uint32, uint32, error) {
 	return uint32(cid), uint32(port), nil
 }
 
+// readLPString reads a [len:u16][utf8] field capped at max.
+func readLPString(conn net.Conn, max int) (string, error) {
+	var l [2]byte
+	if _, err := io.ReadFull(conn, l[:]); err != nil {
+		return "", err
+	}
+	n := int(binary.BigEndian.Uint16(l[:]))
+	if n > max {
+		return "", fmt.Errorf("field len %d exceeds max %d", n, max)
+	}
+	b := make([]byte, n)
+	if _, err := io.ReadFull(conn, b); err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
 func readOkStatus(conn net.Conn) error {
 	var statusBuf [1]byte
 	if _, err := io.ReadFull(conn, statusBuf[:]); err != nil {
@@ -332,26 +502,15 @@ func readOkStatus(conn net.Conn) error {
 	if statusBuf[0] == statusOk {
 		return nil
 	}
-	var lenBuf [2]byte
-	if _, err := io.ReadFull(conn, lenBuf[:]); err != nil {
-		return fmt.Errorf("enclave signer status=0x%02X (read msg len: %w)", statusBuf[0], err)
-	}
-	msgLen := binary.BigEndian.Uint16(lenBuf[:])
-	if msgLen > maxErrMsg {
-		return fmt.Errorf("enclave signer status=0x%02X (msg len %d exceeds max %d)",
-			statusBuf[0], msgLen, maxErrMsg)
-	}
-	msg := make([]byte, msgLen)
-	if _, err := io.ReadFull(conn, msg); err != nil {
+	msg, err := readLPString(conn, maxErrMsg)
+	if err != nil {
 		return fmt.Errorf("enclave signer status=0x%02X (read msg: %w)", statusBuf[0], err)
 	}
-	return &enclaveError{status: statusBuf[0], msg: string(msg)}
+	return &enclaveError{status: statusBuf[0], msg: msg}
 }
 
 // enclaveError is a well-formed non-OK status frame from the enclave
-// (status byte + message). It is returned by readOkStatus so callers can
-// branch on the status code — notably statusKeyNotInitialized, which Sign
-// recovers from by re-injecting credentials.
+// (status byte + message).
 type enclaveError struct {
 	status byte
 	msg    string
@@ -359,11 +518,4 @@ type enclaveError struct {
 
 func (e *enclaveError) Error() string {
 	return fmt.Sprintf("enclave signer error: status=0x%02X msg=%q", e.status, e.msg)
-}
-
-// isKeyNotInitialized reports whether err is an enclave status frame with
-// KeyNotInitialized (0x02) anywhere in its chain.
-func isKeyNotInitialized(err error) bool {
-	var e *enclaveError
-	return errors.As(err, &e) && e.status == statusKeyNotInitialized
 }
