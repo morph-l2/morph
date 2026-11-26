@@ -243,6 +243,12 @@ func getJSONWithHeaders(ctx context.Context, httpClient *http.Client, requestURL
 		req.Header.Set(name, value)
 	}
 
+	return doJSONRequest(httpClient, req)
+}
+
+// doJSONRequest sends req and returns the body of a 2xx JSON response, read under the
+// maxResponseBodyBytes cap.
+func doJSONRequest(httpClient *http.Client, req *http.Request) ([]byte, error) {
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)

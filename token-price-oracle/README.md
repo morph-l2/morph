@@ -4,7 +4,7 @@ Token Price Oracle service monitors token prices and updates the price ratio bet
 
 ## Features
 
-- **Real-time Price Monitoring**: Fetches token USD prices from Chainlink, Pyth Hermes, Bitget, Binance, and OKX
+- **Real-time Price Monitoring**: Fetches token USD prices from Chainlink, Pyth Hermes, the resolved price API, Bitget, Binance, and OKX
 - **Price Ratio Calculation**: Computes price ratio between tokens and ETH
 - **Threshold-based Updates**: Only updates on-chain when price change exceeds threshold, saving Gas
 - **Batch Updates**: Updates multiple token prices in a single `batchUpdatePrices` transaction
@@ -89,7 +89,7 @@ requires its own mapping and configuration from the feed sections below.
 |---------------------|---------|-------------|
 | `TOKEN_PRICE_ORACLE_PRICE_UPDATE_INTERVAL` | `1m` | Price update interval |
 | `TOKEN_PRICE_ORACLE_PRICE_THRESHOLD` | `100` | Update threshold (basis points, 100=1%) |
-| `TOKEN_PRICE_ORACLE_PRICE_FEED_PRIORITY` | `bitget` | Price feed priority (`chainlink`, `pyth`, `bitget`, `binance`, `okx`) |
+| `TOKEN_PRICE_ORACLE_PRICE_FEED_PRIORITY` | `bitget` | Price feed priority (`chainlink`, `pyth`, `resolved`, `bitget`, `binance`, `okx`) |
 | `TOKEN_PRICE_ORACLE_METRICS_SERVER_ENABLE` | `false` | Enable metrics server |
 | `TOKEN_PRICE_ORACLE_METRICS_HOSTNAME` | `0.0.0.0` | Metrics server hostname |
 | `TOKEN_PRICE_ORACLE_METRICS_PORT` | `6060` | Metrics server port |
@@ -119,6 +119,26 @@ Hermes requires authentication from 2026-08-18 on both the current and the upgra
 | `TOKEN_PRICE_ORACLE_PYTH_MAX_STALENESS` | `1h` | Maximum accepted age of Pyth publish time |
 | `TOKEN_PRICE_ORACLE_PYTH_MAX_CONFIDENCE_BPS` | `0` | Maximum confidence interval relative to price in BPS; `0` disables the check |
 | `TOKEN_PRICE_ORACLE_TOKEN_MAPPING_PYTH` | - | TokenID to token/USD Pyth price ID mapping |
+
+### Resolved Price API Feed
+
+The `resolved` feed reads prices from a resolved price service through
+`POST <base-url>/api/v1/price/resolved/batch`. Tokens are identified by chain name
+and contract address; the service decides per token whether the price comes from
+on-chain data or from an exchange, and reports the choice as `priceFrom`, which the
+feed logs.
+
+The ETH leg and all mapped tokens are read in one request per cycle. A token the
+service flags as suspicious, or returns with a non-positive price (which is how it
+reports a token it cannot price), is left unresolved so the next feed in the
+priority list can supply it. An unusable ETH price fails the feed for that cycle.
+The API returns no price timestamp, so this feed cannot enforce a staleness limit.
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `TOKEN_PRICE_ORACLE_RESOLVED_PRICE_API_BASE_URL` | - | Service base URL, without the `/api/v1/price` path. Required when `resolved` is enabled |
+| `TOKEN_PRICE_ORACLE_RESOLVED_PRICE_ETH_ASSET` | `eth/` | Asset priced as ETH/USD, as `chain/contract` |
+| `TOKEN_PRICE_ORACLE_TOKEN_MAPPING_RESOLVED` | - | TokenID to `chain/contract` mapping, e.g. `1:eth/0xdac17f958d2ee523a2206206994597c13d831ec7,2:bnb/`. An empty contract means the chain's native coin |
 
 ### CEX Feeds
 
@@ -221,6 +241,7 @@ token-price-oracle/
 │   ├── cex_feed.go     # Binance and OKX API clients
 │   ├── chainlink_feed.go # Chainlink AggregatorV3 client
 │   ├── pyth_feed.go    # Pyth Hermes client
+│   ├── resolved_feed.go # Resolved price API client
 │   └── sign.go         # External signing
 ├── updater/          # Update logic
 │   ├── token_price.go # Price updater

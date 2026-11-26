@@ -26,6 +26,7 @@ const (
 	PriceFeedTypeChainlink PriceFeedType = "chainlink"
 	PriceFeedTypeOKX       PriceFeedType = "okx"
 	PriceFeedTypePyth      PriceFeedType = "pyth"
+	PriceFeedTypeResolved  PriceFeedType = "resolved"
 )
 
 // ValidPriceFeedTypes returns all valid price feed types
@@ -33,6 +34,7 @@ func ValidPriceFeedTypes() []PriceFeedType {
 	return []PriceFeedType{
 		PriceFeedTypeChainlink,
 		PriceFeedTypePyth,
+		PriceFeedTypeResolved,
 		PriceFeedTypeBitget,
 		PriceFeedTypeBinance,
 		PriceFeedTypeOKX,
@@ -79,6 +81,9 @@ type Config struct {
 	PythETHUSDPriceID     string                              // Pyth ETH/USD price ID
 	PythMaxStaleness      time.Duration                       // Maximum accepted age for Pyth prices
 	PythMaxConfidenceBPS  uint64                              // Maximum accepted Pyth confidence interval in BPS (0 disables)
+
+	ResolvedPriceAPIBaseURL string // Resolved price API base URL
+	ResolvedPriceETHAsset   string // chain/contract the resolved feed prices as ETH/USD
 
 	// External sign
 	ExternalSign        bool
@@ -263,10 +268,20 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 		cfg.TokenMappings[PriceFeedTypePyth] = pythMapping
 	}
 
+	resolvedMapping, err := parseTokenMapping(ctx.String(flags.TokenMappingResolvedFlag.Name))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse resolved token mapping: %w", err)
+	}
+	if len(resolvedMapping) > 0 {
+		cfg.TokenMappings[PriceFeedTypeResolved] = resolvedMapping
+	}
+
 	// Parse API base URLs
 	cfg.BitgetAPIBaseURL = ctx.String(flags.BitgetAPIBaseURLFlag.Name)
 	cfg.BinanceAPIBaseURL = ctx.String(flags.BinanceAPIBaseURLFlag.Name)
 	cfg.OKXAPIBaseURL = ctx.String(flags.OKXAPIBaseURLFlag.Name)
+	cfg.ResolvedPriceAPIBaseURL = strings.TrimSpace(ctx.String(flags.ResolvedPriceAPIBaseURLFlag.Name))
+	cfg.ResolvedPriceETHAsset = strings.TrimSpace(ctx.String(flags.ResolvedPriceETHAssetFlag.Name))
 	cfg.ChainlinkRPC = ctx.String(flags.ChainlinkRPCFlag.Name)
 	cfg.ChainlinkMaxStaleness = ctx.Duration(flags.ChainlinkMaxStalenessFlag.Name)
 	cfg.PythHermesBaseURL = ctx.String(flags.PythHermesBaseURLFlag.Name)
@@ -314,6 +329,17 @@ func LoadConfig(ctx *cli.Context) (*Config, error) {
 			}
 			if len(cfg.TokenMappings[PriceFeedTypePyth]) == 0 {
 				return nil, fmt.Errorf("pyth feed is configured but --token-mapping-pyth is not set")
+			}
+
+		case PriceFeedTypeResolved:
+			if cfg.ResolvedPriceAPIBaseURL == "" {
+				return nil, fmt.Errorf("resolved feed is configured but --resolved-price-api-base-url is not set")
+			}
+			if cfg.ResolvedPriceETHAsset == "" {
+				return nil, fmt.Errorf("resolved feed is configured but --resolved-price-eth-asset is empty")
+			}
+			if len(cfg.TokenMappings[PriceFeedTypeResolved]) == 0 {
+				return nil, fmt.Errorf("resolved feed is configured but --token-mapping-resolved is not set")
 			}
 
 		case PriceFeedTypeBitget:
