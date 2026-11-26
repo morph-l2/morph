@@ -35,10 +35,12 @@ func (a ResolvedAsset) String() string {
 
 // ParseResolvedAsset parses "chain/contract". Only the first slash separates the two,
 // so a contract that itself contains slashes survives. "chain" and "chain/" both mean
-// the chain's native coin.
+// the chain's native coin. The chain name is lowercased, because the service echoes it
+// lowercased and the echo is compared exactly; the contract is kept as written, because
+// the service echoes it unchanged and non-EVM addresses are case-sensitive.
 func ParseResolvedAsset(value string) (ResolvedAsset, error) {
 	chain, contract, _ := strings.Cut(strings.TrimSpace(value), "/")
-	chain = strings.TrimSpace(chain)
+	chain = strings.ToLower(strings.TrimSpace(chain))
 	if chain == "" {
 		return ResolvedAsset{}, fmt.Errorf("invalid resolved price asset %q (expected format: chain/contract)", value)
 	}
@@ -228,7 +230,7 @@ func (f *ResolvedPriceFeed) fetchQuotes(ctx context.Context, assets []ResolvedAs
 func (f *ResolvedPriceFeed) fetchQuoteChunk(ctx context.Context, assets []ResolvedAsset, quotes map[ResolvedAsset]resolvedQuote) error {
 	reqBody := resolvedBatchRequest{Currency: resolvedCurrency, List: make([]resolvedBatchReqItem, len(assets))}
 	for i, asset := range assets {
-		reqBody.List[i] = resolvedBatchReqItem{Chain: asset.Chain, Contract: asset.Contract}
+		reqBody.List[i] = resolvedBatchReqItem(asset)
 	}
 	payload, err := json.Marshal(reqBody)
 	if err != nil {

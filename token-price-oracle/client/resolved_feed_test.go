@@ -56,6 +56,7 @@ func TestParseResolvedAsset(t *testing.T) {
 		{in: "eth/" + testResolvedUSDT, want: ResolvedAsset{Chain: "eth", Contract: testResolvedUSDT}},
 		{in: "bnb/", want: ResolvedAsset{Chain: "bnb"}},
 		{in: "bnb", want: ResolvedAsset{Chain: "bnb"}},
+		{in: "ETH/0xdAC17F958D2ee523a2206206994597C13D831ec7", want: ResolvedAsset{Chain: "eth", Contract: "0xdAC17F958D2ee523a2206206994597C13D831ec7"}},
 		{in: " cosmos / ibc/ABC ", want: ResolvedAsset{Chain: "cosmos", Contract: "ibc/ABC"}},
 		{in: "", wantErr: true},
 		{in: "/0xabc", wantErr: true},
