@@ -1,12 +1,9 @@
 [package]
 name = "prover-primitives"
-homepage = "https://github.com/morph-l2/morph/tree/main/prover"
-
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
 license.workspace = true
-repository.workspace = true
+rust-version.workspace = true
 
 [lints]
 workspace = true
@@ -19,6 +16,7 @@ alloy-rlp.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_with.workspace = true
 morph-primitives.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

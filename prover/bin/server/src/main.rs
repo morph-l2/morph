@@ -1,7 +1,7 @@
 use dotenv::dotenv;
 use flexi_logger::{
-    filter::{LogLineFilter, LogLineWriter},
     Cleanup, Criterion, DeferredNow, Duplicate, FileSpec, Logger, Naming, WriteMode,
+    filter::{LogLineFilter, LogLineWriter},
 };
 use log::Record;
 use prover_server::{read_env_var, server};
@@ -19,7 +19,7 @@ async fn main() {
 const LOG_LEVEL: &str = "info";
 const LOG_FILE_BASENAME: &str = "app_info";
 const LOG_FILE_SIZE_LIMIT: u64 = 200 * 10u64.pow(6); // 200MB
-                                                     // const LOG_FILE_SIZE_LIMIT: u64 = 10u64.pow(3); // 1kB
+// const LOG_FILE_SIZE_LIMIT: u64 = 10u64.pow(3); // 1kB
 const LOG_FILES_TO_KEEP: usize = 3;
 fn setup_logging() {
     //configure the logger

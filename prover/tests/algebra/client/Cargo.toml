@@ -3,5 +3,14 @@ version = "0.1.0"
 name = "algebra-client"
 edition = "2021"
 
+[features]
+default = []
+sp1 = ["dep:sp1-zkvm"]
+
 [dependencies]
-sp1-zkvm = { workspace = true }
+sp1-zkvm = { workspace = true, optional = true }
+
+[[bin]]
+name = "algebra-client"
+path = "src/main.rs"
+required-features = ["sp1"]
