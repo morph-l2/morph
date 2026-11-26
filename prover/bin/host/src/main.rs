@@ -57,7 +57,7 @@ async fn main() {
 
     let args = Args::parse();
 
-    let mut input = if args.use_rpc_db || args.use_witness {
+    let input = if args.use_rpc_db || args.use_witness {
         // Use RPC to fetch state.
         let source =
             if args.use_witness { InputSource::ExecutionWitness } else { InputSource::Basic };
@@ -78,7 +78,7 @@ async fn main() {
         println!("Saved executor input to {input_path}");
     }
 
-    let proof = prover.prove(&mut input, args.prove).await.unwrap();
+    let proof = prover.prove(input, args.prove).await.unwrap();
     if let Some(evm_proof) = proof {
         let proof_dir =
             PathBuf::from("proof").join(format!("blocks_{}_{}", args.start_block, args.end_block));

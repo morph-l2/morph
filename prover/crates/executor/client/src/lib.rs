@@ -4,12 +4,30 @@ use alloy_primitives::B256;
 #[cfg(not(target_os = "zkvm"))]
 use alloy_primitives::hex;
 use prover_primitives::types::blob::get_blob_data_from_blocks;
-use types::input::ExecutorInput;
+use types::{error::ClientError, input::ExecutorInput};
 pub use verifier::{blob_verifier::BlobVerifier, evm_verifier::EVMVerifier};
 
 use crate::types::blob::decompress_batch;
 
+/// Verified values shared by the SP1 public input and the server's batch header.
+#[derive(Debug)]
+pub struct VerifiedBatch {
+    pub public_input_hash: B256,
+    pub data_hash: B256,
+    pub blob_input: B256,
+}
+
+/// Identifies the EVM stage separately from DA verification failures.
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct EvmVerificationError(pub ClientError);
+
 pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
+    Ok(verify_batch(input)?.public_input_hash)
+}
+
+/// Verifies the batch and returns the metadata derived from the same DA and EVM checks.
+pub fn verify_batch(input: ExecutorInput) -> Result<VerifiedBatch, anyhow::Error> {
     // Verify basicInfo
     if input.block_inputs.is_empty() {
         return Err(anyhow::anyhow!("empty batch: no block inputs provided"));
@@ -29,7 +47,7 @@ pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
     }
 
     // Verify EVM exec.
-    let batch_info = EVMVerifier::verify(input.block_inputs)?;
+    let batch_info = EVMVerifier::verify(input.block_inputs).map_err(EvmVerificationError)?;
 
     #[cfg(not(target_os = "zkvm"))]
     log::info!(
@@ -42,9 +60,10 @@ pub fn verify(input: ExecutorInput) -> Result<B256, anyhow::Error> {
         versioned_hashes.iter().map(|h| hex::encode(h.as_slice())).collect::<Vec<_>>(),
     );
     // Calc public input hash.
-    let public_input_hash = batch_info.public_input_hash(&versioned_hashes);
+    let (blob_input, public_input_hash) =
+        batch_info.blob_input_and_public_input_hash(&versioned_hashes);
 
     #[cfg(not(target_os = "zkvm"))]
     log::info!("public input hash: {public_input_hash:?}");
-    Ok(B256::from_slice(public_input_hash.as_slice()))
+    Ok(VerifiedBatch { public_input_hash, data_hash: batch_info.data_hash(), blob_input })
 }

@@ -7,15 +7,14 @@ use std::{
     time::{Duration, Instant},
 };
 
-use alloy_primitives::Keccak256;
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use anyhow::Context;
 use morph_prove::{
-    BatchProver, DefaultClient,
+    BatchProver, DefaultClient, PreparedBatch,
     evm::EvmProofFixture,
     execute::{InputSource, execute_batch},
 };
-use prover_executor_client::{BlobVerifier, EVMVerifier, types::input::ExecutorInput};
+use prover_executor_client::EvmVerificationError;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
@@ -91,25 +90,28 @@ impl Prover {
                 }
             };
 
-            // Step2. Generate ExecutorInput
-            let mut input =
-                match gen_client_input(batch_index, start_block, end_block, &self.provider).await {
-                    Ok(input) => input,
-                    Err(e) => {
-                        log::error!(
-                            "Generate ExecutorInput error for batch-{:?}, error: {:?}",
-                            batch_index,
-                            e
-                        );
-                        PROVE_RESULT.set(2);
-                        continue;
-                    }
-                };
+            // Step2. Prepare and verify the batch
+            let prepared = match prepare_batch_for_proving(
+                batch_index,
+                start_block,
+                end_block,
+                &self.provider,
+                !shadow,
+            )
+            .await
+            {
+                Ok(input) => input,
+                Err(e) => {
+                    log::error!("Prepare input error for batch-{:?}, error: {:?}", batch_index, e);
+                    PROVE_RESULT.set(2);
+                    continue;
+                }
+            };
 
             // Step3. Generate evm proof
             log::info!("Generate evm proof");
             let start = Instant::now();
-            let prove_rt = self.batch_prover.prove(&mut input, !shadow).await;
+            let prove_rt = self.batch_prover.prove_prepared(prepared).await;
 
             match prove_rt {
                 Ok(Some(proof)) => match save_proof(batch_index, proof) {
@@ -143,13 +145,14 @@ impl Prover {
     }
 }
 
-/// Generate ExecutorInput for prover client.
-async fn gen_client_input(
+/// Generate and verify the prover input before publishing the batch header.
+async fn prepare_batch_for_proving(
     batch_index: u64,
     start_block: u64,
     end_block: u64,
     provider: &DynProvider,
-) -> Result<ExecutorInput, anyhow::Error> {
+    prove: bool,
+) -> Result<PreparedBatch, anyhow::Error> {
     // Step1. Get ExecutorInput
     let (input_source, fallback_source) = if *PROVER_USE_RPC_DB {
         (InputSource::Basic, InputSource::ExecutionWitness)
@@ -182,44 +185,28 @@ async fn gen_client_input(
     std::fs::create_dir_all(&proof_dir)
         .with_context(|| format!("failed to create proof directory {}", proof_dir.display()))?;
 
-    // Step2. Get BatchInfo by EVM Verify.
-    let verify_result = EVMVerifier::verify(executor_input.block_inputs.clone());
-
-    // Step3. Save batch header or error info.
-    let batch_info = match verify_result {
-        Ok(batch_info) => batch_info,
-        Err(err) => {
-            let error_data = serde_json::json!({
-                "error_code": "EVM_EXECUTE_NOT_EXPECTED",
-                "error_msg": err.to_string()
-            });
-            let error_path = proof_dir.join("execute_result.json");
-            let error_json = serde_json::to_vec_pretty(&error_data)?;
-            write_atomically(&error_path, &error_json).with_context(|| {
-                format!("failed to record EVM verification error for batch {batch_index}: {err}")
-            })?;
-            return Err(anyhow::anyhow!("EVM verification failed for batch {batch_index}: {err}"));
-        }
-    };
-
-    let (versioned_hashes, _) = BlobVerifier::verify_blobs(&executor_input.blob_infos)?;
-    // Compute the blob input for the batch header:
-    let blob_input = {
-        let mut blob_hasher = Keccak256::new();
-        for h in &versioned_hashes {
-            blob_hasher.update(h.as_slice());
-        }
-        blob_hasher.finalize()
-    };
-
-    // Save batch_header_ex (uniform for all versions):
-    // | data_hash(32) | blob_input(32) | (64 bytes)
-    let mut batch_header: Vec<u8> = Vec::with_capacity(64);
-    batch_header.extend_from_slice(&batch_info.data_hash().0);
-    batch_header.extend_from_slice(&blob_input.0);
-    write_atomically(&proof_dir.join("batch_header.data"), &batch_header)?;
-
     let error_path = proof_dir.join("execute_result.json");
+    let prepared = match BatchProver::prepare_batch(executor_input, prove) {
+        Ok(prepared) => prepared,
+        Err(err) => {
+            if let Some(evm_err) = err.downcast_ref::<EvmVerificationError>() {
+                let error_data = serde_json::json!({
+                    "error_code": "EVM_EXECUTE_NOT_EXPECTED",
+                    "error_msg": evm_err.to_string()
+                });
+                let error_json = serde_json::to_vec_pretty(&error_data)?;
+                write_atomically(&error_path, &error_json).with_context(|| {
+                    format!(
+                        "failed to record EVM verification error for batch {batch_index}: {evm_err}"
+                    )
+                })?;
+            }
+            return Err(err);
+        }
+    };
+
+    write_atomically(&proof_dir.join("batch_header.data"), prepared.batch_header())?;
+
     match std::fs::remove_file(&error_path) {
         Ok(()) => log::info!("Removed stale error result for batch-{batch_index:?}"),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
@@ -230,7 +217,7 @@ async fn gen_client_input(
         }
     }
 
-    Ok(executor_input)
+    Ok(prepared)
 }
 
 /// Save evm proof to file.

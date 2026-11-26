@@ -88,13 +88,16 @@ impl BatchInfo {
 
     /// Public input hash for V2, using keccak256(hash[0] || ... || hash[N-1]) as blob input.
     pub fn public_input_hash(&self, blob_hashes: &[B256]) -> B256 {
+        self.blob_input_and_public_input_hash(blob_hashes).1
+    }
+
+    pub(crate) fn blob_input_and_public_input_hash(&self, blob_hashes: &[B256]) -> (B256, B256) {
         let mut blob_hasher = Keccak256::new();
         for h in blob_hashes {
             blob_hasher.update(h.as_slice());
         }
-        let blob_hashes_hash: B256 = blob_hasher.finalize();
-
-        self.public_input_hash_with_blob_input(blob_hashes_hash)
+        let blob_input = blob_hasher.finalize();
+        (blob_input, self.public_input_hash_with_blob_input(blob_input))
     }
 
     fn public_input_hash_with_blob_input(&self, blob_input: B256) -> B256 {

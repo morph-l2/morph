@@ -9,7 +9,7 @@ use std::time::Duration;
 use std::time::Instant;
 
 use evm::{EvmProofFixture, save_plonk_fixture};
-use prover_executor_client::{types::input::ExecutorInput, verify};
+use prover_executor_client::{types::input::ExecutorInput, verify_batch};
 use prover_utils::read_env_var;
 #[cfg(feature = "local")]
 use sp1_sdk::CpuProver;
@@ -31,6 +31,40 @@ const MAX_PROVE_BLOCKS: usize = 4096;
 pub struct BatchProver<C> {
     prover_client: C,
     pk: SP1ProvingKey,
+}
+
+/// A natively verified batch, with its original witness serialized if SP1 will use it.
+pub struct PreparedBatch {
+    witness: Option<String>,
+    expected_hash: B256,
+    batch_header: [u8; 64],
+    devnet: bool,
+    prove: bool,
+}
+
+impl PreparedBatch {
+    fn new(input: ExecutorInput, prove: bool, devnet: bool) -> Result<Self, anyhow::Error> {
+        if input.block_inputs.len() > MAX_PROVE_BLOCKS {
+            bail!(
+                "check block_traces, blocks len = {} exceeds MAX_PROVE_BLOCKS = {}",
+                input.block_inputs.len(),
+                MAX_PROVE_BLOCKS
+            );
+        }
+
+        // Keep the original pre-state for SP1; native verification consumes and mutates it.
+        let witness = if prove || devnet { Some(serde_json::to_string(&input)?) } else { None };
+        let verified = verify_batch(input).context("native execution failed")?;
+        let mut batch_header = [0u8; 64];
+        batch_header[..32].copy_from_slice(verified.data_hash.as_slice());
+        batch_header[32..].copy_from_slice(verified.blob_input.as_slice());
+        Ok(Self { witness, expected_hash: verified.public_input_hash, batch_header, devnet, prove })
+    }
+
+    /// The server's batch header: data hash followed by the aggregated blob hash.
+    pub fn batch_header(&self) -> &[u8; 64] {
+        &self.batch_header
+    }
 }
 
 #[cfg(feature = "local")]
@@ -73,36 +107,46 @@ impl BatchProver<DefaultClient> {
 }
 
 impl BatchProver<DefaultClient> {
+    /// Verifies the batch once in native execution and prepares any inputs needed by SP1.
+    pub fn prepare_batch(
+        input: ExecutorInput,
+        prove: bool,
+    ) -> Result<PreparedBatch, anyhow::Error> {
+        PreparedBatch::new(input, prove, read_env_var("DEVNET", false))
+    }
+
     /// Proves a batch of EVM transactions and verifies the proof.
     pub async fn prove(
         &self,
-        input: &mut ExecutorInput,
+        input: ExecutorInput,
         prove: bool,
     ) -> Result<Option<EvmProofFixture>, anyhow::Error> {
+        self.prove_prepared(Self::prepare_batch(input, prove)?).await
+    }
+
+    /// Runs the SP1 steps without repeating native verification.
+    pub async fn prove_prepared(
+        &self,
+        batch: PreparedBatch,
+    ) -> Result<Option<EvmProofFixture>, anyhow::Error> {
+        let PreparedBatch { witness, expected_hash, devnet, prove, .. } = batch;
         let program_hash = keccak256(BATCH_VERIFIER_ELF);
         log::info!("Program Hash [view on Explorer]:");
         log::info!("{}", alloy::hex::encode_prefixed(program_hash));
-
-        if input.block_inputs.len() > MAX_PROVE_BLOCKS {
-            bail!(
-                "check block_traces, blocks len = {} exceeds MAX_PROVE_BLOCKS = {}",
-                input.block_inputs.len(),
-                MAX_PROVE_BLOCKS
-            );
-        }
-
-        // Execute in native and prepare input.
-        let expected_hash = verify(input.clone()).context("native execution failed")?;
         log::info!(
             "pi_hash generated with native execution: {}",
             alloy::hex::encode_prefixed(expected_hash.as_slice())
         );
 
-        // Execute the program in sp1-vm
+        let Some(witness) = witness else {
+            log::info!("Execution completed, No prove request, skipping...");
+            return Ok(None);
+        };
         let mut stdin = SP1Stdin::new();
-        stdin.write(&serde_json::to_string(&input)?);
+        stdin.write(&witness);
+        drop(witness);
 
-        if read_env_var("DEVNET", false) {
+        if devnet {
             let (mut public_values, execution_report) = self
                 .prover_client
                 .execute(Elf::Static(BATCH_VERIFIER_ELF), stdin.clone())
@@ -302,16 +346,67 @@ impl std::fmt::Display for NetworkFailure {
 
 #[cfg(test)]
 mod tests {
-
-    use sp1_sdk::{
-        Elf, HashableKey, Prover, ProverClient, ProvingKey, SP1ProofWithPublicValues, network::B256,
+    use alloy::primitives::keccak256;
+    use alloy_primitives::B256;
+    use prover_executor_client::{
+        BlobVerifier, EVMVerifier, EvmVerificationError,
+        types::{error::ClientError, input::ExecutorInput},
     };
+    use prover_executor_host::blob::get_blob_infos_from_blocks;
+    use sp1_sdk::{Elf, HashableKey, Prover, ProverClient, ProvingKey, SP1ProofWithPublicValues};
     use sp1_verifier::PlonkVerifier;
 
     use crate::{
-        BATCH_VERIFIER_ELF,
+        BATCH_VERIFIER_ELF, PreparedBatch,
         evm::{EvmProofFixture, save_plonk_fixture},
     };
+
+    fn batch_input() -> ExecutorInput {
+        let block_inputs: Vec<prover_executor_host::ClientBlockInput> =
+            serde_json::from_str(include_str!("../../../testdata/block_inputs/mainnet_25215.json"))
+                .unwrap();
+        let blob_infos =
+            get_blob_infos_from_blocks(block_inputs.iter().map(|b| &b.current_block)).unwrap();
+        ExecutorInput { block_inputs, blob_infos }
+    }
+
+    #[test]
+    fn prepare_batch_preserves_sp1_witness_and_header() {
+        let input = batch_input();
+        let prepared = PreparedBatch::new(input.clone(), true, false).unwrap();
+        let decoded: ExecutorInput =
+            serde_json::from_str(prepared.witness.as_deref().unwrap()).unwrap();
+        assert_eq!(decoded.block_inputs, input.block_inputs);
+
+        let (versioned_hashes, _) = BlobVerifier::verify_blobs(&decoded.blob_infos).unwrap();
+        assert_eq!(versioned_hashes.len(), 1);
+        let batch_info = EVMVerifier::verify(decoded.block_inputs).unwrap();
+        let blob_input = keccak256(versioned_hashes[0].as_slice());
+        assert_eq!(&prepared.batch_header()[..32], batch_info.data_hash().as_slice());
+        assert_eq!(&prepared.batch_header()[32..], blob_input.as_slice());
+        assert_eq!(prepared.expected_hash, batch_info.public_input_hash(&versioned_hashes));
+
+        let native_only = PreparedBatch::new(input, false, false).unwrap();
+        assert!(native_only.witness.is_none());
+        assert_eq!(native_only.batch_header(), prepared.batch_header());
+        assert_eq!(native_only.expected_hash, prepared.expected_hash);
+    }
+
+    #[test]
+    fn prepare_batch_distinguishes_evm_errors_from_da_errors() {
+        let mut input = batch_input();
+        input.block_inputs[0].current_block.header.inner.mix_hash = B256::with_last_byte(1);
+        let err = PreparedBatch::new(input.clone(), false, false).err().unwrap();
+        assert!(matches!(
+            err.downcast_ref::<EvmVerificationError>(),
+            Some(EvmVerificationError(ClientError::InvalidHeaderMixHash { .. }))
+        ));
+
+        input.blob_infos[0].blob_data.clear();
+        let err = PreparedBatch::new(input, false, false).err().unwrap();
+        assert!(matches!(err.downcast_ref::<ClientError>(), Some(ClientError::VerifyRawError(_))));
+        assert!(err.downcast_ref::<EvmVerificationError>().is_none());
+    }
 
     #[tokio::test]
     pub async fn verify_proof() {

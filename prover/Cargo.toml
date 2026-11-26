@@ -128,15 +128,15 @@ revm = { version = "42.0.1", features = [
     "optional_eip7623",
 ], default-features = false }
 reth-primitives-traits = { version = "0.6.0", default-features = false }
-reth-evm = { git = "https://github.com/paradigmxyz/reth", tag = "v2.5.2", default-features = false }
-reth-execution-types = { git = "https://github.com/paradigmxyz/reth", tag = "v2.5.2", default-features = false }
-reth-storage-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v2.5.2", default-features = false }
-reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v2.5.2", default-features = false }
-morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "port-sp1-zkvm-build-fixes" }
-morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", branch = "port-sp1-zkvm-build-fixes" }
-morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", branch = "port-sp1-zkvm-build-fixes" }
-morph-evm = { git = "https://github.com/morph-l2/morph-reth.git", branch = "port-sp1-zkvm-build-fixes" }
-morph-rpc = { git = "https://github.com/morph-l2/morph-reth.git", branch = "port-sp1-zkvm-build-fixes", default-features = false }
+reth-evm = {  git = "https://github.com/morph-l2/reth", tag = "v2.5.2-morph.1", default-features = false }
+reth-execution-types = {  git = "https://github.com/morph-l2/reth", tag = "v2.5.2-morph.1", default-features = false }
+reth-storage-errors = {  git = "https://github.com/morph-l2/reth", tag = "v2.5.2-morph.1", default-features = false }
+reth-trie = {  git = "https://github.com/morph-l2/reth", tag = "v2.5.2-morph.1", default-features = false }
+morph-revm = { git = "https://github.com/morph-l2/morph-reth.git", tag = "v1.5.0" }
+morph-primitives = { git = "https://github.com/morph-l2/morph-reth.git", tag = "v1.5.0" }
+morph-chainspec = { git = "https://github.com/morph-l2/morph-reth.git", tag = "v1.5.0" }
+morph-evm = { git = "https://github.com/morph-l2/morph-reth.git", tag = "v1.5.0" }
+morph-rpc = { git = "https://github.com/morph-l2/morph-reth.git", tag = "v1.5.0", default-features = false }
 
 
 # ZK / SP1
