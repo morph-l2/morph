@@ -32,6 +32,7 @@ def main():
     ap.add_argument("--run-dir", required=True)
     ap.add_argument("--tendermint", required=True)
     ap.add_argument("--geth", required=True)
+    ap.add_argument("--genesis", help="L2 genesis file (genesis-l2.json); default: run/l1/genesis/genesis-l2.json next to the run dir")
     a = ap.parse_args()
     docker_dir = os.path.join(a.morph, "ops", "docker")
     run_dir = os.path.abspath(a.run_dir)
@@ -85,7 +86,9 @@ def main():
     open(p0, "w").write(c0)
 
     # ---- morph-el-2: same genesis as the others, nodekey2, static peers to el-0 / el-1 (loopback ports from morph-native.sh)
-    genesis = os.path.join(run_dir, "..", "l1", "genesis", "genesis-l2.json")
+    # must be the genesis of the deployment this chain belongs to (L1_RUN), not whatever sits in run/l1: a different genesis hash
+    # makes node-2 reject node-0's blocks ("wrong parent hash") and node-0 then has no tendermint peer
+    genesis = a.genesis or os.path.join(run_dir, "..", "l1", "genesis", "genesis-l2.json")
     os.makedirs(os.path.join(el2, "geth"))
     shutil.copyfile(os.path.join(docker_dir, "nodekey2"), os.path.join(el2, "geth", "nodekey"))
     subprocess.run([a.geth, "--verbosity=3", "init", f"--datadir={el2}", os.path.abspath(genesis)], check=True,

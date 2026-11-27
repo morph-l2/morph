@@ -236,7 +236,7 @@ cmd_setup() {
     --genesis "${L1_RUN}/genesis/genesis-l2.json" \
     --tendermint "${BIN}/morphnode/tendermint" --geth "${BIN}/morph-geth/geth"
   # node-0 cannot resume block production after a restart unless another tendermint node is its peer (notes/issues.md I-028)
-  python3 -I "${ROOT}/scripts/add-node2.py" --morph "${MORPH}" --run-dir "${L2_RUN}" \
+  python3 -I "${ROOT}/scripts/add-node2.py" --morph "${MORPH}" --run-dir "${L2_RUN}" --genesis "${L1_RUN}/genesis/genesis-l2.json" \
     --tendermint "${BIN}/morphnode/tendermint" --geth "${BIN}/morph-geth/geth"
 }
 
